@@ -1,19 +1,18 @@
 import type { Metadata } from "next";
+import { siteHomepageUrl, siteUrl } from "@/lib/site";
 import "./globals.css";
-
-const siteUrl = "https://ahanassa.com";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: "آهن آسا | تأمین آهن‌آلات مطابق نیاز شما",
   description: "آهن آسا؛ تأمین آهن‌آلات مطابق نیاز شما.",
   alternates: {
-    canonical: "/",
+    canonical: siteHomepageUrl,
   },
   openGraph: {
     type: "website",
     locale: "fa_IR",
-    url: siteUrl,
+    url: siteHomepageUrl,
     siteName: "آهن آسا",
     title: "آهن آسا | تأمین آهن‌آلات مطابق نیاز شما",
     description: "آهن آسا؛ تأمین آهن‌آلات مطابق نیاز شما.",

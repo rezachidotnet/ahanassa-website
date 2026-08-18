@@ -1,11 +1,11 @@
-const siteUrl = "https://ahanassa.com/";
+import { siteHomepageUrl } from "@/lib/site";
 
 export default function HomePage() {
   const websiteSchema = {
     "@context": "https://schema.org",
     "@type": "WebSite",
     name: "آهن آسا",
-    url: siteUrl,
+    url: siteHomepageUrl,
     inLanguage: "fa-IR",
   };
 
@@ -36,7 +36,7 @@ export default function HomePage() {
 
       <footer className="site-footer">
         <p>آهن آسا</p>
-        <p dir="ltr">ahanassa.com</p>
+        <p dir="ltr">www.ahanassa.com</p>
       </footer>
 
       <script
