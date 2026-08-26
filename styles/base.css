@@ -1,0 +1,74 @@
+/**
+ * Base reset and accessibility primitives. Kept minimal and framework-
+ * agnostic — Tailwind utility classes handle most component styling.
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  background: var(--aa-color-bg-canvas);
+  color: var(--aa-color-text-primary);
+  font-size: var(--aa-text-body-md);
+  line-height: var(--aa-leading-body-md);
+}
+
+a {
+  color: inherit;
+}
+
+img,
+svg {
+  max-width: 100%;
+  display: block;
+}
+
+/* Visible focus state — required baseline (ACCESSIBILITY.md §10.1). */
+:focus-visible {
+  outline: 2px solid var(--aa-color-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--aa-radius-xs);
+}
+
+/* Skip link: visually hidden until focused, then pinned to the top. */
+.skip-link {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0;
+  transform: translateY(-100%);
+  z-index: var(--aa-z-toast);
+  background: var(--aa-color-brand-navy-900);
+  color: var(--aa-color-white);
+  padding: 0.75rem 1.25rem;
+  border-radius: 0 0 var(--aa-radius-sm) 0;
+  font-weight: var(--aa-font-weight-medium);
+  transition: transform var(--aa-motion-fast) var(--aa-ease-standard);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+/* Isolate embedded LTR fragments (phone numbers, codes, URLs) inside RTL text. */
+.aa-technical-value {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

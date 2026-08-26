@@ -32,14 +32,39 @@
 	 * Bindings allow your Worker to interact with resources on the Cloudflare Developer Platform, including
 	 * databases, object storage, AI inference, real-time communication and more.
 	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
+	 *
+	 * Phase 1 foundation note: the names below match ENVIRONMENT_VARIABLES.md
+	 * (02-sources), the authoritative binding registry for this project —
+	 * see DOCS_INDEX.md §8. These are commented out because no D1 database,
+	 * R2 bucket, or Queue has actually been provisioned yet, and Phase 1
+	 * explicitly excludes implementing the commercial schema / Odoo sync.
+	 * Uncomment and fill in real resource IDs only once those resources are
+	 * created — never fabricate a database_id/bucket_name/queue id here.
+	 *
+	 * // "d1_databases": [
+	 * //   { "binding": "DB_PUBLIC", "database_name": "ahanassa-public", "database_id": "<provision-and-fill-in>" },
+	 * //   { "binding": "DB_OPS", "database_name": "ahanassa-ops", "database_id": "<provision-and-fill-in>" }
+	 * // ],
+	 * // "r2_buckets": [
+	 * //   { "binding": "PUBLIC_MEDIA", "bucket_name": "ahanassa-public-media" },
+	 * //   { "binding": "RFQ_ATTACHMENTS", "bucket_name": "ahanassa-rfq-attachments" }
+	 * // ],
+	 * // "queues": {
+	 * //   "producers": [{ "binding": "ODOO_SYNC_QUEUE", "queue": "ahanassa-odoo-sync" }]
+	 * // }
 	 */
 	/**
 	 * Environment Variables
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
 	 * Note: Use secrets to store sensitive data.
 	 * https://developers.cloudflare.com/workers/configuration/secrets/
+	 *
+	 * Plain (non-secret) vars belong here per environment; see .env.example
+	 * for the full documented list. Cloudflare bindings/vars do not inherit
+	 * across "env" blocks — each environment repeats its own vars in full
+	 * once staging/production environments are added.
 	 */
-	// "vars": {  "MY_VARIABLE": "production_value" }
+	// "vars": { "APP_ENV": "local", "APP_BASE_URL": "http://localhost:3001" }
 	/**
 	 * Service Bindings (communicate between multiple Workers)
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings

@@ -1,0 +1,146 @@
+/**
+ * Ahan Asa design tokens — CSS custom properties.
+ * Source: DESIGN_SYSTEM.md / BRAND_GUIDELINES.md (01-sources), via this
+ * session's Phase 1 architecture brief. Components should reference these
+ * variables rather than hardcoding hex/px values.
+ */
+
+:root {
+  /* Brand colors */
+  --aa-color-brand-navy-900: #0b2545;
+  --aa-color-brand-copper-600: #b04a2f;
+  --aa-color-white: #ffffff;
+  --aa-color-brand-cream-50: #fbf5eb;
+
+  /* Neutrals */
+  --aa-color-neutral-950: #101828;
+  --aa-color-neutral-800: #1d2939;
+  --aa-color-neutral-700: #344054;
+  --aa-color-neutral-600: #475467;
+  --aa-color-neutral-500: #667085;
+  --aa-color-neutral-300: #d0d5dd;
+  --aa-color-neutral-200: #eaecf0;
+  --aa-color-neutral-100: #f2f4f7;
+  --aa-color-neutral-50: #f9fafb;
+
+  /* Functional */
+  --aa-color-success-700: #157347;
+  --aa-color-success-50: #ecfdf3;
+  --aa-color-warning-800: #854d0e;
+  --aa-color-warning-50: #fffbeb;
+  --aa-color-danger-700: #b42318;
+  --aa-color-danger-50: #fef3f2;
+  --aa-color-info-700: #175cd3;
+  --aa-color-info-50: #eff8ff;
+
+  /* Semantic (light theme) */
+  --aa-color-bg-canvas: #ffffff;
+  --aa-color-bg-subtle: var(--aa-color-neutral-50);
+  --aa-color-bg-warm: var(--aa-color-brand-cream-50);
+  --aa-color-bg-muted: var(--aa-color-neutral-100);
+  --aa-color-bg-inverse: var(--aa-color-brand-navy-900);
+  --aa-color-text-primary: var(--aa-color-neutral-950);
+  --aa-color-text-secondary: var(--aa-color-neutral-600);
+  --aa-color-text-tertiary: var(--aa-color-neutral-500);
+  --aa-color-text-brand: var(--aa-color-brand-navy-900);
+  --aa-color-text-accent: var(--aa-color-brand-copper-600);
+  --aa-color-text-inverse: var(--aa-color-white);
+  --aa-color-border-subtle: var(--aa-color-neutral-200);
+  --aa-color-border-strong: var(--aa-color-neutral-300);
+  --aa-color-action-primary-bg: var(--aa-color-brand-navy-900);
+  --aa-color-action-primary-bg-hover: #12355f;
+  --aa-color-action-primary-bg-active: #071c35;
+  --aa-color-action-accent-bg: var(--aa-color-brand-copper-600);
+  --aa-color-action-accent-bg-hover: #963d27;
+  --aa-color-action-accent-bg-active: #7e321f;
+  --aa-color-focus-ring: var(--aa-color-brand-copper-600);
+
+  /* Typography scale (size/line-height) */
+  --aa-text-display-xl: clamp(2.75rem, 6vw, 5.75rem);
+  --aa-leading-display-xl: 1.05;
+  --aa-text-display-lg: clamp(2.25rem, 4.5vw, 4.5rem);
+  --aa-leading-display-lg: 1.1;
+  --aa-text-display-md: clamp(2rem, 3.5vw, 3.5rem);
+  --aa-leading-display-md: 1.15;
+  --aa-text-heading-lg: clamp(1.75rem, 2.5vw, 2.5rem);
+  --aa-leading-heading-lg: 1.25;
+  --aa-text-heading-md: clamp(1.375rem, 2vw, 1.75rem);
+  --aa-leading-heading-md: 1.35;
+  --aa-text-heading-sm: 1.125rem;
+  --aa-leading-heading-sm: 1.45;
+  --aa-text-body-lg: 1.125rem;
+  --aa-leading-body-lg: 1.9;
+  --aa-text-body-md: 1rem;
+  --aa-leading-body-md: 1.85;
+  --aa-text-body-sm: 0.875rem;
+  --aa-leading-body-sm: 1.75;
+  --aa-text-label: 0.875rem;
+  --aa-leading-label: 1.5;
+  --aa-text-caption: 0.75rem;
+  --aa-leading-caption: 1.6;
+
+  --aa-font-weight-regular: 400;
+  --aa-font-weight-medium: 500;
+  --aa-font-weight-semibold: 600;
+  --aa-font-weight-bold: 700;
+
+  /* Radius */
+  --aa-radius-xs: 0.25rem;
+  --aa-radius-sm: 0.5rem;
+  --aa-radius-md: 0.75rem;
+  --aa-radius-lg: 1rem;
+  --aa-radius-xl: 1.5rem;
+  --aa-radius-pill: 999px;
+
+  /* Shadow */
+  --aa-shadow-xs: 0 1px 2px rgb(16 24 40 / 0.05);
+  --aa-shadow-sm: 0 4px 12px rgb(16 24 40 / 0.07);
+  --aa-shadow-md: 0 12px 32px rgb(16 24 40 / 0.1);
+  --aa-shadow-focus: 0 0 0 4px rgb(176 74 47 / 0.2);
+
+  /* Container / layout */
+  --aa-container-max: 80rem;
+  --aa-reading-max: 46rem;
+  --aa-page-gutter: clamp(1rem, 3vw, 2rem);
+
+  /* Breakpoints (reference values; use in media queries directly) */
+  --aa-breakpoint-sm: 30rem;
+  --aa-breakpoint-md: 48rem;
+  --aa-breakpoint-lg: 64rem;
+  --aa-breakpoint-xl: 80rem;
+  --aa-breakpoint-2xl: 96rem;
+
+  /* Motion */
+  --aa-motion-instant: 80ms;
+  --aa-motion-fast: 160ms;
+  --aa-motion-base: 240ms;
+  --aa-motion-slow: 400ms;
+  --aa-motion-reveal: 600ms;
+  --aa-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --aa-ease-enter: cubic-bezier(0, 0, 0, 1);
+  --aa-ease-exit: cubic-bezier(0.3, 0, 1, 1);
+
+  /* Z-index (no scale defined in source docs — minimal foundation, document
+     here rather than inventing per-component values ad hoc) */
+  --aa-z-dropdown: 10;
+  --aa-z-sticky: 20;
+  --aa-z-overlay: 30;
+  --aa-z-modal: 40;
+  --aa-z-toast: 50;
+
+  /*
+   * Typography — fallback stacks only. No licensed font files exist in the
+   * repository yet (Estedad Variable for Persian is the approved baseline
+   * per FONT_STRATEGY.md, but the actual font asset has not been supplied,
+   * and Arabic has no family decision at all — see DOCUMENT_AUDIT_REPORT.md
+   * DAR-017). This is a non-blocking dependency for Phase 1: once approved
+   * font files are added (e.g. under /public/fonts/), wire them via
+   * next/font/local and replace these system-font fallbacks with the
+   * licensed family name as the first entry in each stack. Arabic must
+   * never silently fall back to the Persian family — it gets its own
+   * system-font stack, not --aa-font-family-fa, per FONT_STRATEGY.md §13.
+   */
+  --aa-font-family-fa: Tahoma, Arial, sans-serif;
+  --aa-font-family-ar: Tahoma, "Segoe UI", Arial, sans-serif;
+  --aa-font-family-en: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}
