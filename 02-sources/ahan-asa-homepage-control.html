@@ -1,0 +1,836 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <meta name="description" content="نسخه کنترل داخلی صفحه اصلی آهن آسا بر اساس مستندات پروژه؛ این توضیح متای تولید نیست." />
+  <link rel="canonical" href="https://www.ahanassa.com/" />
+  <link rel="alternate" hreflang="fa" href="https://www.ahanassa.com/" />
+  <link rel="alternate" hreflang="en" href="https://www.ahanassa.com/en/" />
+  <link rel="alternate" hreflang="ar" href="https://www.ahanassa.com/ar/" />
+  <link rel="alternate" hreflang="x-default" href="https://www.ahanassa.com/" />
+  <title>آهن آسا — نسخه کنترل صفحه اصلی</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --aa-color-brand-navy-900: #0B2545;
+      --aa-color-brand-copper-600: #B04A2F;
+      --aa-color-white: #FFFFFF;
+      --aa-color-brand-cream-50: #FBF5EB;
+      --aa-color-neutral-950: #101828;
+      --aa-color-neutral-800: #1D2939;
+      --aa-color-neutral-700: #344054;
+      --aa-color-neutral-600: #475467;
+      --aa-color-neutral-500: #667085;
+      --aa-color-neutral-300: #D0D5DD;
+      --aa-color-neutral-200: #EAECF0;
+      --aa-color-neutral-100: #F2F4F7;
+      --aa-color-neutral-50: #F9FAFB;
+
+      --aa-color-bg-canvas: var(--aa-color-white);
+      --aa-color-bg-subtle: var(--aa-color-neutral-50);
+      --aa-color-bg-warm: var(--aa-color-brand-cream-50);
+      --aa-color-bg-muted: var(--aa-color-neutral-100);
+      --aa-color-bg-inverse: var(--aa-color-brand-navy-900);
+      --aa-color-surface-primary: var(--aa-color-white);
+      --aa-color-text-primary: var(--aa-color-neutral-950);
+      --aa-color-text-secondary: var(--aa-color-neutral-600);
+      --aa-color-text-tertiary: var(--aa-color-neutral-500);
+      --aa-color-text-brand: var(--aa-color-brand-navy-900);
+      --aa-color-text-accent: var(--aa-color-brand-copper-600);
+      --aa-color-text-inverse: var(--aa-color-white);
+      --aa-color-border-subtle: var(--aa-color-neutral-200);
+      --aa-color-border-strong: var(--aa-color-neutral-300);
+      --aa-color-action-primary-bg: var(--aa-color-brand-navy-900);
+      --aa-color-action-primary-text: var(--aa-color-white);
+      --aa-color-action-primary-hover: #12355F;
+      --aa-color-action-primary-active: #071C35;
+      --aa-color-action-secondary-bg: var(--aa-color-white);
+      --aa-color-action-secondary-text: var(--aa-color-brand-navy-900);
+      --aa-color-action-secondary-border: var(--aa-color-brand-navy-900);
+      --aa-color-action-secondary-hover: var(--aa-color-neutral-100);
+      --aa-color-focus-ring: var(--aa-color-brand-copper-600);
+
+      --aa-container-max: 78rem;
+      --aa-reading-max: 44rem;
+      --aa-radius-sm: .5rem;
+      --aa-radius-md: .85rem;
+      --aa-radius-lg: 1.35rem;
+      --aa-shadow-xs: 0 1px 2px rgba(16,24,40,.05);
+      --aa-shadow-sm: 0 10px 28px rgba(11,37,69,.08);
+      --aa-section-space: clamp(4.25rem, 7vw, 7.5rem);
+      --aa-gutter: clamp(1rem, 3vw, 2rem);
+      --aa-focus: 0 0 0 3px rgba(176,74,47,.3);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--aa-color-bg-canvas);
+      color: var(--aa-color-text-primary);
+      font-family: Tahoma, Arial, sans-serif;
+      font-size: 1rem;
+      line-height: 1.85;
+      text-rendering: auto;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; }
+    img, svg { max-width: 100%; }
+    button, input, select, textarea { font: inherit; }
+    ::selection { background: #F1D9D0; color: var(--aa-color-text-brand); }
+
+    :focus-visible {
+      outline: 3px solid var(--aa-color-focus-ring);
+      outline-offset: 3px;
+    }
+
+    .skip-link {
+      position: fixed;
+      inset-block-start: .75rem;
+      inset-inline-start: .75rem;
+      z-index: 1000;
+      transform: translateY(-180%);
+      padding: .7rem 1rem;
+      border-radius: var(--aa-radius-sm);
+      background: var(--aa-color-bg-inverse);
+      color: var(--aa-color-text-inverse);
+      text-decoration: none;
+    }
+    .skip-link:focus { transform: translateY(0); }
+
+    .control-badge {
+      position: fixed;
+      inset-inline-end: .75rem;
+      inset-block-end: .75rem;
+      z-index: 30;
+      display: inline-flex;
+      gap: .45rem;
+      align-items: center;
+      padding: .4rem .65rem;
+      border: 1px solid var(--aa-color-border-strong);
+      border-radius: 999px;
+      background: rgba(255,255,255,.94);
+      color: var(--aa-color-text-secondary);
+      box-shadow: var(--aa-shadow-xs);
+      font-size: .75rem;
+    }
+    .control-badge::before {
+      content: "";
+      width: .45rem;
+      height: .45rem;
+      border-radius: 50%;
+      background: var(--aa-color-brand-copper-600);
+    }
+
+    .container {
+      width: min(100% - (2 * var(--aa-gutter)), var(--aa-container-max));
+      margin-inline: auto;
+    }
+
+    .site-header {
+      position: sticky;
+      inset-block-start: 0;
+      z-index: 50;
+      background: rgba(255,255,255,.97);
+      border-block-end: 1px solid var(--aa-color-border-subtle);
+      backdrop-filter: blur(10px);
+    }
+    .header-inner {
+      min-height: 5rem;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 1.5rem;
+    }
+    .brand-link {
+      display: inline-flex;
+      align-items: center;
+      gap: .8rem;
+      text-decoration: none;
+      color: var(--aa-color-text-brand);
+      white-space: nowrap;
+    }
+    .logo-placeholder {
+      width: 3rem;
+      aspect-ratio: 1;
+      display: grid;
+      place-items: center;
+      border: 1px dashed var(--aa-color-border-strong);
+      border-radius: var(--aa-radius-sm);
+      color: var(--aa-color-text-tertiary);
+      font-size: .62rem;
+      font-weight: 700;
+    }
+    .brand-name { font-size: 1.08rem; font-weight: 800; line-height: 1.2; }
+    .brand-desc { display: block; margin-block-start: .1rem; color: var(--aa-color-text-tertiary); font-size: .7rem; font-weight: 400; }
+
+    .primary-nav { justify-self: center; }
+    .nav-list {
+      display: flex;
+      align-items: center;
+      gap: clamp(.8rem, 2vw, 1.4rem);
+      padding: 0;
+      margin: 0;
+      list-style: none;
+    }
+    .nav-list a {
+      display: inline-flex;
+      min-height: 2.75rem;
+      align-items: center;
+      color: var(--aa-color-text-secondary);
+      font-size: .88rem;
+      text-decoration: none;
+    }
+    .nav-list a:hover { color: var(--aa-color-text-brand); }
+
+    .header-actions { display: flex; align-items: center; gap: .65rem; }
+    .locale-switcher {
+      display: flex;
+      align-items: center;
+      border: 1px solid var(--aa-color-border-subtle);
+      border-radius: 999px;
+      padding: .2rem;
+      background: var(--aa-color-bg-subtle);
+      direction: ltr;
+    }
+    .locale-switcher a {
+      display: grid;
+      min-width: 2.3rem;
+      min-height: 2.3rem;
+      place-items: center;
+      border-radius: 999px;
+      color: var(--aa-color-text-secondary);
+      font-size: .72rem;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .locale-switcher a[aria-current="page"] {
+      background: var(--aa-color-white);
+      color: var(--aa-color-text-brand);
+      box-shadow: var(--aa-shadow-xs);
+    }
+
+    .button {
+      display: inline-flex;
+      min-height: 3rem;
+      align-items: center;
+      justify-content: center;
+      padding-inline: 1.15rem;
+      border: 1px solid transparent;
+      border-radius: .72rem;
+      font-weight: 700;
+      line-height: 1.4;
+      text-align: center;
+      text-decoration: none;
+      transition: background-color .16s ease, border-color .16s ease, color .16s ease, transform .16s ease;
+    }
+    .button:active { transform: translateY(1px); }
+    .button-primary { background: var(--aa-color-action-primary-bg); color: var(--aa-color-action-primary-text); }
+    .button-primary:hover { background: var(--aa-color-action-primary-hover); }
+    .button-secondary { border-color: var(--aa-color-action-secondary-border); background: var(--aa-color-action-secondary-bg); color: var(--aa-color-action-secondary-text); }
+    .button-secondary:hover { background: var(--aa-color-action-secondary-hover); }
+    .button-on-dark { background: var(--aa-color-white); color: var(--aa-color-text-brand); }
+    .button-on-dark:hover { background: var(--aa-color-neutral-100); }
+
+    .mobile-nav { display: none; }
+
+    main { overflow: clip; }
+    .section { padding-block: var(--aa-section-space); }
+    .section-subtle { background: var(--aa-color-bg-subtle); }
+    .section-warm { background: var(--aa-color-bg-warm); }
+    .section-dark { background: var(--aa-color-bg-inverse); color: var(--aa-color-text-inverse); }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: .65rem;
+      margin: 0 0 .9rem;
+      color: var(--aa-color-text-accent);
+      font-size: .78rem;
+      font-weight: 800;
+    }
+    .eyebrow::before {
+      content: "";
+      width: 2.1rem;
+      height: 2px;
+      background: currentColor;
+    }
+    .section-dark .eyebrow { color: #F1D9D0; }
+
+    h1, h2, h3, p { margin-block-start: 0; }
+    h1, h2, h3 { color: var(--aa-color-text-brand); line-height: 1.35; text-wrap: balance; }
+    .section-dark h2, .section-dark h3 { color: var(--aa-color-text-inverse); }
+    h1 { margin-block-end: 1.35rem; font-size: clamp(2.35rem, 6vw, 5.2rem); font-weight: 800; letter-spacing: -.02em; }
+    h2 { margin-block-end: 1.1rem; font-size: clamp(1.75rem, 3.7vw, 3rem); font-weight: 800; }
+    h3 { margin-block-end: .55rem; font-size: clamp(1.05rem, 1.7vw, 1.28rem); font-weight: 800; }
+    .lead { max-width: 42rem; color: var(--aa-color-text-secondary); font-size: clamp(1rem, 1.5vw, 1.17rem); }
+    .section-dark .lead { color: rgba(255,255,255,.78); }
+    .section-intro { max-width: var(--aa-reading-max); margin-block-end: clamp(2.2rem, 4vw, 3.6rem); }
+
+    .hero {
+      padding-block: clamp(4.6rem, 9vw, 8.3rem);
+      background:
+        linear-gradient(90deg, transparent 0 48%, rgba(251,245,235,.6) 48% 100%);
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(20rem, .95fr);
+      gap: clamp(2.5rem, 7vw, 6.8rem);
+      align-items: center;
+    }
+    .hero-copy { max-width: 43rem; }
+    .hero-copy .lead { margin-block-end: 1.8rem; }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
+    .slogan {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      margin-block-start: 2rem;
+      color: var(--aa-color-text-brand);
+      font-weight: 800;
+    }
+    .slogan span:first-child {
+      display: inline-block;
+      width: .55rem;
+      height: .55rem;
+      border-radius: 50%;
+      background: var(--aa-color-brand-copper-600);
+    }
+
+    .hero-evidence {
+      position: relative;
+      min-height: 31rem;
+      display: grid;
+      place-items: center;
+    }
+    .document-frame {
+      width: min(100%, 31rem);
+      min-height: 25rem;
+      padding: 2rem;
+      border: 1px solid var(--aa-color-border-subtle);
+      border-radius: var(--aa-radius-lg);
+      background: var(--aa-color-white);
+      box-shadow: var(--aa-shadow-sm);
+      transform: rotate(-1.2deg);
+    }
+    .doc-top { display: flex; justify-content: space-between; gap: 1rem; align-items: center; padding-block-end: 1rem; border-block-end: 1px solid var(--aa-color-border-subtle); }
+    .doc-label { color: var(--aa-color-text-tertiary); font-size: .72rem; }
+    .doc-title { margin: .2rem 0 0; color: var(--aa-color-text-brand); font-weight: 800; }
+    .doc-status { padding: .35rem .55rem; border-radius: 999px; background: var(--aa-color-bg-warm); color: var(--aa-color-text-accent); font-size: .68rem; font-weight: 800; }
+    .doc-rows { display: grid; gap: 1rem; margin-block: 1.5rem; }
+    .doc-row { display: grid; grid-template-columns: 2.1rem 1fr auto; gap: .8rem; align-items: center; }
+    .doc-row-num { color: var(--aa-color-text-accent); font-weight: 800; }
+    .doc-row-text strong { display: block; color: var(--aa-color-text-brand); font-size: .9rem; }
+    .doc-row-text span { color: var(--aa-color-text-tertiary); font-size: .73rem; }
+    .doc-check { width: .75rem; height: .75rem; border: 1px solid var(--aa-color-brand-copper-600); border-radius: 50%; }
+    .doc-note { margin: 0; padding-block-start: 1rem; border-block-start: 1px solid var(--aa-color-border-subtle); color: var(--aa-color-text-tertiary); font-size: .72rem; }
+    .hero-caption { position: absolute; inset-inline-end: 0; inset-block-end: 1.2rem; max-width: 18rem; padding: .7rem .85rem; border-radius: .7rem; background: var(--aa-color-brand-navy-900); color: var(--aa-color-white); font-size: .72rem; box-shadow: var(--aa-shadow-sm); }
+
+    .problem-layout {
+      display: grid;
+      grid-template-columns: minmax(0, .78fr) minmax(0, 1.22fr);
+      gap: clamp(2.5rem, 7vw, 6rem);
+      align-items: start;
+    }
+    .problem-statement { position: sticky; inset-block-start: 7.5rem; }
+    .problem-statement blockquote { margin: 1.6rem 0 0; padding-inline-start: 1rem; border-inline-start: 3px solid var(--aa-color-brand-copper-600); color: var(--aa-color-text-secondary); }
+    .risk-groups { display: grid; gap: 1.25rem; }
+    .risk-group { display: grid; grid-template-columns: minmax(8.8rem, .32fr) 1fr; gap: 1.5rem; padding-block: 1.2rem; border-block-start: 1px solid var(--aa-color-border-subtle); }
+    .risk-group:last-child { border-block-end: 1px solid var(--aa-color-border-subtle); }
+    .risk-group h3 { margin: 0; }
+    .risk-list { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: .6rem 1.4rem; padding: 0; margin: 0; list-style: none; color: var(--aa-color-text-secondary); }
+    .risk-list li { position: relative; padding-inline-start: 1rem; }
+    .risk-list li::before { content: ""; position: absolute; inset-inline-start: 0; inset-block-start: .8em; width: .34rem; height: .34rem; border-radius: 50%; background: var(--aa-color-brand-copper-600); }
+
+    .comparison-wrap { overflow-x: auto; border: 1px solid var(--aa-color-border-subtle); border-radius: var(--aa-radius-lg); background: var(--aa-color-white); box-shadow: var(--aa-shadow-xs); }
+    .comparison { width: 100%; min-width: 42rem; border-collapse: collapse; }
+    .comparison th, .comparison td { padding: 1.3rem 1.4rem; vertical-align: top; text-align: start; border-block-end: 1px solid var(--aa-color-border-subtle); }
+    .comparison th { background: var(--aa-color-bg-subtle); color: var(--aa-color-text-brand); font-size: .9rem; }
+    .comparison tr:last-child td { border-block-end: 0; }
+    .comparison td { color: var(--aa-color-text-secondary); }
+    .comparison td:last-child { color: var(--aa-color-text-primary); font-weight: 600; }
+
+    .process-list {
+      counter-reset: process;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1px;
+      padding: 1px;
+      margin: 0;
+      list-style: none;
+      background: var(--aa-color-border-subtle);
+      border: 1px solid var(--aa-color-border-subtle);
+      border-radius: var(--aa-radius-lg);
+      overflow: hidden;
+    }
+    .process-list li {
+      counter-increment: process;
+      min-height: 13rem;
+      padding: 1.5rem;
+      background: var(--aa-color-white);
+    }
+    .process-list li::before {
+      content: counter(process, decimal-leading-zero);
+      display: block;
+      margin-block-end: 2.1rem;
+      color: var(--aa-color-text-accent);
+      font-weight: 800;
+      font-size: .78rem;
+    }
+    .process-list p { margin: 0; color: var(--aa-color-text-secondary); font-size: .9rem; }
+    .section-link { display: inline-flex; margin-block-start: 1.6rem; color: var(--aa-color-text-brand); font-weight: 800; text-underline-offset: .3em; }
+
+    .pillar-layout {
+      display: grid;
+      grid-template-columns: minmax(0,.65fr) minmax(0,1.35fr);
+      gap: clamp(2.5rem, 7vw, 6rem);
+      align-items: start;
+    }
+    .pillar-lead { padding-block-start: .4rem; }
+    .pillar-lead .big-number { display: block; color: var(--aa-color-text-accent); font-size: clamp(3.4rem, 7vw, 6.8rem); font-weight: 800; line-height: 1; }
+    .pillar-list { margin: 0; }
+    .pillar-item { display: grid; grid-template-columns: 3rem 1fr; gap: 1.2rem; padding-block: 1.5rem; border-block-start: 1px solid var(--aa-color-border-subtle); }
+    .pillar-item:last-child { border-block-end: 1px solid var(--aa-color-border-subtle); }
+    .pillar-num { color: var(--aa-color-text-accent); font-weight: 800; }
+    .pillar-item dd { margin: .4rem 0 0; color: var(--aa-color-text-secondary); }
+
+    .evidence-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: clamp(2rem, 5vw, 4rem); align-items: center; }
+    .control-note {
+      display: flex;
+      gap: .8rem;
+      align-items: flex-start;
+      margin-block: 1.5rem;
+      padding: 1rem 1.1rem;
+      border: 1px solid #F1D9D0;
+      border-radius: .8rem;
+      background: #FDF8F6;
+      color: var(--aa-color-text-secondary);
+      font-size: .82rem;
+    }
+    .control-note strong { color: var(--aa-color-text-accent); }
+    .method-sheet { border-radius: var(--aa-radius-lg); background: var(--aa-color-white); color: var(--aa-color-text-primary); padding: clamp(1.4rem,4vw,2.4rem); box-shadow: var(--aa-shadow-sm); }
+    .method-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding-block-end: 1.1rem; border-block-end: 1px solid var(--aa-color-border-subtle); }
+    .method-head span { color: var(--aa-color-text-tertiary); font-size: .75rem; }
+    .method-flow { display: grid; gap: .7rem; margin-block-start: 1.2rem; }
+    .method-step { display: grid; grid-template-columns: 2rem 1fr; gap: .9rem; align-items: start; padding: .9rem; border-radius: .65rem; background: var(--aa-color-bg-subtle); }
+    .method-step b { color: var(--aa-color-text-accent); }
+    .method-step strong { color: var(--aa-color-text-brand); font-size: .9rem; }
+    .method-step p { margin: .2rem 0 0; color: var(--aa-color-text-secondary); font-size: .78rem; }
+
+    .fit-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 1rem; }
+    .fit-item { padding: 1.45rem; border-block-start: 2px solid var(--aa-color-brand-navy-900); background: var(--aa-color-white); }
+    .fit-item p { margin: 0; color: var(--aa-color-text-secondary); font-size: .88rem; }
+    .boundary { margin-block-start: 2rem; padding: 1rem 1.2rem; border-inline-start: 3px solid var(--aa-color-brand-copper-600); background: var(--aa-color-bg-warm); color: var(--aa-color-text-secondary); }
+
+    .guidance-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 1rem; }
+    .guidance-item { min-height: 13.5rem; padding: 1.5rem; border: 1px solid var(--aa-color-border-subtle); border-radius: var(--aa-radius-md); background: var(--aa-color-white); }
+    .guidance-index { color: var(--aa-color-text-accent); font-size: .75rem; font-weight: 800; }
+    .guidance-item h3 { margin-block-start: 1.7rem; }
+    .guidance-item p { margin: 0; color: var(--aa-color-text-secondary); font-size: .88rem; }
+
+    .faq { max-width: 56rem; }
+    .faq details { border-block-start: 1px solid var(--aa-color-border-subtle); }
+    .faq details:last-child { border-block-end: 1px solid var(--aa-color-border-subtle); }
+    .faq summary {
+      display: flex;
+      min-height: 4.5rem;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      cursor: pointer;
+      color: var(--aa-color-text-brand);
+      font-weight: 800;
+      list-style: none;
+    }
+    .faq summary::-webkit-details-marker { display: none; }
+    .faq summary::after { content: "+"; flex: 0 0 auto; color: var(--aa-color-text-accent); font-size: 1.45rem; font-weight: 400; }
+    .faq details[open] summary::after { content: "−"; }
+    .faq .answer { max-width: 47rem; padding-block: 0 0 1.4rem; color: var(--aa-color-text-secondary); }
+    .faq .answer p { margin: 0; }
+
+    .footer-cta { padding-block: clamp(3.5rem,6vw,5rem); background: var(--aa-color-bg-warm); }
+    .footer-cta-grid { display: grid; grid-template-columns: minmax(0,1.45fr) minmax(18rem,.55fr); gap: 2rem; align-items: center; }
+    .footer-cta h2 { margin-block-end: .6rem; }
+    .footer-cta p { max-width: 47rem; margin: 0; color: var(--aa-color-text-secondary); }
+    .footer-actions { display: flex; flex-direction: column; gap: .7rem; align-items: stretch; }
+
+    .site-footer { padding-block: 4rem 2rem; background: var(--aa-color-bg-inverse); color: rgba(255,255,255,.75); }
+    .footer-grid { display: grid; grid-template-columns: 1.5fr .9fr .9fr 1.1fr; gap: 2.5rem; }
+    .footer-brand-placeholder { width: 8.5rem; min-height: 3.2rem; display: grid; place-items: center; margin-block-end: 1.1rem; border: 1px dashed rgba(255,255,255,.35); border-radius: .5rem; color: rgba(255,255,255,.6); font-size: .7rem; }
+    .site-footer h3 { color: var(--aa-color-white); font-size: .88rem; }
+    .site-footer p { margin-block-end: .6rem; }
+    .footer-brand p { max-width: 26rem; }
+    .footer-slogan { color: var(--aa-color-white); font-weight: 800; }
+    .footer-links { padding: 0; margin: 0; list-style: none; }
+    .footer-links li + li { margin-block-start: .4rem; }
+    .footer-links a { display: inline-flex; min-height: 2.6rem; align-items: center; color: rgba(255,255,255,.76); text-decoration: none; }
+    .footer-links a:hover { color: var(--aa-color-white); text-decoration: underline; text-underline-offset: .25em; }
+    .contact-line { margin-block: .25rem; }
+    .contact-label { display: block; color: rgba(255,255,255,.55); font-size: .72rem; }
+    .technical-value { direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
+    .footer-utility { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-block-start: 3rem; padding-block-start: 1.4rem; border-block-start: 1px solid rgba(255,255,255,.15); font-size: .75rem; }
+    .utility-links { display: flex; gap: 1rem; flex-wrap: wrap; }
+
+    @media (max-width: 68rem) {
+      .primary-nav { display: none; }
+      .header-inner { grid-template-columns: auto 1fr auto; }
+      .mobile-nav { display: block; justify-self: end; }
+      .mobile-nav summary { display: grid; min-width: 2.75rem; min-height: 2.75rem; place-items: center; border: 1px solid var(--aa-color-border-subtle); border-radius: .6rem; cursor: pointer; list-style: none; color: var(--aa-color-text-brand); }
+      .mobile-nav summary::-webkit-details-marker { display: none; }
+      .mobile-panel { position: absolute; inset-inline: var(--aa-gutter); inset-block-start: calc(100% + .5rem); padding: 1rem; border: 1px solid var(--aa-color-border-subtle); border-radius: var(--aa-radius-md); background: var(--aa-color-white); box-shadow: var(--aa-shadow-sm); }
+      .mobile-panel a { display: flex; min-height: 3rem; align-items: center; border-block-end: 1px solid var(--aa-color-border-subtle); color: var(--aa-color-text-secondary); text-decoration: none; }
+      .mobile-panel a:last-child { border-block-end: 0; }
+      .header-actions .button { display: none; }
+      .hero-grid, .problem-layout, .pillar-layout, .evidence-grid, .footer-cta-grid { grid-template-columns: 1fr; }
+      .hero { background: var(--aa-color-bg-canvas); }
+      .hero-evidence { min-height: 27rem; }
+      .problem-statement { position: static; }
+      .process-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
+      .fit-grid, .guidance-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+      .footer-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+    }
+
+    @media (max-width: 47.99rem) {
+      .control-badge { display: none; }
+      .header-inner { min-height: 4.3rem; gap: .7rem; }
+      .brand-desc { display: none; }
+      .logo-placeholder { width: 2.5rem; }
+      .brand-name { font-size: .98rem; }
+      .locale-switcher a { min-width: 2rem; min-height: 2rem; }
+      h1 { font-size: clamp(2.15rem, 11vw, 3.5rem); }
+      .hero { padding-block-start: 3.5rem; }
+      .hero-actions { flex-direction: column; align-items: stretch; }
+      .hero-actions .button { width: 100%; }
+      .hero-evidence { min-height: auto; padding-block-start: 1.2rem; }
+      .document-frame { min-height: 22rem; padding: 1.35rem; transform: none; }
+      .hero-caption { position: static; margin-block-start: .8rem; max-width: none; }
+      .risk-group { grid-template-columns: 1fr; gap: .7rem; }
+      .risk-list { grid-template-columns: 1fr; }
+      .process-list { grid-template-columns: 1fr; }
+      .process-list li { min-height: auto; }
+      .process-list li::before { margin-block-end: 1rem; }
+      .pillar-item { grid-template-columns: 2rem 1fr; }
+      .fit-grid, .guidance-grid, .footer-grid { grid-template-columns: 1fr; }
+      .footer-actions .button { width: 100%; }
+      .footer-utility { align-items: flex-start; flex-direction: column; }
+      .comparison { min-width: 36rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+    }
+
+    @media print {
+      .site-header, .control-badge, .footer-actions, .hero-actions, .mobile-nav { display: none !important; }
+      .section { padding-block: 2rem; }
+      body { font-size: 10pt; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">رفتن به محتوای اصلی</a>
+  <div class="control-badge" aria-hidden="true">نسخه کنترل داخلی · noindex</div>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand-link" href="/" aria-label="آهن آسا — صفحه اصلی">
+        <span class="logo-placeholder" aria-hidden="true">لوگو</span>
+        <span>
+          <span class="brand-name">آهن آسا</span>
+          <span class="brand-desc">مدیریت تأمین و خرید پروژه‌ای فولاد</span>
+        </span>
+      </a>
+
+      <nav class="primary-nav" aria-label="ناوبری اصلی نسخه کنترل">
+        <ul class="nav-list">
+          <li><a href="#role">نقش آهن آسا</a></li>
+          <li><a href="#process">فرآیند خرید</a></li>
+          <li><a href="#protection">کنترل خرید</a></li>
+          <li><a href="#fit">تناسب درخواست</a></li>
+          <li><a href="#faq">سؤالات متداول</a></li>
+        </ul>
+      </nav>
+
+      <div class="header-actions">
+        <div class="locale-switcher" aria-label="انتخاب زبان">
+          <a href="/en/" lang="en" hreflang="en" title="English">EN</a>
+          <a href="/ar/" lang="ar" hreflang="ar" title="العربية">AR</a>
+          <a href="/" lang="fa" hreflang="fa" aria-current="page" title="فارسی">FA</a>
+        </div>
+        <a class="button button-primary" href="/request" data-analytics-id="header_primary_submit_documents">ارسال فاکتور یا لیست خرید</a>
+        <details class="mobile-nav">
+          <summary aria-label="باز کردن منوی صفحه">☰</summary>
+          <div class="mobile-panel">
+            <a href="#role">نقش آهن آسا</a>
+            <a href="#process">فرآیند خرید</a>
+            <a href="#protection">کنترل خرید</a>
+            <a href="#fit">تناسب درخواست</a>
+            <a href="#faq">سؤالات متداول</a>
+            <a href="/request">ارسال فاکتور یا لیست خرید</a>
+          </div>
+        </details>
+      </div>
+    </div>
+  </header>
+
+  <main id="main-content" tabindex="-1">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">مدیریت تأمین و خرید پروژه‌ای فولاد</p>
+          <h1 id="hero-title">خرید آهن را به یک تصمیم مطمئن تبدیل کنید.</h1>
+          <p class="lead">فاکتور یا لیست خریدتان را بفرستید؛ آهن آسا نیاز پروژه، گزینه‌های تأمین و مسیر خرید را با نگاه فنی و تجاری بررسی و هماهنگ می‌کند.</p>
+          <div class="hero-actions" aria-label="اقدامات اصلی صفحه">
+            <a class="button button-primary" href="/request" data-analytics-id="home_hero_primary_submit_documents">ارسال فاکتور یا لیست خرید</a>
+            <a class="button button-secondary" href="#process" data-analytics-id="home_hero_secondary_learn_process">آشنایی با فرآیند خرید</a>
+          </div>
+          <p class="slogan"><span aria-hidden="true"></span><span>ما مراقب سرمایه شما هستیم.</span></p>
+        </div>
+
+        <div class="hero-evidence" aria-label="نمایش مفهومی کنترل خرید">
+          <div class="document-frame">
+            <div class="doc-top">
+              <div>
+                <span class="doc-label">نمایش مفهومی فرایند</span>
+                <p class="doc-title">برگه کنترل خرید پروژه</p>
+              </div>
+              <span class="doc-status">نمونه ساختاری</span>
+            </div>
+            <div class="doc-rows">
+              <div class="doc-row"><span class="doc-row-num">۰۱</span><div class="doc-row-text"><strong>شفاف‌سازی نیاز</strong><span>مشخصات، مقدار، زمان و شرایط تحویل</span></div><span class="doc-check" aria-hidden="true"></span></div>
+              <div class="doc-row"><span class="doc-row-num">۰۲</span><div class="doc-row-text"><strong>ارزیابی گزینه‌های تأمین</strong><span>بررسی گزینه‌های مرتبط با اولویت‌های پروژه</span></div><span class="doc-check" aria-hidden="true"></span></div>
+              <div class="doc-row"><span class="doc-row-num">۰۳</span><div class="doc-row-text"><strong>مقایسه فنی و تجاری</strong><span>شرایط، مدارک، پرداخت، زمان و لجستیک</span></div><span class="doc-check" aria-hidden="true"></span></div>
+              <div class="doc-row"><span class="doc-row-num">۰۴</span><div class="doc-row-text"><strong>هماهنگی خرید و تحویل</strong><span>پیگیری مسیر مورد تأیید در محدوده توافق‌شده</span></div><span class="doc-check" aria-hidden="true"></span></div>
+            </div>
+            <p class="doc-note">این تصویر، سند پروژه یا مدرک عملکرد واقعی نیست و فقط برای نمایش ساختار روش کار در نسخه کنترل استفاده شده است.</p>
+          </div>
+          <div class="hero-caption">به‌جای تصویر انبار یا موجودی ساختگی، Hero بر «فرایند کنترل خرید» تمرکز دارد.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="problem-title">
+      <div class="container problem-layout">
+        <div class="problem-statement">
+          <p class="eyebrow">مسئله خرید پروژه‌ای</p>
+          <h2 id="problem-title">قیمت واحد، تمام هزینه خرید نیست.</h2>
+          <p class="lead">انتخاب نامتناسب، تأخیر در تأمین یا نقص در مدارک می‌تواند پیامدهایی فراتر از اختلاف اولیه قیمت ایجاد کند. تصمیم خرید باید مجموعه شرایط فنی و تجاری را کنار هم ببیند.</p>
+          <blockquote>هدف این بخش ایجاد ترس نیست؛ هدف، روشن‌کردن عواملی است که پیش از تعهد خرید باید دیده شوند.</blockquote>
+        </div>
+        <div class="risk-groups" aria-label="عوامل تصمیم خرید">
+          <div class="risk-group">
+            <h3>نیاز و مشخصات</h3>
+            <ul class="risk-list"><li>مشخصات صحیح کالا</li><li>مقدار و دامنه دقیق نیاز</li><li>مدارک و قابلیت رهگیری</li></ul>
+          </div>
+          <div class="risk-group">
+            <h3>تأمین و شرایط</h3>
+            <ul class="risk-list"><li>تناسب گزینه تأمین</li><li>موجودبودن و زمان‌بندی</li><li>شرایط پرداخت و تجاری</li></ul>
+          </div>
+          <div class="risk-group">
+            <h3>تحویل و پیامد</h3>
+            <ul class="risk-list"><li>هماهنگی لجستیک و تحویل</li><li>هزینه خطا، تأخیر یا دوباره‌کاری</li></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-subtle" id="role" aria-labelledby="role-title">
+      <div class="container">
+        <div class="section-intro">
+          <p class="eyebrow">نقش آهن آسا</p>
+          <h2 id="role-title">از مقایسه قیمت تا مدیریت تصمیم خرید</h2>
+          <p class="lead">آهن آسا باید به‌عنوان مدیر خرید و شریک فنی/تجاری سمت مشتری فهمیده شود؛ نه صرفاً یک فروشنده یا بازار مقایسه قیمت.</p>
+        </div>
+        <div class="comparison-wrap" role="region" aria-label="مقایسه خرید معامله‌محور و مدیریت خرید" tabindex="0">
+          <table class="comparison">
+            <thead><tr><th scope="col">خرید معامله‌محور</th><th scope="col">مدیریت خرید با آهن آسا</th></tr></thead>
+            <tbody>
+              <tr><td>از قلم درخواستی و قیمت اعلامی شروع می‌شود.</td><td>از نیاز پروژه، مشخصات، زمان و اولویت‌های خرید شروع می‌شود.</td></tr>
+              <tr><td>تمرکز اصلی روی مقایسه پیشنهادهای تجاری است.</td><td>شرایط فنی، تجاری، مدارک و تحویل در کنار هم بررسی می‌شوند.</td></tr>
+              <tr><td>معمولاً با ثبت سفارش پایان می‌یابد.</td><td>مسیر مورد تأیید تا نقاط توافق‌شده خرید و تحویل هماهنگ می‌شود.</td></tr>
+              <tr><td>بخش بیشتری از بار ارزیابی بر عهده خریدار می‌ماند.</td><td>مسئولیت‌ها، تصمیم‌ها و گام‌های بعدی شفاف‌تر می‌شوند.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <a class="section-link" href="#process">مدیریت خرید آهن آسا چگونه کار می‌کند؟</a>
+      </div>
+    </section>
+
+    <section class="section" id="process" aria-labelledby="process-title">
+      <div class="container">
+        <div class="section-intro">
+          <p class="eyebrow">فرآیند خرید</p>
+          <h2 id="process-title">بعد از ارسال فاکتور یا لیست چه اتفاقی می‌افتد؟</h2>
+          <p class="lead">مسیر همکاری باید برای خریدار قابل فهم باشد؛ از دریافت اطلاعات تا هماهنگی خرید و پیگیری نقاط توافق‌شده.</p>
+        </div>
+        <ol class="process-list">
+          <li><h3>دریافت درخواست و مدارک موجود</h3><p>فاکتور، لیست خرید یا اطلاعات موجود پروژه دریافت می‌شود.</p></li>
+          <li><h3>بررسی نیاز و شفاف‌سازی دامنه</h3><p>مشخصات، مقدار، زمان، محل و ابهام‌های مؤثر بر خرید روشن می‌شوند.</p></li>
+          <li><h3>ارزیابی گزینه‌های تأمین</h3><p>گزینه‌های متناسب با اولویت‌ها و معیارهای مورد توافق بررسی می‌شوند.</p></li>
+          <li><h3>مقایسه شرایط فنی و تجاری</h3><p>قیمت تنها یکی از عوامل است؛ مدارک، پرداخت، زمان و تحویل نیز بررسی می‌شوند.</p></li>
+          <li><h3>تأیید مشتری و هماهنگی خرید</h3><p>مسیر منتخب پس از تصمیم و تأیید مشتری وارد مرحله هماهنگی می‌شود.</p></li>
+          <li><h3>پیگیری سفارش و نقاط تحویل</h3><p>اقدامات توافق‌شده تا نقاط تعیین‌شده سفارش و تحویل پیگیری می‌شوند.</p></li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section section-warm" id="protection" aria-labelledby="protection-title">
+      <div class="container pillar-layout">
+        <div class="pillar-lead">
+          <p class="eyebrow">چهار ستون کنترل خرید</p>
+          <span class="big-number" aria-hidden="true">۴</span>
+          <h2 id="protection-title">حفاظت از تصمیم خرید، نه وعده «بدون ریسک»</h2>
+          <p class="lead">این چهار ستون، دامنه و نیت عملیاتی آهن آسا را توضیح می‌دهند؛ بدون ادعای کمترین قیمت، حذف کامل ریسک یا تضمین تحویل.</p>
+        </div>
+        <dl class="pillar-list">
+          <div class="pillar-item"><div class="pillar-num">۰۱</div><div><dt><h3>شفاف‌سازی نیاز</h3></dt><dd>مشخصات کالا، مقدار، مدارک، زمان، محل و انتظارهای تحویل پیش از تعهد خرید روشن می‌شوند.</dd></div></div>
+          <div class="pillar-item"><div class="pillar-num">۰۲</div><div><dt><h3>کنترل تأمین</h3></dt><dd>گزینه‌های مرتبط با اولویت‌های پروژه و معیارهای ارزیابی مورد توافق شناسایی و مقایسه می‌شوند.</dd></div></div>
+          <div class="pillar-item"><div class="pillar-num">۰۳</div><div><dt><h3>حفاظت تجاری</h3></dt><dd>انطباق مشخصات، ریسک تأمین‌کننده، مدارک، زمان، لجستیک، پرداخت و پیامد کلی خرید در کنار قیمت دیده می‌شود.</dd></div></div>
+          <div class="pillar-item"><div class="pillar-num">۰۴</div><div><dt><h3>هماهنگی تحویل</h3></dt><dd>گام‌های مورد توافق خرید و ارتباطات لازم تا نقاط تعیین‌شده سفارش و تحویل هماهنگ می‌شوند.</dd></div></div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="section section-dark" aria-labelledby="evidence-title">
+      <div class="container evidence-grid">
+        <div>
+          <p class="eyebrow">اعتماد و شواهد</p>
+          <h2 id="evidence-title">روش کار را نشان می‌دهیم؛ آمار و Case Study نمی‌سازیم.</h2>
+          <p class="lead">در مستندات موجود، نمونه پروژه، عدد عملکرد، لوگوی مشتری یا گواهی تأییدشده‌ای برای صفحه اصلی ارائه نشده است. مطابق Specification، این نسخه به‌جای ساخت شواهد جعلی، fallback روش‌شناسی را نمایش می‌دهد.</p>
+          <div class="control-note"><div><strong>یادداشت نسخه کنترل:</strong> وقتی Case Study یا سند واقعی تأیید شد، این بخش می‌تواند با EvidenceItem معتبر جایگزین شود؛ تا آن زمان هیچ شمارنده، لوگووال یا testimonial ساختگی نمایش داده نمی‌شود.</div></div>
+        </div>
+        <div class="method-sheet" aria-label="چارچوب روش کنترل خرید">
+          <div class="method-head"><strong>چارچوب کنترل تصمیم خرید</strong><span>Methodology fallback</span></div>
+          <div class="method-flow">
+            <div class="method-step"><b>۱</b><div><strong>ورودی روشن</strong><p>نیاز، مشخصات، مقدار، مدارک و محدودیت‌های زمانی جمع‌بندی می‌شوند.</p></div></div>
+            <div class="method-step"><b>۲</b><div><strong>معیار مقایسه</strong><p>عوامل فنی، تجاری، مدارک، پرداخت و تحویل در یک چارچوب دیده می‌شوند.</p></div></div>
+            <div class="method-step"><b>۳</b><div><strong>تصمیم شفاف</strong><p>گزینه‌ها به‌گونه‌ای ارائه می‌شوند که تصمیم و مسئولیت هر مرحله قابل پیگیری باشد.</p></div></div>
+            <div class="method-step"><b>۴</b><div><strong>هماهنگی مسیر تأییدشده</strong><p>پس از تأیید مشتری، گام‌های توافق‌شده خرید و تحویل دنبال می‌شوند.</p></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="fit" aria-labelledby="fit-title">
+      <div class="container">
+        <div class="section-intro">
+          <p class="eyebrow">تناسب درخواست</p>
+          <h2 id="fit-title">این مدل همکاری برای چه خریدارانی طراحی شده است؟</h2>
+          <p class="lead">تمرکز صفحه اصلی روی خرید پروژه‌ای و سازمانی است؛ نه خرید مصرفی، پرداخت آنلاین یا مشاهده روزانه قیمت‌ها.</p>
+        </div>
+        <div class="fit-grid">
+          <div class="fit-item"><h3>مالکان و سرمایه‌گذاران پروژه</h3><p>وقتی تصمیم خرید باید با نیاز پروژه، زمان و پیامد تجاری هماهنگ باشد.</p></div>
+          <div class="fit-item"><h3>پیمانکاران و تیم‌های EPC</h3><p>وقتی خرید فولاد بخشی از برنامه اجرا، اسناد، هماهنگی و تحویل پروژه است.</p></div>
+          <div class="fit-item"><h3>واحدهای خرید و بازرگانی</h3><p>وقتی مقایسه گزینه‌ها باید ساختاریافته و قابل دفاع باشد.</p></div>
+          <div class="fit-item"><h3>شرکت‌های صنعتی و کارخانه‌ها</h3><p>برای نیازهای خرید سازمانی که به شفافیت مشخصات و هماهنگی تأمین نیاز دارند.</p></div>
+          <div class="fit-item"><h3>دفاتر فنی و مدیران پروژه</h3><p>وقتی الزامات فنی و تجاری باید پیش از خرید در یک تصمیم مشترک جمع شوند.</p></div>
+          <div class="fit-item"><h3>سازندگان و مجریان سازه</h3><p>برای خریدهایی که مقدار، مشخصات، زمان و تحویل روی روند اجرا اثر می‌گذارند.</p></div>
+        </div>
+        <p class="boundary"><strong>مرز روشن:</strong> صفحه برای خرید مصرفی، انتظار checkout فوری، جست‌وجوی صرفاً روزانه قیمت یا رفتار marketplace طراحی نشده است. گروه‌های کالایی دقیق نیز تا زمان تأیید رسمی در این نسخه نمایش داده نمی‌شوند.</p>
+      </div>
+    </section>
+
+    <section class="section section-subtle" aria-labelledby="guidance-title">
+      <div class="container">
+        <div class="section-intro">
+          <p class="eyebrow">آماده‌سازی درخواست</p>
+          <h2 id="guidance-title">برای شروع، اطلاعات موجود را مرتب کنید.</h2>
+          <p class="lead">این راهنمای کوتاه جایگزین فرم یا مشاوره نیست؛ فقط کمک می‌کند درخواست اولیه برای بررسی، روشن‌تر باشد.</p>
+        </div>
+        <div class="guidance-grid">
+          <article class="guidance-item"><span class="guidance-index">۰۱ / نیاز</span><h3>اقلام، مشخصات و مقدار</h3><p>هرآنچه از نوع کالا، مشخصات، ابعاد، مقدار یا واحد در اختیار دارید، در لیست یا توضیح درخواست بیاورید.</p></article>
+          <article class="guidance-item"><span class="guidance-index">۰۲ / پروژه</span><h3>زمان و محل موردنیاز</h3><p>در صورت مشخص‌بودن، زمان‌بندی و محل تحویل را اعلام کنید تا شرایط تأمین در بستر واقعی بررسی شود.</p></article>
+          <article class="guidance-item"><span class="guidance-index">۰۳ / مدارک</span><h3>فاکتور یا فایل موجود</h3><p>اگر فاکتور، لیست خرید یا مدرک پروژه دارید، همان اطلاعات موجود می‌تواند نقطه شروع بررسی باشد.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="faq" aria-labelledby="faq-title">
+      <div class="container">
+        <div class="section-intro">
+          <p class="eyebrow">سؤالات متداول</p>
+          <h2 id="faq-title">پیش از ارسال درخواست چه چیزهایی باید بدانید؟</h2>
+          <p class="lead">پاسخ‌ها دامنه کار را روشن می‌کنند و از ایجاد انتظارهایی مانند قیمت تضمینی، موجودی قطعی یا زمان پاسخ تضمین‌شده جلوگیری می‌کنند.</p>
+        </div>
+        <div class="faq">
+          <details data-analytics-id="home_faq_expand"><summary>برای بررسی اولیه چه اطلاعاتی ارسال کنم؟</summary><div class="answer"><p>فاکتور، لیست خرید یا توضیحی از اقلام موردنیاز، مقدار و هر اطلاعات موجود درباره زمان، محل و شرایط پروژه می‌تواند نقطه شروع باشد. جزئیات دقیق‌تر در مرحله بررسی روشن می‌شوند.</p></div></details>
+          <details data-analytics-id="home_faq_expand"><summary>می‌توانم پیش‌فاکتور یک تأمین‌کننده یا لیست موجودم را بفرستم؟</summary><div class="answer"><p>بله. هدف مسیر اصلی سایت همین است که فاکتور، لیست خرید یا اطلاعات موجود شما دریافت و از نظر نیاز پروژه و شرایط خرید بررسی شود.</p></div></details>
+          <details data-analytics-id="home_faq_expand"><summary>آهن آسا فروشگاه آهن است یا مدیر خرید؟</summary><div class="answer"><p>جایگاه تعریف‌شده برند، مدیریت تأمین و خرید پروژه‌ای فولاد است. صفحه اصلی نباید مانند فروشگاه، marketplace، تابلوی قیمت یا checkout آنلاین عمل کند.</p></div></details>
+          <details data-analytics-id="home_faq_expand"><summary>گزینه‌های تأمین و پیشنهادها چگونه مقایسه می‌شوند؟</summary><div class="answer"><p>مقایسه فقط به قیمت واحد محدود نمی‌شود؛ مشخصات، مدارک، شرایط تجاری، پرداخت، زمان، لجستیک و تحویل نیز متناسب با نیاز و اولویت‌های مورد توافق در نظر گرفته می‌شوند.</p></div></details>
+          <details data-analytics-id="home_faq_expand"><summary>آیا قیمت یا زمان تحویل تضمین می‌شود؟</summary><div class="answer"><p>خیر؛ صفحه اصلی نباید کمترین قیمت، موجودی قطعی، زمان پاسخ یا تحویل تضمین‌شده را وعده دهد. شرایط هر خرید پس از بررسی درخواست و در محدوده توافق‌شده مشخص می‌شود.</p></div></details>
+          <details data-analytics-id="home_faq_expand"><summary>بعد از ارسال درخواست چه می‌شود؟</summary><div class="answer"><p>درخواست باید ابتدا به‌صورت پایدار در سیستم سایت ثبت شود و سپس مسیر بررسی و هماهنگی ادامه یابد. فرایند عمومی سایت نباید برای نمایش موفقیت یا صفحه عمومی به آنلاین‌بودن لحظه‌ای Odoo وابسته باشد.</p></div></details>
+        </div>
+      </div>
+    </section>
+
+    <section class="footer-cta" aria-labelledby="final-cta-title">
+      <div class="container footer-cta-grid">
+        <div>
+          <p class="eyebrow">گام بعدی</p>
+          <h2 id="final-cta-title">فاکتور یا لیست خرید آهن دارید؟</h2>
+          <p>اگر اقلام موردنیازتان مشخص است، فاکتور یا لیست خرید را بفرستید تا آهن آسا درخواست را بررسی و مسیر انتخاب، تأمین و تحویل را در محدوده توافق‌شده هماهنگ کند.</p>
+        </div>
+        <div class="footer-actions">
+          <a class="button button-primary" href="/request" data-analytics-id="home_final_primary_submit_documents">ارسال فاکتور یا لیست خرید</a>
+          <a class="button button-secondary" href="#process" data-analytics-id="home_final_secondary_learn_process">آشنایی با فرآیند خرید</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <div class="footer-brand-placeholder" aria-hidden="true">جایگاه لوگوی نهایی</div>
+          <h3>آهن آسا</h3>
+          <p>مدیریت حرفه‌ای خرید و تأمین آهن برای پروژه‌ها و کسب‌وکارها.</p>
+          <p class="footer-slogan">ما مراقب سرمایه شما هستیم.</p>
+        </div>
+        <nav aria-label="خرید و تأمین">
+          <h3>خرید و تأمین</h3>
+          <ul class="footer-links"><li><a href="#process">فرآیند خرید</a></li><li><a href="#protection">روش کنترل خرید</a></li><li><a href="#faq">سؤالات متداول</a></li><li><a href="/request">ارسال فاکتور یا لیست خرید</a></li></ul>
+        </nav>
+        <nav aria-label="آشنایی با آهن آسا">
+          <h3>آهن آسا</h3>
+          <ul class="footer-links"><li><a href="#role">نقش آهن آسا</a></li><li><a href="#fit">تناسب درخواست</a></li><li><a href="/privacy">حریم خصوصی</a></li><li><a href="/terms">شرایط استفاده</a></li></ul>
+        </nav>
+        <div>
+          <h3>اطلاعات تماس تأییدشده</h3>
+          <p class="contact-line"><span class="contact-label">نشانی</span>اصفهان، خیابان هزارجریب، کوی آزادگان</p>
+          <p class="contact-line"><span class="contact-label">تلفن</span><bdi class="technical-value">۰۳۱۳۵۱۳۴</bdi></p>
+        </div>
+      </div>
+      <div class="footer-utility">
+        <span>© آهن آسا — نسخه کنترل صفحه اصلی</span>
+        <div class="utility-links"><a href="/privacy">حریم خصوصی</a><a href="/terms">شرایط استفاده</a><span>FA · EN · AR</span></div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Control prototype only: no external GTM script is loaded here.
+    // If a dataLayer exists in the production shell, only non-sensitive semantic events are pushed.
+    document.addEventListener('click', function (event) {
+      const target = event.target.closest('[data-analytics-id]');
+      if (!target) return;
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: 'cta_click',
+        cta_id: target.getAttribute('data-analytics-id'),
+        page_type: 'home',
+        locale: 'fa'
+      });
+    });
+    document.querySelectorAll('details[data-analytics-id]').forEach(function (item) {
+      item.addEventListener('toggle', function () {
+        if (!item.open) return;
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({ event: 'home_faq_expand', page_type: 'home', locale: 'fa' });
+      });
+    });
+  </script>
+</body>
+</html>

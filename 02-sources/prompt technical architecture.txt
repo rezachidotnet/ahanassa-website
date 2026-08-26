@@ -1,0 +1,364 @@
+فایل `TECHNICAL_ARCHITECTURE.md` را برای پروژه وب‌سایت «آهن آسا | Ahan Asa» ایجاد یا بازنویسی کن.
+
+قبل از نوشتن فایل، تمام اسناد موجود پروژه، به‌خصوص فایل‌های زیر را کامل مطالعه کن:
+
+* `CLAUDE.md`
+* `PROJECT_BRIEF.md`
+* `BRAND_GUIDELINES.md`
+* `DESIGN_DIRECTION.md`
+* `DESIGN_SYSTEM.md`
+* `SITEMAP.md`
+* `PAGE_SPECIFICATIONS.md`
+* `CONTENT_MODEL.md`
+* `SEO_STRATEGY.md`
+* `DATA_ARCHITECTURE.md`
+* `API_INTEGRATIONS.md`
+* `FORM_ARCHITECTURE.md`
+* `SECURITY_GUIDELINES.md`
+* `PERFORMANCE_GUIDELINES.md`
+* `DEPLOYMENT_ARCHITECTURE.md`
+* `ENVIRONMENT_VARIABLES.md`
+* `TASKS.md`
+* `DECISIONS.md`
+* `DO_NOT_CHANGE.md`
+
+اگر بعضی از این فایل‌ها وجود ندارند، کار را متوقف نکن؛ نبودن آن‌ها را در بخش «Decision Gates» ثبت کن. هیچ تصمیم تجاری، داده، سرویس، کلید، شناسه یا قابلیت تأییدنشده‌ای را اختراع نکن.
+
+## مشخصات پروژه
+
+* برند: `Ahan Asa | آهن آسا`
+* دامنه اصلی: `ahanassa.com`
+* زبان زمان راه‌اندازی: فارسی، کاملاً RTL
+* زیرساخت اصلی: Cloudflare
+* ERP: Odoo در `odoo.ahanassa.com`
+* سایت یک پلتفرم B2B برای معرفی خدمات تأمین آهن‌آلات، نمایش اطلاعات محصولات و دریافت درخواست استعلام است.
+* سایت در فاز اول فروشگاه اینترنتی، مارکت‌پلیس، تابلوی موجودی لحظه‌ای، پنل مشتری یا سیستم پرداخت آنلاین نیست.
+* سرعت بارگذاری، امنیت، قابلیت نگهداری و SEO باید جزو الزامات معماری باشند، نه کارهای بعد از توسعه.
+
+## معماری پایه مورد انتظار
+
+معماری را به‌صورت Cloudflare-native و edge-first طراحی کن و حداقل این اجزا را بررسی و مشخص کن:
+
+* Next.js App Router
+* React Server Components به‌صورت پیش‌فرض
+* TypeScript در حالت Strict
+* Cloudflare Workers برای Runtime
+* Cloudflare D1 برای Public Read Model، وضعیت Sync و RFQ Ingress Ledger
+* Cloudflare R2 برای رسانه‌ها و فایل‌های خصوصی
+* Cloudflare Queues برای پردازش‌های غیرهم‌زمان
+* Cloudflare Turnstile برای مقابله با سوءاستفاده
+* Cloudflare WAF و Rate Limiting
+* Cron Triggers یا Scheduled Workers برای Syncهای زمان‌بندی‌شده
+* Cache در Edge
+* محیط‌های مجزای Development، Preview، Staging و Production
+
+در صورت ناسازگاری نسخه فعلی Next.js یا یکی از قابلیت‌ها با Cloudflare Workers، محدودیت را شفاف ثبت و راه‌حل سازگار پیشنهاد کن. هیچ وابستگی به Node.js Runtime را بدون بررسی سازگاری Cloudflare وارد نکن.
+
+## مرزبندی Odoo و وب‌سایت
+
+Odoo را منبع اصلی داده‌های تجاری در نظر بگیر، از جمله:
+
+* محصولات
+* گونه‌ها و مشخصات محصولات
+* واحدهای اندازه‌گیری
+* فهرست‌های قیمت
+* مشتریان و مخاطبان
+* CRM Leads
+* درخواست‌های استعلام
+* پیش‌فاکتورها و Quotations
+* فروش
+* خرید
+* موجودی
+* حسابداری
+
+وب‌سایت یا CMS سایت مسئول این موارد باشد:
+
+* مقالات
+* محتوای صفحات
+* داده‌های SEO
+* Metadata
+* محتوای چندزبانه
+* Public Product Projection
+* نسخه Cache‌شده قیمت‌های قابل نمایش
+* تاریخچه Snapshotهای قیمت در صورت تأیید
+* RFQ Ingress Ledger
+* وضعیت Sync و خطاهای Integration
+
+قیمت‌ها فقط در Odoo ویرایش شوند. اپراتور نباید دو منبع مستقل برای تغییر قیمت داشته باشد.
+
+وب‌سایت عمومی نباید برای Render شدن صفحات، به‌صورت هم‌زمان و مستقیم Odoo را فراخوانی کند. اطلاعات عمومی موردنیاز باید به‌شکل غیرهم‌زمان از Odoo دریافت، اعتبارسنجی و در D1 ذخیره شود.
+
+قطع بودن Odoo نباید باعث از دسترس خارج‌شدن صفحات عمومی سایت شود. آخرین داده معتبر Cache‌شده باید باقی بماند و Sync ناموفق نباید داده سالم قبلی را بازنویسی کند.
+
+ارتباط با Odoo باید فقط از طریق یک Server-only Adapter انجام شود. اطلاعات ورود، API Key، Session، Database Name و سایر Secrets نباید به مرورگر، HTML، Client Bundle، Log عمومی یا Analytics منتقل شوند.
+
+## سیستم محتوا و اپراتورها
+
+معماری مدیریت محتوا را به شکلی تعریف کن که اپراتور مجاز بتواند:
+
+* مقاله ایجاد، ویرایش، Preview و منتشر کند.
+* عنوان، توضیحات متا، Canonical، تصویر Open Graph و تنظیمات SEO را مدیریت کند.
+* دسته‌بندی و برچسب مقاله را مدیریت کند.
+* زمان انتشار و آخرین به‌روزرسانی را ثبت کند.
+* پیش‌نویس را بدون ایندکس‌شدن مشاهده کند.
+* عملیات انتشار را در Audit Log ثبت کند.
+
+برای CMS، قرارداد داده و مرز معماری را مشخص کن؛ اما تا زمانی که CMS نهایی انتخاب نشده، یک محصول را بدون مدرک به‌عنوان انتخاب قطعی اعلام نکن.
+
+کامپوننت‌های صفحه نباید مستقیماً به SDK مربوط به CMS وابسته باشند. دسترسی باید پشت Repository Interface یا Adapter قرار بگیرد.
+
+## کاتالوگ و قیمت محصولات
+
+مدل فنی محصولات باید حداقل از این ساختار پشتیبانی کند:
+
+* دسته‌بندی آهن‌آلات
+* محصول
+* Variant یا مشخصات فنی
+* سایز
+* ضخامت
+* طول
+* عرض
+* استاندارد
+* برند یا کارخانه
+* واحد اندازه‌گیری
+* قیمت قابل نمایش
+* تاریخ و زمان آخرین به‌روزرسانی قیمت
+* وضعیت انتشار
+* Slug و داده‌های SEO
+
+قیمت عمومی باید از Projection تأییدشده Odoo نمایش داده شود. برای اطلاعات منقضی، نامعتبر یا ناموجود، رفتار مشخص تعریف کن. از نمایش قیمت ساختگی، موجودی تضمین‌شده یا داده قدیمی بدون اعلام زمان آخرین به‌روزرسانی جلوگیری کن.
+
+## فرم استعلام و ارسال لیست آهن‌آلات
+
+بازدیدکننده باید بتواند یک RFQ شامل چند ردیف ثبت کند. هر ردیف باید حداقل از این فیلدها پشتیبانی کند:
+
+* دسته‌بندی
+* محصول یا Variant
+* سایز یا مشخصات
+* واحد
+* مقدار اعشاری
+* توضیحات
+* عنوان، سایز و واحد سفارشی برای اقلامی که در کاتالوگ نیستند
+
+اطلاعات مشتری نیز باید بتواند شامل نام، شرکت، شماره تماس، ایمیل، شهر، توضیحات و روش تماس ترجیحی باشد.
+
+کاربر باید بتواند فایل‌های موردنیاز مانند Excel، PDF و تصاویر مجاز را بارگذاری کند.
+
+معماری RFQ باید این ویژگی‌ها را داشته باشد:
+
+1. اعتبارسنجی Client-side فقط برای تجربه کاربری باشد.
+2. اعتبارسنجی Server-side مرجع نهایی باشد.
+3. دسته‌بندی، محصول، واحد و مقادیر ارسالی با داده معتبر سمت سرور تطبیق داده شوند.
+4. درخواست و تمام ردیف‌های آن قبل از نمایش پیام موفقیت، به‌صورت Durable ذخیره شوند.
+5. برای هر درخواست یک Reference Number تولید شود.
+6. یک Idempotency Key از ثبت تکراری جلوگیری کند.
+7. انتقال RFQ به Odoo به‌صورت Async انجام شود.
+8. Sync با Odoo قابلیت Retry، Dead-letter handling و مشاهده وضعیت داشته باشد.
+9. ثبت تکراری Lead یا Opportunity در Odoo کنترل شود.
+10. اختلال Odoo باعث گم‌شدن درخواست مشتری نشود.
+11. فایل‌ها مستقیماً به فضای خصوصی R2 و با مجوز کوتاه‌مدت بارگذاری شوند.
+12. فایل خصوصی Public URL دائمی نداشته باشد.
+13. محدودیت نوع، حجم، تعداد فایل و سیاست نگهداری مشخص شود.
+14. در صورت نیاز، مسیر Quarantine و Malware Scanning به‌عنوان Decision Gate تعریف شود.
+
+## Rendering و Cache
+
+برای خانواده‌های مختلف Route یک Rendering Matrix ارائه کن و برای هرکدام مشخص کن:
+
+* Static Generation
+* SSR
+* ISR یا On-demand Revalidation
+* Dynamic Route Handler
+* Edge Cache Policy
+* `no-store`
+* شرایط Purge یا Revalidation
+
+صفحات عمومی باید HTML-first، قابل Crawl و تا حد امکان Static یا Edge-cached باشند.
+
+این موارد نباید Cache عمومی شوند:
+
+* ارسال فرم
+* اطلاعات شخصی
+* فایل‌های خصوصی
+* پاسخ RFQ
+* صفحات مدیریت
+* Preview
+* Authorization
+* داده‌های شخصی‌سازی‌شده
+
+## SEO و چندزبانه
+
+معماری باید Persian-first و کاملاً RTL باشد و برای افزودن زبان‌های انگلیسی و عربی آماده بماند.
+
+موارد زیر را پوشش بده:
+
+* فارسی بدون Prefix و در مسیر `/`
+* زبان‌های آینده با Prefixهایی مانند `/en` و `/ar`
+* Redirect دائمی `/fa/...` به نسخه فارسی بدون Prefix
+* `lang` و `dir`
+* CSS Logical Properties
+* مدیریت متن‌های ترکیبی فارسی، اعداد، URL و واحدها
+* Canonical
+* Hreflang
+* x-default
+* Sitemap Index
+* Sitemap محصولات و مقالات
+* Robots
+* Metadata API
+* Open Graph
+* JSON-LD
+* BreadcrumbList
+* Organization
+* WebSite
+* Article
+* Product یا Service فقط در صورت انطباق واقعی
+* صفحات Draft و Preview با `noindex`
+* جلوگیری از Duplicate Content
+* بازگرداندن HTTP 404 واقعی برای Route یا Locale نامعتبر
+
+محتوای اصلی، لینک‌ها، Navigation، Metadata و داده لازم برای موتور جست‌وجو نباید برای دیده‌شدن به JavaScript مرورگر وابسته باشند.
+
+## Performance
+
+این اهداف را به‌عنوان Quality Gate تعریف کن:
+
+* LCP کمتر از 2 ثانیه در صفحات کلیدی
+* INP کمتر از 150 میلی‌ثانیه
+* CLS کمتر از 0.05
+* TTFB کمتر از 500 میلی‌ثانیه برای پاسخ Cache‌شده
+* حداقل Client JavaScript
+* استفاده حداکثری از Server Components
+* Font Subsetting و Self-hosting در صورت امکان
+* تعیین ابعاد تصاویر
+* Responsive Images
+* Lazy Loading برای رسانه‌های خارج از Viewport
+* عدم استفاده غیرضروری از کتابخانه‌های حجیم
+* تعیین Performance Budget برای JavaScript، تصاویر و Fontها
+
+## امنیت و حریم خصوصی
+
+حداقل این موارد را تعریف کن:
+
+* Trust Boundaries
+* Input Validation
+* Output Encoding
+* CSRF و Origin Controls
+* XSS Prevention
+* SQL Injection Prevention
+* Rate Limiting
+* Turnstile Verification در سمت سرور
+* Security Headers
+* Content Security Policy
+* مدیریت Secrets
+* Least Privilege
+* جداسازی فایل عمومی و خصوصی
+* Signed Upload و Signed Download
+* Audit Logging
+* PII Redaction در Logها
+* عدم ارسال داده فرم به GA4 یا GTM
+* Retention Policy
+* Backup و Recovery
+* Dependency Scanning
+* مدیریت خطا بدون افشای اطلاعات داخلی
+
+## Analytics و Observability
+
+معماری Analytics و Monitoring باید شامل این موارد باشد:
+
+* Eventهای Type-safe
+* عدم ثبت اطلاعات شخصی و متن کامل فرم‌ها
+* ثبت مرحله شروع، خطای اعتبارسنجی و موفقیت RFQ بدون PII
+* Structured Logging
+* Correlation ID
+* Queue Monitoring
+* Sync Status
+* Retry Count
+* Dead-letter Queue
+* Error Tracking
+* Uptime Monitoring
+* Alerting برای شکست مکرر Sync
+* داشبورد سلامت Odoo Integration
+* امکان پیگیری RFQ از Reference Number وب‌سایت تا رکورد Odoo
+
+## ساختار سند
+
+فایل نهایی باید حداقل شامل بخش‌های زیر باشد:
+
+1. Document Metadata
+2. Purpose
+3. Scope
+4. Non-goals
+5. Source-of-truth hierarchy
+6. Architectural principles
+7. Architecture summary
+8. System context
+9. Trust boundaries
+10. Runtime and hosting architecture
+11. Application architecture
+12. Repository boundaries
+13. Routing and localization
+14. Rendering matrix
+15. Cache and revalidation strategy
+16. Content and CMS architecture
+17. Product and price architecture
+18. Odoo ownership matrix
+19. Odoo integration architecture
+20. RFQ and lead architecture
+21. Upload architecture
+22. Data flow diagrams
+23. Data consistency and idempotency
+24. Failure and recovery scenarios
+25. Security architecture
+26. SEO architecture
+27. Performance architecture
+28. Accessibility requirements
+29. Analytics and observability
+30. Environment separation
+31. Deployment and rollback
+32. Testing strategy
+33. Quality gates
+34. Decision gates
+35. Risks and mitigations
+36. Claude Code implementation rules
+37. Definition of Done
+
+در بخش‌های مناسب از جدول و Mermaid استفاده کن. نمودارها باید ساده، معتبر و قابل رندر در Markdown باشند.
+
+حداقل این نمودارها را ارائه کن:
+
+* System Context
+* Public Read Flow از Odoo تا D1 و Edge
+* RFQ Submission Flow
+* Private File Upload Flow
+* Failure/Retry Flow
+
+## قواعد Claude Code
+
+در انتهای سند، قواعد الزام‌آور زیر را درج کن:
+
+* قبل از پیاده‌سازی، `CLAUDE.md`، `DO_NOT_CHANGE.md` و اسناد مرجع مرتبط خوانده شوند.
+* هیچ Secret یا Credential در کد، Client Bundle یا مستندات ثبت نشود.
+* مرورگر هرگز مستقیماً با Odoo ارتباط نگیرد.
+* صفحات عمومی برای Render شدن به پاسخ زنده Odoo وابسته نباشند.
+* قیمت فقط در Odoo ویرایش شود.
+* RFQ پیش از پیام موفقیت باید Durable ذخیره شده باشد.
+* هر عملیات Sync باید Idempotent، Retryable و Observable باشد.
+* Client Component فقط در صورت نیاز واقعی ساخته شود.
+* از `any`، اعتبارسنجی ناقص و Swallow کردن خطاها جلوگیری شود.
+* هر قابلیت جدید باید تست، Loading State، Error State و رفتار Accessible داشته باشد.
+* تصمیم حل‌نشده نباید با حدس پیاده‌سازی شود.
+* تعارض اسناد باید در `DECISIONS.md` یا ADR ثبت شود.
+* تغییر معماری بدون ثبت دلیل و اثرات آن ممنوع باشد.
+
+## قواعد خروجی
+
+* فایل را با نام دقیق `TECHNICAL_ARCHITECTURE.md` در ریشه پروژه ذخیره کن.
+* متن سند باید به زبان انگلیسی فنی، روشن و اجرایی نوشته شود.
+* نام‌های فارسی برند و Routeهای فارسی را بدون تغییر نگه دار.
+* سند باید Implementation-ready باشد، نه توضیح کلی یا مقاله آموزشی.
+* برای هر تصمیم مهم، دلیل، پیامد و محدودیت اجرایی را مشخص کن.
+* موارد تأییدنشده را با برچسب `Decision Gate` یا `TBD` ثبت کن.
+* هیچ قابلیت یا Integration جعلی ایجاد نکن.
+* اگر فایل از قبل وجود دارد، ابتدا آن را کامل بخوان و سپس بدون حذف تصمیم‌های معتبر، با این معماری یکپارچه و به‌روز کن.
+* از تکرار مطالب و توصیه‌های مبهم اجتناب کن.
+* خروجی نهایی فقط محتوای کامل فایل `TECHNICAL_ARCHITECTURE.md` باشد و توضیح اضافی خارج از فایل ارائه نشود.
