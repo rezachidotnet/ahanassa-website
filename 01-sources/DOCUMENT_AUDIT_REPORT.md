@@ -2,15 +2,17 @@
 
 ## Ahan Asa Website — Documentation Audit & Claude Code Handoff Report
 
-**Project:** Ahan Asa | آهن آسا  
-**Domain:** `https://www.ahanassa.com`  
-**ERP:** `https://odoo.ahanassa.com`  
-**Audit role:** Cross-document consistency, readiness, and implementation handoff control  
-**Status:** OPEN — baseline audit started; not final sign-off  
-**Version:** 1.0.0  
-**Audit date:** 2026-08-26  
-**Controlled inventory:** 77 existing project documents + `DOCS_INDEX.md` + this report  
-**Final implementation readiness:** **NO-GO until P0 findings are closed**
+**Project:** Ahan Asa | آهن آسا
+**Domain:** `https://www.ahanassa.com`
+**ERP:** `https://odoo.ahanassa.com`
+**Audit role:** Cross-document consistency, readiness, and implementation handoff control
+**Status:** OPEN — AUD-034 documentation drift cleanup applied; unrelated decision gates remain open
+**Version:** 1.1.0
+**Audit date:** 2026-08-26
+**Controlled inventory:** 77 existing project documents + `DOCS_INDEX.md` + this report
+**Final implementation readiness:** **CONDITIONAL GO for areas unaffected by preserved owner decisions and integration gates**
+
+**AUD-034 update, 2026-08-27:** documentation drift for source precedence, production runtime/adapter, and Persian-only launch assumptions has been cleaned up. Current active authority is `PROJECT_OVERRIDES.md` → root `CLAUDE.md` → `01-sources/` → verified implementation facts. Production runtime is Cloudflare Workers + vinext + Vite + TypeScript. Launch locales are `fa`/`en`/`ar`, with Persian primary/default.
 
 ---
 
@@ -93,13 +95,13 @@ GSC and GTM are required from initial implementation. Public rendering must not 
 | Cloudflare/Odoo target architecture | Strong and substantially aligned in newer architecture documents |
 | Data ownership | Strong direction; specialist docs must remain aligned |
 | RFQ resilience | Strong direction; durable D1 capture + async Odoo is established |
-| Multilingual architecture | **Not consistently propagated through older documents** |
-| Deployment documentation | **Contains stale Vercel material in repository entry documentation** |
-| Claude Code reading order | **Does not yet reliably force `PROJECT_OVERRIDES.md` first** |
-| SEO/QA localization | **Contains Persian-only acceptance language that conflicts with current override** |
+| Multilingual architecture | AUD-034 cleanup applied; remaining content/font decisions preserved where genuinely unresolved |
+| Deployment documentation | AUD-034 cleanup applied; production runtime now Cloudflare Workers + vinext |
+| Claude Code reading order | RESOLVED — root `CLAUDE.md` forces `PROJECT_OVERRIDES.md` first |
+| SEO/QA localization | AUD-034 cleanup applied for active Persian-only release assumptions |
 | Full 77-document content audit | Not complete |
 
-**Overall:** documentation is structurally strong but not ready for unrestricted Claude Code implementation until the P0 control conflicts below are fixed.
+**Overall:** documentation is structurally strong. AUD-034 removes the stale P0 control conflicts below for precedence, runtime/adapter, and launch locales; unrelated owner decisions and integration gates remain intentionally open.
 
 ---
 
@@ -108,70 +110,64 @@ GSC and GTM are required from initial implementation. Public rendering must not 
 ### AUD-001 — README production hosting conflicts with approved Cloudflare architecture
 
 - **Severity:** P0 — Critical
-- **Status:** OPEN
+- **Status:** RESOLVED by AUD-034, 2026-08-27
 - **Affected documents:** `README.md`, `CLAUDE.md`, `TECHNICAL_ARCHITECTURE.md`, `DEPLOYMENT_ARCHITECTURE.md`, `PROJECT_OVERRIDES.md`
 - **Observed conflict:** `README.md` still describes Vercel as production hosting and Vercel-based preview/production deployment, while the newer implementation contract defines Cloudflare Workers as the approved hosting/backend platform.
 - **Risk:** Claude Code can scaffold, configure, cache, deploy, or choose adapters for the wrong runtime.
 - **Controlled decision:** Cloudflare-first production architecture is authoritative.
-- **Required action:** Refresh `README.md` deployment and technology-baseline sections. Verify `DEPLOYMENT_ARCHITECTURE.md` is fully Cloudflare-aligned. Remove Vercel production instructions unless retained only as an explicitly approved non-production tool.
-- **Closure evidence:** README, deployment spec, stack, and Claude contract all name the same production runtime and deployment path.
+- **Closure evidence:** README, deployment spec, stack, and Claude contract now name Cloudflare Workers + vinext as the production runtime and deployment path. Remaining Vercel mentions are active prohibitions or historical/superseded audit context.
 
 ### AUD-002 — README still describes a Persian-only Phase 1
 
 - **Severity:** P0 — Critical
-- **Status:** OPEN
+- **Status:** RESOLVED by AUD-034, 2026-08-27
 - **Affected documents:** `README.md`, `PROJECT_OVERRIDES.md`, `LOCALIZATION.md`, `ROUTES.md`, `HREFLANG_CANONICAL.md`
 - **Observed conflict:** README states Phase 1 is Persian-only and that English/Arabic are future reserved locales. The current override requires exactly Persian, English, and Arabic.
 - **Risk:** English/Arabic routes, content models, metadata, QA, and navigation may be omitted from the initial implementation.
 - **Controlled decision:** `fa`, `en`, and `ar` are required; Persian is default and unprefixed.
-- **Required action:** Update README launch scope or explicitly mark its Phase-1 locale text as superseded. Refresh localization/route specifications as part of the same documentation batch.
-- **Closure evidence:** no active implementation-facing document describes English/Arabic as postponed unless a newer owner decision changes the override.
+- **Closure evidence:** README and SEO QA now describe `fa`/`en`/`ar` launch architecture with Persian primary/default. Missing approved English/Arabic copy remains a content-production dependency, not a Persian-only launch assumption.
 
 ### AUD-003 — CLAUDE.md product truths still state Persian launch / RTL public interface
 
 - **Severity:** P0 — Critical
-- **Status:** OPEN
+- **Status:** RESOLVED by AUD-034, 2026-08-27
 - **Affected documents:** `CLAUDE.md`, `PROJECT_OVERRIDES.md`
 - **Observed conflict:** `CLAUDE.md` describes the launch language as Persian and the public interface as RTL. This is incomplete/incorrect for required English (`LTR`) and Arabic (`RTL`) public routes.
 - **Risk:** This is especially dangerous because several older precedence chains place `CLAUDE.md` above ordinary specifications.
 - **Controlled decision:** multilingual override controls the affected language/direction decisions.
-- **Required action:** Update `CLAUDE.md` product truths and localization language. It must state `fa/en/ar`, default Persian, and per-locale direction.
 - **Closure evidence:** CLAUDE product truths and required reading map match `PROJECT_OVERRIDES.md`.
 
 ### AUD-004 — CLAUDE.md does not include PROJECT_OVERRIDES.md in Always Read
 
 - **Severity:** P0 — Critical
-- **Status:** OPEN
+- **Status:** RESOLVED by AUD-034, 2026-08-27
 - **Affected documents:** `CLAUDE.md`, `PROJECT_OVERRIDES.md`, `README.md`, `DOCS_INDEX.md`
 - **Observed conflict:** the override file says Claude Code must consult it for affected project decisions, but the current mandatory `Always read` list does not include it.
 - **Risk:** the agent can follow stale but otherwise valid older specifications without ever seeing the overrides.
-- **Required action:** add `PROJECT_OVERRIDES.md` and `DOCS_INDEX.md` to the top of the mandatory reading protocol; add `DOCUMENT_AUDIT_REPORT.md` while the project is in pre-implementation audit state.
 - **Closure evidence:** the repository-wide Claude contract visibly requires the override before specialist documents.
 
 ### AUD-005 — Source-of-truth precedence is not yet normalized around PROJECT_OVERRIDES.md
 
 - **Severity:** P0 — Critical
-- **Status:** OPEN
+- **Status:** RESOLVED by AUD-034, 2026-08-27
 - **Affected documents:** `README.md`, `CLAUDE.md`, `DEVELOPMENT_RULES.md`, `PROJECT_BRIEF.md`, `STACK.md`, `PROJECT_OVERRIDES.md`
 - **Observed conflict:** older documents define slightly different precedence orders, and several do not recognize `PROJECT_OVERRIDES.md` explicitly. The override file itself states it takes precedence for its listed decisions.
 - **Risk:** two coding runs can make different choices from the same document set.
-- **Required action:** normalize the precedence language in governance documents. The override must be scoped: it controls only decisions it explicitly lists; it must not silently replace unrelated specialist requirements.
 - **Closure evidence:** README, CLAUDE, DEVELOPMENT_RULES, PROJECT_BRIEF, STACK, and DOCS_INDEX describe compatible precedence semantics.
 
 ### AUD-006 — README architecture says no public database/CMS while current architecture uses D1 CMS/read models
 
 - **Severity:** P0 — Critical
-- **Status:** OPEN
+- **Status:** RESOLVED by AUD-034, 2026-08-27
 - **Affected documents:** `README.md`, `PROJECT_BRIEF.md`, `DATA_ARCHITECTURE.md`, `CMS_ARCHITECTURE.md`, `TECHNICAL_ARCHITECTURE.md`
 - **Observed conflict:** an older README principle says not to introduce a public database or CMS in Phase 1 without a decision; newer approved architecture explicitly uses D1 for website data/read models and an internal CMS using D1/R2.
 - **Risk:** Claude Code may omit required CMS/D1 infrastructure or attempt a repository-only content model inconsistent with the approved platform.
-- **Required action:** update README architecture summary to the approved Cloudflare D1/R2/CMS model.
 - **Closure evidence:** README no longer contradicts `CMS_ARCHITECTURE.md` and `DATA_ARCHITECTURE.md`.
 
 ### AUD-007 — PROJECT_BRIEF language/open-decision sections are stale relative to PROJECT_OVERRIDES.md
 
 - **Severity:** P1 — Major
-- **Status:** OPEN
+- **Status:** RESOLVED by AUD-034, 2026-08-27
 - **Affected documents:** `PROJECT_BRIEF.md`, `PROJECT_OVERRIDES.md`
 - **Observed conflict:** Project Brief still presents Persian as launch language and English/Arabic as future readiness/open language decisions, while the current override has already decided the three-language architecture.
 - **Additional stale inputs:** contact channels and analytics are still listed as broad open decisions even though the override now supplies a phone/address and requires GTM/GSC; remaining unknowns still need to be separated from resolved items.
@@ -184,7 +180,7 @@ GSC and GTM are required from initial implementation. Public rendering must not 
 - **Affected documents:** `SEO_QA_CHECKLIST.md`, `PROJECT_OVERRIDES.md`, `HREFLANG_CANONICAL.md`, `LOCALIZATION.md`
 - **Observed conflict:** current SEO QA completion language refers to a Persian launch and absence of unsupported locales.
 - **Risk:** English/Arabic may be treated as an SEO defect even though they are required.
-- **Required action:** replace Persian-only release assumptions with three-locale checks, including direction, localized canonical, hreflang reciprocity, x-default, localized metadata, sitemap membership and non-indexing of missing/unapproved translations.
+- **Closure evidence:** `SEO_QA_CHECKLIST.md` now requires per-locale language/direction and hreflang checks for approved `fa`/`en`/`ar` published pages.
 
 ### AUD-009 — TECHNICAL_ARCHITECTURE definition of done is not yet multilingual-complete
 
@@ -255,7 +251,7 @@ The following matrix defines the remaining audit work. `PENDING` does not mean d
 
 | Audit group | Core documents | Current result |
 |---|---|---|
-| Governance / precedence | `PROJECT_OVERRIDES.md`, `CLAUDE.md`, `README.md`, `DEVELOPMENT_RULES.md`, `DECISIONS.md`, `TASKS.md` | **FAIL — P0 conflicts open** |
+| Governance / precedence | `PROJECT_OVERRIDES.md`, `CLAUDE.md`, `README.md`, `DEVELOPMENT_RULES.md`, `DECISIONS.md`, `TASKS.md` | AUD-034 RESOLVED for active precedence/runtime/locale drift |
 | Product / scope | `PROJECT_BRIEF.md`, brand/design docs | **PARTIAL — major override propagation pending** |
 | Pages / routing | `SITEMAP.md`, `INFORMATION_ARCHITECTURE.md`, `ROUTES.md`, page specs | PENDING |
 | Content / media | content model, copy, CTA, media | PENDING |
@@ -267,7 +263,7 @@ The following matrix defines the remaining audit work. `PENDING` does not mean d
 | Performance / cache | budget, guidelines, images, fonts, caching | PARTIAL — architecture direction strong |
 | Security | security, auth, private files, secrets | PENDING |
 | Testing / QA | testing, QA, SEO QA, responsive, accessibility | PARTIAL — multilingual criteria stale |
-| Deployment / release | deployment, env vars, pre/post deploy | PARTIAL — README deployment conflict open |
+| Deployment / release | deployment, env vars, pre/post deploy | AUD-034 RESOLVED for Vercel production-target drift; non-drift release details remain subject to normal QA |
 
 ---
 
@@ -334,13 +330,13 @@ Audit all remaining specialist documents for contradictions, broken references a
 
 ## 8. Claude Code Handoff Checklist
 
-- [ ] All P0 findings are `RESOLVED` or explicitly accepted by the owner.
-- [ ] `PROJECT_OVERRIDES.md` is first in Claude Code's mandatory reading order.
-- [ ] `CLAUDE.md` states the current `fa/en/ar` language and direction model.
-- [ ] README no longer tells contributors to deploy production to Vercel.
-- [ ] README no longer describes English/Arabic as future-only.
-- [ ] README no longer contradicts the approved D1/R2/CMS architecture.
-- [ ] `DOCS_INDEX.md` is present and referenced by README/CLAUDE.
+- [x] AUD-034 P0 documentation-drift findings are `RESOLVED` for source precedence, production runtime/adapter, and launch locales.
+- [x] `PROJECT_OVERRIDES.md` is first in Claude Code's mandatory reading order.
+- [x] `CLAUDE.md` states the current `fa/en/ar` language and direction model.
+- [x] README no longer tells contributors to deploy production to Vercel.
+- [x] README no longer describes English/Arabic as future-only.
+- [x] README no longer contradicts the approved D1/R2/CMS architecture.
+- [x] `DOCS_INDEX.md` is present and referenced by README/CLAUDE.
 - [ ] `DECISIONS.md` contains or references all material final architecture choices.
 - [ ] One canonical copy exists for every controlled specification.
 - [ ] `LOCALIZATION.md`, `ROUTES.md`, and `HREFLANG_CANONICAL.md` agree.
@@ -377,12 +373,12 @@ Complete this section only after the full controlled documentation set has been 
 
 | ID | Area | Owner | Status | Required before handoff? |
 |---|---|---|---|---|
-| AUD-001 | Hosting/deployment | Documentation/Engineering | OPEN | Yes |
-| AUD-002 | Launch locales | Product/Documentation | OPEN | Yes |
-| AUD-003 | Claude product truths | Documentation | OPEN | Yes |
-| AUD-004 | Mandatory reading | Documentation | OPEN | Yes |
-| AUD-005 | Precedence | Product/Engineering | OPEN | Yes |
-| AUD-006 | README architecture | Documentation/Engineering | OPEN | Yes |
+| AUD-001 | Hosting/deployment | Documentation/Engineering | RESOLVED by AUD-034 | No |
+| AUD-002 | Launch locales | Product/Documentation | RESOLVED by AUD-034 | No |
+| AUD-003 | Claude product truths | Documentation | RESOLVED by AUD-034 | No |
+| AUD-004 | Mandatory reading | Documentation | RESOLVED by AUD-034 | No |
+| AUD-005 | Precedence | Product/Engineering | RESOLVED by AUD-034 | No |
+| AUD-006 | README architecture | Documentation/Engineering | RESOLVED by AUD-034 | No |
 
 ### Approval
 
@@ -411,7 +407,7 @@ New project-wide decisions should normally be recorded in `PROJECT_OVERRIDES.md`
 
 ---
 
-**Current audit decision:** **NO-GO for unrestricted full-site Claude Code implementation.**  
+**Current audit decision:** **NO-GO for unrestricted full-site Claude Code implementation.**
 **Allowed next action:** resolve the P0 governance/architecture/localization control layer, then continue group-by-group audit.
 
 ---

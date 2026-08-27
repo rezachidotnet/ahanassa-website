@@ -9,7 +9,7 @@
 | پروژه | Ahan Asa Website |
 | نوع سند | Post-Deployment Verification Runbook |
 | محیط هدف | Production |
-| پشته مرجع | Next.js App Router + Vercel + Cloudflare |
+| پشته مرجع | Next.js App Router + vinext + Cloudflare Workers |
 | مالک اجرا | Release Owner / DevOps |
 | تأییدکنندگان | Technical Lead، QA، SEO، Marketing |
 | زمان شروع | حداکثر ۵ دقیقه پس از Deploy |
@@ -145,7 +145,7 @@ curl -sS -o /dev/null -w 'status=%{http_code}\n' "$SITE_ORIGIN/__post_deploy_mis
 - [ ] `P1` دامنه Apex و `www` مطابق تصمیم Canonical فقط به یک Host نهایی می‌رسند.
 - [ ] `P1` Redirect Loop، زنجیره غیرضروری یا انتقال به دامنه قدیمی وجود ندارد.
 - [ ] `P1` مسیر و Query String در Redirectهای دامنه حفظ می‌شوند.
-- [ ] `P1` Cloudflare/Vercel هیچ صفحه Challenge یا Block ناخواسته به کاربران واقعی نشان نمی‌دهد.
+- [ ] `P1` Cloudflare هیچ صفحه Challenge یا Block ناخواسته به کاربران واقعی نشان نمی‌دهد.
 - [ ] `P1` Cache سبب نمایش HTML نسخه قبلی یا محتوای Locale اشتباه نمی‌شود.
 - [ ] `P2` Headerهای Cache برای HTML و Assetهای Hash‌شده مطابق `CACHING_STRATEGY.md` هستند.
 - [ ] `P2` فشرده‌سازی Brotli یا gzip برای منابع متنی فعال است.
@@ -565,7 +565,7 @@ Follow-up Owner:
 ## 19. منابع مرجع
 
 - [Next.js Production Checklist](https://nextjs.org/docs/app/guides/production-checklist)
-- [Vercel: Rolling back a production deployment](https://vercel.com/docs/deployments/rollback-production-deployment)
+- [Cloudflare Workers: Rollbacks](https://developers.cloudflare.com/workers/configuration/versions-and-deployments/rollbacks/)
 - [Web Vitals](https://web.dev/articles/vitals)
 - [Google Search: Canonical URLs](https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls)
 - [Google Search: Localized Versions and Hreflang](https://developers.google.com/search/docs/specialty/international/localized-versions)

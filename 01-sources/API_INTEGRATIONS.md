@@ -46,10 +46,10 @@ Claude Code must not silently resolve a material conflict. It must record the co
 
 The following requirements are binding for Phase 1:
 
-- The public website is Persian-first and fully RTL.
-- The primary market is Iran; future localization and regional expansion must remain possible.
+- The public website is Persian-first and supports `fa`/`en`/`ar` at launch (`fa` and `ar` RTL, `en` LTR).
+- The primary market is Iran; regional expansion must remain possible.
 - The preferred application direction is Next.js App Router, static-first where practical.
-- The preferred delivery direction is Vercel behind Cloudflare for `ahanassa.com`, subject to final infrastructure approval.
+- The approved delivery direction is Cloudflare Workers + Static Assets via vinext for `ahanassa.com`.
 - Indexable content must be available in server-rendered or statically generated HTML.
 - Confidential operations must run server-side.
 - Inquiry data and client documents must never appear in static bundles, page source, public caches, analytics payloads, or client logs.

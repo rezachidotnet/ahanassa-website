@@ -159,11 +159,11 @@ Conflict rules:
 | ERP | Odoo through a server-only adapter |
 | Testing | Unit, integration, Playwright E2E, accessibility, SEO, security, performance |
 
-As of this document date, Cloudflare documents `vinext` as its recommended Next.js-on-Workers path while labeling it beta, and retains OpenNext for compatibility gaps. Therefore:
+AUD-034 update: the selected production adapter is confirmed as `vinext`; older OpenNext fallback language is **HISTORICAL / SUPERSEDED** unless a future owner-approved adapter decision reverses it. Therefore:
 
 1. implementation MUST run the official compatibility check against the locked app version;
-2. `vinext` SHOULD be selected when required features pass and production risk is accepted;
-3. OpenNext MAY be used for a documented compatibility gap;
+2. `vinext` MUST remain selected for the current production architecture;
+3. OpenNext is not the selected adapter and may be reconsidered only through a new recorded architecture decision;
 4. the chosen adapter and versions MUST be recorded in `STACK.md`, the lockfile, and `DECISIONS.md`;
 5. provider APIs MUST remain behind adapters.
 
@@ -850,7 +850,7 @@ Critical scenarios:
 
 | Decision | Current state | Required evidence |
 | --- | --- | --- |
-| Next.js adapter | Compatibility-gated; vinext preferred, OpenNext fallback | Compatibility report/test |
+| Next.js adapter | vinext confirmed; OpenNext fallback superseded | Compatibility report/test |
 | Exact stack versions | Not frozen here | `STACK.md` + lockfile |
 | Odoo version/API | Not verified | Server inspection/API smoke test |
 | Odoo RFQ model | Structured custom/equivalent model required | Module/field mapping |

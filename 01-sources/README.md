@@ -1,10 +1,10 @@
 # Ahan Asa Website
 
-> Premium Persian-first B2B steel procurement website for **Ahan Asa | آهن آسا**  
-> Canonical production origin: `https://www.ahanassa.com`  
-> Primary locale: Persian (`fa-IR`), fully RTL and unprefixed  
-> Status: Documentation-first implementation baseline  
-> Last updated: 2026-08-25
+> Premium Persian-first B2B steel procurement website for **Ahan Asa | آهن آسا**
+> Canonical production origin: `https://www.ahanassa.com`
+> Locales: Persian (`fa-IR`) primary/default and unprefixed; English (`/en`, LTR); Arabic (`/ar`, RTL)
+> Status: Documentation-first implementation baseline
+> Last updated: 2026-08-27 — AUD-034 documentation drift cleanup
 
 ## Overview
 
@@ -20,7 +20,7 @@ The product is deliberately **not** designed as:
 
 The primary conversion is the submission of an invoice, bill of materials, steel list, or project procurement request for professional review.
 
-**Approved Persian promise:** «ما مراقب سرمایه شما هستیم.»  
+**Approved Persian promise:** «ما مراقب سرمایه شما هستیم.»
 **Meaning-aligned English version:** “We protect your capital.”
 
 The promise must be used as brand positioning—not as an absolute financial, price, delivery, or risk guarantee.
@@ -32,12 +32,12 @@ The promise must be used as brand positioning—not as an absolute financial, pr
 - Generate qualified B2B inquiries from real projects and purchasing teams.
 - Reduce price-only or low-context inquiries through clear qualification.
 - Support sales conversations with transparent process, scope, and evidence.
-- Deliver a fast, accessible, mobile-first, SEO-ready Persian experience.
-- Preserve a scalable foundation for future content, integrations, and approved locales.
+- Deliver a fast, accessible, mobile-first, SEO-ready multilingual experience with Persian as the primary/default locale.
+- Preserve a scalable foundation for approved content, integrations, and locales.
 
 ## Phase 1 Scope
 
-Phase 1 is a Persian-only public website for the Iranian market. Its expected page families include:
+Phase 1 launches with Persian (`fa`), English (`en`), and Arabic (`ar`) architecture. Persian is the primary/default unprefixed locale. Its expected page families include:
 
 - homepage;
 - procurement capabilities and methodology;
@@ -49,7 +49,7 @@ Phase 1 is a Persian-only public website for the Iranian market. Its expected pa
 - consultation/RFQ flow with optional secure document upload;
 - required confirmation, error, and system pages.
 
-English (`/en/**`) and Arabic (`/ar/**`) are reserved for future approved releases. They must not be published, indexed, or represented as active Phase 1 locales.
+English (`/en/**`) and Arabic (`/ar/**`) are active launch locales. Do not fabricate English or Arabic final copy: pages or translations that lack approved localized content must remain unpublished or non-indexable according to the localization, CMS, and SEO specifications.
 
 ## Core User Journey
 
@@ -71,16 +71,16 @@ English (`/en/**`) and Arabic (`/ar/**`) are reserved for future approved releas
 | Language | TypeScript `6.0.x` in strict mode |
 | Styling | Tailwind CSS `4.3.x`, CSS custom properties, limited component CSS |
 | Rendering | Static generation and Server Components by default |
-| Content | Repository-managed structured TypeScript data and controlled MDX |
+| Content | Cloudflare D1-backed CMS/read models plus approved structured content |
 | Validation | Zod at content, configuration, and server-input boundaries |
 | Forms | Native semantics with Server Actions or Route Handlers and progressive enhancement |
 | Unit/component tests | Vitest and React Testing Library |
 | End-to-end tests | Playwright |
 | Accessibility tests | axe-core through Playwright |
 | Performance tests | Lighthouse CI plus field Web Vitals |
-| Hosting | Vercel |
+| Hosting/runtime | Cloudflare Workers + Static Assets via vinext |
 | DNS/security edge | Cloudflare |
-| Repository/CI | GitHub and GitHub Actions |
+| Repository/CI | GitHub and GitHub Actions + Wrangler deployments |
 
 The exact installed versions in `package.json`, `pnpm-lock.yaml`, and the repository runtime declaration are authoritative once implementation begins. Any material stack deviation requires an approved entry in `DECISIONS.md`.
 
@@ -94,7 +94,7 @@ The exact installed versions in `package.json`, `pnpm-lock.yaml`, and the reposi
 - Build from the project design system instead of adopting a generic UI kit.
 - Separate content and business rules from presentation components.
 - Keep CRM, email, storage, analytics, and monitoring behind replaceable adapters.
-- Do not introduce a public database or CMS in Phase 1 without an approved decision.
+- Use the approved Cloudflare D1/R2-backed website data, CMS, and RFQ persistence architecture.
 - Protect accessibility, privacy, security, SEO, and Core Web Vitals as release requirements.
 
 See `TECHNICAL_ARCHITECTURE.md`, `FOLDER_STRUCTURE.md`, `COMPONENT_ARCHITECTURE.md`, and `DATA_ARCHITECTURE.md` for the detailed contracts.
@@ -305,9 +305,9 @@ The approved direction is:
 
 - GitHub for source control;
 - GitHub Actions for CI;
-- Vercel preview deployments for pull requests;
-- Vercel production deployment from the protected production branch;
-- Cloudflare for DNS and approved edge-security controls.
+- Cloudflare Workers preview/staging flow as defined in `DEPLOYMENT_ARCHITECTURE.md`;
+- Cloudflare Workers + Static Assets production deployment from the protected production branch via Wrangler/vinext;
+- Cloudflare for DNS, runtime hosting, and approved edge-security controls.
 
 Deployment rules:
 

@@ -6,11 +6,11 @@
 | --- | --- |
 | Project | Ahan Asa (`ahanassa.com`) |
 | Application | Next.js App Router |
-| Hosting | Vercel |
+| Hosting/runtime | Cloudflare Workers + Static Assets via vinext |
 | DNS / edge security | Cloudflare |
 | Document owner | Engineering |
 | Status | Implementation specification |
-| Last updated | 2026-08-25 |
+| Last updated | 2026-08-27 — AUD-034 documentation drift cleanup |
 
 ## 1. Purpose
 
@@ -21,7 +21,7 @@ This document defines how the website caches pages, data, media, fonts, API resp
 - reduce origin and CMS traffic;
 - make content updates predictable;
 - prevent RFQ, preview, authentication, or personalized data from entering a shared cache;
-- avoid conflicts between the Cloudflare and Vercel CDN layers.
+- avoid conflicts between Cloudflare edge cache, framework cache/revalidation, and application data freshness.
 
 This file is normative. Claude Code must follow it when adding a route, data source, CMS integration, API endpoint, asset type, redirect, or deployment rule.
 
@@ -29,21 +29,20 @@ This file is normative. Claude Code must follow it when adding a route, data sou
 
 ```text
 Visitor
-  -> Cloudflare: DNS, TLS, WAF, bot protection, static-asset delivery
-  -> Vercel: application CDN, ISR/page cache, functions
-  -> Next.js: route, data, request memoization, and client router caches
-  -> CMS / business APIs
+  -> Cloudflare: DNS, TLS, WAF, bot protection, Workers runtime, static assets, edge cache
+  -> Next.js via vinext: route, data, request memoization, and client router caches
+  -> D1 / R2 / Queues / server-only Odoo adapter
 ```
 
 ### Primary rule
 
-Vercel and Next.js own HTML, React Server Component, ISR, and application-data caching. Cloudflare must not apply a broad **Cache Everything** rule to HTML.
+Cloudflare Workers/vinext and Next.js own HTML, React Server Component, revalidation, and application-data caching. Cloudflare cache rules must not apply a broad **Cache Everything** rule to HTML.
 
-Cloudflare may cache only explicitly approved, public, non-personalized asset classes. This prevents a second CDN from continuing to serve an old page after Next.js has revalidated it.
+Cloudflare may cache only explicitly approved, public, non-personalized asset classes and responses. This prevents edge cache from continuing to serve old HTML after framework revalidation has occurred.
 
 ### Why this rule exists
 
-With two CDN layers, every cacheable response can have two independent TTLs and two separate purge mechanisms. If Cloudflare caches HTML longer than Vercel, a successful Next.js revalidation can remain invisible to users. Limiting Cloudflare to static assets keeps content invalidation deterministic.
+With framework revalidation and edge cache both present, every cacheable response can have multiple freshness controls and purge mechanisms. If Cloudflare caches HTML longer than the application intends, a successful Next.js revalidation can remain invisible to users. Limiting HTML caching to explicitly tested rules keeps content invalidation deterministic.
 
 ## 3. Non-negotiable Rules
 
@@ -64,7 +63,7 @@ With two CDN layers, every cacheable response can have two independent TTLs and 
 | --- | --- | --- |
 | Browser | Fingerprinted JS/CSS, versioned fonts and media | HTML that must update instantly; private responses |
 | Cloudflare | Approved static assets, WAF, compression, transport optimizations | HTML/RSC, RFQ/API mutations, preview, personalized content |
-| Vercel CDN | Static pages, ISR output, explicitly cacheable route responses | Private/user-specific responses |
+| Cloudflare Workers/vinext | Static pages, route output, explicitly cacheable route responses | Secrets or user-specific data in shared caches |
 | Next.js server/runtime | Cached data, route output, request memoization | Secrets or user-specific data in shared caches |
 | Client router | Navigation payloads during a session | Long-term source of truth after content mutation |
 
@@ -72,7 +71,7 @@ With two CDN layers, every cacheable response can have two independent TTLs and 
 
 TTL values are defaults. A route may use a shorter value when business freshness requires it, but any longer value requires an Architecture Decision Record.
 
-| Resource class | Example | Browser policy | Vercel / Next.js policy | Cloudflare policy | Invalidation |
+| Resource class | Example | Browser policy | Next.js / vinext policy | Cloudflare policy | Invalidation |
 | --- | --- | --- | --- | --- | --- |
 | Fingerprinted build assets | `/_next/static/*` | 1 year, `immutable` | 1 year, `immutable` | Eligible; respect origin | New deployment creates new URLs |
 | Versioned fonts | `/fonts/iranyekan.v3.woff2` | 1 year, `immutable` | 1 year, `immutable` | Eligible; respect origin | Change filename/version |
@@ -104,7 +103,7 @@ Cache-Control: public, max-age=31536000, immutable
 
 Use this only when the filename or query contains a content hash or explicit version and any byte change creates a new URL.
 
-### 6.2 Public HTML controlled by Next.js/Vercel
+### 6.2 Public HTML controlled by Next.js/vinext
 
 Do not manually overwrite framework-generated page cache headers unless a verified requirement exists. Control page freshness with Next.js static generation, revalidation, and tags.
 
@@ -112,7 +111,7 @@ If a custom route must define the layers independently, use provider-specific he
 
 ```http
 Cache-Control: public, max-age=0, must-revalidate
-Vercel-CDN-Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+CDN-Cache-Control: public, max-age=3600, stale-while-revalidate=86400
 Cloudflare-CDN-Cache-Control: no-store
 ```
 
@@ -130,7 +129,7 @@ Also set appropriate authentication, CSRF, and content-type protections. `no-sto
 
 ```http
 Cache-Control: public, max-age=0, must-revalidate
-Vercel-CDN-Cache-Control: public, max-age=60, stale-while-revalidate=300
+CDN-Cache-Control: public, max-age=60, stale-while-revalidate=300
 Cloudflare-CDN-Cache-Control: no-store
 ```
 
@@ -447,7 +446,7 @@ Never ignore all query strings globally.
 
 ### Normal code deployment
 
-- Vercel deployment creates new immutable build assets.
+- Cloudflare Workers/vinext deployment creates new immutable build assets.
 - Static/ISR output follows the deployed application version.
 - Do not purge Cloudflare globally.
 - If a versioned asset URL changes, no purge is required.
@@ -480,7 +479,7 @@ For representative public requests, record:
 - provider-specific CDN cache-control headers when visible;
 - `Age`;
 - `CF-Cache-Status`;
-- `x-vercel-cache` or the current Vercel cache-status header;
+- current framework/runtime cache-status header when visible;
 - `Vary`;
 - `ETag` / `Last-Modified` when present;
 - response time from at least two regions when practical.
@@ -572,7 +571,7 @@ Claude Code may mark caching work complete only when:
 
 1. every affected route is classified;
 2. response headers are verified on the deployed domain, not only locally;
-3. Cloudflare and Vercel responsibilities remain separated;
+3. Cloudflare edge-cache and framework revalidation responsibilities remain separated;
 4. sensitive routes demonstrably bypass shared caches;
 5. CMS invalidation updates both detail and dependent listing pages;
 6. immutable assets use versioned URLs;
@@ -602,8 +601,6 @@ Claude Code may mark caching work complete only when:
 - [Next.js revalidation](https://nextjs.org/docs/app/getting-started/revalidating)
 - [Next.js `revalidatePath`](https://nextjs.org/docs/app/api-reference/functions/revalidatePath)
 - [Next.js `revalidateTag`](https://nextjs.org/docs/app/api-reference/functions/revalidateTag)
-- [Vercel cache-control headers](https://vercel.com/docs/caching/cache-control-headers)
-- [Vercel CDN cache](https://vercel.com/docs/caching/cdn-cache)
 - [Cloudflare Origin Cache Control](https://developers.cloudflare.com/cache/concepts/cache-control/)
 - [Cloudflare CDN-Cache-Control](https://developers.cloudflare.com/cache/concepts/cdn-cache-control/)
 - [Cloudflare Cache Rules settings](https://developers.cloudflare.com/cache/how-to/cache-rules/settings/)

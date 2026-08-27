@@ -1,12 +1,12 @@
 # Ahan Asa Website — Font Strategy
 
-> **Brand:** Ahan Asa | آهن آسا  
-> **Domain:** `ahanassa.com`  
-> **Canonical production origin:** `https://www.ahanassa.com`  
-> **Document:** `FONT_STRATEGY.md`  
-> **Status:** Draft v1.0 — Implementation contract  
-> **Last updated:** 2026-08-25  
-> **Primary website language:** Persian (`fa-IR`), fully RTL  
+> **Brand:** Ahan Asa | آهن آسا
+> **Domain:** `ahanassa.com`
+> **Canonical production origin:** `https://www.ahanassa.com`
+> **Document:** `FONT_STRATEGY.md`
+> **Status:** Draft v1.0 — Implementation contract
+> **Last updated:** 2026-08-27 — AUD-034 documentation drift cleanup
+> **Website languages:** Persian (`fa-IR`) primary/default RTL; English LTR; Arabic RTL
 > **Framework baseline:** Next.js App Router with `next/font/local`
 
 ---
@@ -21,7 +21,7 @@ This is an implementation document for Claude Code and human developers. It supp
 - `TYPOGRAPHY_SYSTEM.md` for type scale, roles, line height, and composition;
 - `STACK.md` for framework and dependency decisions;
 - `PERFORMANCE_GUIDELINES.md` for site-wide budgets and Core Web Vitals;
-- `LOCALIZATION.md` for future locale routing and RTL/LTR behavior;
+- `LOCALIZATION.md` for approved `fa`/`en`/`ar` routing and RTL/LTR behavior;
 - `CACHING_STRATEGY.md` for final CDN and cache policy.
 
 This document governs font delivery. It does not redesign the type scale or recreate the official Ahan Asa wordmark.
@@ -49,12 +49,12 @@ Claude Code MUST NOT silently change the primary family, add a remote font provi
 | Remote fonts | Prohibited |
 | Google Fonts runtime request | Prohibited |
 | Font CDN | Prohibited |
-| Phase 1 locale | Persian only, `lang="fa"`, `dir="rtl"` |
+| Phase 1 locales | `fa` primary/default (`lang="fa"`, `dir="rtl"`), `en` (`dir="ltr"`), `ar` (`dir="rtl"`) |
 | Preferred Persian family | Yekan Bakh, subject to license and asset approval gate |
 | Guaranteed release baseline | Estedad Variable, self-hosted, OFL-1.1 |
 | Secondary emergency fallback | Vazirmatn Variable, self-hosted, OFL-1.1 |
 | System fallback | `Tahoma`, `Arial`, `sans-serif` |
-| Phase 1 web families | One active family |
+| Phase 1 web families | Locale-appropriate families; final family/licensing decisions remain gated |
 | Preferred format | WOFF2 variable font |
 | Style | Normal only unless real italic content is approved |
 | Required weights | `400`, `500`, `600`, `700`, `800` |

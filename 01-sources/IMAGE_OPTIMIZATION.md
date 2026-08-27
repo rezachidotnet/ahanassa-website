@@ -1302,7 +1302,7 @@ The following remain `TBD` until explicitly approved:
 - final device-width and image-width arrays after real component audit;
 - final allowed quality values after visual and byte testing;
 - approved image CDN or remote image origins, if any;
-- final cache-control rules and Cloudflare/Vercel responsibility split;
+- final cache-control rules and Cloudflare/framework responsibility split;
 - production media registry/CMS implementation;
 - final master storage or DAM location;
 - named asset approvers and exception approvers;
@@ -1335,4 +1335,3 @@ External documentation informs implementation but does not override approved Aha
 For Ahan Asa, an optimized image is not simply a smaller file. It is a **truthful, appropriately sized, accessible, stable, and early-or-late-loaded asset according to its real role**.
 
 When choosing between visual spectacle and credible performance, choose credible performance. When choosing between aggressive compression and reliable evidence, preserve the evidence and redesign the delivery.
-

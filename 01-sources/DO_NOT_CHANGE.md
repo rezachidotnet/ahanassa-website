@@ -190,7 +190,7 @@ Claude MUST NOT change:
 - The `www` host policy.
 - Canonical URL generation.
 - Production base URLs in metadata, sitemap, structured data, or Open Graph output.
-- Domain redirects, DNS assumptions, Cloudflare rules, or Vercel domain settings.
+- Domain redirects, DNS assumptions, Cloudflare rules, or deployment domain settings.
 - Existing public route slugs or locale strategy.
 
 These changes require an explicit migration task, redirect map, SEO impact review, rollback plan, and post-deployment verification.
@@ -324,7 +324,7 @@ The approved baseline is:
 - Static-first delivery.
 - Server rendering by default.
 - Progressive enhancement for interaction.
-- Vercel deployment behind Cloudflare.
+- Cloudflare Workers + Static Assets deployment via vinext.
 - Secure server-side processing for inquiries and uploads.
 
 Claude MUST NOT, without explicit architecture approval:

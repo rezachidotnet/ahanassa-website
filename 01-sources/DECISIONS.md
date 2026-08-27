@@ -1,13 +1,13 @@
 # Ahan Asa Website — Architecture and Design Decisions
 
-> **Brand:** Ahan Asa | آهن آسا  
-> **Domain:** `ahanassa.com`  
-> **Canonical production origin:** `https://www.ahanassa.com`  
-> **Document:** `DECISIONS.md`  
-> **Version:** 1.0  
-> **Status:** Active baseline — project-owner approval required for material changes  
-> **Last updated:** 2026-08-25  
-> **Launch locale:** Persian (`fa-IR`), fully RTL  
+> **Brand:** Ahan Asa | آهن آسا
+> **Domain:** `ahanassa.com`
+> **Canonical production origin:** `https://www.ahanassa.com`
+> **Document:** `DECISIONS.md`
+> **Version:** 1.0
+> **Status:** Active baseline — project-owner approval required for material changes
+> **Last updated:** 2026-08-25
+> **Launch locale:** Persian (`fa-IR`), fully RTL
 > **Document language:** English, with approved Persian interface expressions where relevant
 
 ---
@@ -117,7 +117,7 @@ Every new record must include:
 | --- | --- | --- |
 | `ADR-001` | Position Ahan Asa as a procurement manager, not a steel marketplace | Accepted |
 | `ADR-002` | Keep Phase 1 focused and exclude commerce, price-board, portal, and marketplace features | Accepted |
-| `ADR-003` | Publish Persian first with true RTL and unprefixed canonical routes | Accepted |
+| `ADR-003` | Publish Persian first with true RTL and unprefixed canonical routes | SUPERSEDED IN PART — fa remains default/unprefixed; en/ar now launch locales |
 | `ADR-004` | Use “send invoice or material list” as the primary conversion model | Accepted |
 | `ADR-005` | Use a static-first Next.js App Router architecture | Accepted |
 | `ADR-006` | Use Server Components by default and minimize client JavaScript | Accepted |
@@ -126,7 +126,7 @@ Every new record must include:
 | `ADR-009` | Keep inquiry handling behind a secure Ahan Asa server boundary | Accepted |
 | `ADR-010` | Disable document upload until the full private-file workflow is approved | Accepted |
 | `ADR-011` | Use no public application database at launch | Accepted |
-| `ADR-012` | Use Cloudflare in front of Vercel with `www` as canonical host | Accepted |
+| `ADR-012` | Use Cloudflare in front of Vercel with `www` as canonical host | SUPERSEDED — production runtime is Cloudflare Workers + vinext |
 | `ADR-013` | Use native Next.js SEO features and a central canonical route registry | Accepted |
 | `ADR-014` | Use a provider-neutral analytics event layer and prohibit PII in events | Accepted |
 | `ADR-015` | Enforce security, privacy, accessibility, performance, and QA as release gates | Accepted |
@@ -148,9 +148,9 @@ Every new record must include:
 
 ### ADR-001 — Procurement-Management Positioning
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
-**Owner:** Ahan Asa project owner  
+**Status:** Accepted
+**Date:** 2026-08-25
+**Owner:** Ahan Asa project owner
 **Scope:** Business architecture, information architecture, content, UI, SEO, and conversion
 
 ### Context
@@ -200,8 +200,8 @@ A formal business-model change approved by the project owner, followed by update
 
 ### ADR-002 — Phase 1 Scope and Explicit Non-Goals
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** Product scope and technical boundaries
 
 ### Decision
@@ -232,20 +232,22 @@ These features create business, legal, data, security, and operational obligatio
 
 ### ADR-003 — Persian-First Localization and URL Policy
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** SUPERSEDED IN PART by `PROJECT_OVERRIDES.md` §1 (2026-08-26 owner-confirmed)
+**Date:** 2026-08-25
 **Scope:** Localization, routing, SEO, design, and content
+
+**HISTORICAL / SUPERSEDED NOTE:** the Persian default and unprefixed route policy remains active. The Persian-only launch assumption and "future locale" framing are superseded; the current launch architecture is `fa`/`en`/`ar`, with Persian primary/default.
 
 ### Decision
 
-- Phase 1 publishes only Persian (`fa-IR`).
+- Phase 1 publishes Persian (`fa-IR`), English (`en`), and Arabic (`ar`) where approved localized content exists.
 - The document root uses `lang="fa"` and `dir="rtl"`.
 - Persian canonical routes are unprefixed; the homepage is `/`, not `/fa`.
 - Any `/fa/...` equivalent permanently redirects to the unprefixed Persian route.
-- Future approved locales use stable prefixes such as `/en/...` and `/ar/...`.
+- English and Arabic use stable prefixes `/en/...` and `/ar/...`.
 - Unsupported or incomplete locales return a real `404`; they do not silently fall back to Persian.
-- No hreflang is emitted for unpublished locales.
-- A small typed locale/content interface is sufficient for Phase 1. `next-intl` or another runtime localization library is deferred until a second complete locale is approved, unless an earlier adoption decision demonstrates a clear migration benefit.
+- Hreflang is emitted only for published pages with approved localized content.
+- Locale/runtime implementation must support `fa`/`en`/`ar` from the start. Do not fabricate translations to satisfy this.
 
 ### Rationale
 
@@ -268,8 +270,8 @@ The policy gives the initial Persian market the cleanest canonical URLs while pr
 
 ### ADR-004 — Primary Conversion Model
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** Conversion, forms, navigation, content, and analytics
 
 ### Decision
@@ -297,8 +299,8 @@ Production submission remains gated by approval of the lead system of record, re
 
 ### ADR-005 — Static-First Next.js App Router
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** Application framework and rendering
 
 ### Decision
@@ -332,8 +334,8 @@ This architecture supports indexable Persian content, strong performance, secure
 
 ### ADR-006 — Server Components and Minimal Client Boundaries
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** Component architecture and performance
 
 ### Decision
@@ -353,8 +355,8 @@ React Server Components are the default. A Client Component is permitted only at
 
 ### ADR-007 — Git-Managed Typed Content; CMS Deferred
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** Content architecture and publication
 
 ### Decision
@@ -380,13 +382,13 @@ No external CMS is required at launch. Components consume domain records through
 
 ### ADR-008 — Single Application with Adapter Boundaries
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** System decomposition
 
 ### Decision
 
-Use one Next.js application for Phase 1. External providers sit behind narrow server-only interfaces for content, leads, notifications, uploads, analytics, and monitoring. Domain models do not depend on React route files, Vercel request objects, or provider SDKs.
+Use one Next.js application for Phase 1. External providers sit behind narrow server-only interfaces for content, leads, notifications, uploads, analytics, and monitoring. Domain models do not depend on React route files, provider-specific request objects, or provider SDKs.
 
 ### Consequences
 
@@ -399,8 +401,8 @@ Use one Next.js application for Phase 1. External providers sit behind narrow se
 
 ### ADR-009 — Secure Inquiry Boundary
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** Forms, integrations, security, and privacy
 
 ### Decision
@@ -432,8 +434,8 @@ React Hook Form is not a baseline dependency. It may be added only if demonstrat
 
 ### ADR-010 — Private Document Upload Is Gated
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** File uploads and confidential documents
 
 ### Decision
@@ -462,8 +464,8 @@ Invoice, quotation, BOQ, and material-list upload remains disabled in production
 
 ### ADR-011 — No Public Application Database at Launch
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** Data architecture
 
 ### Decision
@@ -482,13 +484,15 @@ Confidential inquiries may be persisted only through the approved lead-system ad
 
 ### ADR-012 — Cloudflare, Vercel, and Canonical Host
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** SUPERSEDED by `PROJECT_OVERRIDES.md` §2 (Cloudflare Workers + vinext)
+**Date:** 2026-08-25
 **Scope:** Hosting, domain, deployment, and edge security
+
+**HISTORICAL / SUPERSEDED NOTE:** this ADR is retained as change history. Its Vercel production-hosting decision is no longer active. The canonical host policy remains active unless a future owner-approved domain decision changes it.
 
 ### Decision
 
-- Deploy the Next.js application on Vercel.
+- Deploy the Next.js application on Cloudflare Workers + Static Assets via vinext.
 - Use Cloudflare for DNS, TLS edge policy, canonical redirects, WAF/rate controls where configured, and optional Turnstile.
 - The canonical production origin is `https://www.ahanassa.com`.
 - `ahanassa.com` permanently redirects to `www.ahanassa.com`, preserving path and query.
@@ -506,7 +510,7 @@ A separate staging environment is added only if a persistent integration-testing
 
 ### Consequences
 
-- Cloudflare and Vercel rules must be tested together to prevent loops and conflicting cache behavior.
+- Cloudflare and application redirect/cache rules must be tested together to prevent loops and conflicting cache behavior.
 - Production, preview, and local secrets and destinations remain separated.
 - Rollback uses a known healthy deployment.
 
@@ -514,8 +518,8 @@ A separate staging environment is added only if a persistent integration-testing
 
 ### ADR-013 — Native Next.js SEO Architecture
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** Technical SEO and discoverability
 
 ### Decision
@@ -543,8 +547,8 @@ Do not install a generic SEO plugin.
 
 ### ADR-014 — Provider-Neutral Analytics and PII Exclusion
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** Analytics, consent, privacy, and measurement
 
 ### Decision
@@ -558,7 +562,7 @@ Analytics must never contain:
 - quotation contents or confidential project details;
 - raw provider errors, tokens, or identifiers that expose a person or confidential inquiry.
 
-GA4, GTM, Vercel Analytics, Speed Insights, or another provider remains deferred until consent/legal basis, ownership, environments, event dictionary, retention, internal traffic, and QA are approved.
+GA4, GTM, Cloudflare analytics tooling, Speed Insights-equivalent tooling, or another provider remains deferred until consent/legal basis, ownership, environments, event dictionary, retention, internal traffic, and QA are approved.
 
 ### Consequences
 
@@ -571,8 +575,8 @@ GA4, GTM, Vercel Analytics, Speed Insights, or another provider remains deferred
 
 ### ADR-015 — Quality Attributes Are Release Gates
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** Accessibility, performance, security, SEO, responsive behavior, and QA
 
 ### Decision
@@ -601,8 +605,8 @@ Minimum launch direction includes:
 
 ### ADR-016 — Version Pinning and Dependency Restraint
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** Toolchain, dependencies, CI, and maintenance
 
 ### Decision
@@ -627,8 +631,8 @@ Minimum launch direction includes:
 
 ### DDR-001 — Experience Thesis: Calm Control
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** UI/UX, brand expression, and content presentation
 
 ### Decision
@@ -653,8 +657,8 @@ The intended emotional progression is:
 
 ### DDR-002 — Core Color Palette
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** Brand and UI color
 
 ### Decision
@@ -679,8 +683,8 @@ Additional neutrals and semantic status colors must be defined centrally in `COL
 
 ### DDR-003 — Approved Logo Masters Are Immutable Inputs
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** Brand assets and implementation
 
 ### Decision
@@ -706,8 +710,8 @@ Claude Code must not:
 
 ### DDR-004 — Persian-Native Typography
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** Typography, localization, performance, and brand
 
 ### Decision
@@ -728,8 +732,8 @@ Production fonts are self-hosted through `next/font/local` using approved WOFF2 
 
 ### DDR-005 — Editorial Composition Instead of Marketplace Grids
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** Layout, page composition, and responsive design
 
 ### Decision
@@ -758,8 +762,8 @@ Do not wrap every paragraph, metric, icon, or CTA in a card. Cards are reserved 
 
 ### DDR-006 — Project-Owned Component and Token System
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** Design system and component architecture
 
 ### Decision
@@ -785,8 +789,8 @@ Do not install a monolithic UI library or generic theme. Native HTML is preferre
 
 ### DDR-007 — Documentary and Verifiable Imagery
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** Photography, media, evidence, and trust
 
 ### Decision
@@ -814,8 +818,8 @@ AI-generated imagery may be used only as clearly non-evidentiary conceptual artw
 
 ### DDR-008 — Quiet, Purposeful Motion
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** Motion and interaction
 
 ### Decision
@@ -833,8 +837,8 @@ Motion must be controlled, precise, quiet, responsive, and purposeful. Use CSS t
 
 ### DDR-009 — Mobile, RTL, and Bidirectional Design Are Structural
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** Responsive design, localization, accessibility, and forms
 
 ### Decision
@@ -855,8 +859,8 @@ The mobile experience is a primary procurement entry point, not a compressed des
 
 ### DDR-010 — Trust Through Evidence and Transparency
 
-**Status:** Accepted  
-**Date:** 2026-08-25  
+**Status:** Accepted
+**Date:** 2026-08-25
 **Scope:** Content design, claims, evidence, and conversion
 
 ### Decision
@@ -898,7 +902,7 @@ Deferred means intentionally unresolved. Claude Code must not substitute a famil
 | `OPEN-010` | Final Persian logo lockups/wordmark assets | Use only approved available masters; missing variants remain `TBD` | `BRAND_GUIDELINES.md` and owner approval |
 | `OPEN-011` | Exact CSP, security headers, CORS, and upload allowlists | Use the safest framework/platform baseline; do not weaken protections | `SECURITY_GUIDELINES.md` |
 | `OPEN-012` | Exact public cache TTL, tags, and invalidation | Immutable per deployment for static content; `no-store` for private writes | `CACHING_STRATEGY.md` |
-| `OPEN-013` | Second locale and localization runtime | Persian only; typed locale-ready interface | `LOCALIZATION.md`, approved complete content set |
+| `OPEN-013` | Locale runtime and localized-content readiness | `fa`/`en`/`ar` architecture confirmed; final content readiness and runtime details still gated | `LOCALIZATION.md`, approved complete content set |
 | `OPEN-014` | Verified case studies, client marks, metrics, and photography | Do not publish unsupported evidence | Content owner and `MEDIA_GUIDELINES.md` |
 | `OPEN-015` | Public legal entity details and approved contact channels | Do not invent or expose unverified contact information | Project owner / legal approval |
 | `OPEN-016` | Dependency-update automation | Manual controlled updates; do not install both competing bots | `DEVELOPMENT_RULES.md` |

@@ -1,3 +1,18 @@
+# AUD-034 Historical Bundle Notice
+
+This file is a concatenated historical/reference bundle of older source material. It is not independently authoritative for implementation. Any statement below that references `02-sources`, `03-sources`, Vercel production hosting, OpenNext/`@opennextjs/cloudflare` as the selected adapter, or Persian-only launch scope is **HISTORICAL / SUPERSEDED** by the current authority order:
+
+```text
+PROJECT_OVERRIDES.md
+→ CLAUDE.md
+→ 01-sources/
+→ verified implementation facts
+```
+
+Current runtime: Cloudflare Workers + vinext + Vite + TypeScript. Current launch locales: `fa`, `en`, `ar`; Persian is primary/default.
+
+---
+
 # Ahan Asa Website — Accessibility Standard
 
 > **Brand:** Ahan Asa | آهن آسا  

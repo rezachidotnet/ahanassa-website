@@ -8,9 +8,9 @@
 | --- | --- |
 | Project | Ahan Asa (`ahanassa.com`) |
 | Application | Public marketing and lead-generation website |
-| Default locale | Persian (`fa`), right-to-left |
+| Default locale | Persian (`fa`), right-to-left; launch locales include `en` LTR and `ar` RTL |
 | Framework | Next.js App Router |
-| Hosting | Vercel behind Cloudflare |
+| Hosting/runtime | Cloudflare Workers + Static Assets via vinext |
 | Document owner | Engineering Lead |
 | Approvers | Product/Business Owner, Engineering Lead, QA/SEO Owner |
 | Version | 1.0 |
@@ -344,14 +344,14 @@ Complete this section when the release changes persisted data, CMS schemas, or c
 
 ## 21. Infrastructure, Domain, CDN, and Hosting
 
-- [ ] `P0` The intended Vercel project, team, production branch, and domain are confirmed.
+- [ ] `P0` The intended Cloudflare account, Worker, environment, production branch, and domain are confirmed.
 - [ ] `P0` Cloudflare DNS records point to the approved hosting target.
 - [ ] `P0` The Cloudflare proxy setting is intentional for every relevant record.
 - [ ] `P0` TLS certificates are valid for the canonical host and all supported redirect hosts.
 - [ ] `P0` HTTP redirects to HTTPS and alternate hostnames redirect to the approved canonical origin.
 - [ ] `P0` Redirects have no loop, protocol downgrade, or avoidable multi-hop chain.
 - [ ] `P0` Preview and staging deployments cannot be mistaken for production.
-- [ ] `P1` Cloudflare cache, browser cache, Vercel cache, and Next.js revalidation rules agree.
+- [ ] `P1` Cloudflare cache, browser cache, and Next.js/vinext revalidation rules agree.
 - [ ] `P1` Cache bypasses are defined for dynamic, personalized, administrative, and form/API responses.
 - [ ] `P1` WAF, bot protection, rate limits, and firewall rules do not block legitimate users or required webhooks.
 - [ ] `P1` IPv4/IPv6 behavior and apex/`www` behavior are verified.
@@ -420,7 +420,7 @@ Run this test on the exact production candidate after the final build and config
 - [ ] `P0` Release owner, technical deployer, verifier, and rollback authority are present or reachable.
 - [ ] `P0` The exact deployment action and target are stated before execution.
 - [ ] `P0` No unrelated DNS, infrastructure, migration, or content operation is scheduled concurrently without coordination.
-- [ ] `P0` Required access to Git, Vercel, Cloudflare, monitoring, integrations, and backups has been verified.
+- [ ] `P0` Required access to Git, Cloudflare, monitoring, integrations, and backups has been verified.
 - [ ] `P1` Cache purge or revalidation steps are prepared but will be used only where needed.
 - [ ] `P1` The post-deploy checklist is assigned and ready.
 - [ ] `P1` Stakeholder communication templates are ready for success, delay, incident, or rollback.
@@ -491,4 +491,3 @@ Immediately after production deployment, execute `POST_DEPLOY_CHECKLIST.md`. At 
 - robots, sitemap, canonical, metadata, and structured data;
 - production error logs, monitoring, and performance signals;
 - rollback readiness throughout the observation window.
-

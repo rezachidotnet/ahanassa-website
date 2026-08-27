@@ -484,13 +484,13 @@ HTTP → HTTPS → canonical host → remove /fa → remove trailing slash
 
 | Rule class | Preferred layer | Reason |
 |---|---|---|
-| HTTP and host normalization | Cloudflare/Vercel edge or a single deployment layer | Earliest response and one-hop canonicalization |
+| HTTP and host normalization | Cloudflare edge or a single deployment layer | Earliest response and one-hop canonicalization |
 | Static legacy path map | Next.js redirect configuration or centralized edge map | Version-controlled and testable |
 | Default-locale prefix | Locale middleware or centralized redirect layer | Consistent locale behavior |
 | Dynamic slug history | Content redirect registry queried by stable content identity | Maintains editorial history |
 | Temporary campaign route | Controlled deployment configuration with owner and expiry | Prevents forgotten redirects |
 
-Choose one owner for each rule class. Do not duplicate the same redirect independently in Cloudflare, Vercel, Next.js middleware, and application components.
+Choose one owner for each rule class. Do not duplicate the same redirect independently in Cloudflare, Next.js middleware, and application components.
 
 ### 16.2 Next.js constraints
 

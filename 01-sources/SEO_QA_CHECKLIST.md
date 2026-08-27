@@ -178,16 +178,16 @@ Required evidence for REN-02 and REN-03:
 
 ## 9. Language, locale, and directionality
 
-- [ ] **LOC-01 — P0:** Launch pages declare Persian with `<html lang="fa" dir="rtl">` or the approved equivalent.
-- [ ] **LOC-02 — P0:** Unpublished English, Arabic, Russian, or other language routes are absent from sitemap and hreflang output.
+- [ ] **LOC-01 — P0:** Launch pages declare the correct approved locale and direction: Persian `lang="fa" dir="rtl"`, English `lang="en" dir="ltr"`, Arabic `lang="ar" dir="rtl"`.
+- [ ] **LOC-02 — P0:** Published Persian, English, and Arabic routes are represented in sitemap and hreflang output only when approved localized content exists.
 - [ ] **LOC-03 — P0:** No alternate-language URL is emitted unless that page exists, returns `200`, is indexable, and contains approved localized content.
 - [ ] **LOC-04 — P1:** Persian content is not mislabeled as another language.
-- [ ] **LOC-05 — P1:** If multilingual publishing is introduced later, each page has a self-reference plus complete reciprocal hreflang annotations.
-- [ ] **LOC-06 — P1:** Future `x-default` behavior follows `HREFLANG_CANONICAL.md` and points to a real, indexable page.
+- [ ] **LOC-05 — P1:** Each published localized page has a self-reference plus complete reciprocal hreflang annotations.
+- [ ] **LOC-06 — P1:** `x-default` behavior follows `HREFLANG_CANONICAL.md` and points to the real, indexable unprefixed Persian page.
 - [ ] **LOC-07 — P1:** Localized pages do not silently fall back to Persian while claiming another language.
 - [ ] **LOC-08 — P2:** Numerals, punctuation, directionality, and mixed Persian/Latin strings render correctly without corrupting metadata or URLs.
 
-At Persian-only launch, hreflang may be omitted. Fake or placeholder alternates are a release blocker.
+For the approved `fa`/`en`/`ar` launch architecture, hreflang must be emitted for approved published localized pages. Fake, placeholder, machine-translated, or unpublished alternates are a release blocker.
 
 ---
 

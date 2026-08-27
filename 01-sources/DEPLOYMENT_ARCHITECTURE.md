@@ -37,8 +37,8 @@ The deployment must remain:
 | Source control | Git repository with protected `main` |
 | CI/CD | GitHub Actions with repository scripts and pinned Wrangler |
 | Hosting | Cloudflare Workers with Static Assets |
-| Next.js path | `vinext`, subject to Section 8 compatibility gate |
-| Fallback | OpenNext only for a documented `vinext` blocker |
+| Next.js path | `vinext` |
+| Superseded fallback | OpenNext only as historical context; not selected for launch |
 | Canonical URL | `https://www.ahanassa.com` |
 | Apex URL | Permanent redirect to matching `www` URL; path/query preserved |
 | Public runtime | Dedicated web Worker |
@@ -278,7 +278,7 @@ Bootstrap gate:
 5. Run smoke/E2E tests on a versioned preview URL.
 6. Record approved versions and results in `DECISIONS.md` and `STACK.md`.
 
-If a required compatibility gap remains, stop. OpenNext requires a recorded decision with the blocker, pinned version, test evidence, migration path back to `vinext`, and operational differences. Pages static export is not the full-stack baseline.
+If a required compatibility gap remains, stop. OpenNext is not the selected launch adapter; using it would require a new recorded decision with the blocker, pinned version, test evidence, migration path back to `vinext`, and operational differences. Pages static export is not the full-stack baseline.
 
 Runtime constraints:
 
@@ -784,7 +784,7 @@ Implemented when:
 ## 25. Official References
 
 - [Cloudflare Workers — Next.js](https://developers.cloudflare.com/workers/framework-guides/web-apps/nextjs/)
-- [Cloudflare Workers — OpenNext](https://developers.cloudflare.com/workers/framework-guides/web-apps/opennext/)
+- [Cloudflare Workers — OpenNext](https://developers.cloudflare.com/workers/framework-guides/web-apps/opennext/) — HISTORICAL / SUPERSEDED fallback reference only
 - [Workers Static Assets](https://developers.cloudflare.com/workers/static-assets/)
 - [Wrangler configuration](https://developers.cloudflare.com/workers/wrangler/configuration/)
 - [GitHub Actions](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/)

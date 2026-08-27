@@ -458,7 +458,7 @@ Refactor فقط در یکی از شرایط زیر مجاز است:
 ## 27. Deployment و محیط‌ها
 
 - رفتار local، preview و production تا حد امکان یکسان باشد.
-- تغییر config مربوط به Vercel، Cloudflare، domain، redirect، cache یا header پرریسک است و باید مطابق اسناد deployment انجام شود.
+- تغییر config مربوط به Cloudflare، domain، redirect، cache یا header پرریسک است و باید مطابق اسناد deployment انجام شود.
 - دامنه production آهن آسا `ahanassa.com` است؛ شکل canonical دقیق دامنه باید از سند deployment/SEO پیروی کند.
 - هیچ deployment production، تغییر DNS یا تغییر redirect بدون درخواست یا مجوز صریح انجام نشود.
 - migration یا تغییر ناسازگار باید plan بازگشت داشته باشد.

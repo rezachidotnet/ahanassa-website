@@ -1,13 +1,13 @@
 # Ahan Asa Website — Technology Stack
 
-> **Brand:** Ahan Asa | آهن آسا  
-> **Domain:** `ahanassa.com`  
-> **Canonical production origin:** `https://www.ahanassa.com`  
-> **ERP:** `https://odoo.ahanassa.com`  
-> **Document:** `STACK.md`  
-> **Status:** Approved implementation baseline — v2.0  
-> **Last updated:** 2026-08-25  
-> **Primary language:** Persian (`fa-IR`), fully RTL  
+> **Brand:** Ahan Asa | آهن آسا
+> **Domain:** `ahanassa.com`
+> **Canonical production origin:** `https://www.ahanassa.com`
+> **ERP:** `https://odoo.ahanassa.com`
+> **Document:** `STACK.md`
+> **Status:** Approved implementation baseline — v2.0
+> **Last updated:** 2026-08-27 — AUD-034 documentation drift cleanup
+> **Languages:** Persian (`fa-IR`) primary/default RTL; English LTR; Arabic RTL
 > **Architecture:** Cloudflare-native public platform with asynchronous Odoo integration
 
 ---
@@ -72,8 +72,8 @@ Material deviations MUST be recorded in `DECISIONS.md` before implementation. Cl
 | UI runtime | React `19.2.x`, aligned with Next.js | Locked |
 | Language | TypeScript `6.0.x`, strict mode | Locked |
 | Styling | Tailwind CSS `4.3.x` + semantic CSS custom properties | Locked |
-| Cloudflare adapter | `@opennextjs/cloudflare` | Locked for first production release |
-| Future adapter candidate | `vinext` | Conditional; compatibility gate required |
+| Cloudflare adapter | `vinext` + `@vinext/cloudflare` | Locked for first production release |
+| Superseded adapter | `@opennextjs/cloudflare` / OpenNext | Historical fallback only; not selected for launch |
 | Deployment CLI | Wrangler, exact compatible release pinned | Locked |
 | Public hosting | Cloudflare Workers + Static Assets | Locked |
 | Relational storage | Cloudflare D1 | Locked |
@@ -178,11 +178,11 @@ The Pages Router and SPA-only rendering are prohibited.
 
 ### 7.2 Production adapter
 
-The first production release MUST use `@opennextjs/cloudflare` because the site requires a dependable deployment path for Next.js, Workers bindings, Server Components, Server Actions, SSR/SSG, and ISR.
+The first production release MUST use `vinext` because the live scaffold and confirmed runtime are Cloudflare Workers + vinext + Vite + TypeScript.
 
-Cloudflare currently recommends `vinext` for new applications but labels it Beta. `vinext` is therefore a migration candidate, not the launch baseline.
+**HISTORICAL / SUPERSEDED:** older copies of this document selected `@opennextjs/cloudflare` / OpenNext for first launch and treated `vinext` as a migration candidate. That adapter lock is superseded by `PROJECT_OVERRIDES.md` §2 and verified repository facts.
 
-Migration to `vinext` is allowed only when all of the following pass:
+Continued use of `vinext` should retain equivalent compatibility evidence:
 
 1. Cloudflare's compatibility check reports no blocking gap.
 2. Production build, Worker preview, D1, R2, Queue, Cron, and Access bindings work.
@@ -911,7 +911,7 @@ Rollback MUST distinguish Worker code rollback from data/schema recovery; Cloudf
 | `react`, `react-dom` | UI/runtime | Required; aligned |
 | `zod` | Boundary validation | Required |
 | `drizzle-orm` | Typed D1 access | Required |
-| `@opennextjs/cloudflare` | Workers deployment adapter | Required for launch |
+| `vinext`, `@vinext/cloudflare` | Workers deployment adapter | Required for launch |
 | `react-markdown` | Safe article rendering | Required when CMS launches |
 | `remark-gfm` | Controlled Markdown features | Required when CMS launches |
 | `rehype-sanitize` | Allowlisted sanitization | Required when CMS launches |
@@ -945,10 +945,10 @@ The final scripts SHOULD expose equivalent commands:
 ```json
 {
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "preview:cf": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy:cf": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "dev": "vinext dev",
+    "build": "vinext build",
+    "preview:cf": "vinext-cloudflare preview",
+    "deploy:cf": "vinext-cloudflare deploy",
     "cf:typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
@@ -973,6 +973,7 @@ Exact commands may change with adapter releases, but equivalent gates must remai
 The launch stack MUST NOT include:
 
 - Vercel hosting or Vercel server functions;
+- OpenNext / `@opennextjs/cloudflare` as the selected launch adapter unless a new owner-approved adapter reversal is recorded;
 - Cloudflare Pages for the full-stack application;
 - direct browser-to-Odoo calls;
 - synchronous Odoo calls during public rendering or RFQ acceptance;
@@ -1061,7 +1062,7 @@ An open decision does not permit a developer to fabricate production values.
 Version and capability claims MUST be rechecked against primary sources at implementation and release time:
 
 - Cloudflare Next.js on Workers: `https://developers.cloudflare.com/workers/framework-guides/web-apps/nextjs/`
-- Cloudflare OpenNext adapter: `https://developers.cloudflare.com/workers/framework-guides/web-apps/opennext/`
+- Cloudflare Workers framework documentation and vinext project documentation matching the installed adapter versions.
 - Cloudflare Workers: `https://developers.cloudflare.com/workers/`
 - Cloudflare D1: `https://developers.cloudflare.com/d1/`
 - D1 read replication: `https://developers.cloudflare.com/d1/best-practices/read-replication/`

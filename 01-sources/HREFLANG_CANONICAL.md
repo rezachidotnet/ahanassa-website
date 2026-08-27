@@ -777,7 +777,7 @@ The edge/application redirect system MUST enforce:
 | `https://www.ahanassa.com/fa/about` | `https://www.ahanassa.com/about` | `308` |
 | Approved trailing slash `/about/` | `https://www.ahanassa.com/about` | `308` or platform-normalized equivalent |
 
-Normal protocol, host, locale-prefix, and slash corrections should collapse into one external hop. Cloudflare and Vercel rules must be tested together to prevent double redirects and loops.
+Normal protocol, host, locale-prefix, and slash corrections should collapse into one external hop. Cloudflare and application redirect rules must be tested together to prevent double redirects and loops.
 
 Unsupported `/en/**` or `/ar/**` paths are not aliases. They return `404` until those locales are active.
 
@@ -870,7 +870,7 @@ If Ahan Asa republishes or syndicates content, canonical ownership must be agree
 | Environment | Indexation | Canonical behavior |
 |---|---|---|
 | Production | Per route policy | `https://www.ahanassa.com/**` |
-| Vercel preview | `noindex, nofollow` | Must not self-canonicalize the preview host; production canonical may be shown only for explicit review and must never make preview indexable |
+| Preview/staging deployment | `noindex, nofollow` | Must not self-canonicalize the preview host; production canonical may be shown only for explicit review and must never make preview indexable |
 | Local development | Not public | Local URLs allowed for developer inspection only |
 | Staging, if later approved | Authentication and/or `noindex` | Never enters sitemap or hreflang clusters |
 
@@ -976,7 +976,7 @@ Run against the production-like edge topology:
 - `/fa/**` → unprefixed Persian in one hop;
 - final destination returns `200` and self-canonical;
 - reserved locale returns `404` without redirect;
-- no Cloudflare/Vercel redirect loop;
+- no Cloudflare/application redirect loop;
 - safe query behavior matches `REDIRECTS.md`.
 
 ---
@@ -1009,7 +1009,7 @@ If the canonical domain or host changes:
 3. prepare a one-to-one redirect map;
 4. change the validated canonical origin once;
 5. regenerate canonical, hreflang, sitemap, Open Graph, JSON-LD, and internal absolute links;
-6. update Cloudflare, Vercel, Search Console, analytics, email templates, and external profiles;
+6. update Cloudflare, Search Console, analytics, email templates, and external profiles;
 7. verify one-hop redirects for every protocol/host variant;
 8. keep redirects for the required migration period;
 9. monitor canonical selection and crawl errors;
@@ -1134,4 +1134,3 @@ No implementation is complete until rendered production-like HTML and edge redir
 | SEO Owner | TBD | Pending confirmation | — |
 | Technical Owner | TBD | Pending confirmation | — |
 | Localization Owner | TBD | Pending before second locale | — |
-

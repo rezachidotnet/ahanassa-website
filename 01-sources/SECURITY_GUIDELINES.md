@@ -1,12 +1,12 @@
 # Ahan Asa Website — Security Guidelines
 
-> **Brand:** Ahan Asa | آهن آسا  
-> **Domain:** `ahanassa.com`  
-> **Document:** `SECURITY_GUIDELINES.md`  
-> **Status:** Draft v1.0 — security baseline for implementation and launch  
-> **Last updated:** 2026-08-25  
-> **Launch locale:** Persian (`fa`), fully RTL  
-> **Architecture:** Next.js App Router, static-first, Vercel behind Cloudflare  
+> **Brand:** Ahan Asa | آهن آسا
+> **Domain:** `ahanassa.com`
+> **Document:** `SECURITY_GUIDELINES.md`
+> **Status:** Draft v1.0 — security baseline for implementation and launch
+> **Last updated:** 2026-08-27 — AUD-034 documentation drift cleanup
+> **Launch locales:** Persian (`fa`) primary/default RTL; English LTR; Arabic RTL
+> **Architecture:** Next.js App Router via vinext on Cloudflare Workers + Static Assets
 > **Security target:** OWASP ASVS 5.0 Level 1 for the public site, with selected Level 2 controls for inquiries, personal data, integrations, and uploaded documents
 
 ---
@@ -115,7 +115,7 @@ When uncertain, use the more restrictive class until the data owner approves a l
 - inquiry data and contact information;
 - uploaded commercial and technical documents;
 - lead records, notification routes, and integration credentials;
-- Git repository, CI/CD, Cloudflare, Vercel, storage, analytics, and administrative accounts;
+- Git repository, CI/CD, Cloudflare, storage, analytics, and administrative accounts;
 - availability of the public website and inquiry flow.
 
 ### 6.2 Expected threat actors and failure sources
@@ -149,7 +149,7 @@ Review this threat model when scope, provider, form fields, file types, locale a
 ```mermaid
 flowchart TD
     U["Visitor"] --> E["Cloudflare edge"]
-    E --> W["Vercel / Next.js"]
+    E --> W["Cloudflare Workers / Next.js via vinext"]
     W --> P["Static public content"]
     W --> I["Inquiry API"]
     I --> A["Abuse + validation"]
@@ -189,7 +189,7 @@ Mandatory boundaries:
 
 ### 8.3 DNS and account controls
 
-- Cloudflare, Vercel, registrar, Git host, storage, and analytics administrator accounts require MFA.
+- Cloudflare, registrar, Git host, storage, and analytics administrator accounts require MFA.
 - Prefer phishing-resistant MFA or hardware/security keys for owners and administrators.
 - Do not share administrator accounts.
 - Grant role-based access; routine content or analytics work must not require domain or deployment administration.
@@ -204,7 +204,7 @@ Mandatory boundaries:
 - Protect preview, draft, administrative, and diagnostic routes from public discovery and access.
 - Do not rely on IP address as identity; use it only as one abuse signal and retain it according to the privacy policy.
 - Avoid broad allow/deny rules that block legitimate Iranian or future regional users without evidence.
-- Verify whether the Vercel origin/deployment hostname can bypass intended edge controls. Sensitive endpoints must still enforce server-side validation even when edge controls are bypassed.
+- Verify whether any preview, staging, or deployment hostname can bypass intended edge controls. Sensitive endpoints must still enforce server-side validation even when edge controls are bypassed.
 
 ## 9. HTTP security headers
 
@@ -894,7 +894,7 @@ When a required production decision is missing, Claude Code must keep the featur
 
 ### Accounts and infrastructure
 
-- [ ] MFA is enabled for registrar, Cloudflare, Git, Vercel, storage, analytics, and lead-system administrators.
+- [ ] MFA is enabled for registrar, Cloudflare, Git, storage, analytics, and lead-system administrators.
 - [ ] Individual accounts and least-privilege roles are confirmed.
 - [ ] Unused collaborators, tokens, domains, and integrations are removed.
 - [ ] DNS, TLS, canonical redirects, and domain ownership are verified.
@@ -997,8 +997,7 @@ Use the exact locked framework/provider version and current official guidance:
 - [Next.js Content Security Policy guide](https://nextjs.org/docs/app/guides/content-security-policy)
 - [Cloudflare Turnstile server-side validation](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/)
 - [Cloudflare Turnstile testing](https://developers.cloudflare.com/turnstile/troubleshooting/testing/)
-- [Vercel sensitive environment variables](https://vercel.com/docs/environment-variables/sensitive-environment-variables)
-- [Vercel Security Dashboard](https://vercel.com/docs/security/security-dashboard)
+- [Cloudflare Workers secrets](https://developers.cloudflare.com/workers/configuration/secrets/)
 
 Third-party examples are not authoritative when they conflict with official documentation, this document, project scope, or the locked implementation version.
 

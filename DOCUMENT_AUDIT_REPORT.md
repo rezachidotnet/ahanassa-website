@@ -2,11 +2,13 @@
 
 ## Ahan Asa Website — Documentation Reconciliation Audit
 
-**Audit role:** Records conflicts discovered while building the root canonical control layer, how `03 > 02 > 01` precedence resolved them, genuine unresolved ambiguities, missing referenced documents, and blockers.
+**Audit role:** Records conflicts discovered while building and maintaining the root canonical control layer, including historical source-layer conflicts, genuine unresolved ambiguities, missing referenced documents, and blockers.
 **Status:** OPEN, narrowed — owner sign-off received 2026-08-26 on the P0/P1 findings that were blocking Phase 1 foundation work; remaining open items are either non-blocking integration/production gates or content-authoring gaps
-**Version:** 2.0.0
+**Version:** 2.1.0
 **Audit date:** 2026-08-26 (v1.0.0), owner sign-off applied 2026-08-26 (v2.0.0)
-**Scope:** Complete reconciliation of `01-sources/` (63 files), `02-sources/` (21 files), `03-sources/` (3 files) — 87 files total
+**Scope:** Historical reconciliation of an earlier three-layer source export; current active documentation cleanup scope is the root control layer plus the consolidated `01-sources/` corpus.
+
+**AUD-034 update, 2026-08-27:** the active authority model is now `PROJECT_OVERRIDES.md` → `CLAUDE.md` → `01-sources/` → verified implementation facts. `02-sources/` and `03-sources/` are no longer active source layers. Remaining mentions of the old three-layer model in this report are **HISTORICAL / SUPERSEDED** audit trail only.
 
 ---
 
@@ -30,11 +32,11 @@ Findings not listed above (DAR-002/004/005/006/007/010/011/012/014/015/016/017) 
 
 ## 1. Method
 
-Every file in `01-sources/`, `02-sources/`, and `03-sources/` was inspected: document-control headers and stated scope were read for all 87 files; the 16 documents most load-bearing for the canonical control layer (both `CLAUDE.md` versions, both `PROJECT_BRIEF.md` versions, both `STACK.md` versions, `01-sources/DECISIONS.md`, `01-sources/README.md`, `02-sources/TECHNICAL_ARCHITECTURE.md`, `02-sources/DATA_ARCHITECTURE(1).md`, `02-sources/DATABASE_SCHEMA.md`, and all three `03-sources` files) were read in full; the remainder were verified with targeted greps for the specific conflict signals this audit was checking for — "Vercel", Persian-only/future-locale phrasing, and adapter naming — against their full text. `01-sources/all_in_one.md` (a 63,000-line concatenation of the other `01-sources` files) was inspected structurally only, not re-read in full, since its content duplicates the individually-audited files.
+**HISTORICAL / SUPERSEDED METHOD NOTE:** the original audit inspected files from an earlier `01-sources/`, `02-sources/`, and `03-sources/` export and used the old `03 > 02 > 01` precedence rule. That method explains this report's historical findings, but does not define the current implementation reading order. Current implementation agents must use `PROJECT_OVERRIDES.md` → `CLAUDE.md` → `01-sources/` → verified implementation facts.
 
-Findings below are grouped: conflicts the precedence rule genuinely resolves (§2), a claim in `03-sources` that could not be corroborated and must not be trusted (§3), documents referenced across the corpus that do not exist (§4), and genuine blockers that no amount of document reconciliation can resolve (§5).
+Findings below preserve the original historical grouping. References to `02-sources/`, `03-sources/`, and old source precedence are retained only to explain how earlier conflicts were discovered.
 
-Per the project owner's instruction: an issue is **not** left `OPEN` merely because an older document conflicts with a newer one when `03 > 02 > 01` already resolves it — those are marked `RESOLVED BY PRECEDENCE`.
+Per the project owner's instruction: an issue is **not** left `OPEN` merely because a superseded historical document conflicts with the current root control layer.
 
 ---
 
@@ -44,14 +46,14 @@ Per the project owner's instruction: an issue is **not** left `OPEN` merely beca
 
 **Status:** RESOLVED BY PRECEDENCE
 **Affected:** all 63 `01-sources` documents that mention Vercel (essentially the entire baseline — `README.md`, `STACK.md`, `TECHNICAL_ARCHITECTURE.md`, `DEPLOYMENT_ARCHITECTURE.md`, `CACHING_STRATEGY.md`, `SECURITY_GUIDELINES.md`, `ENVIRONMENT_VARIABLES.md`, `TESTING_STRATEGY.md`, `PRE_DEPLOY_CHECKLIST.md`, `POST_DEPLOY_CHECKLIST.md`, `HREFLANG_CANONICAL.md`, `REDIRECTS.md`, `PERFORMANCE_GUIDELINES.md`, `IMAGE_OPTIMIZATION.md`, `API_INTEGRATIONS.md`, `SEO_QA_CHECKLIST.md`, `DO_NOT_CHANGE.md`, `DEVELOPMENT_RULES.md`, `TASKS.md`, `DECISIONS.md` ADR-012)
-**Resolved by:** `02-sources/DEPLOYMENT_ARCHITECTURE.md` explicitly: *"It replaces the former Vercel deployment baseline"* and lists Vercel hosting as *"no longer approved."* Confirmed independently by the live repository scaffold (`package.json`, `wrangler.jsonc` — Cloudflare Workers only, no Vercel config present).
+**Resolved by:** current `01-sources/DEPLOYMENT_ARCHITECTURE.md` explicitly states it replaces the former Vercel deployment baseline and lists Vercel hosting as no longer approved. Confirmed independently by the live repository scaffold (`package.json`, `wrangler.jsonc` — Cloudflare Workers + vinext, no Vercel config present).
 **Action:** none required in the source folders (immutable). Recorded in `PROJECT_OVERRIDES.md` §2 and `DOCS_INDEX.md`.
 
 ### DAR-003 — Public database: none → Cloudflare D1 (two databases)
 
 **Status:** RESOLVED BY PRECEDENCE
 **Affected:** `01-sources/DECISIONS.md` ADR-011 ("No Public Application Database at Launch"), `01-sources/DATA_ARCHITECTURE.md`, `01-sources/STACK.md` §14.2 ("Prisma/Drizzle/Supabase not approved by default"), `01-sources/PROJECT_BRIEF.md` (no ERP concept anywhere)
-**Resolved by:** `02-sources/DATABASE_SCHEMA.md` explicitly: *"If an older document says that the website has no database... that statement is superseded by the approved Cloudflare + Odoo architecture described here."* Corroborated by `02-sources/TECHNICAL_ARCHITECTURE.md` and `02-sources/DATA_ARCHITECTURE(1).md`.
+**Resolved by:** current `01-sources/DATABASE_SCHEMA.md`, corroborated by `01-sources/TECHNICAL_ARCHITECTURE.md` and `01-sources/DATA_ARCHITECTURE(1).md`.
 **Note:** this is not a documentation staleness fix, it is a genuine **product scope expansion** — from a static lead-generation brochure site to a full commercial procurement platform with catalog, pricing, and ERP integration. This was flagged for owner visibility rather than silently absorbed.
 **Owner sign-off, 2026-08-26:** **CONFIRMED.** The owner explicitly approved the public product catalog and public pricing architecture as in-scope for the website, superseding the 01-layer prohibition on public price pages. Recorded in `PROJECT_OVERRIDES.md` §4. The `/steel-products` vs `/steel` route-naming question (DAR-016) is a separate, still-open matter.
 
@@ -59,7 +61,7 @@ Per the project owner's instruction: an issue is **not** left `OPEN` merely beca
 
 **Status:** RESOLVED BY PRECEDENCE
 **Affected:** `01-sources/DECISIONS.md` ADR-007 ("Git-Managed Typed Content; CMS Deferred"), `01-sources/CMS_ARCHITECTURE.md` (a "proposed" doc, never accepted)
-**Resolved by:** `02-sources/CMS_ARCHITECTURE.md`, `02-sources/DATABASE_SCHEMA.md` §5.1 (article tables), `02-sources/TECHNICAL_ARCHITECTURE.md` §10.
+**Resolved by:** `01-sources/CMS_ARCHITECTURE.md`, `01-sources/DATABASE_SCHEMA.md` §5.1 (article tables), `01-sources/TECHNICAL_ARCHITECTURE.md` §10.
 
 ### DAR-005 — Cloudflare adapter: `02-sources` self-contradiction, resolved by the live scaffold
 
@@ -123,13 +125,13 @@ Per the project owner's instruction: an issue is **not** left `OPEN` merely beca
 ### DAR-011 — `01-sources` release-checklist documents still reference Vercel promotion steps
 
 **Severity:** P1 — Major
-**Status:** OPEN
-**Affected:** `01-sources/PRE_DEPLOY_CHECKLIST.md`, `01-sources/POST_DEPLOY_CHECKLIST.md` — unlike `TESTING_STRATEGY.md`/`QA_CHECKLIST.md`/`SEO_QA_CHECKLIST.md`, these two have no `02-sources` replacement. Their checklist *content* (functional/QA items) is reusable, but references to Vercel promotion/rollback need rewriting against `02-sources/DEPLOYMENT_ARCHITECTURE.md`'s actual Cloudflare Workers release flow.
+**Status:** RESOLVED BY AUD-034 DOCUMENTATION CLEANUP, 2026-08-27
+**Affected:** `01-sources/PRE_DEPLOY_CHECKLIST.md`, `01-sources/POST_DEPLOY_CHECKLIST.md`. Their reusable checklist content remains active, but Vercel promotion/rollback wording is superseded by the current Cloudflare Workers + vinext release flow in `01-sources/DEPLOYMENT_ARCHITECTURE.md`.
 
 ### DAR-012 — `01-sources/FOLDER_STRUCTURE.md` predates the commercial/Odoo module set
 
 **Severity:** P2 — Minor
-**Status:** OPEN
+**Status:** RESOLVED BY AUD-034 DOCUMENTATION CLEANUP, 2026-08-27
 **Detail:** `02-sources/TECHNICAL_ARCHITECTURE.md` §7 defines `lib/odoo/`, `lib/outbox/`, `lib/rfq/`, `lib/pricing/`, `workers/`, `db/migrations/` — none of which exist in `01-sources/FOLDER_STRUCTURE.md`'s tree. Needs a refresh before implementation begins in earnest, but is not a conflict — purely additive.
 
 ### DAR-013 — Odoo version, modules, and field mapping remain a genuine external discovery gap
@@ -144,7 +146,7 @@ Per the project owner's instruction: an issue is **not** left `OPEN` merely beca
 **Affected:** `01-sources/DO_NOT_CHANGE.md` §9 ("P0 — Localization and Direction") and §16 ("P1 — Technical Architecture")
 **Finding:** §9 states Claude "MUST NOT... Change locale routing... without authorization" and frames adding a locale as requiring approval — `PROJECT_OVERRIDES.md` §1 *is* that authorization, but §9 itself gives no hint that it has been granted. §16 locks "Vercel deployment behind Cloudflare" as the approved baseline and explicitly forbids "Add a CMS, database" without "explicit architecture approval" — both are directly superseded by the confirmed Cloudflare Workers + D1 + built-in-CMS architecture (`PROJECT_OVERRIDES.md` §2–§3), but nothing in `DO_NOT_CHANGE.md` itself says so.
 **Risk:** an agent reading `DO_NOT_CHANGE.md` literally, in isolation, could stop and refuse legitimate multilingual or CMS/database work that the rest of the control layer has already approved.
-**Action:** `DOCS_INDEX.md` §2 now carries an explicit caveat on the `DO_NOT_CHANGE.md` row. Every other protection in the document (brand identity, palette, slogan, secrets handling, dependency discipline) remains fully active and is not affected by this finding.
+**Action:** `DOCS_INDEX.md` §2 and `01-sources/DO_NOT_CHANGE.md` now carry explicit caveats. Every other protection in the document (brand identity, palette, slogan, secrets handling, dependency discipline) remains fully active and is not affected by this finding.
 
 ### DAR-015 — No decision record documents the Vercel→Cloudflare, Persian-only→trilingual, or STACK-mandated-adapter→actual-vinext pivots
 
@@ -219,7 +221,7 @@ None of these gaps block the documentation-reconciliation pass itself. They do b
 | Canonical root files created | 4 (`PROJECT_OVERRIDES.md`, `CLAUDE.md`, `DOCS_INDEX.md`, `DOCUMENT_AUDIT_REPORT.md`) |
 | Conflicts resolved by precedence | 7 (DAR-002 – DAR-007), propagating across roughly 40 individual source documents |
 | **Findings closed by owner sign-off, 2026-08-26** | **7** — DAR-003 catalog/pricing scope (CONFIRMED), DAR-008 fa/en/ar multilingual (CONFIRMED), DAR-009 GTM/GSC architecture (CONFIRMED), DAR-013 Odoo role/non-blocking status (CONFIRMED), DAR-018 logo source assets (CONFIRMED, new), DAR-019 attachment-scanning phasing (CONFIRMED, new), DAR-001 partially closed (address CONFIRMED) |
-| Findings still open | 10 — DAR-001 phone only (OPEN, candidate unconfirmed), DAR-010 locale-extension authoring, DAR-011 Vercel references in deploy checklists, DAR-012 folder-structure refresh, DAR-014 `DO_NOT_CHANGE.md` §9/§16 annotation, DAR-015 missing `DECISIONS.md` pivot records, DAR-016 catalog/`/terms` route-naming, DAR-017 `FONT_STRATEGY.md` redesign, Odoo version/modules/protocol/mapping values themselves (non-blocking per DAR-013), attachment-scanning provider selection (non-blocking per DAR-019) |
+| Findings still open | 8 — DAR-001 phone only (OPEN, candidate unconfirmed), DAR-010 locale-extension authoring/font-family decisions, DAR-012 folder-structure refresh, DAR-015 missing `DECISIONS.md` pivot records, DAR-016 catalog/`/terms` route-naming, DAR-017 `FONT_STRATEGY.md` redesign, Odoo version/modules/protocol/mapping values themselves (non-blocking per DAR-013), attachment-scanning provider selection (non-blocking per DAR-019) |
 | Missing referenced documents | 14 (§5) — none block Phase 1 foundation; several block later Odoo/RFQ/pricing/admin implementation specifically |
 | **Phase 1 foundation status** | **UNBLOCKED.** Per `PROJECT_OVERRIDES.md` §11, none of the previously-open P0/P1 findings block foundation work (locale/routing architecture, design system, content model, D1/R2/Queues scaffolding, catalog/pricing UI, RFQ intake UI, CMS structure). Remaining open items are either configuration values pending later, integration-phase gates (Odoo protocol/mapping), pre-production gates (attachment scanning, phone publication), or documentation-authoring/cleanup work that does not block writing foundation code. |
 | Recommended next implementation phase | 1) Proceed with Phase 1 foundation implementation — routing/locale architecture for fa/en/ar, design system, content model, D1/R2/Queues scaffolding, public catalog/pricing UI against synchronized/cached data, RFQ intake UI, CMS structure. 2) In parallel (documentation, non-blocking): resolve the `/steel-products` vs `/steel` and `/terms` route-naming conflicts (DAR-016), add the missing `DECISIONS.md` pivot records (DAR-015), annotate `DO_NOT_CHANGE.md` §9/§16 (DAR-014), redesign `FONT_STRATEGY.md` for multi-locale budgets and select an Arabic type family (DAR-017). 3) Before Odoo integration work specifically: verify Odoo version/modules/protocol against the live instance and author the missing `ODOO_INTEGRATION.md`/`SYSTEM_OF_RECORD.md`/`SYNC_STRATEGY.md`/`ERP_DATA_MAPPING.md`. 4) Before production RFQ uploads: select and implement an attachment-scanning provider (DAR-019). 5) Before production phone publication: obtain the complete number from the owner (DAR-001). |

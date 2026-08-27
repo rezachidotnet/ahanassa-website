@@ -1062,7 +1062,7 @@ Use a combination of:
 - PageSpeed Insights
 - Chrome UX Report when data exists
 - Google Search Console Core Web Vitals
-- Vercel performance tooling when available
+- Cloudflare and framework performance tooling when available
 - browser Performance panel
 - Network panel
 - bundle analysis tools when required
