@@ -66,6 +66,8 @@ Supply and delivery coordination proceed within the agreed scope
 
 **Page placement guardrail:** homepage carries at most ~3 full-strength primary-CTA instances across the page (excluding the persistent header), placed at meaningful decision points, not arbitrary spacing. Category/material cards use descriptive text links, not a primary button on every card. Do not place a CTA after every process stage.
 
+**Homepage/header CTA mapping:** use **ارسال لیست خرید** as the primary CTA in the header, hero, and pre-footer/final CTA. Use **آشنایی با فرآیند خرید** as the outlined header secondary action and the hero secondary educational action. **تماس با ما** remains a support/navigation action. Screenshot labels such as **ثبت درخواست خرید**, **مشاهده فرآیند همکاری**, and **تماس سریع** are non-authoritative and must not be used as canonical CTA labels.
+
 ---
 
 ## 3. Copy library (canonical baseline)
@@ -173,7 +175,10 @@ Never expose malware signatures, storage keys, vendor names, or internal securit
 
 - The primary inquiry action stays reachable within or immediately adjacent to the mobile navigation menu at all times.
 - A compact visible label (`ارسال لیست`) is permitted only paired with the full accessible name.
-- A persistent bottom sticky CTA is **not required** by default and, if implemented, must never cover content, overlap browser chrome, compete with active form completion, or create visual pressure — it must respect safe-area insets and disappear while the RFQ form itself is active.
+- On appropriate public acquisition/content pages, a persistent bottom sticky CTA is enabled by default with the canonical label **ارسال لیست خرید** (the compact `ارسال لیست` variant is allowed only where space genuinely requires it, with an equivalent full accessible name). It is a controlled conversion aid: use the existing Forge Copper conversion treatment where appropriate, sufficient contrast, at least the system-standard 44×44px touch target, and no continuous pulse, bounce, animation, or artificial urgency.
+- The sticky CTA must never overlap active form fields, validation messages, submit/next buttons, cookie/privacy controls, browser chrome, accessibility controls, or another fixed/mobile primary conversion control. It must not create horizontal overflow or content obstruction; it must remain keyboard- and screen-reader-accessible and respect mobile safe-area insets.
+- Account for the virtual keyboard: suppress or appropriately reposition the sticky CTA whenever it would obstruct or visually conflict with the active field, an inline validation message, or the submit/next action.
+- The sticky CTA must be hidden on `/request`, `/en/request`, and `/ar/request`, because the form's own step/action controls are primary there.
 - **While the Request form route is active, the global/sticky site-wide CTA must be suppressed** — the form's own step actions are the only primary call to action on that route; do not show a second competing button.
 - Mobile file actions remain reachable without horizontal scrolling; the virtual keyboard must never hide the active field, an inline error, or the submit action.
 
