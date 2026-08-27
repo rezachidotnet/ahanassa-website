@@ -3,368 +3,429 @@
 > **File:** `STRUCTURED_DATA.md`  
 > **Project:** Ahan Asa | آهن آسا  
 > **Domain:** `ahanassa.com`  
-> **Status:** Normative implementation specification — v1.0  
-> **Last updated:** 2026-08-25  
-> **Primary locale:** Persian (`fa-IR`), fully RTL  
-> **Preferred format:** JSON-LD using Schema.org vocabulary
+> **Status:** Normative implementation specification — v2.0  
+> **Last updated:** 2026-08-26  
+> **Primary locale:** Persian (`fa-IR`), RTL  
+> **Serialization:** JSON-LD with Schema.org vocabulary
 
 ---
 
 ## 1. Purpose
 
-This document defines the structured-data architecture for the Ahan Asa website. It is the implementation contract for Schema.org entities, JSON-LD graphs, entity identifiers, page-to-schema mapping, data validation, release gates, and ongoing monitoring.
+This document defines how Ahan Asa generates, validates, publishes, caches, and maintains structured data.
 
-Structured data must help search engines understand the real website and the real business. It must never be used to manufacture eligibility, imply services that are not offered, invent a legal entity, present category pages as purchasable products, or convert marketing claims into machine-readable facts.
+It covers:
 
-The website positions Ahan Asa as a premium B2B steel procurement management and project purchasing support brand—not as:
+- business identity;
+- website and page entities;
+- breadcrumbs;
+- articles;
+- steel categories, products, and selected variants;
+- selected public price pages;
+- conditional `Offer` markup;
+- source-of-truth boundaries between the Website, D1, and Odoo;
+- server-rendering, cache consistency, security, QA, and monitoring.
 
-- an e-commerce store;
-- a public steel marketplace;
-- a live price board;
-- a supplier directory;
-- a warehouse or inventory platform;
-- a product manufacturer unless that status is separately verified.
+Structured data exists to describe verified, visible facts. It must not be used to create hidden SEO copy, imply stock or purchase terms that Ahan Asa cannot honor, expose private ERP/RFQ data, or manufacture rich-result eligibility.
 
-The approved public slogan is:
+---
+
+## 2. Business and Platform Context
+
+Ahan Asa is a premium B2B steel procurement management and project-purchasing platform. Its approved public slogan is:
 
 > **ما مراقب سرمایه شما هستیم.**
 
-This slogan may appear in visible content. It must not be transformed into a guarantee, rating, award, financial promise, or machine-readable performance claim.
+The website supports:
 
----
+- indexable corporate and editorial pages;
+- steel category and product discovery;
+- selected public price snapshots;
+- structured RFQ submission;
+- file-assisted RFQ submission;
+- customer, CRM, quotation, and sales workflows in Odoo.
 
-## 2. Document Authority and Dependencies
+The website is not assumed to be:
 
-Claude Code must read this file together with:
+- a checkout-based online store;
+- a marketplace containing independent merchant offers;
+- a guaranteed real-time stock board;
+- a manufacturer of third-party steel products;
+- a source of binding commercial terms unless a page explicitly publishes an approved offer.
 
-- `PROJECT_BRIEF.md`
-- `ROUTES.md`
-- `SITEMAP.md`
-- `INFORMATION_ARCHITECTURE.md`
-- `PAGE_SPECIFICATIONS.md`
-- `CONTENT_MODEL.md`
-- `CONTENT_STRATEGY.md`
-- `SEO_STRATEGY.md`
-- `SEO_KEYWORD_MAP.md`
-- `SEO_PAGE_MAP.md`
-- `METADATA_SPEC.md`
-- `MEDIA_GUIDELINES.md`
-- `LOCALIZATION.md` when created
-- `HREFLANG_CANONICAL.md` when created
-- `TECHNICAL_ARCHITECTURE.md` when created
-- `QA_CHECKLIST.md` and `SEO_QA_CHECKLIST.md` when created
-
-### 2.1 Conflict order
-
-When instructions conflict, apply this order:
-
-1. Legal, privacy, security, accessibility, and verified business facts
-2. Explicit owner decisions recorded in `DECISIONS.md`
-3. `PROJECT_BRIEF.md` for business identity, scope, and claims
-4. `ROUTES.md` for canonical URL behavior and indexing status
-5. `METADATA_SPEC.md` and `HREFLANG_CANONICAL.md` for canonical and locale metadata
-6. `CONTENT_MODEL.md` for approved entity fields and content relationships
-7. This document for schema selection, graph construction, and validation
-8. Other page, design, and implementation documents
-
-Claude Code must not silently resolve a conflict involving:
-
-- the legal organization name;
-- canonical host or canonical path;
-- active languages;
-- office addresses or service areas;
-- phone numbers or email addresses;
-- products, services, prices, availability, ratings, clients, or projects;
-- authorship or review responsibility;
-- publication or modification dates.
-
-Record unresolved values as data-layer `TBD` items. Do not emit `TBD`, empty strings, placeholder URLs, or fabricated fallbacks in production JSON-LD.
-
-### 2.2 Current route-normalization warning
-
-Earlier planning documents contain draft aliases such as `/materials`, `/process`, `/capabilities`, and `/request-consultation`. The current `ROUTES.md` contract uses canonical route families such as:
-
-- `/procurement`
-- `/procurement-process`
-- `/steel-products`
-- `/request`
-
-Structured data must always use the final canonical URL returned by the central route registry and metadata system. It must not create duplicate entities for draft documentation paths.
-
-Do not add redirects merely because a draft path appeared in a planning document. Add a redirect only if the path was actually published, indexed, shared publicly, or formally approved as an alias.
-
----
-
-## 3. Strategic Principles
-
-### 3.1 Truth before coverage
-
-It is better to emit a small, accurate graph than a large graph containing guessed properties.
-
-Every emitted property must be:
-
-- true;
-- current;
-- visible or clearly supported by the page;
-- approved for public disclosure;
-- derived from a controlled data source;
-- valid for the selected Schema.org type;
-- consistent with the canonical metadata and page content.
-
-### 3.2 Structured data is not hidden SEO copy
-
-JSON-LD must describe the visible page and its primary entity. Do not insert keywords, claims, locations, services, or descriptions that are absent from or contradicted by visible content.
-
-### 3.3 One real entity, one stable identifier
-
-The same organization, website, page, article, service, or resource must use the same stable `@id` everywhere it is referenced.
-
-### 3.4 Page-specific graphs
-
-Each page must emit only the nodes relevant to that page. Do not inject every possible node into a global layout.
-
-### 3.5 Rich-result eligibility is not guaranteed
-
-Valid structured data may improve machine understanding and may create eligibility for supported search features. It does not guarantee a rich result, ranking improvement, knowledge panel, sitelink, or enhanced display.
-
-### 3.6 JSON-LD is the required serialization
-
-Use JSON-LD in a server-rendered `<script type="application/ld+json">` element. Do not mix JSON-LD, Microdata, and RDFa for the same entities unless a documented technical requirement demands it.
-
-### 3.7 Visible content parity
-
-The structured data and visible page must agree on:
-
-- name and heading;
-- description;
-- dates;
-- authors and reviewers;
-- images;
-- breadcrumb hierarchy;
-- services and categories;
-- contact details;
-- project facts and metrics;
-- downloads and file formats;
-- language and URL.
-
----
-
-## 4. Current Search-Feature Decisions
-
-This specification reflects Google Search documentation reviewed on 2026-08-25.
-
-| Schema or feature | Phase 1 decision | Reason |
-|---|---|---|
-| `Organization` | Use | Establish the verified Ahan Asa entity and logo |
-| `WebSite` | Use on the canonical homepage | Support site identity and site name |
-| `WebPage` and subtypes | Use | Describe page purpose and connect page entities |
-| `BreadcrumbList` | Use on eligible non-home pages | Represent the real visible hierarchy |
-| `Article` or `BlogPosting` | Use for qualifying insight pages | Supported article understanding and presentation |
-| `Service` | Use for approved procurement services | Semantically describes real service scope |
-| `CollectionPage` | Use for substantive hubs | Describes curated page collections |
-| `ItemList` | Use selectively | Only when the visible page contains the same ordered or unordered items |
-| `ContactPage` | Use for `/contact` | Correct `WebPage` subtype |
-| `AboutPage` | Use for `/about` | Correct `WebPage` subtype |
-| `DigitalDocument` | Use for approved resource detail pages | Describes a real public resource or file |
-| `VideoObject` | Conditional | Only for a real primary video with complete metadata |
-| `ImageObject` | Conditional | Use when ownership, URL, dimensions, and relevance are known |
-| `FAQPage` | Do not use as a Phase 1 rich-result tactic | Google stopped showing FAQ rich results in May 2026 and removed the feature documentation in June 2026 |
-| `HowTo` | Do not use for the procurement process | The page explains Ahan Asa's workflow; it is not necessarily a user-executable how-to, and no Google rich-result value is assumed |
-| `Product` | Prohibited by default | Category pages are procurement guidance, not single purchasable product pages |
-| `Offer` / `AggregateOffer` | Prohibited by default | No approved public offer, price, validity, or availability system exists |
-| `OfferCatalog` | Deferred | Do not imply a current commercial catalog until business scope and content model approve it |
-| `LocalBusiness` | Deferred | Use only after a real customer-facing location, business subtype, address, and operating details are approved |
-| `OnlineStore` | Prohibited | Ahan Asa is not being launched as an online store |
-| `AggregateRating` / `Review` | Prohibited by default | No verified, compliant first-party rating system is approved; self-serving organization ratings are not a shortcut |
-| `SearchAction` | Omit | No approved internal site search exists; do not implement obsolete sitelinks-search-box tactics |
-| `NewsArticle` | Prohibited by default | Insights are not news unless a genuine news publishing workflow is approved |
-| `QAPage` | Prohibited for ordinary FAQs | A Q&A page requires a different user-generated answer model and is not an FAQ substitute |
-| `JobPosting` | Conditional | Only for a real, current, public vacancy with complete employment data and expiry handling |
-| `Event` | Conditional | Only for a real event page with approved dates, location or online attendance, and status |
-
-The absence of a Google rich-result feature does not prevent using a valid Schema.org type for semantic purposes. However, every additional node increases maintenance and error risk. Phase 1 should remain intentionally conservative.
-
----
-
-## 5. Canonical Origin and URL Rules
-
-The approved domain is `ahanassa.com`. The apex-versus-`www` decision is unresolved until recorded in `DECISIONS.md` and deployed consistently.
-
-### 5.1 Single source of truth
-
-All absolute URLs must be built from one validated configuration value:
+### 2.1 System-of-record rule
 
 ```text
-NEXT_PUBLIC_SITE_URL=https://<approved-canonical-host>
+Odoo = commercial source of truth
+Website CMS = editorial and SEO source of truth
+D1 = published public read model
+Cloudflare cache = delivery layer
 ```
 
-The same origin must be used by:
+Odoo owns commercial products, variants, units, current prices, customers, CRM records, quotations, sales, inventory, purchasing, and accounting.
 
-- canonical metadata;
-- Open Graph URLs;
-- XML sitemap entries;
-- robots and host policies where applicable;
-- hreflang alternate URLs;
-- JSON-LD `@id`, `url`, `mainEntityOfPage`, and image URLs;
-- redirects and share links.
+The Website CMS owns slugs, SEO titles, descriptions, editorial copy, article content, page indexability, canonical policy, structured-data overrides, and public publishing approval.
 
-### 5.2 URL requirements
+D1 contains only the published projection needed by the public website. Public page rendering and JSON-LD generation must never synchronously call `odoo.ahanassa.com`.
 
-Every URL emitted in JSON-LD must:
+---
 
-- be absolute;
-- use HTTPS in production;
-- use the approved canonical host;
-- use the canonical path;
-- omit tracking parameters;
-- omit fragments except for stable entity identifiers;
-- follow the approved trailing-slash policy;
-- resolve without an avoidable redirect;
-- be publicly crawlable when the property requires a public asset.
+## 3. Authority and Dependencies
 
-### 5.3 Canonical parity rule
+Implement this specification together with:
+
+- `PROJECT_BRIEF.md`
+- `DECISIONS.md`
+- `ROUTES.md`
+- `CONTENT_MODEL.md`
+- `TECHNICAL_ARCHITECTURE.md`
+- `SYSTEM_OF_RECORD.md`
+- `ODOO_INTEGRATION.md`
+- `SYNC_STRATEGY.md`
+- `PRODUCT_CATALOG_SPEC.md`
+- `PRICING_SYSTEM.md`
+- `CMS_ARCHITECTURE.md`
+- `SEO_STRATEGY.md`
+- `METADATA_SPEC.md`
+- `HREFLANG_CANONICAL.md`
+- `SITEMAP_ROBOTS_SPEC.md`
+- `IMAGE_OPTIMIZATION.md`
+- `SECURITY_GUIDELINES.md`
+- `TESTING_STRATEGY.md`
+- `SEO_QA_CHECKLIST.md`
+
+### 3.1 Conflict order
+
+When documents conflict, apply this order:
+
+1. law, privacy, security, accessibility, and verified business facts;
+2. explicit decisions in `DECISIONS.md`;
+3. `SYSTEM_OF_RECORD.md` and Odoo commercial truth;
+4. `ROUTES.md`, `METADATA_SPEC.md`, and `HREFLANG_CANONICAL.md`;
+5. `PRODUCT_CATALOG_SPEC.md` and `PRICING_SYSTEM.md`;
+6. this document;
+7. other implementation notes.
+
+Do not guess unresolved legal identity, canonical host, contact details, active markets, product identity, price validity, currency, unit, availability, manufacturer, brand, author, rating, or publication date.
+
+Never emit `TBD`, `TODO`, empty strings, placeholder domains, preview URLs, or fabricated fallbacks in production JSON-LD.
+
+---
+
+## 4. Core Rules
+
+### 4.1 Truth before coverage
+
+Emit a smaller accurate graph instead of a larger speculative graph.
+
+Every property must be:
+
+- verified;
+- current enough for its use;
+- approved for public disclosure;
+- supported by visible page content;
+- obtained from a controlled data source;
+- consistent with canonical metadata;
+- valid for its Schema.org type.
+
+### 4.2 One visible snapshot
+
+Visible HTML and JSON-LD must be generated from the same resolved page snapshot.
+
+For a price page, the following must share one `snapshotVersion`:
+
+```text
+visible product name
+visible variant and unit
+visible numeric price
+visible currency
+visible update/validity state
+Product node
+Offer node, when eligible
+```
+
+Do not render the HTML from one D1 row and the JSON-LD from a later Odoo or API response.
+
+### 4.3 One real entity, one stable ID
+
+Use stable canonical `@id` values. Do not create different IDs for the same organization or the same product merely because it appears on several pages.
+
+### 4.4 Page-specific graphs
+
+Do not inject the entire catalog graph through the root layout. Each route emits only the entities needed to describe that page.
+
+### 4.5 Server-rendered JSON-LD
+
+JSON-LD must be present in initial HTML for public indexable pages. It must not depend on hydration, browser API calls, Odoo availability, user interaction, or client-side state.
+
+### 4.6 No private data
+
+Never serialize:
+
+- customer or lead identity;
+- RFQ contents;
+- uploaded filenames or attachment URLs;
+- quotation or sale-order data;
+- private Odoo IDs;
+- supplier records;
+- internal cost, margin, or stock data;
+- API keys, queue messages, sync errors, or audit-log details.
+
+---
+
+## 5. Phase 1 Schema Policy
+
+| Type | Decision | Primary use |
+|---|---|---|
+| `Organization` | Required | Verified Ahan Asa identity on homepage |
+| `WebSite` | Required | Canonical site identity on homepage |
+| `WebPage` and valid subtypes | Required on indexable pages | Page identity and graph relationships |
+| `BreadcrumbList` | Required where visible | Non-home canonical hierarchy |
+| `Article` / `BlogPosting` | Required for qualifying articles | Editorial content |
+| `Product` | Conditional | A specific published steel product or indexable variant |
+| `Offer` | Strictly conditional | A real, visible, approved, fresh public commercial offer |
+| `CollectionPage` | Supported | Category, article, resource, and product hubs |
+| `ItemList` | Conditional | A visible list of published items |
+| `ImageObject` | Conditional | Logo or genuine primary image |
+| `Service` | Conditional | A real approved procurement service |
+| `ContactPage` / `AboutPage` | Supported | Matching public pages |
+| `DigitalDocument` | Conditional | A real public resource |
+| `ProductGroup` | Deferred by default | Enable only after variant URL and product-family policy is approved |
+| `AggregateOffer` | Prohibited by default | Ahan Asa does not aggregate independent merchant offers |
+| `AggregateRating` / `Review` | Prohibited by default | No approved compliant first-party rating system |
+| `FAQPage` | Do not use as an SEO tactic | Keep FAQs visible in HTML; reassess only after a policy review |
+| `HowTo` | Prohibited for procurement workflow | The business process is not a user-executable how-to |
+| `LocalBusiness` | Deferred | Requires verified public location and operating details |
+| `OnlineStore` | Prohibited | The approved experience is not a checkout store |
+| `SearchAction` | Omit | Add only if a real maintained site search and current use case exist |
+
+Structured-data validity creates eligibility, not a guarantee of enhanced search appearance.
+
+---
+
+## 6. Canonical URLs and Entity IDs
+
+All URLs must come from one validated server-side configuration value:
+
+```text
+SITE_URL=https://<approved-canonical-host>
+```
+
+Do not depend on an unvalidated public environment variable inside schema builders.
+
+Every emitted URL must:
+
+- be absolute HTTPS;
+- use the approved canonical host and path;
+- exclude UTM and other tracking parameters;
+- exclude filter/query states unless they are approved canonical pages;
+- follow the global trailing-slash policy;
+- avoid unnecessary redirects;
+- be crawlable when public crawlability is required.
+
+### 6.1 Required ID patterns
+
+| Entity | Pattern |
+|---|---|
+| Organization | `${origin}/#organization` |
+| Website | `${origin}/#website` |
+| Homepage | `${origin}/#webpage` |
+| Internal page | `${canonicalUrl}#webpage` |
+| Breadcrumb | `${canonicalUrl}#breadcrumb` |
+| Article | `${canonicalUrl}#article` |
+| Product family | `${productCanonicalUrl}#product` |
+| Product variant | `${variantCanonicalUrl}#product` |
+| Offer | `${canonicalUrl}#offer` |
+| Service | `${canonicalUrl}#service` |
+| Resource | `${canonicalUrl}#resource` |
+| Primary image | `${canonicalUrl}#primaryimage` |
+| Logo | `${origin}/#logo` |
+
+Public `@id` values must never contain Odoo record IDs, D1 row IDs, RFQ IDs, UUIDs, emails, phone numbers, or mutable price values.
+
+### 6.2 Canonical parity invariant
 
 For every indexable page:
 
 ```text
-metadata canonical URL
-  = JSON-LD WebPage @id without its entity fragment
-  = JSON-LD url
-  = sitemap URL
-  = Open Graph URL
+metadata canonical
+= Open Graph URL
+= sitemap URL
+= WebPage.url
+= WebPage @id before #webpage
 ```
 
-Locale alternates are separate canonical pages. They must not share the same page `@id`.
+Localized pages receive distinct localized page IDs. They may reference the same real organization ID.
 
 ---
 
-## 6. Stable Entity Identifier System
+## 7. Data Provenance and Publication Gates
 
-Use fragments to distinguish a real entity from the document URL that describes it.
+### 7.1 Field ownership
 
-| Entity | Required `@id` pattern |
-|---|---|
-| Ahan Asa organization | `${origin}/#organization` |
-| Ahan Asa website | `${origin}/#website` |
-| Homepage web page | `${origin}/#webpage` |
-| Any internal web page | `${canonicalUrl}#webpage` |
-| Breadcrumb list | `${canonicalUrl}#breadcrumb` |
-| Service | `${canonicalUrl}#service` |
-| Collection list | `${canonicalUrl}#itemlist` |
-| Article | `${canonicalUrl}#article` |
-| Resource or document | `${canonicalUrl}#resource` |
-| Primary image | `${canonicalUrl}#primaryimage` |
-| Video | `${canonicalUrl}#video` |
-| Approved person profile | `${profileCanonicalUrl}#person` |
+| Structured-data field | Source | Gate |
+|---|---|---|
+| Organization identity | approved site settings | verified and public |
+| Canonical URL | route registry | indexable canonical route |
+| Page title/description | Website CMS | published locale version |
+| Breadcrumbs | route hierarchy | visible and canonical |
+| Article content/dates/authors | Website CMS | published and approved |
+| Product commercial name/code | Odoo projection in D1 | synchronized and published |
+| Product SEO name/description/slug | Website CMS/D1 | published locale version |
+| Variant attributes and UOM | Odoo projection in D1 | synchronized and mapped |
+| Public price | Odoo projection in D1 | approved, complete, and fresh |
+| Price validity | pricing policy/D1 | not expired |
+| Availability | Odoo projection in D1 | explicit and safe to promise |
+| Images | R2/approved media model | public, relevant, crawlable |
 
-### 6.1 Identifier rules
+### 7.2 Generic emission gate
 
-- Never use a random UUID for a public semantic entity.
-- Never change an entity `@id` because its display name changes.
-- Never create both `/#organization` and `/about#organization` for the same Ahan Asa organization.
-- Never use an email address, phone number, CRM ID, inquiry ID, or private record ID as a public `@id`.
-- References to an existing entity should use `{ "@id": "..." }` rather than duplicate a conflicting version of the entity.
-- If an article changes URL through an approved migration, redirect the old URL and update the article `@id` to the new canonical URL. Preserve the content ID separately in the CMS.
+An entity may be emitted only if:
 
----
+```ts
+published === true
+&& indexable === true
+&& localeStatus === "published"
+&& canonicalUrlIsValid === true
+&& visibleContentParity === true
+&& validationErrors.length === 0
+```
 
-## 7. Base Entity Graph
+### 7.3 Product gate
 
-### 7.1 Organization
+Emit `Product` only when the page is primarily about one identifiable product or approved indexable variant and includes visible product facts.
 
-The root entity is initially the conservative Schema.org type `Organization`.
+Minimum internal gate:
 
-Do not change it to `Corporation`, `ProfessionalService`, `LocalBusiness`, `OnlineBusiness`, `OnlineStore`, `Store`, `Wholesaler`, or another subtype until the legal and operational facts support that selection.
+```ts
+schemaEligibility.product === "eligible"
+&& catalogStatus === "published"
+&& commercialIdentityStatus === "verified"
+&& seoContentStatus === "published"
+```
 
-#### Approved minimum properties
+Category hubs, search results, filters, comparison tables, RFQ rows, and generic price lists are not automatically `Product` pages.
 
-| Property | Phase 1 value or rule |
-|---|---|
-| `@type` | `Organization` |
-| `@id` | `${origin}/#organization` |
-| `name` | `آهن آسا` |
-| `alternateName` | `Ahan Asa` and optionally `ahanassa.com` if approved for site-name fallback |
-| `url` | canonical homepage URL |
-| `logo` | Approved crawlable master logo asset, minimum 112×112 px |
-| `description` | Only final approved public description visible on the site |
-| `slogan` | `ما مراقب سرمایه شما هستیم.` if visible and approved in the same context |
+### 7.4 Offer gate
 
-#### Conditional properties
+`Offer` is opt-in, never inferred merely because a numeric price exists.
 
-Emit only after verification and approval:
+Emit it only when all conditions pass:
 
-- `legalName`
-- `email`
-- `telephone`
-- `contactPoint`
-- `address`
-- `foundingDate`
-- `founder`
-- `taxID`
-- `vatID`
-- `iso6523Code`
-- `numberOfEmployees`
-- `sameAs`
-- `areaServed`
-- `knowsAbout`
-- `memberOf`
-- `award`
-- `hasCertification`
+```ts
+publicPrice.status === "published"
+&& publicPrice.kind === "firm_offer"
+&& publicPrice.approvalStatus === "approved"
+&& publicPrice.isFresh === true
+&& publicPrice.isExpired === false
+&& publicPrice.amount !== null
+&& publicPrice.currencyIso4217 !== null
+&& publicPrice.unit !== null
+&& pageShowsExactSameCommercialTerms === true
+&& productCanActuallyBeRequestedOrPurchased === true
+```
 
-#### Organization property rules
+Omit `Offer` when the price is:
 
-- `legalName` must be the registered legal name, not a guessed English expansion of Ahan Asa.
-- `sameAs` must link only to verified profiles representing the same organization.
-- Do not place client, supplier, partner, marketplace, or directory URLs in `sameAs`.
-- Do not emit an address unless it is real, public, approved, and visible on the website.
-- A service region is not an office address.
-- `areaServed` must reflect active operational coverage, not expansion ambition.
-- Phone numbers must include country and area codes.
-- Do not emit a private personal mobile number as the organization's general number without owner approval.
-- Do not infer a founding date from domain registration or brand-design dates.
-- The slogan does not prove service performance and must not be modeled as a guarantee.
+- indicative;
+- historical;
+- “call for price”;
+- a range without a real aggregate-offer model;
+- stale or expired;
+- pending approval;
+- based on an incomplete sync;
+- customer-specific;
+- dependent on hidden minimum order, tax, freight, destination, or payment terms;
+- shown in a non-ISO currency presentation without an approved exact machine-readable conversion.
 
-### 7.2 Website
+When the numeric value is hidden from users, it must also be absent from JSON-LD.
 
-Use `WebSite` on the canonical homepage to establish site identity.
+### 7.5 Availability gate
 
-Required or recommended properties:
+Do not infer `InStock` from:
 
-| Property | Rule |
-|---|---|
-| `@type` | `WebSite` |
-| `@id` | `${origin}/#website` |
-| `url` | canonical homepage |
-| `name` | `آهن آسا` |
-| `alternateName` | `Ahan Asa`; optionally `ahanassa.com` as a lowercase fallback |
-| `inLanguage` | `fa-IR` for Phase 1 |
-| `publisher` | Reference `${origin}/#organization` |
+- the existence of a product in Odoo;
+- supplier availability;
+- a recent price;
+- the ability to request a quotation;
+- a nonzero quantity not approved for public disclosure.
 
-Do not add a `potentialAction` with `SearchAction` until a real, accessible internal search exists and there is a current, documented purpose for the markup.
-
-### 7.3 Homepage
-
-Use `WebPage` for the homepage and connect it to the website and organization.
-
-Recommended properties:
-
-- `@id`
-- `url`
-- `name`
-- `description`
-- `inLanguage`
-- `isPartOf`
-- `about`
-- `primaryImageOfPage` when approved
-- `dateModified` only if the date represents a meaningful visible content update
-
-Do not use a synthetic `datePublished` for the homepage.
+Omit `availability` unless a specific public state is maintained and Ahan Asa can operationally support the claim.
 
 ---
 
-## 8. Minimum Homepage Graph Example
+## 8. Currency and Unit Rules
 
-The following example intentionally omits unresolved legal identity, contact, address, social-profile, and service-area fields. `SITE_ORIGIN`, descriptions, and asset paths must come from approved production configuration and content.
+Google product markup uses ISO 4217 currency codes. “Toman” is not an ISO 4217 code.
+
+For Iranian pricing:
+
+- use `IRR` in `priceCurrency`;
+- encode the price amount in Iranian rials;
+- if the UI displays tomans, make the exact rial equivalent visible or programmatically accessible in the same price block;
+- use the exact approved conversion rule of `1 toman = 10 IRR`;
+- never label a toman amount as `IRR` without multiplying by ten;
+- do not use invented values such as `IRT` or `TOM` in `priceCurrency`.
+
+Example:
+
+```text
+Visible: 67,850 تومان / کیلوگرم
+Visible equivalence: 678,500 ریال / کیلوگرم
+JSON-LD price: 678500
+JSON-LD priceCurrency: IRR
+```
+
+If the product is priced per kilogram, ton, sheet, branch, meter, or another unit, the visible page must state the unit. Do not encode a per-kilogram amount as if it were the price of one complete product item.
+
+For nontrivial unit pricing, use `UnitPriceSpecification` only after current Google and Schema.org validation confirms the chosen unit-code representation. Until then, prefer omitting `Offer` over publishing ambiguous unit pricing.
+
+---
+
+## 9. Organization, WebSite, and Homepage
+
+### 9.1 Organization
+
+Use one conservative `Organization` node.
+
+Approved minimum:
+
+- `@type`: `Organization`;
+- `@id`: `${origin}/#organization`;
+- `name`: `آهن آسا`;
+- `alternateName`: `Ahan Asa`;
+- `url`: canonical homepage;
+- approved logo;
+- approved public description;
+- slogan only when visible and approved.
+
+Conditional, verified fields include:
+
+- `legalName`;
+- `email`;
+- `telephone`;
+- `contactPoint`;
+- `address`;
+- `sameAs`;
+- `taxID` or other legal identifiers;
+- `foundingDate`;
+- `areaServed`.
+
+Do not model expansion goals as active service coverage. Do not use a private mobile number, guessed legal name, guessed address, or unverified social profile.
+
+### 9.2 WebSite
+
+Use `WebSite` on the canonical homepage with:
+
+- stable website ID;
+- canonical URL;
+- Persian and approved alternate site names;
+- `inLanguage: fa-IR` for Phase 1;
+- `publisher` referencing the organization.
+
+### 9.3 Homepage graph example
+
+Documentation examples use `example.com`. Production validation must reject it.
 
 ```json
 {
@@ -380,11 +441,10 @@ The following example intentionally omits unresolved legal identity, contact, ad
       "logo": {
         "@type": "ImageObject",
         "@id": "https://www.example.com/#logo",
-        "url": "https://www.example.com/assets/brand/ahan-asa-logo.png",
-        "contentUrl": "https://www.example.com/assets/brand/ahan-asa-logo.png",
+        "url": "https://www.example.com/media/ahan-asa-logo.png",
+        "contentUrl": "https://www.example.com/media/ahan-asa-logo.png",
         "width": 512,
-        "height": 512,
-        "caption": "آهن آسا"
+        "height": 512
       }
     },
     {
@@ -392,11 +452,9 @@ The following example intentionally omits unresolved legal identity, contact, ad
       "@id": "https://www.example.com/#website",
       "url": "https://www.example.com/",
       "name": "آهن آسا",
-      "alternateName": ["Ahan Asa", "ahanassa.com"],
+      "alternateName": "Ahan Asa",
       "inLanguage": "fa-IR",
-      "publisher": {
-        "@id": "https://www.example.com/#organization"
-      }
+      "publisher": { "@id": "https://www.example.com/#organization" }
     },
     {
       "@type": "WebPage",
@@ -404,84 +462,47 @@ The following example intentionally omits unresolved legal identity, contact, ad
       "url": "https://www.example.com/",
       "name": "آهن آسا",
       "inLanguage": "fa-IR",
-      "isPartOf": {
-        "@id": "https://www.example.com/#website"
-      },
-      "about": {
-        "@id": "https://www.example.com/#organization"
-      }
+      "isPartOf": { "@id": "https://www.example.com/#website" },
+      "about": { "@id": "https://www.example.com/#organization" }
     }
   ]
 }
 ```
 
-`https://www.example.com` is documentation-only. It must never reach production. The graph builder must replace it with the validated canonical origin.
-
 ---
 
-## 9. Global Page Node Requirements
+## 10. WebPage and Breadcrumb Rules
 
-Every canonical, indexable page should have one primary `WebPage` node or a valid subtype.
+Every canonical indexable page must have exactly one primary `WebPage` node or correct subtype.
 
-### 9.1 Required page fields
+Recommended fields:
 
-| Field | Rule |
-|---|---|
-| `@type` | Most accurate `WebPage` subtype, or `WebPage` |
-| `@id` | `${canonicalUrl}#webpage` |
-| `url` | Exact canonical URL |
-| `name` | Visible page title aligned with metadata |
-| `description` | Approved summary aligned with visible content |
-| `inLanguage` | `fa-IR` in Phase 1 |
-| `isPartOf` | Reference website entity |
-| `breadcrumb` | Reference page breadcrumb when applicable |
-| `primaryImageOfPage` | Reference only when a genuine primary image exists |
+- `@id`;
+- `url`;
+- `name`;
+- `description` when approved;
+- `inLanguage`;
+- `isPartOf`;
+- `breadcrumb` when a visible breadcrumb exists;
+- `primaryImageOfPage` when a genuine primary image exists;
+- `mainEntity` when the page has one dominant entity.
 
-### 9.2 Optional page fields
+`dateModified` must represent a meaningful public content change. Do not set it to build time, deploy time, cache purge time, or price-sync time unless the visible page content actually changed accordingly.
 
-- `about`
-- `mainEntity`
-- `datePublished`
-- `dateModified`
-- `reviewedBy`
-- `author`
-- `publisher`
-- `speakable`
-- `significantLink`
+### 10.1 BreadcrumbList
 
-Optional does not mean automatic. Emit a property only when it is accurate, useful, and maintained.
-
-### 9.3 Dates
-
-- Use ISO 8601.
-- Use a timezone for `DateTime` values.
-- `datePublished` must be the real first public publication date.
-- `dateModified` must represent a meaningful content change, not every build, deploy, formatting edit, cache refresh, or dependency update.
-- Visible dates and structured dates must agree.
-- Never use the current build time as `dateModified` across the site.
-
----
-
-## 10. BreadcrumbList Specification
-
-Use `BreadcrumbList` on canonical, indexable non-home pages when a visible breadcrumb is present.
-
-### 10.1 Required behavior
-
-- The JSON-LD breadcrumb must match the visible breadcrumb.
-- Each item must use the canonical absolute URL.
-- Positions must begin at `1` and increment without gaps.
-- Labels must be natural Persian on the Persian site.
-- The last item must represent the current page.
-- Do not include utility overlays, filters, tabs, query parameters, or form steps unless they are canonical pages in the approved hierarchy.
-- Do not emit breadcrumbs on 404, error, confirmation, maintenance, API, or private status pages.
-
-### 10.2 Example
+- must match the visible breadcrumb;
+- must use canonical absolute URLs;
+- positions start at `1` and have no gaps;
+- Persian pages use natural Persian labels;
+- the last item represents the current page;
+- filter states, tabs, overlays, and form steps are excluded unless they are canonical pages;
+- do not emit on homepage, noindex utilities, confirmations, errors, previews, admin, or APIs.
 
 ```json
 {
   "@type": "BreadcrumbList",
-  "@id": "https://www.example.com/insights/example-article#breadcrumb",
+  "@id": "https://www.example.com/steel/rebar/a3/16#breadcrumb",
   "itemListElement": [
     {
       "@type": "ListItem",
@@ -492,665 +513,363 @@ Use `BreadcrumbList` on canonical, indexable non-home pages when a visible bread
     {
       "@type": "ListItem",
       "position": 2,
-      "name": "دانش خرید آهن",
-      "item": "https://www.example.com/insights"
+      "name": "محصولات فولادی",
+      "item": "https://www.example.com/steel"
     },
     {
       "@type": "ListItem",
       "position": 3,
-      "name": "عنوان مقاله",
-      "item": "https://www.example.com/insights/example-article"
+      "name": "میلگرد",
+      "item": "https://www.example.com/steel/rebar"
+    },
+    {
+      "@type": "ListItem",
+      "position": 4,
+      "name": "میلگرد A3 سایز 16",
+      "item": "https://www.example.com/steel/rebar/a3/16"
     }
   ]
 }
 ```
 
+Paths are illustrative; `ROUTES.md` remains authoritative.
+
 ---
 
 ## 11. Page-to-Schema Matrix
 
-`ROUTES.md` remains authoritative for exact paths and publication status.
-
-| Route or family | Primary page node | Main entity or supporting nodes | Breadcrumb | Notes |
-|---|---|---|---|---|
-| `/` | `WebPage` | `Organization`, `WebSite`, optional primary `ImageObject` | No | Define the root entity graph here |
-| `/about` | `AboutPage` | Organization reference; full organization node only when it adds verified data | Yes | Do not create a second organization ID |
-| `/procurement` | `CollectionPage` or `WebPage` | Approved `Service` nodes and optional visible `ItemList` | Yes | Use `CollectionPage` only if it is truly a hub |
-| Future approved procurement detail | `WebPage` | One primary `Service` | Yes | One page, one dominant service intent |
-| `/procurement-process` | `WebPage` | Organization or approved service reference | Yes | Do not label the business workflow as `HowTo` by default |
-| `/steel-products` | `CollectionPage` | Optional visible `ItemList` of published procurement categories | Yes | Not a product listing or offer catalog |
-| `/steel-products/[category-slug]` | `WebPage` | Optional related `Service`; category concept only when accurately modeled | Yes | No `Product`, price, SKU, stock, brand, GTIN, or offer by default |
-| `/industries` | `CollectionPage` | Optional visible `ItemList` | Yes | Include only published, substantive children |
-| `/industries/[industry-slug]` | `WebPage` | Approved service/application context | Yes | Avoid invented operational coverage |
-| `/projects` | `CollectionPage` | Optional visible `ItemList` of verified published cases | Yes | Do not publish empty evidence graph |
-| `/projects/[project-slug]` | `Article` or `WebPage` | Verified case facts, images, organization references | Yes | Use `Article` only for a true authored narrative |
-| `/insights` | `CollectionPage` | Optional visible `ItemList` of published articles | Yes | The list must match the page |
-| `/insights/[article-slug]` | `Article` or `BlogPosting` | Author, publisher, images, dates | Yes | Do not use `NewsArticle` by default |
-| `/resources` | `CollectionPage` | Optional visible `ItemList` | Yes | Include only real public resources |
-| `/resources/[resource-slug]` | `WebPage` | `DigitalDocument` or other accurate `CreativeWork` | Yes | Do not expose private download URLs |
-| `/faq` | `WebPage` | No `FAQPage` rich-result implementation | Yes | Keep visible, useful FAQs in HTML |
-| `/contact` | `ContactPage` | Organization reference; verified contact data | Yes | Details must match visible contact content |
-| `/request` | None by default | None | No | Route is `noindex, follow`; keep schema minimal or omit |
-| `/privacy` | `WebPage` | Optional organization reference | Yes | Legal text requires approval |
-| `/terms` | `WebPage` | Optional organization reference | Yes | Only when published and substantive |
-| Confirmation routes | None | None | No | `noindex, nofollow`; never expose inquiry data |
-| 404, error, maintenance | None | None | No | Do not emit rich-result markup |
-| API, webhook, health endpoints | None | None | No | Never emit page JSON-LD |
-| Reserved locales | None | None | No | Return 404 until activated |
+| Page family | Primary page node | Main/supporting entities | Price markup |
+|---|---|---|---|
+| Homepage | `WebPage` | `Organization`, `WebSite`, logo | None |
+| About | `AboutPage` | Organization reference | None |
+| Contact | `ContactPage` | Verified organization/contact data | None |
+| Procurement/service page | `WebPage` | Conditional `Service` | None |
+| Steel catalog hub | `CollectionPage` | Optional visible `ItemList` | None |
+| Steel category | `CollectionPage` or `WebPage` | Optional visible `ItemList` | No `Offer` |
+| Specific product family | `WebPage` | Conditional `Product` | Only if the offer gate passes |
+| Indexable product variant | `WebPage` | `Product` | Only if the offer gate passes |
+| Price hub/list | `CollectionPage` | Optional `ItemList`; no bulk hidden products | No offer unless each visible item independently qualifies |
+| Dedicated product-price page | `WebPage` | `Product`, conditional `Offer` | Strict freshness and parity gate |
+| Article hub | `CollectionPage` | Optional visible `ItemList` | None |
+| Article detail | `WebPage` | `Article` or `BlogPosting` | None |
+| Resource detail | `WebPage` | Conditional `DigitalDocument` | None |
+| RFQ form | none or minimal `WebPage` | No RFQ or customer entity | None |
+| RFQ confirmation/status | None | None | None |
+| Admin/account/API/webhook | None | None | None |
+| Search/filter/query state | None by default | None | None |
+| 404/error/maintenance/preview | None | None | None |
 
 ---
 
-## 12. Service Schema
+## 12. Product Modeling
 
-Use `Service` only when a page describes a real, approved procurement service that Ahan Asa provides.
+### 12.1 Category is not Product
 
-### 12.1 Recommended properties
+A category such as “میلگرد” or “تیرآهن” is not a single purchasable product. Category pages must not receive a fabricated SKU, price, availability, brand, or `Product` node.
 
-| Property | Rule |
-|---|---|
-| `@type` | `Service` |
-| `@id` | `${canonicalUrl}#service` |
-| `name` | Exact visible service name |
-| `description` | Approved summary of actual scope |
-| `url` | Canonical service page |
-| `provider` | Reference Ahan Asa organization |
-| `serviceType` | Clear, stable service category; not a keyword list |
-| `areaServed` | Only approved active area |
-| `audience` | Only when the target audience is explicitly defined and useful |
-| `termsOfService` | Only if a relevant approved public terms page exists |
+### 12.2 Product identity
 
-### 12.2 Service prohibitions
+Use `Product` for one specific commercial product or approved variant page. Recommended properties when visible and verified:
 
-Do not add:
+- `@id`;
+- `name`;
+- `description`;
+- `url`;
+- `image`;
+- public `sku` or commercial code;
+- `brand` only for the true manufacturer/brand;
+- `manufacturer` only when verified;
+- `material` when meaningful;
+- `size` when the page is variant-specific;
+- `additionalProperty` for visible technical attributes;
+- conditional `offers`.
 
-- a price without a real published commercial offer;
-- an `Offer` merely because the page has a CTA;
-- `areaServed` values for future Iraq, Oman, or GCC expansion until operationally approved;
-- service-level ratings or reviews without a compliant evidence system;
-- invented `availableChannel`, hours, response times, or delivery times;
-- terms such as “guaranteed lowest price” or “zero risk.”
+Never set Ahan Asa as `brand` or `manufacturer` merely because it procures or sells the item.
 
-### 12.3 Example
+Internal Odoo product IDs may support joins but must not appear as public `sku`, `mpn`, `gtin`, or `@id`.
+
+### 12.3 Variant policy
+
+Phase 1 may model each indexable business-relevant variant as a standalone `Product`. Do not automatically expose every combinatorial Odoo variant as an indexable page.
+
+Enable `ProductGroup`, `variesBy`, `hasVariant`, and `isVariantOf` only after:
+
+- canonical single-page versus multi-page variant behavior is fixed;
+- product-family identifiers are public and stable;
+- all listed variants are visible and published;
+- the output passes current variant validation;
+- `PRODUCT_CATALOG_SPEC.md` approves the model.
+
+### 12.4 Product without Offer
+
+A valid Schema.org `Product` node may be emitted without `Offer` for semantic understanding when the page is genuinely product-focused. It will not satisfy Google product-snippet eligibility through an offer unless another supported required property exists.
+
+Do not add fake reviews or ratings merely to satisfy rich-result requirements.
+
+---
+
+## 13. Offer Modeling
+
+### 13.1 Meaning
+
+An `Offer` represents a real commercial offer, not merely a recorded market number, price chart point, internal Odoo price, estimate, or invitation to contact sales.
+
+### 13.2 Recommended properties
+
+When eligible:
+
+- `@type: Offer`;
+- stable `@id`;
+- `url` matching the product/price canonical URL;
+- `price` or approved `priceSpecification.price`;
+- `priceCurrency` using ISO 4217;
+- `priceValidUntil` when a real expiry exists;
+- `itemCondition` when true and useful;
+- `seller` referencing the organization only when Ahan Asa is the actual seller;
+- `availability` only when explicitly maintained and defensible.
+
+### 13.3 Price freshness
+
+`PRICING_SYSTEM.md` defines the exact freshness duration per category. This document must not invent a universal number.
+
+At render time:
+
+```ts
+isFresh = now <= effectiveAt + freshnessWindow
+isExpired = validUntil !== null && now > validUntil
+```
+
+If the page is served from cache after the eligibility state changes, the cache must be invalidated or expire before the markup becomes misleading.
+
+### 13.4 Offer example
+
+The example is valid only for a firm public offer whose exact visible terms match.
 
 ```json
 {
-  "@type": "Service",
-  "@id": "https://www.example.com/procurement#service",
-  "name": "مدیریت خرید آهن پروژه",
-  "url": "https://www.example.com/procurement",
-  "provider": {
-    "@id": "https://www.example.com/#organization"
-  },
-  "serviceType": "مدیریت خرید و تأمین آهن پروژه"
+  "@type": "Product",
+  "@id": "https://www.example.com/steel/rebar/a3/16#product",
+  "name": "میلگرد A3 سایز 16",
+  "description": "مشخصات و شرایط خرید قابل مشاهده میلگرد A3 سایز 16",
+  "url": "https://www.example.com/steel/rebar/a3/16",
+  "size": "16 mm",
+  "offers": {
+    "@type": "Offer",
+    "@id": "https://www.example.com/steel/rebar/a3/16#offer",
+    "url": "https://www.example.com/steel/rebar/a3/16",
+    "price": "678500",
+    "priceCurrency": "IRR",
+    "priceValidUntil": "2026-08-27",
+    "itemCondition": "https://schema.org/NewCondition",
+    "seller": {
+      "@id": "https://www.example.com/#organization"
+    }
+  }
 }
 ```
 
-The final name and description must come from approved Persian page content.
+The visible page must state the same product, unit basis, 67,850 toman value, 678,500 rial equivalent, validity, and any conditions that materially affect the price.
+
+### 13.5 No AggregateOffer for variants
+
+Do not use `AggregateOffer` to summarize different sizes, grades, brands, mills, or units. It is not a shortcut for a product-variant price range.
 
 ---
 
-## 13. Material and Category Pages
+## 14. Article and BlogPosting
 
-Material-category pages support procurement decisions. They are not automatically product pages.
+Use `Article` or `BlogPosting` only for original published editorial content.
 
-### 13.1 Default model
+Recommended fields:
 
-Use:
+- stable article ID;
+- `headline` matching the visible title;
+- visible description;
+- canonical URL;
+- `mainEntityOfPage` reference;
+- `inLanguage`;
+- real `datePublished`;
+- meaningful `dateModified`;
+- visible author or authors;
+- publisher organization reference;
+- relevant crawlable images;
+- approved section/taxonomy.
 
-- `CollectionPage` for the category hub;
-- `ItemList` only for the real visible published category list;
-- `WebPage` for a category guide;
-- an optional `Service` reference when the page genuinely describes procurement support for that category.
-
-### 13.2 Do not use Product schema unless all conditions pass
-
-`Product` may be considered only if a future page:
-
-1. focuses on one specific product or a valid variant family;
-2. represents a product actually offered by the merchant;
-3. shows accurate, visible product data;
-4. contains a real purchase or approved transaction path;
-5. maintains price, currency, availability, condition, identifiers, images, and commercial policies where required;
-6. passes the relevant current Google Product documentation;
-7. is approved as a scope change from the Phase 1 procurement-management model.
-
-Until then, the following are prohibited on material pages:
-
-- `Product`
-- `ProductGroup`
-- `Offer`
-- `AggregateOffer`
-- `price`
-- `priceCurrency`
-- `availability`
-- `sku`
-- `mpn`
-- `gtin`
-- `brand` that falsely implies Ahan Asa manufactures the material
-- fake product reviews or ratings
-
-### 13.3 ItemList rules
-
-- Emit only published items that appear visibly on the page.
-- Do not include reserved or conditional routes.
-- Use canonical URLs.
-- Preserve the visible order when order matters.
-- Rebuild the list when an item is unpublished.
-- Do not represent pagination results as one complete list unless the markup and visible experience genuinely support that model.
-
----
-
-## 14. Article and Insight Schema
-
-Use `Article` or `BlogPosting` for original insight content that has a genuine publication workflow.
-
-### 14.1 Type selection
-
-| Content | Type |
-|---|---|
-| Evergreen procurement guide | `Article` |
-| Editorial blog-style insight | `BlogPosting` |
-| Time-sensitive corporate or industry news | `NewsArticle` only after a real news workflow is approved |
-| Short resource landing page | `WebPage`, not automatically `Article` |
-| Verified authored case narrative | `Article` or `WebPage`, depending on editorial structure |
-
-### 14.2 Recommended article properties
-
-- `@id`
-- `headline`
-- `description`
-- `url`
-- `mainEntityOfPage`
-- `inLanguage`
-- `datePublished`
-- `dateModified`
-- `author`
-- `publisher`
-- `image`
-- `articleSection`
-- `keywords` only when derived from approved taxonomy, not stuffed search terms
-- `isPartOf`
-
-### 14.3 Author rules
-
-- Every visible author must appear separately in JSON-LD.
-- Use `Person` for a real named person and `Organization` for genuine organizational authorship.
-- Do not merge several people into one author name string.
-- A person author should have an approved profile or other stable identifying URL when available.
-- Do not invent an author, editor, reviewer, credential, or profile.
-- Job titles belong in `jobTitle`, not inside `author.name`.
-- If no person is approved and Ahan Asa is editorially responsible, use the Ahan Asa organization only if visible authorship supports it.
-
-### 14.4 Publisher rules
-
-Publisher must reference:
-
-```json
-{
-  "@id": "https://www.example.com/#organization"
-}
-```
-
-Do not create a separate publisher organization node for the blog.
-
-### 14.5 Article images
-
-For article eligibility and presentation quality:
-
-- images must represent the article;
-- URLs must be absolute, crawlable, and indexable;
-- provide high-resolution images;
-- when available, provide approved 1:1, 4:3, and 16:9 derivatives;
-- do not mark a decorative background as the article image;
-- do not use a supplier, mill, project, or person image in a misleading context;
-- image data must match `MEDIA_GUIDELINES.md`.
-
-### 14.6 Article example
+Use `Person` for a real named author and `Organization` for genuine organizational authorship. Do not invent authors, credentials, reviewers, or profile URLs.
 
 ```json
 {
   "@type": "Article",
-  "@id": "https://www.example.com/insights/example-article#article",
+  "@id": "https://www.example.com/insights/example#article",
   "headline": "عنوان واقعی مقاله",
   "description": "خلاصه تأییدشده و قابل مشاهده مقاله",
-  "url": "https://www.example.com/insights/example-article",
+  "url": "https://www.example.com/insights/example",
   "mainEntityOfPage": {
-    "@id": "https://www.example.com/insights/example-article#webpage"
+    "@id": "https://www.example.com/insights/example#webpage"
   },
   "inLanguage": "fa-IR",
-  "datePublished": "2026-08-25T09:00:00+03:30",
-  "dateModified": "2026-08-25T09:00:00+03:30",
+  "datePublished": "2026-08-26T09:00:00+03:30",
+  "dateModified": "2026-08-26T09:00:00+03:30",
   "author": {
-    "@type": "Organization",
-    "@id": "https://www.example.com/#organization",
-    "name": "آهن آسا",
-    "url": "https://www.example.com/"
+    "@id": "https://www.example.com/#organization"
   },
   "publisher": {
     "@id": "https://www.example.com/#organization"
   },
   "image": [
-    "https://www.example.com/media/example-article-1x1.jpg",
-    "https://www.example.com/media/example-article-4x3.jpg",
-    "https://www.example.com/media/example-article-16x9.jpg"
+    "https://www.example.com/media/example-1x1.jpg",
+    "https://www.example.com/media/example-4x3.jpg",
+    "https://www.example.com/media/example-16x9.jpg"
   ]
 }
 ```
 
-All example values except the brand identity are illustrative and must be replaced by approved content.
+---
+
+## 15. Collections, Services, Resources, and Media
+
+### 15.1 CollectionPage and ItemList
+
+Use `ItemList` only when the same items are visible on the page.
+
+- include published canonical items only;
+- preserve visible order where order matters;
+- remove unpublished children;
+- do not claim one complete list across pagination unless the visible page supports it;
+- do not treat generic steel lists as merchant-offer carousels.
+
+### 15.2 Service
+
+Use `Service` only for a real approved procurement service. Do not attach a price, guarantee, future service area, response time, or rating without verified visible support.
+
+### 15.3 DigitalDocument
+
+Use only for a real public resource. Never emit signed R2 URLs, private storage paths, RFQ attachments, or confidential files. `contentUrl` must be stable and publicly crawlable if present.
+
+### 15.4 Images
+
+- relevant to the marked entity;
+- public, crawlable, and indexable;
+- absolute HTTPS URL;
+- correct width and height where declared;
+- not a temporary signed URL;
+- not a decorative background masquerading as the primary image.
+
+Organization logos must meet current Google size and crawlability guidance. Article images should include suitable high-resolution aspect-ratio derivatives when available.
 
 ---
 
-## 15. Projects and Case Studies
+## 16. Localization
 
-Structured data must not convert an unverified story into evidence.
+Phase 1:
 
-### 15.1 Publication gate
+- locale: `fa-IR`;
+- direction: RTL;
+- Persian page/entity names;
+- canonical locale routing from `ROUTES.md`;
+- one real organization entity.
 
-Before a case-study graph is emitted, verify:
+When a future locale is activated:
 
-- client naming or anonymization permission;
-- project or procurement context;
-- Ahan Asa's exact scope;
-- location disclosure approval;
-- quantities, weights, values, dates, and units;
-- images and document rights;
-- outcome wording;
-- limitations and dependencies;
-- publication and review ownership.
+- generate a separate localized page ID and canonical URL;
+- localize names, descriptions, headlines, and breadcrumbs;
+- use the correct BCP 47 code;
+- emit only after the locale page is complete and indexable;
+- reference the same organization ID unless a distinct legal entity exists;
+- keep hreflang in metadata/sitemaps; JSON-LD does not replace hreflang.
 
-### 15.2 Type selection
-
-Use `WebPage` when the page primarily presents a business case. Use `Article` when it is a real authored editorial case narrative with publication dates and article structure.
-
-Do not use an unsupported or ambiguous `Project` type merely because the page is called a project.
-
-### 15.3 Evidence rules
-
-- Do not expose confidential project files, signed URLs, invoice numbers, personal contacts, prices, or client identifiers in JSON-LD.
-- Do not infer a client relationship from an image, quote, or internal note.
-- Do not mark a testimonial or rating unless consent, source, scale, and current search policy are verified.
-- If the visible page anonymizes the client, structured data must remain anonymized.
-- Do not publish hidden metrics only in JSON-LD.
+Reserved, partial, or 404 locale routes emit no structured data.
 
 ---
 
-## 16. Resources and Digital Documents
+## 17. Noindex and Non-Public Routes
 
-Use `DigitalDocument` when the detail page describes a real downloadable or viewable resource.
+Do not emit rich-result-focused JSON-LD on:
 
-### 16.1 Suitable properties
-
-- `@id`
-- `name`
-- `description`
-- `url`
-- `inLanguage`
-- `creator`
-- `publisher`
-- `datePublished`
-- `dateModified`
-- `version`
-- `encodingFormat`
-- `contentUrl` only for a stable public file URL
-- `license` only when a real license page exists
-- `isAccessibleForFree` when accurate
-
-### 16.2 Resource security rules
-
-- Never emit a temporary signed download URL.
-- Never emit an internal storage path.
-- Never emit a lead's uploaded file URL.
-- Never emit a document containing confidential project or commercial data.
-- If access is gated, describe the landing page and omit private `contentUrl` values.
-- `encodingFormat` must use a real MIME type such as `application/pdf`.
-- Version and date fields must match the visible resource metadata.
-
----
-
-## 17. FAQ Policy After Google Deprecation
-
-Google stopped showing FAQ rich results starting 2026-05-07 and removed the FAQ rich-result documentation in June 2026.
-
-Phase 1 policy:
-
-- keep FAQs visible, useful, indexable, and internally linked;
-- use semantic HTML for questions and answers;
-- use a normal `WebPage` node for `/faq`;
-- do not add `FAQPage` solely for Google rich-result eligibility;
-- do not substitute `QAPage` for ordinary business FAQs;
-- do not duplicate hidden answers in JSON-LD;
-- review this decision only when current search-engine documentation changes or another documented consumer creates real value.
-
-This policy supersedes older planning language that treated FAQ structured data as a likely search enhancement.
-
----
-
-## 18. Contact and Local Business Policy
-
-### 18.1 ContactPage
-
-The `/contact` route should use `ContactPage` and reference the Ahan Asa organization.
-
-Contact details may be included only when they are:
-
-- verified;
-- approved for public use;
-- visible on the page;
-- formatted consistently;
-- maintained by a named owner.
-
-### 18.2 ContactPoint
-
-Suitable fields may include:
-
-- `telephone`
-- `email`
-- `contactType`
-- `availableLanguage`
-- `areaServed`
-
-Rules:
-
-- `availableLanguage` must describe languages actually supported through that contact channel.
-- Persian Phase 1 content does not prove English or Arabic sales support.
-- Do not publish service hours until approved and operationally maintained.
-- Do not invent “customer service,” “sales,” or “technical support” distinctions when all channels reach the same person or inbox.
-
-### 18.3 LocalBusiness gate
-
-Do not emit `LocalBusiness` until all of the following are approved:
-
-1. a real customer-facing physical location;
-2. the most accurate business subtype;
-3. public address;
-4. primary phone;
-5. opening hours if applicable;
-6. geographic coordinates only when accurate and necessary;
-7. consistency with the public website and Google Business Profile where applicable.
-
-A national service area does not justify a fake local address.
-
----
-
-## 19. Localization and Internationalization
-
-### 19.1 Phase 1
-
-- Active locale: Persian `fa-IR`
-- Direction: RTL
-- Canonical route prefix: none
-- `inLanguage`: `fa-IR`
-- Site and page names: natural Persian
-- Technical URLs: canonical Latin-slug paths from `ROUTES.md`
-
-### 19.2 Future locales
-
-English `/en/**` and Arabic `/ar/**` remain reserved until fully approved.
-
-When a locale launches:
-
-- generate a separate localized page node with its localized canonical URL;
-- use the correct BCP 47 language code;
-- localize `name`, `headline`, `description`, breadcrumb labels, and visible text;
-- reference the same real organization `@id` unless a genuinely separate regional legal entity exists;
-- do not duplicate the Persian page `@id`;
-- do not emit alternate-locale graphs for 404 or incomplete pages;
-- keep hreflang in HTML metadata and sitemap policy; JSON-LD does not replace hreflang.
-
-### 19.3 Organization naming
-
-The organization may use:
-
-- primary Persian `name`: `آهن آسا`
-- English `alternateName`: `Ahan Asa`
-
-Do not create a separate organization entity merely because a different script or language is used.
-
----
-
-## 20. ImageObject Policy
-
-### 20.1 Logo
-
-The organization logo must:
-
-- use the approved master brand mark;
-- preserve core geometry;
-- be at least 112×112 px;
-- use a crawlable and indexable HTTPS URL;
-- render clearly on a white background;
-- use a supported image format;
-- have accurate width and height;
-- avoid text or padding that makes the mark unreadable at small sizes.
-
-Use a stable asset URL. Do not point schema to a temporary build hash unless the deployment guarantees long-term asset persistence.
-
-### 20.2 Primary page image
-
-Use `primaryImageOfPage` only when the page has a genuine primary image. Do not force a logo, decorative texture, gradient, or background video poster into this role.
-
-### 20.3 Rights and representation
-
-Structured data must not claim ownership or creator status without proof. If image-rights metadata is implemented, it must align with current Google image-metadata requirements and real licensing data.
-
----
-
-## 21. VideoObject Policy
-
-Use `VideoObject` only when a real video is a substantial part of the page.
-
-Required operational inputs include:
-
-- visible video;
-- `name`;
-- accurate `description`;
-- crawlable `thumbnailUrl`;
-- `uploadDate`;
-- `duration` in ISO 8601 when known;
-- stable `contentUrl` or `embedUrl` as appropriate;
-- correct page association;
-- rights to publish the video.
-
-Do not mark:
-
-- ambient hero loops;
-- decorative motion backgrounds;
-- hidden videos;
-- third-party videos without accurate attribution or embedding rights;
-- placeholders that have no playable asset.
-
----
-
-## 22. Noindex and Non-Public Routes
-
-Structured data must not expose or enrich routes that are intentionally non-public.
-
-### 22.1 Omit page schema from
-
-- `/request/confirmation` or equivalent success route;
-- future private request-status pages;
-- error pages;
-- 404 pages;
-- maintenance pages;
-- preview URLs;
-- staging hosts;
-- API and webhook endpoints;
-- internal search or filter states with no canonical page;
+- RFQ confirmation pages;
+- private RFQ status pages;
+- admin and account pages;
+- preview and staging hosts;
+- APIs, webhooks, queue consumers, and health endpoints;
+- internal search/filter states without canonical landing pages;
+- 404, error, or maintenance pages;
 - reserved locales;
-- unpublished conditional routes.
+- draft or archived content.
 
-### 22.2 Request page
-
-`ROUTES.md` currently marks `/request` as `noindex, follow`. Do not add rich-result-focused schema to this page. The page may reference basic site identity only if the implementation architecture requires it, but it must not include:
-
-- form values;
-- uploaded filenames;
-- inquiry details;
-- lead identity;
-- confirmation numbers;
-- private contact preferences;
-- hidden commercial data.
+The public RFQ form may have minimal page identity only if it is indexable under `ROUTES.md`. It must never include user-entered items, contact data, uploaded file details, or the generated RFQ number.
 
 ---
 
-## 23. Prohibited and High-Risk Patterns
+## 18. D1 Read Model Requirements
 
-Claude Code must not implement any of the following without an approved specification change:
-
-### 23.1 Fabricated business identity
-
-- guessed legal name;
-- guessed company registration number;
-- fake address;
-- fake founding date;
-- fake number of employees;
-- fake offices or service regions;
-- fake certificates or memberships.
-
-### 23.2 Misleading commerce markup
-
-- product schema on generic steel category pages;
-- offer schema without a real offer;
-- price or availability copied from a temporary quotation;
-- `InStock` based on supplier availability not owned or guaranteed by Ahan Asa;
-- manufacturer or brand claims for third-party steel;
-- fake SKU, GTIN, MPN, or catalog identifiers.
-
-### 23.3 Review abuse
-
-- self-authored five-star reviews;
-- organization aggregate ratings taken from unrelated platforms;
-- ratings without visible reviews;
-- selected testimonials converted into an aggregate score;
-- review markup for an entity type not eligible under current policy.
-
-### 23.4 Hidden or mismatched content
-
-- JSON-LD descriptions not visible or supported on the page;
-- keyword lists disguised as `knowsAbout`, `serviceType`, or `keywords`;
-- FAQ answers hidden from users;
-- project metrics absent from visible evidence;
-- authors not shown on the page;
-- old dates shown as recently modified after every deployment.
-
-### 23.5 Duplicate and conflicting graphs
-
-- multiple organization nodes with different IDs;
-- two page nodes with conflicting canonical URLs;
-- plugins and custom code emitting overlapping schemas;
-- client-side markup that changes after hydration;
-- hardcoded apex URLs mixed with `www` URLs;
-- Persian and future-locale pages sharing the same page `@id`.
-
-### 23.6 Unsafe serialization
-
-- direct interpolation of user input into a `<script>` tag;
-- unescaped `<`, `</script>`, U+2028, or U+2029 sequences;
-- JSON generated from raw form data;
-- private content included in schema debug output.
-
----
-
-## 24. Content-Model Requirements
-
-The content layer should expose structured-data-safe fields explicitly. Do not build schema by scraping rendered HTML.
-
-### 24.1 Global site settings
+The exact database design belongs in `DATABASE_SCHEMA.md`. The structured-data projection needs fields equivalent to:
 
 ```ts
-type SiteSchemaSettings = {
-  canonicalOrigin: string;
-  defaultLocale: "fa-IR";
-  siteName: "آهن آسا";
-  alternateSiteNames: string[];
-  organizationName: "آهن آسا";
-  organizationAlternateName: "Ahan Asa";
-  organizationDescription?: string;
-  slogan?: string;
-  logo: {
-    url: string;
-    width: number;
-    height: number;
-  };
-  legalName?: string;
-  publicEmail?: string;
-  publicTelephone?: string;
-  publicAddress?: PostalAddressInput;
-  sameAs?: string[];
-  activeAreaServed?: string[];
-};
-```
-
-### 24.2 Page schema input
-
-```ts
-type PageSchemaInput = {
-  canonicalUrl: string;
+type PublishedEntityState = {
+  status: "draft" | "published" | "archived";
+  indexable: boolean;
   locale: string;
-  title: string;
-  description?: string;
-  pageType:
-    | "WebPage"
-    | "AboutPage"
-    | "ContactPage"
-    | "CollectionPage";
-  breadcrumbs?: BreadcrumbInput[];
-  primaryImage?: ImageInput;
-  datePublished?: string;
-  dateModified?: string;
-  noindex: boolean;
-};
-```
-
-### 24.3 Article schema input
-
-```ts
-type ArticleSchemaInput = {
   canonicalUrl: string;
-  articleType: "Article" | "BlogPosting";
-  headline: string;
+  snapshotVersion: string;
+  publishedAt: string;
+  updatedAt: string;
+};
+
+type ProductSchemaProjection = PublishedEntityState & {
+  productPublicId: string;
+  productName: string;
   description?: string;
-  locale: string;
-  datePublished: string;
-  dateModified?: string;
-  authors: AuthorInput[];
+  publicSku?: string;
+  brandName?: string;
+  manufacturerName?: string;
+  size?: string;
+  unitCode?: string;
   images: ImageInput[];
-  section?: string;
-  approvedKeywords?: string[];
+  attributes: Array<{ name: string; value: string }>;
+  productEligibility: "eligible" | "ineligible" | "review";
+};
+
+type PublicPriceProjection = {
+  pricePublicId: string;
+  productPublicId: string;
+  kind: "firm_offer" | "reference_price" | "historical";
+  amount: string | null;
+  currencyIso4217: string | null;
+  displayAmount: string | null;
+  displayCurrency: "toman" | "rial" | null;
+  unitCode: string | null;
+  effectiveAt: string;
+  validUntil: string | null;
+  approvalStatus: "pending" | "approved" | "rejected";
+  availabilityPublic: string | null;
+  isPublic: boolean;
+  sourceVersion: string;
 };
 ```
 
-### 24.4 Service schema input
+Odoo identifiers may be stored for sync but must be excluded from public schema builders unless separately mapped to an approved public commercial identifier.
 
-```ts
-type ServiceSchemaInput = {
-  canonicalUrl: string;
-  name: string;
-  description?: string;
-  serviceType?: string;
-  areaServed?: string[];
-  audience?: string[];
-  status: "approved" | "draft" | "archived";
-};
+### 18.1 Atomic publish requirement
+
+When product, price, or eligibility changes, update the public projection atomically enough that HTML and JSON-LD cannot publish contradictory states.
+
+Preferred flow:
+
+```text
+Odoo change
+  -> sync validation
+  -> D1 projection transaction/version update
+  -> cache-tag purge
+  -> next request renders HTML + JSON-LD from same version
 ```
 
-### 24.5 Validation invariants
-
-- `canonicalOrigin` must be a valid production HTTPS URL.
-- Production must reject `localhost`, preview, and example domains.
-- `noindex: true` must prevent rich-result page nodes from being emitted.
-- Empty arrays and empty strings must be removed.
-- Invalid dates must fail validation.
-- Relative URLs must be normalized centrally or rejected.
-- Unapproved services and content must not generate nodes.
-- An unpublished child must not appear in an `ItemList`.
+If synchronization is incomplete, keep the last valid public snapshot only while it remains inside its approved freshness and validity window. Otherwise hide the numeric price and omit `Offer`.
 
 ---
 
-## 25. Recommended Next.js Architecture
+## 19. Next.js / Cloudflare Implementation
 
-Suggested file structure:
+Recommended structure:
 
 ```text
 lib/
@@ -1158,36 +877,37 @@ lib/
     schema/
       constants.ts
       ids.ts
+      types.ts
+      sanitize.ts
+      validate.ts
+      graph.ts
       organization.ts
       website.ts
       webpage.ts
       breadcrumb.ts
-      service.ts
       article.ts
-      resource.ts
-      graph.ts
-      sanitize.ts
-      validate.ts
-      types.ts
+      product.ts
+      offer.ts
+      collection.ts
 components/
   seo/
     JsonLd.tsx
 ```
 
-### 25.1 Architecture rules
+### 19.1 Rules
 
-- Schema builders must be pure functions.
-- Page templates provide typed content inputs.
-- URL creation must use the canonical route registry.
-- Schema nodes must be composed into one `@graph` where practical.
-- Avoid one independent `<script>` per minor entity.
-- Do not fetch schema data separately from visible page data.
-- Render schema on the server in the initial HTML.
-- Do not use a client component unless a documented constraint requires it.
-- Do not use runtime form or browser data to generate public JSON-LD.
-- Production builds should fail on invalid mandatory schema inputs for indexable pages.
+- builders are typed pure functions;
+- URL construction uses the central route registry;
+- builders consume the same resolved view model as the page;
+- no builder fetches Odoo;
+- no client component generates public JSON-LD;
+- compose one `@graph` per page where practical;
+- recursively remove undefined values and empty optional arrays;
+- reject duplicate conflicting IDs;
+- fail production builds for invalid mandatory fields;
+- schema generation must not add measurable client JavaScript.
 
-### 25.2 Safe JSON-LD component
+### 19.2 Safe serializer
 
 ```tsx
 type JsonLdProps = {
@@ -1211,9 +931,9 @@ export function JsonLd({ data }: JsonLdProps) {
 }
 ```
 
-The component may use `dangerouslySetInnerHTML` only with controlled, validated data passed through safe JSON serialization. Never pass raw HTML or raw user input.
+Never interpolate raw user input or raw HTML into a JSON-LD script.
 
-### 25.3 Graph composer
+### 19.3 Graph composer
 
 ```ts
 type SchemaNode = Record<string, unknown> & {
@@ -1221,421 +941,337 @@ type SchemaNode = Record<string, unknown> & {
   "@id"?: string;
 };
 
-export function createSchemaGraph(nodes: SchemaNode[]) {
+export function createSchemaGraph(nodes: Array<SchemaNode | null>) {
+  const activeNodes = nodes.filter((node): node is SchemaNode => node !== null);
+  assertUniqueSchemaIds(activeNodes);
+
   return {
     "@context": "https://schema.org",
-    "@graph": nodes.filter(Boolean),
+    "@graph": activeNodes,
   };
 }
 ```
 
-Production code must also validate duplicate `@id` values and remove undefined properties recursively.
+### 19.4 Conditional Offer builder
+
+```ts
+export function buildOffer(input: OfferInput): SchemaNode | null {
+  if (!isOfferEligible(input)) return null;
+
+  return {
+    "@type": "Offer",
+    "@id": `${input.canonicalUrl}#offer`,
+    url: input.canonicalUrl,
+    price: input.priceInIsoCurrency,
+    priceCurrency: input.currencyIso4217,
+    ...(input.validUntil ? { priceValidUntil: input.validUntil } : {}),
+    ...(input.availability ? { availability: input.availability } : {}),
+    seller: { "@id": `${input.origin}/#organization` },
+  };
+}
+```
+
+`isOfferEligible` must enforce `PRICING_SYSTEM.md`; it must not be a UI toggle that bypasses validation.
 
 ---
 
-## 26. Page Graph Composition Rules
+## 20. Cache and Freshness Consistency
 
-### 26.1 Homepage graph
+Structured data must use the same cache policy as the visible page.
 
-Include:
+Suggested tags:
 
-1. `Organization`
-2. `WebSite`
-3. homepage `WebPage`
-4. approved logo `ImageObject`
-5. optional primary page image
+```text
+product:<public-product-id>
+variant:<public-variant-id>
+price:<public-price-id>
+article:<public-article-id>
+schema:<canonical-path>
+```
 
-### 26.2 About page graph
+On a qualifying product-price update, purge all tags that can serve the old visible price or old `Offer`.
 
-Include:
+The cache TTL must never extend beyond:
 
-1. `AboutPage`
-2. `BreadcrumbList`
-3. organization reference
+- the public price freshness deadline;
+- `priceValidUntil`;
+- product publication expiry;
+- the maximum safe stale window defined by `CACHING_STRATEGY.md`.
 
-The full organization node may be included if the page contains approved organization details not present on the homepage, but the same `@id` must be used.
-
-### 26.3 Service page graph
-
-Include:
-
-1. `WebPage`
-2. `BreadcrumbList`
-3. one primary `Service`
-4. optional primary image
-
-The WebPage `mainEntity` references the Service. The Service `mainEntityOfPage` references the WebPage.
-
-### 26.4 Hub graph
-
-Include:
-
-1. `CollectionPage`
-2. `BreadcrumbList`
-3. optional `ItemList`
-
-Only create an `ItemList` when the visible hub contains a meaningful list of published items.
-
-### 26.5 Article graph
-
-Include:
-
-1. `WebPage`
-2. `BreadcrumbList`
-3. `Article` or `BlogPosting`
-4. referenced publisher organization
-5. approved authors
-6. primary images
-
-### 26.6 Resource graph
-
-Include:
-
-1. `WebPage`
-2. `BreadcrumbList`
-3. `DigitalDocument` when applicable
-4. publisher or creator reference
-5. approved resource image or preview
+Do not serve stale-while-revalidate markup that continues to claim a firm offer after its validity ends.
 
 ---
 
-## 27. Environment and Deployment Rules
+## 21. Prohibited Patterns
 
-### 27.1 Development
+The implementation must reject:
 
-- Local builds may generate schema for testing.
-- Localhost URLs must never be accepted in production output.
-- Test fixtures must use `https://www.example.com`, never real unapproved values.
-
-### 27.2 Preview deployments
-
-- Preview hosts must be `noindex`.
-- Preview URLs must not appear in production structured data.
-- A preview must not use the production canonical origin unless the page accurately simulates production metadata and is blocked from indexing.
-
-### 27.3 Production
-
-- Enforce one canonical HTTPS origin.
-- Ensure schema is present in initial HTML.
-- Ensure referenced assets return successful responses.
-- Do not include draft nodes.
-- Do not include routes absent from the production release manifest.
-- Ensure Cloudflare, Vercel, and application redirects do not create mixed host IDs.
+- `Product` on generic category pages;
+- `Offer` generated from every numeric price automatically;
+- `InStock` inferred from supplier or ERP presence;
+- Ahan Asa named as manufacturer of third-party steel;
+- invented SKU, MPN, GTIN, brand, rating, review, award, certification, or office;
+- `AggregateOffer` used as a variant-price range;
+- toman amount mislabeled as IRR;
+- hidden customer-specific prices;
+- stale, expired, rejected, or partially synced prices;
+- hardcoded production hostnames spread across builders;
+- mixed apex and `www` IDs;
+- duplicate organization/product IDs;
+- schema generated after hydration;
+- raw CMS HTML or user input in JSON-LD;
+- signed R2 URLs;
+- Odoo IDs or private URLs;
+- deploy timestamps used as content modification dates;
+- JSON-LD on noindex/private/system routes;
+- placeholder domains or unresolved values in production.
 
 ---
 
-## 28. Automated Validation
+## 22. Automated Tests
 
-### 28.1 Unit tests
+### 22.1 Unit tests
 
-Test each schema builder for:
+Test:
 
-- correct `@type`;
-- stable `@id`;
-- exact canonical URL;
-- omission of empty fields;
-- omission of unapproved fields;
-- correct language;
-- valid dates;
+- stable IDs;
+- canonical URL normalization;
+- correct page/entity type;
+- omission of empty and unapproved fields;
 - safe serialization;
-- correct references;
-- duplicate ID detection.
+- valid ISO dates and language codes;
+- D1 snapshot version consistency;
+- product eligibility rules;
+- offer freshness, validity, currency, and unit gates;
+- toman-to-IRR conversion;
+- availability omission by default;
+- duplicate-ID detection;
+- private-field exclusion.
 
-### 28.2 Route-level integration tests
+### 22.2 Required Offer test cases
 
-For representative routes, assert:
+| Case | Visible numeric price | `Product` | `Offer` |
+|---|---:|---:|---:|
+| Approved fresh firm offer | Yes | Yes | Yes |
+| Approved reference price | Yes | Yes | No |
+| Historical price | Yes | Conditional | No |
+| Stale price | No or marked unavailable | Yes | No |
+| Expired offer | No or marked expired | Yes | No |
+| Pending/rejected price | No | Yes | No |
+| “Call for price” | No | Yes | No |
+| Customer-specific quotation | Never public | No public quote node | No |
+| Category price table | Possibly | No per-row Product by default | No by default |
+| Supplier-only stock | Possibly hidden | Yes | No availability claim |
 
-- exactly one canonical URL;
-- exactly one primary WebPage node;
-- one stable organization ID;
+### 22.3 Route integration tests
+
+For representative routes assert:
+
+- exactly one canonical;
+- exactly one page node;
+- stable organization ID;
 - breadcrumb parity;
-- no example, localhost, preview, or staging domains;
-- no JSON parsing errors;
-- no schema on prohibited routes;
-- no `Product`, `Offer`, `AggregateRating`, `FAQPage`, or `HowTo` unless a later approved exception exists;
-- no draft or archived items in lists;
-- no private data.
+- server-rendered JSON-LD in initial HTML;
+- HTML/schema snapshot equality;
+- no example, preview, localhost, or staging host;
+- no private fields;
+- no prohibited schema on system routes;
+- valid JSON parsing;
+- no duplicate conflicting IDs.
 
-### 28.3 Build-time validation
+### 22.4 Build gates
 
-The production build should fail when:
+Fail a production build or route-generation job when:
 
-- the canonical origin is missing or invalid;
-- an indexable page has an invalid canonical URL;
-- JSON-LD cannot be serialized;
-- required article dates or authors are missing;
-- a duplicate conflicting `@id` exists;
-- an absolute asset URL is invalid;
-- a forbidden placeholder appears;
-- a conditional entity is emitted without approved status.
+- canonical origin is invalid;
+- an indexable page has no canonical URL;
+- JSON-LD serialization fails;
+- a mandatory article field is absent;
+- a product is marked eligible without verified identity;
+- an offer is emitted without amount, ISO currency, unit/parity, approval, or freshness;
+- a toman/IRR consistency test fails;
+- a duplicate ID exists;
+- a private or placeholder pattern is detected.
 
-### 28.4 Recommended forbidden-string scan
-
-Scan rendered output for:
+Scan schema output for:
 
 ```text
 example.com
 localhost
 127.0.0.1
+workers.dev
+pages.dev
 vercel.app
 TBD
 TODO
 lorem ipsum
 undefined
-null
+odoo_id
+api_key
 ```
 
-`null` may occur in unrelated application data; the schema-specific scan should ensure no null property is emitted in JSON-LD.
+---
+
+## 23. Manual QA and Release Workflow
+
+For each new or changed schema template:
+
+1. confirm source ownership and publication state;
+2. compare structured data against visible content;
+3. parse the JSON locally;
+4. validate vocabulary with Schema.org Validator;
+5. validate Google-supported features with Rich Results Test;
+6. verify the initial server-rendered HTML;
+7. test a small live route sample;
+8. inspect the canonical live URL in Search Console;
+9. verify crawlability of images and entity URLs;
+10. monitor enhancement and unparsable-data reports;
+11. expand rollout only after errors and policy mismatches are resolved.
+
+A green validator result does not prove that an offer is current, visible, or commercially true.
 
 ---
 
-## 29. Manual Validation and Release Workflow
-
-For each new schema template:
-
-1. Validate the data source and publication status.
-2. Compare JSON-LD with visible page content.
-3. Parse the JSON locally.
-4. Validate vocabulary with Schema.org Validator.
-5. Test Google-supported types with Rich Results Test.
-6. Deploy a small representative set.
-7. Inspect the live rendered HTML.
-8. Use Google Search Console URL Inspection on live canonical URLs.
-9. Confirm crawlability of images and referenced URLs.
-10. Monitor enhancement and unparsable structured-data reports.
-11. Expand to the full template only after errors are resolved.
-
-Do not treat a green syntax test as proof of policy compliance. A graph may be syntactically valid and still be misleading, invisible, outdated, or ineligible.
-
----
-
-## 30. QA Checklist
-
-### 30.1 Identity
-
-- [ ] `Organization` uses `${origin}/#organization` everywhere.
-- [ ] `name` is `آهن آسا`.
-- [ ] `alternateName` uses only approved alternatives.
-- [ ] Legal identity fields are verified or omitted.
-- [ ] Contact and address fields are verified and visible.
-- [ ] `sameAs` contains only official same-entity profiles.
-- [ ] Logo is approved, crawlable, indexable, and at least 112×112 px.
-
-### 30.2 URLs
-
-- [ ] All URLs are absolute HTTPS URLs.
-- [ ] All URLs use the approved canonical host.
-- [ ] JSON-LD URLs match metadata canonicals.
-- [ ] No tracking parameters appear.
-- [ ] No draft route aliases appear.
-- [ ] No redirect chains are required to reach schema URLs.
-
-### 30.3 Pages
-
-- [ ] Each indexable page has one primary page node.
-- [ ] Page `name` and `description` match visible content.
-- [ ] `inLanguage` is correct.
-- [ ] Breadcrumbs match visible hierarchy.
-- [ ] Main entity matches the page's dominant purpose.
-- [ ] No rich-result markup appears on noindex or system pages.
-
-### 30.4 Content types
-
-- [ ] Articles have real dates, authors, publisher, and images.
-- [ ] Services describe approved operating scope.
-- [ ] Category pages do not impersonate product pages.
-- [ ] Item lists contain only visible published items.
-- [ ] Case facts and metrics are verified.
-- [ ] Resources use stable public URLs and correct MIME types.
-- [ ] FAQ content is visible, but no obsolete FAQ rich-result tactic is used.
-
-### 30.5 Safety and quality
-
-- [ ] JSON parses successfully.
-- [ ] Serialization escapes unsafe characters.
-- [ ] No raw user or form data enters JSON-LD.
-- [ ] No private URLs or records appear.
-- [ ] No fabricated reviews, ratings, prices, stock, awards, or certificates appear.
-- [ ] No placeholder or example domain appears in production.
-- [ ] No duplicate conflicting `@id` exists.
-- [ ] Structured data is present in initial HTML.
-
-### 30.6 Search validation
-
-- [ ] Schema.org validation passes for vocabulary and structure.
-- [ ] Google Rich Results Test passes for supported types.
-- [ ] Live URL Inspection confirms Google sees the markup.
-- [ ] Search Console reports are monitored after release.
-- [ ] Documentation changes are reviewed at least quarterly.
-
----
-
-## 31. Monitoring and Maintenance
-
-### 31.1 Ownership
+## 24. Monitoring and Ownership
 
 Assign named owners for:
 
-- business identity data;
-- legal identity and contact information;
-- canonical host and route registry;
+- organization/legal data;
+- canonical routes and locales;
 - article authorship and dates;
-- service scope;
-- projects and evidence;
-- resources and file metadata;
-- technical schema implementation;
+- product identity and taxonomy;
+- public price approval and freshness policy;
+- Odoo-to-D1 synchronization;
+- cache invalidation;
+- schema implementation;
 - Search Console monitoring.
 
-### 31.2 Review cadence
+Monitor:
 
-| Trigger | Required action |
-|---|---|
-| New route or template | Review page-to-schema mapping before development |
-| New locale | Review all IDs, URLs, names, breadcrumbs, and language codes |
-| Domain or host change | Update the single origin source and verify every graph reference |
-| Business identity change | Update organization data and visible content together |
-| New office or contact channel | Verify before adding Organization or LocalBusiness fields |
-| New service | Approve scope and content before emitting `Service` |
-| New article workflow | Validate author, date, image, and publisher inputs |
-| New product or price feature | Create a separate Product/Offer decision document |
-| Google documentation change | Reassess supported types and deprecated features |
-| Search Console error increase | Triage template, content source, and deployment changes |
+- unparsable structured-data errors;
+- Product snippet errors and warnings;
+- merchant-listing reports only if merchant eligibility is intentionally enabled;
+- Offer count changes;
+- stale Offer suppression;
+- HTML/schema mismatch rate;
+- duplicate IDs;
+- price-sync and cache-purge failures;
+- indexed URLs emitting unexpected schema types.
 
-### 31.3 Change discipline
+Review this document when:
 
-Any material schema change must record:
-
-- date;
-- affected templates and routes;
-- old and new behavior;
-- reason;
-- source or policy basis;
-- migration or recrawl implications;
-- validation evidence;
-- responsible owner.
+- a route/template changes;
+- a locale launches;
+- price policy changes;
+- checkout or merchant functionality is introduced;
+- inventory promises become public;
+- product-variant URL strategy changes;
+- a legal entity or contact point changes;
+- Google or Schema.org guidance changes.
 
 ---
 
-## 32. Pre-Launch Decisions Required
+## 25. Pre-Launch Decisions
 
-The following values remain unresolved and must not be invented:
-
-| Decision | Required before | Current fallback |
+| Decision | Required before | Fallback |
 |---|---|---|
-| Canonical apex or `www` host | Any production JSON-LD | Build from one validated environment value; fail production if absent |
-| Registered legal entity name | `legalName` or legal identifiers | Omit |
-| Public business address | `address` or `LocalBusiness` | Omit |
-| Verified public phone | `telephone` and `contactPoint` | Omit |
-| Verified public email | `email` and `contactPoint` | Omit |
+| Canonical apex or `www` host | Production graph | Fail production when origin is absent |
+| Registered legal name | `legalName` | Omit |
+| Public address/phone/email | Contact fields | Omit |
 | Official social profiles | `sameAs` | Omit |
-| Active geographic service coverage | `areaServed` | Omit |
-| Exact approved service inventory | Individual `Service` nodes | Emit only approved current service pages |
-| Exact steel category inventory | Category `ItemList` | Emit only published categories |
-| Verified case-study inventory | Project graphs | Do not emit unpublished or unverified cases |
-| Author and reviewer policy | Article graphs | Use only visible approved authorship |
-| Final public resource inventory | `DigitalDocument` graphs | Emit only real public resources |
-| Final logo asset URL and dimensions | Organization logo | Block full production organization graph until approved asset exists |
-| Future locale activation | Localized graphs | Return 404 and emit no graph |
+| Active service area | `areaServed` | Omit |
+| Final logo URL/dimensions | Organization logo | Block full organization release |
+| Product public identifier policy | Product nodes | Omit identifiers not approved |
+| Variant canonical policy | `ProductGroup` | Keep deferred |
+| Public price classifications | Offer eligibility | Treat as reference price; omit `Offer` |
+| Freshness window per category | Offer validity | Omit `Offer` |
+| Toman/IRR visible-equivalence design | Iranian Offer markup | Omit `Offer` |
+| Public availability ownership | `availability` | Omit |
+| Seller-of-record confirmation | `seller` | Omit `Offer` |
+| Review system | Ratings/reviews | Prohibited |
+| Future locale activation | Localized graphs | 404/no graph |
 
 ---
 
-## 33. Acceptance Criteria
+## 26. Acceptance Criteria
 
-`STRUCTURED_DATA.md` is correctly implemented when:
+Implementation is complete when:
 
-1. The production homepage emits one coherent graph for Ahan Asa, the website, and the homepage.
-2. The organization uses one stable `@id` across the entire site.
-3. Every indexable page uses its exact canonical URL and language.
-4. Breadcrumb schema matches visible breadcrumbs.
-5. Article schema is generated only from approved editorial data.
-6. Service schema reflects real service scope without prices, guarantees, or future markets.
-7. Material pages are not falsely marked as purchasable products.
-8. No obsolete FAQ rich-result tactic is used.
-9. No schema is emitted for private, confirmation, error, preview, API, or reserved-locale routes.
-10. No placeholder, fabricated, private, or contradictory data appears.
-11. JSON-LD is server-rendered, safely serialized, parseable, and validated.
-12. Automated tests prevent canonical-host, duplicate-ID, forbidden-type, and placeholder regressions.
-13. Representative live URLs pass the relevant Google and Schema.org validation workflows.
-14. Search Console monitoring and ownership are defined before launch.
-
----
-
-## 34. Claude Code Implementation Directive
-
-Claude Code must follow this sequence:
-
-1. Read the required project documents.
-2. Resolve the canonical route and metadata source.
-3. Create the typed schema data model.
-4. Implement stable identifier helpers.
-5. Implement safe JSON-LD serialization.
-6. Build the minimum homepage graph using verified values only.
-7. Add page and breadcrumb builders.
-8. Add Service, Article, Collection, and Resource builders only for approved templates.
-9. Add automated validation and forbidden-pattern tests.
-10. Inspect representative server-rendered HTML.
-11. Validate deployed canonical pages.
-12. Record unresolved inputs without publishing placeholders.
-
-Claude Code must stop and request a decision instead of guessing when a task requires:
-
-- legal identity;
-- canonical host choice;
-- contact details;
-- active service area;
-- product or price markup;
-- reviews or ratings;
-- client or project evidence;
-- authorship;
-- a new locale;
-- a business subtype more specific than verified facts allow.
+1. One stable Ahan Asa organization ID is used sitewide.
+2. Homepage emits a coherent Organization/WebSite/WebPage graph.
+3. Every indexable page uses exact canonical and locale values.
+4. Breadcrumb schema matches the visible hierarchy.
+5. Article schema uses approved CMS data and meaningful dates.
+6. Category pages do not impersonate specific products.
+7. Product nodes use verified Odoo/D1 commercial identity plus published Website SEO data.
+8. `Offer` is emitted only for a visible, firm, fresh, approved commercial offer.
+9. Reference, stale, expired, hidden, and customer-specific prices never become `Offer` markup.
+10. Iranian prices use correct IRR machine values and visible toman/rial parity.
+11. Availability is omitted unless explicitly supportable.
+12. Public rendering never calls Odoo at request time.
+13. HTML and JSON-LD share one D1 snapshot version.
+14. JSON-LD is server-rendered, safely serialized, and cache-consistent.
+15. No private, placeholder, fabricated, or contradictory data is emitted.
+16. Automated and live validation gates pass before broad rollout.
+17. Search Console ownership and monitoring are assigned.
 
 ---
 
-## 35. Authoritative References
+## 27. Implementation Sequence
 
-Reviewed on 2026-08-25:
+1. Resolve canonical origin, routes, locales, and site identity.
+2. Finalize product/variant and public-price projection fields in D1.
+3. Implement shared page view models used by HTML and JSON-LD.
+4. Add stable ID and URL helpers.
+5. Add safe serializer and graph composer.
+6. Implement Organization, WebSite, WebPage, and BreadcrumbList.
+7. Implement Article/BlogPosting.
+8. Implement Product without automatically enabling Offer.
+9. Implement the strict Offer eligibility function from `PRICING_SYSTEM.md`.
+10. Add cache tags and expiry rules tied to offer validity.
+11. Add automated tests and forbidden-pattern scans.
+12. Validate representative live routes.
+13. Enable Product/Offer template rollout gradually.
+14. Monitor Search Console and synchronization failures.
+
+Stop and request a recorded decision instead of guessing whenever implementation requires legal identity, seller identity, currency treatment, product identifiers, price type, validity, availability, reviews, author identity, canonical host, or a new locale.
+
+---
+
+## 28. Authoritative References
+
+Reviewed on 2026-08-26:
 
 - Google Search Central — Structured data introduction:  
   `https://developers.google.com/search/docs/appearance/structured-data/intro-structured-data`
-- Google Search Central — Supported structured-data features:  
-  `https://developers.google.com/search/docs/appearance/structured-data/search-gallery`
+- Google Search Central — General structured-data guidelines:  
+  `https://developers.google.com/search/docs/appearance/structured-data/sd-policies`
 - Google Search Central — Organization structured data:  
   `https://developers.google.com/search/docs/appearance/structured-data/organization`
-- Google Search Central — Site names:  
-  `https://developers.google.com/search/docs/appearance/site-names`
 - Google Search Central — Breadcrumb structured data:  
   `https://developers.google.com/search/docs/appearance/structured-data/breadcrumb`
 - Google Search Central — Article structured data:  
   `https://developers.google.com/search/docs/appearance/structured-data/article`
-- Google Search Central — Product structured data:  
+- Google Search Central — Product structured data overview:  
   `https://developers.google.com/search/docs/appearance/structured-data/product`
-- Google Search Central — Merchant listing structured data:  
+- Google Search Central — Product snippets:  
+  `https://developers.google.com/search/docs/appearance/structured-data/product-snippet`
+- Google Search Central — Merchant listings:  
   `https://developers.google.com/search/docs/appearance/structured-data/merchant-listing`
-- Google Search Central — LocalBusiness structured data:  
-  `https://developers.google.com/search/docs/appearance/structured-data/local-business`
-- Google Search Central — Documentation updates and FAQ deprecation:  
-  `https://developers.google.com/search/updates`
-- Schema.org — Organization:  
-  `https://schema.org/Organization`
-- Schema.org — WebSite:  
-  `https://schema.org/WebSite`
-- Schema.org — WebPage:  
-  `https://schema.org/WebPage`
-- Schema.org — Service:  
-  `https://schema.org/Service`
-- Schema.org — BreadcrumbList:  
-  `https://schema.org/BreadcrumbList`
-- Schema.org — Article:  
-  `https://schema.org/Article`
-- Schema.org — DigitalDocument:  
-  `https://schema.org/DigitalDocument`
+- Google Search Central — Product variants:  
+  `https://developers.google.com/search/docs/appearance/structured-data/product-variants`
+- Schema.org — Organization: `https://schema.org/Organization`
+- Schema.org — WebSite: `https://schema.org/WebSite`
+- Schema.org — BreadcrumbList: `https://schema.org/BreadcrumbList`
+- Schema.org — Article: `https://schema.org/Article`
+- Schema.org — Product: `https://schema.org/Product`
+- Schema.org — Offer: `https://schema.org/Offer`
+- Schema.org — UnitPriceSpecification: `https://schema.org/UnitPriceSpecification`
 
-Search-engine support changes over time. Recheck official documentation before adding a new schema type or relying on a rich-result feature.
+Recheck official guidance before introducing a new schema type or changing rich-result behavior.
 
 ---
 
-## 36. Final Rule
+## 29. Final Rule
 
-> If a fact is not verified, omit it. If a page does not visibly support a claim, do not encode it. If a schema type changes what Ahan Asa appears to be, require explicit approval before implementation.
-
+> If a fact is not verified, omit it. If users cannot see the same fact, do not encode it. If a price is not a real fresh public offer, do not publish it as `Offer`. If a schema type changes what Ahan Asa appears to be, require explicit approval before implementation.

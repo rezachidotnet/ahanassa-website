@@ -1,736 +1,963 @@
-# Ahan Asa Website QA Checklist
+# Ahan Asa — Quality Assurance Checklist
 
 **Document:** `QA_CHECKLIST.md`  
-**Project:** Ahan Asa (`آهن آسا`)  
-**Owner:** QA / Product / Engineering  
-**Applies to:** Preview, staging, and production releases  
-**Status:** Living document  
-**Last updated:** 2026-08-25
+**Project:** Ahan Asa (`ahanassa.com`)  
+**Version:** 2.0  
+**Status:** Implementation-ready specification  
+**Last updated:** 2026-08-26  
+**Primary stack:** Next.js App Router on Cloudflare Workers, D1, R2, Queues, Turnstile, Odoo ERP  
 
 ---
 
 ## 1. Purpose
 
-This document defines the minimum quality checks required before any Ahan Asa website release is approved. It covers functional behavior, Persian RTL presentation, content accuracy, forms and uploads, accessibility, performance, SEO, analytics, security, integrations, and deployment verification.
+This document defines the release-level quality assurance checklist for Ahan Asa. It covers the public website, administration panel, product and price read models, RFQ workflow, file uploads, Cloudflare services, and the integration with `odoo.ahanassa.com`.
 
-Passing this checklist means the tested build satisfies the documented acceptance criteria. It does not replace automated tests, security review, or production monitoring.
+This is a **release gate**, not merely a list of suggestions. Every mandatory item must be marked as passed, formally accepted as a documented exception, or linked to a blocking defect before production release.
 
----
-
-## 2. Sources of Truth
-
-Validate the build against the latest approved versions of:
-
-- `PROJECT_BRIEF.md`
-- `BRAND_GUIDELINES.md`
-- `DESIGN_SYSTEM.md`
-- `SITEMAP.md`
-- `ROUTES.md`
-- `PAGE_SPECIFICATIONS.md`
-- `CONTENT_STRATEGY.md`
-- `FORM_ARCHITECTURE.md`
-- `API_INTEGRATIONS.md`
-- `METADATA_SPEC.md`
-- `LOCALIZATION.md`
-- `ACCESSIBILITY.md`
-- `PERFORMANCE_GUIDELINES.md`
-- `ANALYTICS_TRACKING.md`
-- `SECURITY_GUIDELINES.md`
-- `TESTING_STRATEGY.md`
-
-If two documents disagree, QA must not guess. Record the conflict and block release until the Product Owner approves one source of truth. In particular, confirm the final route names and primary conversion route before testing navigation, canonicals, analytics, or redirects.
+Detailed search-engine checks belong in `SEO_QA_CHECKLIST.md`. This document still contains the minimum SEO checks required for a general production release.
 
 ---
 
-## 3. QA Status and Severity
+## 2. Quality principles
 
-Use one status for every executed check:
+1. Odoo is the source of truth for commercial data and business processes.
+2. The public website must not depend on a live Odoo response to render public pages.
+3. A submitted RFQ must be saved before the customer receives a success response.
+4. Queue retries must never create duplicate customers, leads, RFQs, or RFQ lines.
+5. Public SEO pages must return useful HTML without requiring client-side JavaScript.
+6. Security, accessibility, performance, data integrity, and recoverability are release requirements.
+7. No lead may be silently lost.
+8. No public price may be displayed without its unit, status, and last-update context.
+9. No production release is complete without observability and a tested rollback path.
+
+---
+
+## 3. Status and evidence convention
+
+Use one status for each checklist item:
 
 | Status | Meaning |
-| --- | --- |
-| `PASS` | Meets the acceptance criterion with evidence |
-| `FAIL` | Does not meet the acceptance criterion |
-| `BLOCKED` | Cannot be tested because a dependency is unavailable |
-| `N/A` | Not applicable; a reason is mandatory |
-| `NOT RUN` | Not tested yet |
+|---|---|
+| `[ ]` | Not tested |
+| `[x]` | Passed |
+| `[!]` | Failed; release blocker or defect reference required |
+| `[~]` | Accepted exception with owner, reason, risk, and expiry date |
+| `N/A` | Not applicable; reason required |
 
-Defect severity:
+Evidence should include, where relevant:
 
-| Severity | Definition | Release effect |
-| --- | --- | --- |
-| `S0 — Critical` | Security/privacy incident, data loss, compromised production, or destructive behavior | Immediate release stop |
-| `S1 — Blocker` | Primary journey unavailable, form data lost, upload broken, major route unavailable, or site unusable for a key audience | Release blocked |
-| `S2 — Major` | Material functional, accessibility, SEO, responsive, or content defect with no acceptable workaround | Release normally blocked |
-| `S3 — Minor` | Localized issue with a safe workaround and limited user impact | May release only with written acceptance |
-| `S4 — Cosmetic` | Visual polish issue that does not impair comprehension or use | Can enter backlog |
-
----
-
-## 4. Mandatory Release Gates
-
-A release is approved only when all conditions below are true:
-
-- [ ] No open `S0` or `S1` defect.
-- [ ] No open `S2` defect unless the Product Owner, Engineering Lead, and QA Owner explicitly accept the risk.
-- [ ] The primary request/upload journey passes end to end.
-- [ ] Submitted inquiries reach the approved monitored Procurement Intake destination exactly once.
-- [ ] The interface never displays a fake submission, quote, tracking, inventory, or delivery confirmation.
-- [ ] No sensitive or personal data appears in URLs, analytics, client logs, or public error messages.
-- [ ] All public pages have correct Persian direction, content, navigation, metadata, canonical, and indexation behavior.
-- [ ] Keyboard operation and critical screen-reader flows pass.
-- [ ] No horizontal page overflow at 320 CSS px.
-- [ ] Critical performance and layout-stability targets in `PERFORMANCE_GUIDELINES.md` pass.
-- [ ] Production configuration contains no test credentials, staging URLs, placeholder records, or debug mode.
-- [ ] Rollback procedure is documented and executable.
-- [ ] Required evidence and sign-offs are attached to the release record.
+- environment and build identifier;
+- test date and tester;
+- route, request ID, RFQ ID, queue message ID, or Odoo record ID;
+- screenshot, video, automated-test output, log query, or response sample;
+- expected result and actual result;
+- defect ID for every failure;
+- approver for every accepted exception.
 
 ---
 
-## 5. Test Record
+## 4. Release information
 
-Complete this section for every candidate release.
+Complete this section for every release candidate.
 
 | Field | Value |
-| --- | --- |
-| Release / version | `[fill]` |
-| Commit SHA | `[fill]` |
-| Environment URL | `[fill]` |
-| Test date and time | `[fill]` |
-| Tester | `[fill]` |
-| Browser/device set | `[fill]` |
-| API/integration environment | `[fill]` |
-| Test data IDs | `[fill — never include secrets]` |
-| Result | `PASS / FAIL / BLOCKED` |
-| Known accepted issues | `[links]` |
+|---|---|
+| Release/version | |
+| Git commit SHA | |
+| Cloudflare deployment ID | |
+| Database migration version | |
+| Odoo version | |
+| Odoo integration module version | |
+| Test environment | Development / Preview / Staging / Production |
+| Test start/end | |
+| QA owner | |
+| Engineering owner | |
+| Product owner | |
+| Release decision | Go / No-Go / Conditional Go |
 
 ---
 
-## 6. Minimum Test Matrix
+## 5. Mandatory release gates
 
-### 6.1 Viewports
+A production release is blocked unless all applicable gates pass.
 
-- [ ] 320 × 568 — minimum supported mobile width.
-- [ ] 360 × 800 — common compact Android.
-- [ ] 390 × 844 — common modern mobile.
-- [ ] 768 × 1024 — tablet portrait.
-- [ ] 1024 × 768 — tablet landscape / compact desktop.
-- [ ] 1280 × 800 — laptop.
-- [ ] 1440 × 900 — desktop.
-- [ ] 1920 × 1080 — large desktop sanity check.
-- [ ] Portrait and landscape orientation are checked where relevant.
-- [ ] Browser zoom at 200% is checked on critical pages.
-- [ ] Text-only zoom does not hide, overlap, or truncate critical controls.
-
-### 6.2 Browsers and Devices
-
-- [ ] Latest stable Chrome on Windows or macOS.
-- [ ] Latest stable Edge on Windows.
-- [ ] Latest stable Firefox on Windows or macOS.
-- [ ] Latest stable Safari on macOS.
-- [ ] Safari on a supported iPhone.
-- [ ] Chrome on a supported Android device.
-- [ ] At least one real touch device is used for the primary journey.
-
-Use the support policy in `TESTING_STRATEGY.md` when it defines a stricter matrix.
-
-### 6.3 Network and Runtime Conditions
-
-- [ ] Normal broadband.
-- [ ] Throttled mobile network.
-- [ ] High latency.
-- [ ] Offline or interrupted connection during a request.
-- [ ] JavaScript/API failure state.
-- [ ] Slow upload.
-- [ ] Browser back/forward navigation.
-- [ ] Hard refresh on a nested route.
-
----
-
-## 7. Build and Environment Integrity
-
-- [ ] The tested commit matches the deployed commit.
-- [ ] Clean install succeeds using the documented package manager and lockfile.
 - [ ] Production build completes without errors.
-- [ ] Linting passes.
-- [ ] Type checking passes.
-- [ ] Unit, integration, and end-to-end tests required by `TESTING_STRATEGY.md` pass.
-- [ ] No unexpected warning, hydration error, uncaught exception, or failed critical request appears in the browser console.
-- [ ] No missing required environment variable exists.
-- [ ] Public environment variables contain no secret.
-- [ ] Staging and production use separate credentials, endpoints, and data where required.
-- [ ] Source maps, debug panels, and verbose logs follow the production policy.
-- [ ] Dependency audit has no unaccepted critical or high-risk finding.
-- [ ] Generated artifacts are reproducible from the documented build process.
+- [ ] Type checking, linting, unit tests, integration tests, and required end-to-end tests pass.
+- [ ] All D1 migrations apply successfully to a clean test database and the upgrade path is verified against a production-like copy.
+- [ ] No unresolved Severity 0 or Severity 1 defect exists.
+- [ ] No unresolved data-loss, duplicate-record, authorization-bypass, secret-exposure, or checkout/RFQ-blocking defect exists.
+- [ ] Critical public routes return the expected HTTP status and content.
+- [ ] RFQ submission succeeds when Odoo is available.
+- [ ] RFQ submission remains successful when Odoo is unavailable, with later queue recovery verified.
+- [ ] Queue idempotency and dead-letter handling are verified.
+- [ ] Admin authentication and role authorization are verified.
+- [ ] File upload validation and protected access are verified.
+- [ ] Public pages meet the agreed performance budget in the release environment.
+- [ ] Minimum technical SEO checks pass.
+- [ ] Accessibility has no known critical blocker.
+- [ ] Monitoring, alerts, backups, and rollback are operational.
+- [ ] Production smoke test is completed after deployment.
 
 ---
 
-## 8. Content, Claims, and Brand Accuracy
+## 6. Test environments and data isolation
 
-### 8.1 Brand
-
-- [ ] Brand name is consistently written as `آهن آسا` in Persian and `Ahan Asa` where English is approved.
-- [ ] Only approved master logo files and lockups are used.
-- [ ] Logo proportions, clear space, minimum size, and contrast follow `BRAND_GUIDELINES.md`.
-- [ ] Primary Steel Navy `#0B2545` and Forge Copper `#B04A2F` are used through approved design tokens.
-- [ ] The slogan is exactly `ما مراقب سرمایه شما هستیم.` wherever used.
-- [ ] Favicon and social-preview brand marks are correct.
-- [ ] No outdated brand, temporary logo, or unapproved color remains.
-
-### 8.2 Content Integrity
-
-- [ ] Every visible statement is approved and factually supportable.
-- [ ] No fabricated supplier, testimonial, customer, project, statistic, price, stock level, certificate, award, coverage area, delivery time, or guarantee appears.
-- [ ] Development placeholders, lorem ipsum, test names, and dummy numbers are absent from production.
-- [ ] Submission language does not imply that a quote, reservation, contract, stock allocation, or delivery promise already exists.
-- [ ] Technical terminology is consistent across pages.
-- [ ] Contact information and legal/company details match approved records.
-- [ ] Dates, units, prices, and numbers use the approved formatting rules.
-- [ ] Links to policies, terms, privacy information, and required disclosures are present and current.
-- [ ] Spelling, Persian punctuation, half-spaces, and grammar have been reviewed by a Persian editor.
+- [ ] Development, preview/staging, and production use separate bindings and secrets.
+- [ ] Non-production deployments cannot write to the production D1 database.
+- [ ] Non-production deployments cannot write to the production R2 bucket.
+- [ ] Non-production queues cannot deliver records to production Odoo unless explicitly using a controlled test tenant/database.
+- [ ] Production secrets are not available to preview branches.
+- [ ] Test email, SMS, analytics, and notification destinations are clearly separated.
+- [ ] Test records are visibly tagged with environment and test-run identifiers.
+- [ ] Destructive tests run only against disposable or approved test data.
+- [ ] Test files and records have a documented cleanup procedure.
+- [ ] Production-like data used in testing is anonymized.
+- [ ] Server and application clocks use a defined standard; displayed Persian/local dates remain correct.
+- [ ] Time-zone transitions do not alter price update times, audit events, or RFQ ordering incorrectly.
 
 ---
 
-## 9. Information Architecture, Routes, and Navigation
+## 7. Build and code-quality checks
 
-- [ ] Every approved route in `SITEMAP.md` and `ROUTES.md` resolves as intended.
-- [ ] No undocumented public route is unintentionally exposed.
-- [ ] Route names are consistent across navigation, breadcrumbs, sitemap, canonicals, structured data, analytics, and redirects.
-- [ ] The canonical primary conversion route is confirmed and used consistently.
-- [ ] Header navigation is complete, correctly ordered, and usable with keyboard and touch.
-- [ ] Footer navigation is complete and matches the approved information architecture.
-- [ ] The logo links to the homepage.
-- [ ] Current-page state is visually and programmatically identifiable.
-- [ ] Breadcrumbs reflect the actual hierarchy and never create false routes.
-- [ ] Internal links point to the final production URL, not preview or staging.
-- [ ] Browser back and forward actions preserve expected state.
-- [ ] Direct loading and hard refresh work on all nested routes.
-- [ ] Query parameters do not create broken or unintended indexable variants.
-- [ ] External links are clearly identified when necessary and use safe behavior.
-- [ ] Broken-link scan reports no unresolved internal links.
-- [ ] Approved legacy URLs redirect to the correct destination without chains or loops.
-- [ ] Unknown routes return the designed 404 page with a useful recovery path.
-- [ ] Server failures use a safe, helpful error page and do not expose implementation details.
-
----
-
-## 10. Persian, RTL, and Bidirectional Content
-
-- [ ] The root document uses `lang="fa"` and `dir="rtl"` for the Persian launch.
-- [ ] English and Arabic locales are not publicly exposed before explicit approval.
-- [ ] Page flow, grids, navigation, icons, drawers, carousels, and directional controls follow RTL logic.
-- [ ] Persian font loading follows `FONT_STRATEGY.md`; preferred and fallback fonts render acceptably.
-- [ ] Font fallback does not cause unreadable text or material layout shift.
-- [ ] Persian letters are connected correctly; no glyph corruption or missing characters appears.
-- [ ] Half-space, punctuation, parentheses, quotation marks, and list markers display correctly.
-- [ ] Phone numbers, email addresses, URLs, file names, model codes, dimensions, and mixed Latin/Persian text remain readable.
-- [ ] Bidirectional isolation is applied where needed to technical strings.
-- [ ] Numeric fields preserve the format required by the backend while presenting an understandable Persian UI.
-- [ ] Icons with semantic direction are mirrored; universal/non-directional icons are not mirrored unnecessarily.
-- [ ] Text truncation does not hide critical Persian words or values.
-- [ ] Copy/paste from fields and content produces usable text order.
-- [ ] Native validation messages do not conflict with the intended Persian experience.
+- [ ] Dependency installation is reproducible from the lockfile.
+- [ ] Production build succeeds in a clean environment.
+- [ ] TypeScript reports no errors.
+- [ ] Linting reports no release-blocking errors.
+- [ ] Automated formatting checks pass where configured.
+- [ ] Unit tests pass.
+- [ ] Integration tests pass.
+- [ ] End-to-end tests pass for critical journeys.
+- [ ] Database migration tests pass.
+- [ ] No test is silently skipped without a documented reason.
+- [ ] No development-only route, mock API, debug toolbar, fixture, or feature flag is exposed in production.
+- [ ] No source map containing sensitive server code or secrets is publicly accessible.
+- [ ] No secret, token, password, private hostname, or personal test data exists in committed files or client bundles.
+- [ ] Runtime compatibility is verified against the selected Cloudflare Workers compatibility date and flags.
+- [ ] Node-specific APIs not supported by the target runtime are absent or correctly isolated.
+- [ ] Bundle analysis identifies no unexpected large client dependency.
+- [ ] Hydration warnings and uncaught browser-console errors are absent on critical routes.
 
 ---
 
-## 11. Responsive Layout and Visual Quality
+## 8. Routing, domains, and HTTP behavior
 
-- [ ] No horizontal page scroll occurs at supported widths, including 320 CSS px.
-- [ ] Content reflows without overlap, clipping, inaccessible controls, or hidden information.
-- [ ] Touch targets meet the accessibility specification and have adequate spacing.
-- [ ] Sticky header, bottom actions, dialogs, drawers, and cookie/privacy controls do not cover essential content.
-- [ ] Safe-area insets are respected on notched mobile devices.
-- [ ] Header, mega-menu, mobile menu, and footer work at all breakpoints.
-- [ ] Tables, product specifications, steps, cards, and comparison content have a deliberate mobile treatment.
-- [ ] Images preserve aspect ratio and do not pixelate at intended display sizes.
-- [ ] Responsive image sizes are appropriate; mobile does not download unnecessarily large assets.
-- [ ] Text does not overflow buttons, badges, cards, tabs, or inputs.
-- [ ] Long Persian words, long filenames, and long validation messages wrap safely.
-- [ ] Focus indicators and hover states remain visible against their backgrounds.
-- [ ] Empty space, alignment, radius, shadows, and spacing match the design system.
-- [ ] There is no unintended cumulative layout movement during load or interaction.
-- [ ] Print behavior is reasonable for pages likely to be printed, if required.
+### 8.1 Canonical host and HTTPS
 
----
+- [ ] `http://ahanassa.com` redirects to the approved HTTPS canonical host.
+- [ ] `http://www.ahanassa.com` redirects to the approved HTTPS canonical host.
+- [ ] The non-canonical HTTPS hostname redirects in one hop.
+- [ ] Redirects preserve valid paths and approved query parameters.
+- [ ] Redirect loops do not occur.
+- [ ] TLS certificate is valid and complete.
+- [ ] HSTS behavior matches the security specification.
+- [ ] Mixed-content warnings are absent.
 
-## 12. Components and Interaction States
+### 8.2 Route behavior
 
-For every interactive component, verify all applicable states:
-
-- [ ] Default.
-- [ ] Hover.
-- [ ] Focus-visible.
-- [ ] Active/pressed.
-- [ ] Selected/current.
-- [ ] Disabled.
-- [ ] Loading.
-- [ ] Empty.
-- [ ] Success.
-- [ ] Warning.
-- [ ] Error.
-- [ ] Retry/recovery.
-
-Additional checks:
-
-- [ ] Buttons perform one clear action and cannot trigger accidental duplicate actions.
-- [ ] Links navigate; buttons perform actions; semantics are not interchanged for styling.
-- [ ] Modals and drawers trap focus appropriately, announce their names, and restore focus on close.
-- [ ] Escape closes dismissible overlays.
-- [ ] Tabs, accordions, menus, and disclosure controls follow expected keyboard patterns.
-- [ ] Toasts and status messages are perceivable without relying only on color.
-- [ ] Skeletons/spinners have accessible labels where needed and never run forever without recovery.
-- [ ] Animation respects reduced-motion preferences.
-- [ ] Hover-only information has an equivalent keyboard and touch path.
+- [ ] Home page returns `200`.
+- [ ] Category pages return `200`.
+- [ ] Product and variant landing pages return `200` only when publishable.
+- [ ] Price landing pages return `200` only when they contain approved public content.
+- [ ] Article listing and published article pages return `200`.
+- [ ] RFQ page returns `200` and is usable.
+- [ ] Admin routes require authentication.
+- [ ] Unpublished, disabled, or deleted resources do not leak through predictable URLs.
+- [ ] Unknown routes return a real `404`, not a soft 404.
+- [ ] Removed resources use the approved `301`, `308`, `404`, or `410` policy.
+- [ ] API validation failures return appropriate `4xx` responses.
+- [ ] Server failures return controlled `5xx` responses without sensitive details.
+- [ ] Method restrictions are enforced; unsupported methods return `405` where appropriate.
+- [ ] Trailing-slash and case behavior are consistent.
+- [ ] Pagination boundaries behave correctly for page 1, final page, and out-of-range pages.
 
 ---
 
-## 13. Primary Request and File-Upload Journey
+## 9. Global user interface
 
-The primary conversion is the submission of an invoice, bill of materials, purchase list, or consultation request. Test the exact flow defined in `FORM_ARCHITECTURE.md`.
-
-### 13.1 Entry and Comprehension
-
-- [ ] Every primary CTA leads to the approved request route.
-- [ ] The page clearly explains what the user can submit and what happens next.
-- [ ] Submission wording does not promise a price, availability, delivery date, or contract.
-- [ ] Required and optional fields are clearly distinguished.
-- [ ] Privacy/consent copy is visible at the correct point.
-
-### 13.2 File Selection
-
-- [ ] Accepted file types match the approved contract: PDF, JPG/JPEG, PNG, XLS, and XLSX.
-- [ ] File picker `accept` rules and server validation are consistent.
-- [ ] Valid files can be selected by browse and drag-and-drop where supported.
-- [ ] Unsupported extensions are rejected with a clear Persian message.
-- [ ] Spoofed MIME type or renamed executable content is rejected server-side.
-- [ ] Zero-byte, corrupt, encrypted, and malformed files fail safely.
-- [ ] Maximum file size and maximum file count are enforced client-side and server-side.
-- [ ] Duplicate file behavior is intentional and explained.
-- [ ] Long, Persian, Latin, mixed-direction, and special-character filenames display safely.
-- [ ] Removing and replacing a selected file works.
-- [ ] File metadata is not unintentionally exposed to other users.
-
-### 13.3 Validation
-
-- [ ] Empty submission is rejected.
-- [ ] Required-field errors are specific, Persian, and associated with the correct field.
-- [ ] Validation does not erase entered data or selected files unexpectedly.
-- [ ] Phone, email, and other structured fields accept approved valid formats and reject invalid formats.
-- [ ] Server validation repeats all security-critical client validation.
-- [ ] The first invalid field receives or is linked to focus after submit.
-- [ ] An accessible error summary is available when multiple errors occur.
-
-### 13.4 Submission and Upload States
-
-- [ ] Idle state is correct.
-- [ ] Uploading/loading state is visible and announced.
-- [ ] Submit is protected against double-click and repeated requests.
-- [ ] Slow upload remains understandable and does not appear frozen.
-- [ ] Progress is shown only when it represents real progress.
-- [ ] Success appears only after the backend has durably accepted the inquiry.
-- [ ] Failure state explains recovery without exposing technical details.
-- [ ] Retry does not create duplicate inquiry records or duplicate files.
-- [ ] Connection loss during upload is handled safely.
-- [ ] Refresh, back navigation, and resubmission behavior are intentional.
-- [ ] A safe reference ID is shown only if issued by the backend.
-- [ ] Form data is cleared only after confirmed success or explicit user action.
-
-### 13.5 Delivery and Data Integrity
-
-- [ ] One valid submission creates exactly one inquiry in the monitored Procurement Intake queue.
-- [ ] Submitted field values match the received values.
-- [ ] All accepted files arrive intact and are associated with the correct inquiry.
-- [ ] Timestamps, source, campaign attribution, and consent values are recorded as specified.
-- [ ] Notification failure does not silently discard a successfully stored inquiry.
-- [ ] Downstream failure is logged and recoverable by authorized staff.
-- [ ] Test inquiry records are clearly marked and removed from operational workflows after testing.
+- [ ] Header, navigation, footer, logo, primary CTA, and contact information are consistent.
+- [ ] Navigation labels match the approved information architecture.
+- [ ] Current-page and hover/focus states are clear.
+- [ ] Mobile menu opens, traps focus where required, closes, and restores focus.
+- [ ] Escape key closes dismissible overlays.
+- [ ] Back/forward navigation preserves expected page state.
+- [ ] Loading, empty, success, error, and offline/degraded states are designed and tested.
+- [ ] Skeletons do not cause major layout shifts.
+- [ ] Toasts and alerts are readable, dismissible when appropriate, and announced to assistive technology.
+- [ ] No content overlaps, clips, or becomes unreachable at supported viewport sizes.
+- [ ] Long Persian names, product titles, units, prices, email addresses, and URLs do not break layout.
+- [ ] Browser zoom at 200% remains usable.
+- [ ] Horizontal scrolling does not occur on standard mobile pages.
+- [ ] Touch targets are sufficiently large and spaced.
+- [ ] Disabled controls are visually and programmatically identifiable.
+- [ ] Confirmations exist for destructive admin actions.
+- [ ] Accidental double-clicks do not cause duplicate submissions.
 
 ---
 
-## 14. Tracking / Request Status Experience
+## 10. Persian, RTL, and localization
 
-Apply this section only if a tracking feature is approved.
-
-- [ ] Tracking never pretends to be live when no authoritative status source exists.
-- [ ] Unknown, invalid, expired, and unauthorized references return indistinguishable safe errors where enumeration is a risk.
-- [ ] A user can see only the minimum information authorized for that request.
-- [ ] Status labels match actual backend states.
-- [ ] Refresh and stale-data behavior are clear.
-- [ ] No private attachment, internal note, supplier detail, or staff-only state is exposed.
-- [ ] Rate limiting and abuse protection are verified.
-- [ ] The feature is hidden or clearly described as unavailable when backend support is not production-ready.
-
----
-
-## 15. Accessibility QA
-
-Target the approved conformance level in `ACCESSIBILITY.md`; unresolved critical-path accessibility failures block release.
-
-### 15.1 Keyboard
-
-- [ ] Every interactive element is reachable and operable by keyboard.
-- [ ] Focus order follows the visual and reading order in RTL.
-- [ ] Focus is always visible.
-- [ ] No keyboard trap exists.
-- [ ] Skip link moves focus to main content.
-- [ ] Menus, dialogs, tabs, accordions, uploads, and form errors have correct keyboard behavior.
-
-### 15.2 Semantics and Screen Readers
-
-- [ ] Page title and primary heading identify the page.
-- [ ] Landmarks (`header`, `nav`, `main`, `footer`) are correct and not duplicated improperly.
-- [ ] Heading hierarchy is logical and does not skip levels for visual styling.
-- [ ] Controls have accessible names matching their visible purpose.
-- [ ] Form labels, help, required state, errors, and status updates are programmatically associated.
-- [ ] Decorative images/icons are hidden from assistive technology.
-- [ ] Informative images have meaningful Persian alternatives.
-- [ ] Dynamic upload and submission updates are announced appropriately.
-- [ ] Screen-reader reading order is coherent in Persian and mixed-direction content.
-
-### 15.3 Perception and Adaptation
-
-- [ ] Text and non-text contrast meet the approved standard.
-- [ ] Meaning is not conveyed by color, position, shape, or motion alone.
-- [ ] Content remains usable at 200% browser zoom.
-- [ ] Reflow works at 320 CSS px without two-dimensional scrolling except for genuinely two-dimensional content.
-- [ ] Text spacing overrides do not break content or controls.
-- [ ] Reduced-motion preference removes or reduces non-essential motion.
-- [ ] Automated accessibility scan has no unreviewed serious/critical finding.
-- [ ] Manual keyboard and screen-reader checks are recorded; automated scanning alone is not accepted.
+- [ ] Root document language is correct.
+- [ ] Persian pages use `dir="rtl"`.
+- [ ] Mixed Persian/Latin content, numbers, SKUs, email addresses, and phone numbers render correctly.
+- [ ] Quantity, decimal, thousands separator, currency, and unit formatting follow the approved convention.
+- [ ] Persian and Gregorian date usage follows the product specification.
+- [ ] Phone fields support international country codes without RTL inversion.
+- [ ] Form labels, validation messages, placeholders, buttons, and status messages are translated consistently.
+- [ ] Icons whose direction carries meaning are mirrored correctly.
+- [ ] Breadcrumb order is correct in RTL.
+- [ ] Tables remain readable on narrow screens.
+- [ ] Uploaded filenames containing Persian characters are handled safely.
+- [ ] Search supports Persian characters and approved Arabic/Persian character normalization, including `ی/ي` and `ک/ك`.
+- [ ] Zero-width and whitespace normalization do not create duplicate products or failed searches.
+- [ ] Copy/paste from common Persian keyboards and Excel works as expected.
 
 ---
 
-## 16. Performance and Core Web Vitals
+## 11. Responsive and browser coverage
 
-Measure representative pages on mobile and desktop using the budgets and thresholds in `PERFORMANCE_GUIDELINES.md`.
+Test at minimum:
 
-- [ ] Homepage meets the approved performance budget.
-- [ ] Primary request page meets the approved performance budget.
-- [ ] A representative product/material detail page meets the approved performance budget.
-- [ ] A representative guide/content page meets the approved performance budget.
-- [ ] Largest Contentful Paint is within the project target.
-- [ ] Interaction to Next Paint is within the project target.
-- [ ] Cumulative Layout Shift is within the project target.
-- [ ] Initial HTML contains meaningful content without requiring a large client-side bundle.
-- [ ] Client-side JavaScript is limited to necessary interactive boundaries.
-- [ ] Images use correct dimensions, responsive sources, modern formats, and lazy loading where appropriate.
-- [ ] The above-the-fold/LCP image is not incorrectly lazy-loaded.
-- [ ] Fonts are subset, preloaded only when justified, and use an approved display strategy.
-- [ ] Third-party scripts are justified, deferred, and failure-tolerant.
-- [ ] No unused large asset, library, video, or source map is shipped publicly.
-- [ ] Cache headers match `CACHING_STRATEGY.md`.
-- [ ] Compression is enabled for eligible text assets.
-- [ ] Repeated navigation benefits from caching without serving stale private data.
-- [ ] Performance regression against the last approved release is within the allowed tolerance.
+- small mobile: 320–375 px;
+- standard mobile: 390–430 px;
+- tablet portrait and landscape;
+- laptop: 1280–1440 px;
+- wide desktop: 1920 px and above.
 
-Record both lab results and available field data. A single fast developer machine is not sufficient evidence.
+Browsers:
 
----
+- latest stable Chrome;
+- latest stable Safari on macOS and iOS;
+- latest stable Firefox;
+- latest stable Edge;
+- supported Android Chrome.
 
-## 17. SEO QA
+Checklist:
 
-- [ ] Every indexable page has one approved search intent and unique useful content.
-- [ ] Each indexable page has a unique Persian title and meta description.
-- [ ] Title and description accurately describe the visible page and contain no unsupported claims.
-- [ ] Exactly one correct self-referencing canonical is present unless another canonical is intentionally documented.
-- [ ] Canonicals use the final HTTPS production host and preferred URL format.
-- [ ] `robots` directives match the intended indexation state.
-- [ ] Staging, previews, internal search, success states, and private/status pages are non-indexable as specified.
-- [ ] `robots.txt` is reachable and does not block required production assets or indexable pages.
-- [ ] XML sitemap is reachable, valid, production-only, canonical-only, and contains no non-indexable URL.
-- [ ] Sitemap URLs return the intended success status without redirects.
-- [ ] Open Graph and other social metadata use the approved brand, locale, URL, title, description, and image.
-- [ ] Structured data matches visible content and passes validation.
-- [ ] Structured data contains no fabricated rating, price, stock, company fact, or unsupported claim.
-- [ ] Heading structure supports the page intent without keyword stuffing.
-- [ ] Images use meaningful file names and alt text where appropriate.
-- [ ] Internal links use descriptive Persian anchor text and connect related content intentionally.
-- [ ] Pagination/filter/query behavior does not create uncontrolled duplicate indexation.
-- [ ] Redirects use the approved status code and have no loop or unnecessary chain.
-- [ ] 404 and server-error pages return correct HTTP status codes.
-- [ ] Future locale URLs, `hreflang`, and language switchers are not exposed before approval.
+- [ ] Core public journeys work on every supported browser.
+- [ ] RFQ row editing and file upload work on mobile Safari and Android Chrome.
+- [ ] Sticky elements do not cover form controls.
+- [ ] On-screen keyboard does not hide the active field or submit button.
+- [ ] Date, number, select, and file inputs have usable fallbacks.
+- [ ] Hover-only information has a touch and keyboard alternative.
+- [ ] Landscape orientation remains usable.
+- [ ] Print behavior is acceptable for RFQ confirmation and relevant admin views, if supported.
 
 ---
 
-## 18. Analytics and Consent
+## 12. Public content and CMS
 
-- [ ] Analytics loads only in environments and consent states permitted by `ANALYTICS_TRACKING.md`.
-- [ ] Page-view events fire once per real page view.
-- [ ] CTA events use the approved names and parameters.
-- [ ] Request-start, validation-error, upload-start, submission-success, and submission-failure events fire at the correct real state.
-- [ ] Success events never fire on button click alone.
-- [ ] Retry or back navigation does not create misleading duplicate conversions.
-- [ ] Events contain no name, phone, email, message, file name, file content, full request ID, or other personal/sensitive data.
-- [ ] URLs and referrers sent to analytics contain no personal or secret data.
-- [ ] Campaign attribution works without overwriting valid source information unexpectedly.
-- [ ] Internal/test traffic follows the approved exclusion policy.
-- [ ] Analytics failure does not block navigation, submission, or upload.
-- [ ] Consent withdrawal is respected.
-- [ ] Debug/preview analytics modes are disabled in production.
+### 12.1 Article lifecycle
+
+- [ ] Authorized operator can create an article draft.
+- [ ] Drafts are not publicly accessible or indexable.
+- [ ] Required fields are enforced.
+- [ ] Slug uniqueness is enforced.
+- [ ] Preview accurately represents the public page.
+- [ ] Publish action records actor and timestamp.
+- [ ] Scheduled publication, if supported, uses the correct time zone.
+- [ ] Editing a published article updates the public page after the defined cache invalidation window.
+- [ ] Unpublishing removes the public page according to the approved status-code policy.
+- [ ] Article categories can be created, edited, ordered, and disabled according to role permissions.
+- [ ] Rich text cannot inject unsafe HTML or scripts.
+- [ ] Headings, lists, tables, links, captions, and alt text survive save and render correctly.
+- [ ] Autosave or unsaved-change warning works as specified.
+- [ ] Concurrent edits have defined conflict behavior.
+- [ ] Revision/audit information is retained as specified.
+
+### 12.2 Media
+
+- [ ] Images upload to the approved R2 location.
+- [ ] Media metadata records owner, content type, size, and creation time.
+- [ ] Unsupported types are rejected.
+- [ ] Oversized files are rejected with a helpful message.
+- [ ] Filename is not trusted as the MIME type.
+- [ ] Image orientation and color rendering are correct.
+- [ ] Replacing media does not leave broken public references.
+- [ ] Deleting in-use media is blocked or clearly warns about references.
+- [ ] Orphan-media cleanup does not delete referenced assets.
 
 ---
 
-## 19. Security and Privacy
+## 13. Product catalog
 
-- [ ] Production uses HTTPS and no active mixed content exists.
-- [ ] HTTP requests redirect to the canonical HTTPS host as specified.
+### 13.1 Data model
+
+- [ ] Category → product → variant relationships are correct.
+- [ ] Product attributes, sizes, standards, brands/origins, and units map to the intended entities.
+- [ ] Foreign keys and uniqueness constraints reject invalid records.
+- [ ] Odoo identifiers and website identifiers cannot collide.
+- [ ] A product may have multiple variants without duplicating product-level content.
+- [ ] Disabled products and variants are excluded from public selection.
+- [ ] Disabling a parent category has the specified effect on descendants.
+- [ ] Free-text/custom RFQ items remain possible when the catalog has no match.
+
+### 13.2 Catalog behavior
+
+- [ ] Category lists contain only published, eligible products.
+- [ ] Product filters return correct results.
+- [ ] Filter reset restores the default result set.
+- [ ] Empty results provide a recovery path.
+- [ ] Sorting is deterministic.
+- [ ] Search returns relevant products for approved Persian spelling variants.
+- [ ] Variant selection updates size, unit, availability, and price context correctly.
+- [ ] Direct links to variants restore the correct selection.
+- [ ] Stale or deleted Odoo products do not produce broken website relations.
+- [ ] Product commercial data and website SEO content remain clearly separated.
+- [ ] Product sync does not overwrite website-owned SEO fields.
+- [ ] Website edits cannot overwrite Odoo-owned commercial fields.
+
+---
+
+## 14. Pricing system
+
+- [ ] Odoo is verified as the authoritative commercial price source.
+- [ ] Public price sync writes to the website read model without requiring live Odoo reads from public pages.
+- [ ] Price displays include product/variant, amount, currency, unit, status, and last-updated time.
+- [ ] Decimal precision and rounding follow the approved business rule.
+- [ ] Zero, negative, null, expired, and unavailable prices follow explicit display rules.
+- [ ] A stale-price threshold is enforced and visibly handled.
+- [ ] “Contact for price” is shown where required instead of misleading numeric data.
+- [ ] Price history is append-only or otherwise auditable according to the data specification.
+- [ ] Repeated delivery of the same price event does not create duplicate history entries.
+- [ ] Out-of-order sync events cannot overwrite a newer price with an older price.
+- [ ] Bulk price updates preserve per-record success/failure results.
+- [ ] Partial bulk failures are recoverable and clearly reported.
+- [ ] Price cache invalidation targets affected product/category/price pages.
+- [ ] Unrelated cached pages are not unnecessarily purged.
+- [ ] Price pages continue to render during Odoo downtime.
+- [ ] Price charts, if present, use correct dates, values, units, and missing-data behavior.
+
+---
+
+## 15. RFQ builder
+
+### 15.1 Contact and request fields
+
+- [ ] Required contact fields match the approved specification.
+- [ ] Individual/company selection behaves correctly, if present.
+- [ ] Country code and phone number remain separate and correctly ordered in RTL/LTR contexts.
+- [ ] Iranian and international phone formats follow the approved validation policy.
+- [ ] Email validation accepts valid addresses and rejects clearly invalid addresses.
+- [ ] Company, city, project, delivery destination, notes, and consent fields persist correctly.
+- [ ] UTM source, medium, campaign, content, term, referrer, landing page, locale, and consent metadata are recorded where applicable.
+- [ ] Hidden metadata cannot be used to inject arbitrary trusted values.
+- [ ] Turnstile is verified server-side.
+- [ ] A failed anti-bot challenge does not save a misleading completed RFQ.
+
+### 15.2 Structured item rows
+
+- [ ] Customer can add any reasonable number of item rows within defined limits.
+- [ ] Customer can remove a row.
+- [ ] Customer can duplicate a row if supported.
+- [ ] Row order remains stable.
+- [ ] Category selection limits product choices correctly.
+- [ ] Product selection limits variant/size choices correctly.
+- [ ] Unit choices are valid for the selected item.
+- [ ] Quantity accepts the approved decimal precision.
+- [ ] Zero, negative, malformed, and excessive quantities are rejected.
+- [ ] Per-row description is preserved.
+- [ ] Changing a category clears incompatible product and variant values.
+- [ ] Validation identifies the exact invalid row and field.
+- [ ] Keyboard navigation across rows is logical.
+- [ ] Adding/removing rows works on mobile without losing other values.
+- [ ] At least one item or one valid attachment is required according to the approved policy.
+
+### 15.3 Custom/free item
+
+- [ ] “Product not found” flow is available.
+- [ ] Custom item accepts title, size/variant, unit, quantity, and description.
+- [ ] Required fields are enforced.
+- [ ] Custom item is visibly distinct in admin and Odoo.
+- [ ] Custom text is sanitized and cannot inject markup or formulas.
+- [ ] Custom item does not automatically create an approved catalog product.
+
+### 15.4 Attachments
+
+- [ ] Approved Excel, PDF, and image types upload successfully.
+- [ ] File-count and per-file/total-size limits are enforced.
+- [ ] MIME type, extension, and file signature are validated.
+- [ ] Executable, script, archive, polyglot, and unsupported files are rejected.
+- [ ] Macro-enabled Office documents follow the explicit security policy.
+- [ ] Uploaded files receive non-guessable object keys.
+- [ ] Original filename is stored as metadata, not used as the object key.
+- [ ] Upload failure can be retried without duplicating successful files.
+- [ ] Removing a file before submit removes or expires the temporary object.
+- [ ] Abandoned temporary uploads are cleaned up according to retention policy.
+- [ ] Attachments are private by default and are not indexed.
+- [ ] Download access requires authorization or a short-lived approved URL.
+- [ ] Response headers prevent unsafe inline execution.
+- [ ] Malware scanning/quarantine behavior matches the security specification.
+- [ ] Attachment reference remains valid after successful Odoo synchronization.
+
+### 15.5 Submission and confirmation
+
+- [ ] Submit button prevents accidental duplicate clicks.
+- [ ] Server validates every client-supplied field again.
+- [ ] RFQ header, all valid items, attachment references, attribution, and consent are saved atomically or with a documented recovery design.
+- [ ] Customer receives success only after durable website-side persistence.
+- [ ] A unique human-readable RFQ number is generated.
+- [ ] A globally unique idempotency key is generated.
+- [ ] Confirmation shows the correct reference number and next step.
+- [ ] Refreshing the success page does not resubmit the RFQ.
+- [ ] Browser back/forward behavior does not create a duplicate RFQ.
+- [ ] Network timeout after server success can be safely retried.
+- [ ] Validation failure preserves entered data where safe.
+- [ ] Sensitive personal data is not exposed in the confirmation URL.
+- [ ] Submission creates an audit event and an observable request trace.
+
+---
+
+## 16. Odoo integration
+
+### 16.1 Adapter and authentication
+
+- [ ] Website code calls Odoo only through the defined adapter layer.
+- [ ] Odoo API version/protocol matches the deployed Odoo version.
+- [ ] Dedicated integration user exists.
+- [ ] Integration user follows least privilege.
+- [ ] API credential exists only as a server-side secret.
+- [ ] Credential rotation is tested or documented.
+- [ ] Requests use HTTPS and validate the target host.
+- [ ] Timeouts are explicit.
+- [ ] Retryable and non-retryable failures are classified correctly.
+- [ ] Odoo error bodies and credentials are not returned to the browser.
+
+### 16.2 Website → Odoo
+
+- [ ] Customer/contact maps to the correct Odoo model and fields.
+- [ ] Existing contact matching uses approved keys and does not merge unrelated people.
+- [ ] RFQ maps to the intended CRM lead/opportunity or custom RFQ model.
+- [ ] RFQ items map without losing category, product, variant, size, unit, quantity, or description.
+- [ ] Custom items are represented correctly.
+- [ ] Website source, locale, landing page, and UTM data arrive in Odoo.
+- [ ] Attachment references or uploaded attachments are accessible to authorized Odoo users.
+- [ ] Website RFQ number and idempotency key are stored in Odoo.
+- [ ] Replaying the same event returns or updates the same Odoo record.
+- [ ] Partial creation is compensated or recoverable.
+- [ ] Sync result stores Odoo record ID, status, and last-synced timestamp.
+
+### 16.3 Odoo → website
+
+- [ ] Product, variant, unit, price, availability, and update-time mappings are verified.
+- [ ] Incremental sync includes all records changed after the cursor/watermark.
+- [ ] Full reconciliation detects missed or divergent records.
+- [ ] Deleted/archived Odoo records follow defined website behavior.
+- [ ] Conflict resolution respects field ownership defined in `SYSTEM_OF_RECORD.md`.
+- [ ] External IDs remain stable across syncs.
+- [ ] Sync version prevents old events overwriting new data.
+- [ ] Successful sync triggers only the required cache invalidation.
+- [ ] Public data is sanitized before storage/display.
+- [ ] RFQ status returned to customers, if supported, never exposes internal notes.
+
+---
+
+## 17. Queues, retries, and failure recovery
+
+- [ ] RFQ is committed to D1 before a queue message is considered ready.
+- [ ] Queue payload contains a versioned event schema.
+- [ ] Queue payload contains event ID, entity ID, attempt context, and timestamp.
+- [ ] Payload contains only the personal data required by the consumer.
+- [ ] Consumer validates payload schema.
+- [ ] Consumer is idempotent.
+- [ ] Duplicate delivery does not create duplicate Odoo records.
+- [ ] Retry policy uses bounded attempts and appropriate backoff.
+- [ ] Authentication, validation, and permanent business-rule failures are not retried forever.
+- [ ] Temporary Odoo timeout/`5xx` failures are retried.
+- [ ] Poison messages move to the dead-letter queue after the configured threshold.
+- [ ] Dead-letter messages include enough context for safe diagnosis.
+- [ ] Dead-letter queue produces an actionable alert.
+- [ ] Authorized operator can replay a failed event safely.
+- [ ] Replay preserves the original idempotency identity.
+- [ ] Queue backlog and oldest-message age are monitored.
+- [ ] Odoo outage does not block public page rendering.
+- [ ] Odoo outage does not block durable RFQ acceptance.
+- [ ] Recovery after Odoo outage drains the backlog without duplication.
+- [ ] Failure after Odoo creation but before website acknowledgement is safely reconciled.
+- [ ] Reconciliation job detects website RFQs missing Odoo records.
+- [ ] Failure scenarios in `FAILURE_RECOVERY.md` have test evidence.
+
+---
+
+## 18. Administration panel
+
+### 18.1 Authentication and sessions
+
+- [ ] Unauthenticated users cannot access admin pages or APIs.
+- [ ] Login error does not reveal whether an account exists.
+- [ ] Rate limiting protects login and recovery endpoints.
+- [ ] Session cookie uses `Secure`, `HttpOnly`, and appropriate `SameSite` settings.
+- [ ] Session expires according to policy.
+- [ ] Logout invalidates the session.
+- [ ] Password reset token is single-use, short-lived, and not logged.
+- [ ] MFA behavior is tested if required.
+- [ ] Deactivated users lose access promptly.
+- [ ] Changing sensitive credentials invalidates prior sessions as specified.
+
+### 18.2 Roles and permissions
+
+- [ ] Each defined role has an explicit permission matrix.
+- [ ] Authorization is enforced server-side, not only by hidden UI.
+- [ ] Article operator cannot change prices unless permitted.
+- [ ] Price operator cannot administer users unless permitted.
+- [ ] RFQ operator sees only approved personal and commercial data.
+- [ ] Admin-only actions reject lower-privilege API calls.
+- [ ] Privilege escalation through modified IDs or request bodies is blocked.
+- [ ] Bulk actions enforce permission on every affected record.
+- [ ] Audit-log access follows the approved role policy.
+
+### 18.3 Operational workflows
+
+- [ ] Dashboard totals match underlying data.
+- [ ] Article create/edit/publish workflow functions.
+- [ ] Catalog data reflects the Odoo ownership model.
+- [ ] Price views clearly identify synced versus stale/failed data.
+- [ ] RFQ statuses support New, Viewed, In Progress, Quoted, Won, and Lost as approved.
+- [ ] Status transitions are validated and audited.
+- [ ] RFQ search and filtering return correct records.
+- [ ] Operators can view all item rows and approved attachments.
+- [ ] Failed sync and dead-letter state are visible to authorized operators.
+- [ ] Retry/replay action is protected and idempotent.
+- [ ] Pagination and export do not omit or duplicate records.
+- [ ] Spreadsheet export prevents formula injection.
+- [ ] Bulk operations require confirmation and show per-record outcome.
+- [ ] Errors do not discard unsaved operator input without warning.
+
+---
+
+## 19. Database and data integrity
+
+- [ ] D1 foreign-key enforcement is enabled where required.
+- [ ] Required unique constraints exist for slugs, external IDs, idempotency keys, and other business keys.
+- [ ] Indexes support frequent filters, joins, sync queries, and status dashboards.
+- [ ] Index behavior is verified with production-like data volume.
+- [ ] Migrations are ordered, repeatable where intended, and recorded.
+- [ ] Migration failure leaves the database in a known recoverable state.
+- [ ] Backward compatibility exists during rolling deployment where required.
+- [ ] Nullability and default values match the schema specification.
+- [ ] Monetary values do not use unsafe floating-point storage/logic.
+- [ ] Quantities and units retain approved precision.
+- [ ] Timestamps are stored consistently and displayed in the required locale/time zone.
+- [ ] Soft-delete/archive behavior is consistent.
+- [ ] Audit logs capture actor, action, entity, timestamp, and relevant before/after values.
+- [ ] Sensitive values and secrets are excluded or redacted from audit logs.
+- [ ] Personal-data retention and deletion workflows preserve required business/audit records.
+- [ ] Backup/restore test proves data can be recovered.
+- [ ] Restored database is reconciled with R2 objects, queues, and Odoo state.
+- [ ] Read-replication/session behavior, if enabled, satisfies read-after-write requirements for critical flows.
+
+---
+
+## 20. Security checklist
+
+- [ ] Threat model covers public pages, admin, APIs, D1, R2, Queues, and Odoo integration.
+- [ ] All input is validated using allowlists and explicit schemas.
+- [ ] Output encoding prevents stored and reflected XSS.
+- [ ] SQL queries are parameterized.
+- [ ] CSRF protection exists where cookie-authenticated mutations require it.
+- [ ] CORS allows only intended origins, methods, and headers.
 - [ ] Security headers match `SECURITY_GUIDELINES.md`.
-- [ ] Forms and APIs enforce server-side validation, normalization, and size limits.
-- [ ] Output encoding prevents stored and reflected script injection.
-- [ ] Uploads are stored outside executable/public paths and served with safe headers.
-- [ ] Uploaded content is checked according to the approved malware/content-safety process.
-- [ ] Original filenames are not trusted as storage paths.
-- [ ] Rate limiting and anti-abuse controls work without blocking reasonable legitimate use.
-- [ ] Cross-site request protection matches the authentication/session architecture.
-- [ ] CORS allows only documented origins, methods, and headers.
-- [ ] Error responses expose no stack trace, SQL detail, token, internal host, filesystem path, or vendor secret.
-- [ ] Secrets are server-only, rotated appropriately, and absent from source, build output, browser storage, and logs.
-- [ ] Personal data is minimized and retained only according to the approved policy.
-- [ ] Logs redact personal data and file content.
-- [ ] Cache/CDN behavior never stores or shares private request data publicly.
-- [ ] Authorization is checked server-side for every protected operation.
-- [ ] Common input attacks and parameter tampering have been tested on critical endpoints.
-- [ ] Dependency and platform security findings are reviewed before release.
-- [ ] Privacy and consent language accurately reflects actual data processing.
+- [ ] Content Security Policy is deployed and tested.
+- [ ] Clickjacking protection is effective.
+- [ ] MIME sniffing is disabled where appropriate.
+- [ ] Open redirects are blocked.
+- [ ] Path traversal and object-key manipulation are blocked.
+- [ ] IDOR tests confirm users cannot access another record or attachment.
+- [ ] Rate limits protect RFQ, search, login, upload, and sensitive APIs.
+- [ ] Turnstile failure modes do not create an availability blocker without a documented fallback.
+- [ ] Error responses do not expose stack traces, SQL, internal paths, Odoo internals, or secrets.
+- [ ] Logs redact API keys, cookies, authorization headers, phone numbers, emails, and attachment URLs as specified.
+- [ ] Secrets are stored in approved secret storage and absent from client bundles.
+- [ ] Odoo integration user cannot access unnecessary applications or models.
+- [ ] Dependency vulnerability review has no unaccepted critical/high finding.
+- [ ] File upload security tests pass.
+- [ ] Admin brute-force and session-management tests pass.
+- [ ] Backup files and diagnostic endpoints are not public.
+- [ ] `robots.txt` is not treated as an access-control mechanism.
+- [ ] Security exceptions have owner, mitigation, and expiry date.
 
 ---
 
-## 20. APIs and Integrations
+## 21. Accessibility
 
-- [ ] API routes follow the approved `/api/v1/...` contracts where applicable.
-- [ ] Request and response schemas match `API_INTEGRATIONS.md`.
-- [ ] Correct status codes are returned for success, validation errors, authorization failures, rate limits, and server errors.
-- [ ] Timeout behavior is bounded and user-recoverable.
-- [ ] Retries are safe and idempotent where duplicate records would be harmful.
-- [ ] Integration authentication occurs only server-side.
-- [ ] Failed downstream notifications do not masquerade as failed durable storage, or vice versa.
-- [ ] Webhook authenticity and replay protection are verified where applicable.
-- [ ] Duplicate or out-of-order events are handled safely.
-- [ ] External-service downtime produces an honest fallback state.
-- [ ] Health checks do not expose sensitive detail.
-- [ ] Monitoring can distinguish validation failure, upload failure, storage failure, notification failure, and integration failure.
+Target: WCAG 2.2 AA unless a stricter project requirement is approved.
 
----
-
-## 21. Error, Empty, and Edge Cases
-
-- [ ] Empty collections have useful approved empty states.
-- [ ] Missing images use the approved fallback without broken layout.
-- [ ] Very short and very long content remain usable.
-- [ ] Rapid repeated clicks/taps do not create duplicate actions.
-- [ ] Opening the site in multiple tabs does not corrupt critical state.
-- [ ] Session/storage denial or quota exhaustion fails safely.
-- [ ] Expired state or token produces a clear recovery path.
-- [ ] API timeout, rate limit, and server error have distinct helpful user states where appropriate.
-- [ ] The application recovers after network reconnection when safe.
-- [ ] User-entered content is preserved across recoverable errors where privacy permits.
-- [ ] Error copy is Persian, calm, actionable, and free of implementation detail.
-- [ ] Error logging includes a correlation mechanism without exposing personal data to the user.
+- [ ] Every page has a unique, descriptive title.
+- [ ] One logical primary heading exists per page.
+- [ ] Heading order is meaningful.
+- [ ] Landmarks and semantic elements are used correctly.
+- [ ] Skip link is available and works.
+- [ ] All interactive controls are keyboard accessible.
+- [ ] Focus order follows visual/logical order.
+- [ ] Focus indicator is clearly visible.
+- [ ] Modals trap focus and restore it on close.
+- [ ] Form controls have persistent programmatic labels.
+- [ ] Required fields and errors are not communicated by color alone.
+- [ ] Errors are summarized and associated with fields.
+- [ ] Dynamic status messages use appropriate live regions.
+- [ ] Images have meaningful alt text or are marked decorative.
+- [ ] Icon-only buttons have accessible names.
+- [ ] Text and non-text contrast meet the target.
+- [ ] Content works at 200% zoom and with text spacing overrides.
+- [ ] Reduced-motion preference is respected.
+- [ ] Tables have correct headers and captions where needed.
+- [ ] RFQ row controls expose row and field context to screen readers.
+- [ ] Automated accessibility scan has no critical violations.
+- [ ] Manual keyboard and screen-reader smoke tests pass on critical journeys.
 
 ---
 
-## 22. Regression Checklist
+## 22. Performance and Core Web Vitals
 
-Run after any shared-component, routing, design-token, localization, form, API, or deployment change.
+Internal release targets for representative public pages:
 
-- [ ] Homepage renders and primary CTA works.
-- [ ] Header and mobile navigation work.
-- [ ] Footer links work.
-- [ ] Primary request page loads.
-- [ ] Valid request with valid file succeeds end to end.
-- [ ] Invalid file and invalid fields fail correctly.
-- [ ] Duplicate submission protection works.
-- [ ] Confirmation is based on real backend acceptance.
-- [ ] Representative product/material and guide pages render.
-- [ ] 404 and error recovery work.
-- [ ] Persian RTL and mixed-direction fields remain correct.
-- [ ] Keyboard navigation and focus remain correct.
-- [ ] Canonical, robots, metadata, structured data, and sitemap remain correct.
-- [ ] Analytics critical events remain accurate and free of personal data.
-- [ ] No material performance or layout-stability regression is introduced.
+| Metric | Target |
+|---|---:|
+| LCP | `< 2.0 s` |
+| INP | `< 150 ms` |
+| CLS | `< 0.05` |
+| TTFB | `< 500 ms` |
+| Lighthouse Performance | `95+` |
+| Lighthouse Accessibility | `95+` |
+| Lighthouse Best Practices | `95+` |
+| Lighthouse SEO | `100` |
+
+These targets must be measured using the profiles, locations, throttling, sample count, and pass rules defined in `PERFORMANCE_BUDGET.md` and `TESTING_STRATEGY.md`.
+
+- [ ] Home page meets the performance budget.
+- [ ] Representative category page meets the budget.
+- [ ] Representative product page meets the budget.
+- [ ] Representative price page meets the budget.
+- [ ] Representative article page meets the budget.
+- [ ] RFQ page meets its route-specific budget.
+- [ ] Public SEO pages render meaningful HTML without client hydration.
+- [ ] Only interactive components ship client JavaScript.
+- [ ] Route-level JavaScript remains under the approved budget.
+- [ ] Third-party scripts remain under budget and load with the approved strategy.
+- [ ] No render-blocking font or unnecessary stylesheet delays LCP.
+- [ ] Critical image is prioritized correctly.
+- [ ] Below-the-fold images are lazy-loaded.
+- [ ] Responsive images do not download oversized assets.
+- [ ] Image dimensions/aspect ratio prevent layout shift.
+- [ ] AVIF/WebP fallback behavior is correct.
+- [ ] Fonts are self-hosted as approved, use WOFF2, and load only required subsets/weights.
+- [ ] Font fallback minimizes layout shift.
+- [ ] Public response caching produces expected edge cache hits.
+- [ ] Cached pages do not expose personalized/admin data.
+- [ ] `stale-while-revalidate` behavior is verified where configured.
+- [ ] Cold-cache and warm-cache behavior are both measured.
+- [ ] D1 query counts and latency remain within route budget.
+- [ ] No public route makes a synchronous request to Odoo.
+- [ ] Real-user monitoring is ready to capture Core Web Vitals after launch.
 
 ---
 
-## 23. Pre-Deployment QA
+## 23. Caching and invalidation
 
-- [ ] All acceptance criteria for the release are traceable to tests.
-- [ ] QA was run against a production-equivalent build, not only a development server.
-- [ ] Database/storage migrations are reviewed, reversible where possible, and tested.
-- [ ] Required domains, DNS, TLS, CDN, redirects, environment variables, and third-party settings are ready.
-- [ ] Production form destination and monitoring ownership are confirmed.
-- [ ] Backup/rollback procedure and decision owner are confirmed.
-- [ ] Monitoring, alerting, and log access are ready for launch.
-- [ ] Search indexing controls are intentionally set for launch.
-- [ ] Cache invalidation strategy is prepared.
-- [ ] Stakeholders have approved brand, content, legal/privacy, and primary journey.
-- [ ] Release notes list changes, known issues, and rollback trigger.
+- [ ] Cache policy is defined per route and response type.
+- [ ] Public content is cacheable only when safe.
+- [ ] Admin, authenticated, and personalized responses are not publicly cached.
+- [ ] Cookies and authorization headers do not accidentally fragment or poison public cache.
+- [ ] Cache keys include only intentional dimensions.
+- [ ] Query parameters that should not vary content do not create unbounded cache entries.
+- [ ] Product update purges affected product and related category entries.
+- [ ] Price update purges affected price/product entries.
+- [ ] Article publish/update purges article and relevant listing entries.
+- [ ] Unpublish/delete invalidates stale public copies.
+- [ ] Cache-tag naming follows `CACHING_STRATEGY.md`.
+- [ ] Purge failure is logged and recoverable.
+- [ ] Stale data behavior during origin/service failure matches specification.
+- [ ] Cache headers are verified at both browser and edge layers.
+- [ ] Error responses are not cached longer than intended.
+- [ ] Rollback does not leave incompatible cached HTML/assets.
 
 ---
 
-## 24. Post-Deployment Smoke Test
+## 24. Minimum SEO release checks
+
+Run the full `SEO_QA_CHECKLIST.md` before launch. At minimum:
+
+- [ ] Every indexable page returns meaningful server-rendered HTML.
+- [ ] Title, meta description, canonical, robots directive, and H1 are correct.
+- [ ] Canonical host and URL are consistent.
+- [ ] Indexable pages are self-canonical unless another policy is documented.
+- [ ] Draft, admin, API, search-result, and non-indexable filter pages are excluded appropriately.
+- [ ] Crawlable links use real URLs.
+- [ ] `robots.txt` is correct for the production environment.
+- [ ] Preview/staging environments are blocked from indexing.
+- [ ] Sitemap index and child sitemaps return `200` and valid XML.
+- [ ] Sitemaps include only canonical, indexable, `200` URLs.
+- [ ] `lastmod` reflects meaningful updates.
+- [ ] Structured data matches visible content and passes validation.
+- [ ] Breadcrumbs are visible and structurally correct.
+- [ ] Product/price pages do not create uncontrolled thin or duplicate pages.
+- [ ] Faceted/filter URL policy is enforced.
+- [ ] Open Graph metadata and share image work.
+- [ ] Internal links contain no broken destination in the release crawl.
+- [ ] `404`, redirect, canonical, and status-code behavior passes crawler validation.
+
+---
+
+## 25. Analytics, consent, and attribution
+
+- [ ] Analytics loads only according to the approved consent policy.
+- [ ] Consent choice persists and can be changed.
+- [ ] Rejected optional tracking remains disabled.
+- [ ] Core business events have stable names and schemas.
+- [ ] Page-view events are not duplicated by navigation/hydration.
+- [ ] RFQ start, row add, upload, validation error, submit success, and submit failure events fire as specified.
+- [ ] Events contain no unnecessary personal data.
+- [ ] UTM and referrer attribution persist through the RFQ journey.
+- [ ] Attribution maps correctly into website records and Odoo.
+- [ ] Internal/admin traffic exclusion works as specified.
+- [ ] Analytics failure does not block page rendering or RFQ submission.
+- [ ] Consent/audit evidence satisfies the privacy specification.
+
+---
+
+## 26. Observability and alerting
+
+- [ ] Each request has a trace/correlation identifier where required.
+- [ ] RFQ logs can be correlated across Worker, D1, Queue, integration consumer, and Odoo without exposing sensitive data.
+- [ ] Worker exceptions are captured.
+- [ ] API latency and error rates are monitored.
+- [ ] D1 latency/errors are monitored.
+- [ ] R2 upload/download errors are monitored.
+- [ ] Queue depth, retry count, failure rate, and oldest-message age are monitored.
+- [ ] Dead-letter queue growth produces an alert.
+- [ ] Odoo availability, latency, authentication failures, and schema/mapping failures are distinguishable.
+- [ ] Cache hit ratio and purge failures are monitored.
+- [ ] RFQ submission success/failure rate is monitored.
+- [ ] Unexpected drop in RFQ volume has a detection method.
+- [ ] `404` and `5xx` trends are monitored.
+- [ ] Core Web Vitals field data is collected.
+- [ ] Alerts have owner, severity, channel, and runbook.
+- [ ] Test alert reaches the intended responder.
+- [ ] Logs have defined retention and access control.
+- [ ] Personal and commercial data is redacted according to policy.
+
+---
+
+## 27. Email and operational notifications
+
+If notifications are in scope:
+
+- [ ] Customer confirmation uses the correct RFQ number and approved content.
+- [ ] Internal notification reaches the intended team only.
+- [ ] Notification failure does not roll back a successfully saved RFQ.
+- [ ] Failed notification is retried or surfaced operationally.
+- [ ] Duplicate queue delivery does not send duplicate messages unnecessarily.
+- [ ] Links use the canonical domain and valid HTTPS URLs.
+- [ ] Persian/RTL content renders correctly in major email clients.
+- [ ] Plain-text fallback is usable.
+- [ ] Reply-to and sender identity are correct.
+- [ ] No attachment or personal data is exposed to unintended recipients.
+
+---
+
+## 28. Resilience and recovery scenarios
+
+Test each scenario and record evidence:
+
+- [ ] Odoo unavailable before RFQ submission.
+- [ ] Odoo becomes unavailable during queue consumption.
+- [ ] Odoo creates a record but response times out.
+- [ ] Queue delivers the same RFQ twice.
+- [ ] Queue message is malformed.
+- [ ] Dead-letter replay occurs after the underlying defect is fixed.
+- [ ] D1 write fails.
+- [ ] R2 upload succeeds but RFQ submission fails.
+- [ ] RFQ saves but queue publish initially fails.
+- [ ] Cache purge fails after price update.
+- [ ] A stale price event arrives after a newer event.
+- [ ] Deployment occurs while queue messages are in flight.
+- [ ] Database migration and application versions briefly overlap.
+- [ ] Cloudflare regional/transient error occurs.
+- [ ] Third-party analytics or notification provider is unavailable.
+- [ ] Backup is restored and reconciliation completes.
+- [ ] Previous application version is redeployed through rollback.
+
+For every scenario verify:
+
+- no silent data loss;
+- no duplicate business record;
+- safe customer-facing message;
+- actionable logs/alert;
+- documented recovery action;
+- eventual reconciliation.
+
+---
+
+## 29. Deployment and configuration
+
+- [ ] Environment variables match `ENVIRONMENT_VARIABLES.md`.
+- [ ] Required secrets exist in the target environment.
+- [ ] No secret is configured as a public environment variable.
+- [ ] D1, R2, Queue, dead-letter queue, and other bindings point to the intended resources.
+- [ ] Production hostname and routes point to the intended Worker deployment.
+- [ ] Database migrations run in the approved order.
+- [ ] Deployment is compatible with currently queued event-schema versions.
+- [ ] Static assets use immutable fingerprinted URLs where appropriate.
+- [ ] Cache purge/invalidation accompanies incompatible content changes.
+- [ ] Feature flags have owner, default, and rollback behavior.
+- [ ] Health/readiness checks represent meaningful service status.
+- [ ] Deployment logs and identifiers are retained.
+- [ ] Rollback procedure is written and recently tested.
+- [ ] Rollback includes application, schema compatibility, cache, and queue considerations.
+- [ ] DNS and TLS changes have a recovery plan.
+
+---
+
+## 30. Production smoke test
 
 Run immediately after production deployment.
 
-- [ ] Canonical production URL loads over HTTPS.
-- [ ] Apex/`www` and HTTP/HTTPS variants follow the documented redirect policy.
-- [ ] Homepage, all primary navigation destinations, and request page return expected statuses.
-- [ ] CSS, fonts, scripts, icons, and images load from production origins without blocked requests.
-- [ ] One controlled production test inquiry succeeds and reaches the correct queue exactly once.
-- [ ] The test file is intact and linked to the correct inquiry.
-- [ ] Confirmation language remains accurate.
-- [ ] Critical analytics events appear once with no personal data.
-- [ ] Canonical, robots, sitemap, and structured data use the production host.
-- [ ] CDN/cache returns the new release and does not expose stale private content.
-- [ ] No new critical console, server, integration, or monitoring error appears.
-- [ ] Performance smoke test shows no severe regression.
-- [ ] Rollback remains available until the observation window closes.
-- [ ] The production test inquiry is clearly marked and removed from operational handling.
+- [ ] Canonical home page loads over HTTPS.
+- [ ] Header, mobile navigation, footer, and primary CTA work.
+- [ ] One category page loads.
+- [ ] One product page loads with correct commercial and SEO data.
+- [ ] One price page loads with correct unit and update time.
+- [ ] One published article loads.
+- [ ] Sitemap and `robots.txt` return expected responses.
+- [ ] Admin login succeeds for an authorized test user.
+- [ ] Unauthorized admin access is rejected.
+- [ ] A controlled production RFQ is submitted.
+- [ ] RFQ appears in D1 with all item rows.
+- [ ] Attachment is stored and remains protected, if tested.
+- [ ] Queue event is consumed.
+- [ ] Exactly one corresponding Odoo record is created.
+- [ ] Odoo record contains correct contact, items, attribution, and website reference.
+- [ ] Test RFQ is clearly labeled and cleaned up according to policy.
+- [ ] No new critical Worker, D1, R2, Queue, or Odoo error appears.
+- [ ] Edge caching behaves as expected.
+- [ ] Analytics and consent behavior are verified.
+- [ ] Release dashboard remains healthy for the defined observation period.
 
 ---
 
-## 25. Evidence Requirements
+## 31. Regression suite
 
-Every failed check must link to a defect. Every release-gate pass must include evidence appropriate to the risk.
+The automated regression suite should include at least:
 
-Acceptable evidence includes:
-
-- Screenshot or short screen recording with URL and viewport visible.
-- Automated-test report tied to the commit SHA.
-- Accessibility scan plus manual keyboard/screen-reader notes.
-- Network trace or sanitized request/response sample.
-- Performance report for the tested URL and device profile.
-- Metadata, structured-data, sitemap, or header validation output.
-- Sanitized downstream inquiry record proving end-to-end delivery.
-- Browser/device matrix results.
-
-Evidence must not contain secrets, personal data, production customer files, or unredacted internal identifiers.
-
----
-
-## 26. Defect Report Template
-
-```md
-## [SEVERITY] Short defect title
-
-- Release / commit:
-- Environment:
-- URL:
-- Browser / device / viewport:
-- Preconditions:
-- Test data reference (sanitized):
-
-### Steps to Reproduce
-
-1.
-2.
-3.
-
-### Expected Result
-
-
-### Actual Result
-
-
-### User / Business Impact
-
-
-### Evidence
-
-
-### Suspected Scope
-
-
-### Regression?
-
-Yes / No / Unknown
-```
+1. canonical host redirects;
+2. public route status and HTML assertions;
+3. authentication and role authorization matrix;
+4. article draft/publish/unpublish lifecycle;
+5. product/category/variant relationships;
+6. price sync, staleness, history, and invalidation;
+7. RFQ with one structured item;
+8. RFQ with multiple structured items;
+9. RFQ with a custom item;
+10. RFQ with supported attachments;
+11. invalid upload rejection;
+12. validation and anti-bot rejection;
+13. duplicate-submit/idempotency behavior;
+14. Odoo-online integration path;
+15. Odoo-offline queue/recovery path;
+16. duplicate queue delivery;
+17. dead-letter and replay path;
+18. accessibility smoke checks;
+19. SEO metadata/status/sitemap assertions;
+20. performance-budget checks for representative routes.
 
 ---
 
-## 27. Release Sign-Off
+## 32. Defect severity and release policy
 
-| Role | Name | Decision | Date | Notes / accepted risk |
-| --- | --- | --- | --- | --- |
-| QA Owner | `[fill]` | `Approve / Reject` | `[fill]` | `[fill]` |
-| Engineering Lead | `[fill]` | `Approve / Reject` | `[fill]` | `[fill]` |
-| Product Owner | `[fill]` | `Approve / Reject` | `[fill]` | `[fill]` |
-| Content/Brand Owner | `[fill]` | `Approve / Reject` | `[fill]` | `[fill]` |
+| Severity | Definition | Release policy |
+|---|---|---|
+| S0 — Critical | Security breach, secret exposure, irreversible data loss, widespread outage | Immediate stop; release prohibited |
+| S1 — High | Lost/duplicate RFQ, authorization bypass, unusable critical journey, incorrect commercial data | Release prohibited |
+| S2 — Medium | Material defect with workaround; limited scope | Requires product and engineering decision |
+| S3 — Low | Minor visual/content issue with negligible operational impact | May ship with owner and target date |
 
-**Final release decision:** `APPROVED / REJECTED / BLOCKED`  
-**Approved commit SHA:** `[fill]`  
-**Rollback owner:** `[fill]`  
-**Observation window:** `[fill]`
+Every defect must include:
 
----
+- clear title and severity;
+- environment and build;
+- reproducible steps;
+- expected and actual behavior;
+- evidence;
+- affected users/data;
+- regression risk;
+- owner and target release.
 
-## 28. Claude Code Execution Rules
+Accepted exceptions must state:
 
-When Claude Code uses this checklist:
-
-1. Read all source-of-truth documents listed in Section 2 before starting QA.
-2. Identify the deployed commit and environment before running tests.
-3. Do not mark a check as passed without executing it or collecting reliable evidence.
-4. Do not change application code while reporting an audit unless the task explicitly authorizes fixes.
-5. Never weaken or remove a test to obtain a passing result.
-6. Record `BLOCKED` when a required service or credential is unavailable; do not simulate success.
-7. Use safe synthetic test data and clearly label all production smoke-test records.
-8. Never expose secrets or personal data in reports, screenshots, logs, or test fixtures.
-9. Report route/document conflicts instead of choosing silently.
-10. Produce a final QA summary containing:
-    - tested commit and environment;
-    - passed, failed, blocked, and not-run counts;
-    - defects grouped by severity;
-    - release-gate result;
-    - residual risks;
-    - evidence links;
-    - explicit release recommendation.
+- exact failed requirement;
+- business justification;
+- risk and mitigation;
+- accountable approver;
+- expiry date or planned fix release.
 
 ---
 
-## 29. Final QA Summary Template
+## 33. Release sign-off
 
-```md
-# QA Summary — Ahan Asa
-
-- Release / commit:
-- Environment:
-- Test window:
-- QA owner:
-
-## Results
+### QA summary
 
 | Result | Count |
-| --- | ---: |
-| PASS | 0 |
-| FAIL | 0 |
-| BLOCKED | 0 |
-| N/A | 0 |
-| NOT RUN | 0 |
+|---|---:|
+| Passed | |
+| Failed | |
+| Accepted exceptions | |
+| Not applicable | |
+| Not tested | |
 
-## Defects
+### Open defects
 
-| ID | Severity | Area | Status | Release blocker |
-| --- | --- | --- | --- | --- |
+| Defect ID | Severity | Area | Owner | Decision |
+|---|---|---|---|---|
+| | | | | |
 
-## Release Gates
+### Approval
 
-- Primary request journey: PASS / FAIL / BLOCKED
-- RTL and responsive: PASS / FAIL / BLOCKED
-- Accessibility: PASS / FAIL / BLOCKED
-- Performance: PASS / FAIL / BLOCKED
-- SEO: PASS / FAIL / BLOCKED
-- Security and privacy: PASS / FAIL / BLOCKED
-- Production readiness: PASS / FAIL / BLOCKED
+| Role | Name | Decision | Date | Notes |
+|---|---|---|---|---|
+| QA owner | | Go / No-Go | | |
+| Engineering owner | | Go / No-Go | | |
+| Product owner | | Go / No-Go | | |
+| Business/operations owner | | Go / No-Go | | |
 
-## Residual Risks
+The release is approved only when the final decision is recorded, all mandatory gates are satisfied, and every exception is explicitly owned.
 
--
+---
 
-## Evidence
+## 34. Related specifications
 
--
+This checklist must be used with the current versions of:
 
-## Recommendation
+- `PROJECT_BRIEF.md`
+- `TECHNICAL_ARCHITECTURE.md`
+- `STACK.md`
+- `DATA_ARCHITECTURE.md`
+- `DATABASE_SCHEMA.md`
+- `CMS_ARCHITECTURE.md`
+- `ADMIN_PANEL_SPEC.md`
+- `PRODUCT_CATALOG_SPEC.md`
+- `PRICING_SYSTEM.md`
+- `RFQ_SYSTEM.md`
+- `AUTHORIZATION_ROLES.md`
+- `API_INTEGRATIONS.md`
+- `ODOO_INTEGRATION.md`
+- `SYSTEM_OF_RECORD.md`
+- `SYNC_STRATEGY.md`
+- `ERP_DATA_MAPPING.md`
+- `FAILURE_RECOVERY.md`
+- `SECURITY_GUIDELINES.md`
+- `CACHING_STRATEGY.md`
+- `PERFORMANCE_GUIDELINES.md`
+- `PERFORMANCE_BUDGET.md`
+- `IMAGE_OPTIMIZATION.md`
+- `FONT_STRATEGY.md`
+- `SEO_STRATEGY.md`
+- `SEO_QA_CHECKLIST.md`
+- `STRUCTURED_DATA.md`
+- `METADATA_SPEC.md`
+- `INTERNAL_LINKING.md`
+- `SITEMAP_ROBOTS_SPEC.md`
+- `DEPLOYMENT_ARCHITECTURE.md`
+- `ENVIRONMENT_VARIABLES.md`
+- `TESTING_STRATEGY.md`
 
-APPROVE / REJECT / BLOCK
-```
-
+If any linked specification conflicts with this checklist, record the conflict in `DECISIONS.md` and resolve it before implementation or release.

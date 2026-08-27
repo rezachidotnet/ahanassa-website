@@ -1,1173 +1,1209 @@
-# Ahan Asa Website — Internal Linking Architecture
+# Ahan Asa Website — Internal Linking Specification
 
 > **Brand:** Ahan Asa | آهن آسا  
-> **Domain:** `ahanassa.com`  
+> **Canonical origin:** `https://www.ahanassa.com`  
 > **Document:** `INTERNAL_LINKING.md`  
-> **Version:** 1.0  
-> **Status:** Implementation baseline  
-> **Last updated:** 2026-08-25  
-> **Primary locale:** Persian (`fa-IR`), fully RTL  
-> **Document language:** English, with approved Persian interface examples
+> **Version:** 2.0  
+> **Status:** Implementation specification  
+> **Last updated:** 2026-08-26  
+> **Phase 1 locale:** Persian (`fa-IR`), RTL, unprefixed URLs  
+> **Document language:** English, with Persian link-copy examples
 
 ---
 
 ## 1. Purpose
 
-This document defines the internal-link architecture for the Ahan Asa website: which pages must link to one another, why each link exists, how anchor text is written, where links appear, how link equity flows, and how the system is validated.
+This document defines how Ahan Asa pages connect to one another through global navigation, breadcrumbs, contextual links, related-content modules, catalog relationships, price relationships, and RFQ calls to action.
 
-The architecture must help users and search engines understand that Ahan Asa is a professional B2B steel procurement-management partner and protector of client capital—not an online steel shop, public price board, marketplace, stock catalog, or supplier directory.
+The link system MUST help users and search engines understand Ahan Asa as a professional steel procurement manager—not an online checkout store, public stock exchange, supplier directory, or marketplace.
 
-The system is designed to:
+Internal linking MUST:
 
-- make the procurement model understandable within a small number of clicks;
-- connect each commercial page to a relevant next decision;
-- reinforce distinct page topics without creating keyword cannibalization;
-- distribute authority from strong hubs to approved child pages;
-- give important pages sufficient contextual inbound links;
-- connect educational content to commercial pages without making it promotional;
-- lead qualified users toward the canonical request flow;
-- prevent orphan, dead-end, duplicate, placeholder, and over-linked pages;
-- remain crawlable, accessible, Persian-first, and compatible with future locales.
+- expose every approved indexable page through crawlable HTML links;
+- make category, product, selected variant, price, article, procurement, and RFQ relationships explicit;
+- move buyers from discovery to evaluation and then to a structured purchase request;
+- distribute authority from hubs to important detail pages without link stuffing;
+- reinforce one canonical topic owner for each search intent;
+- prevent orphan pages, dead ends, redirect links, filter traps, and duplicate URLs;
+- remain available in the initial server-rendered HTML;
+- remain functional when Odoo is slow, unavailable, or being upgraded;
+- support future English and Arabic locales without publishing placeholders in Phase 1.
 
-Internal links are part of the product experience, content model, SEO system, and conversion system. They must not be added as an afterthought or generated solely from repeated keywords.
+Internal links are part of the information architecture, SEO system, content model, conversion design, and publishing workflow. They MUST NOT be generated merely because a keyword appears in text.
 
 ---
 
-## 2. Source of Truth and Conflict Rules
+## 2. Normative Language
 
-Internal-link decisions must follow this authority order:
+The terms **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are normative.
 
-1. approved owner decisions in `DECISIONS.md`;
+- **MUST / MUST NOT:** required for release.
+- **SHOULD / SHOULD NOT:** expected unless a documented exception exists.
+- **MAY:** optional and context-dependent.
+
+Material deviations, route conflicts, or exceptions MUST be recorded in `DECISIONS.md` before implementation.
+
+---
+
+## 3. Related Sources and Precedence
+
+Internal-link decisions MUST follow this order:
+
+1. approved decisions in `DECISIONS.md`;
 2. `PROJECT_BRIEF.md`;
-3. `SITEMAP.md` for page existence and parent–child relationships;
-4. `INFORMATION_ARCHITECTURE.md` for user journeys and content grouping;
-5. `ROUTES.md` for exact paths, parameters, locale behavior, and route status;
-6. `SEO_KEYWORD_MAP.md` for query and topic ownership;
-7. `SEO_PAGE_MAP.md` for page-level SEO purpose;
-8. `CONTENT_STRATEGY.md` and `CONTENT_MODEL.md` for editorial relationships;
-9. `CTA_STRATEGY.md` for conversion actions;
-10. this file for internal-link obligations and implementation rules.
+3. `ROUTES.md` and `SITEMAP.md`;
+4. `INFORMATION_ARCHITECTURE.md`;
+5. `SEO_KEYWORD_MAP.md` and `SEO_PAGE_MAP.md`;
+6. `PRODUCT_CATALOG_SPEC.md` and `PRICING_SYSTEM.md`;
+7. `RFQ_SYSTEM.md` and `FORM_ARCHITECTURE.md`;
+8. `CMS_ARCHITECTURE.md` and `CONTENT_MODEL.md`;
+9. `METADATA_SPEC.md`, `STRUCTURED_DATA.md`, and `SITEMAP_ROBOTS_SPEC.md`;
+10. this document.
 
-If a path in this file differs from `ROUTES.md`, `ROUTES.md` wins. If a page is not approved in `SITEMAP.md`, it must not be published or linked merely because it appears in a component, CMS record, or older draft.
+If a path in an example below conflicts with the approved route registry, the approved registry wins. A page that is not approved in the sitemap MUST NOT be published or internally linked merely because a CMS record or Odoo product exists.
 
-### 2.1 Current approved architecture
+### 3.1 Blocking route normalization decision
 
-The current architecture uses these primary route families:
+Existing documents currently expose two candidate paths for the same primary acquisition flow:
 
-- `/procurement` for procurement-management capabilities;
-- `/process` for the collaboration and purchasing process;
-- `/materials` for material-group guidance;
-- `/industries` for buyer and industry needs;
-- `/projects` for verified evidence, only when released;
-- `/insights` for editorial knowledge, only when released;
-- `/resources` for durable tools and downloads, only when released;
-- `/request-consultation` as the canonical acquisition flow.
+- `/request` in `FORM_ARCHITECTURE.md`;
+- `/request-consultation` in earlier SEO and information-architecture documents.
 
-Older draft paths such as `/services`, `/products`, `/how-it-works`, or `/request` must not be used unless `ROUTES.md` explicitly defines them as redirects. Never preserve an obsolete route through an internal link.
+The site MUST have exactly one canonical RFQ/request route. It MUST NOT publish both as indexable forms.
 
-### 2.2 Conditional dependencies
+Recommended resolution:
 
-`SEO_KEYWORD_MAP.md` and `SEO_PAGE_MAP.md` remain mandatory inputs before final production anchor optimization. Until those documents are approved:
+1. use `/request` for the structured RFQ builder;
+2. permanently redirect `/request-consultation` to `/request` if the older path has already been exposed;
+3. update `ROUTES.md`, `SITEMAP.md`, `FORM_ARCHITECTURE.md`, `SEO_PAGE_MAP.md`, `CTA_STRATEGY.md`, and `DECISIONS.md` together;
+4. generate all internal links from the canonical route key, never from scattered literal strings.
 
-- use descriptive, natural Persian anchors;
-- derive topics from the visible page purpose and approved sitemap label;
-- do not invent exact-match keyword targets;
-- do not split pages merely to create more link destinations;
-- record unresolved topic ownership before launch.
+Until that decision is recorded, implementation MUST use the symbolic route key `request` and MUST NOT hardcode either candidate in reusable components.
+
+### 3.2 Unresolved catalog route patterns
+
+`/steel` is the approved catalog-style example, but exact public URL patterns for product, variant, price, and article pages are not yet confirmed by the source set.
+
+This document therefore uses route keys such as:
+
+```text
+catalogHub
+categoryDetail
+productDetail
+variantDetail
+priceHub
+priceDetail
+articleHub
+articleDetail
+request
+```
+
+`ROUTES.md` MUST map every key to one canonical path before implementation. Developers MUST NOT infer route patterns from examples in this document.
 
 ---
 
-## 3. Strategic Linking Model
+## 4. Architecture Boundary
 
-The link system follows the buyer journey:
+The internal-link graph belongs to the website SEO read model, not to Odoo.
 
-1. **Discover** — understand what Ahan Asa manages.
-2. **Understand** — learn how procurement is controlled.
-3. **Evaluate** — review relevant material, industry, and decision guidance.
-4. **Trust** — examine verified evidence, process, boundaries, and company information.
-5. **Qualify** — identify required inputs and suitable scope.
-6. **Act** — send an invoice, BOQ, or purchase list.
-7. **Handoff** — receive confirmation and a clear operational next step.
+```text
+Odoo commercial data
+        ↓ background sync
+D1 public read model + website SEO/CMS data
+        ↓ publication and relationship rules
+Server-rendered internal links
+        ↓
+Cloudflare cache
+        ↓
+Visitor and crawler
+```
 
-Links should move users forward or laterally to relevant supporting information. They must not repeatedly pull every user back to the homepage.
+### 4.1 Odoo responsibilities
 
-### 3.1 Authority-flow model
+Odoo is the source of truth for commercial products, variants, units, prices, customers, CRM opportunities, quotations, inventory, and sales operations.
+
+### 4.2 Website responsibilities
+
+The website is the source of truth for:
+
+- canonical public routes and slugs;
+- indexability and publication state;
+- SEO titles and descriptions;
+- editorial descriptions and buying guidance;
+- page relationships and internal-link labels;
+- articles and other CMS content;
+- breadcrumbs and related-content selections;
+- the public RFQ experience.
+
+### 4.3 No live Odoo dependency
+
+Public page rendering MUST NOT call Odoo synchronously to decide:
+
+- whether a link exists;
+- which URL a product uses;
+- what anchor text is displayed;
+- whether a page is indexable;
+- which related products or price pages appear.
+
+Only published D1/CMS records may participate in the public link graph. An Odoo outage MUST NOT remove stable internal links from cached pages or prevent navigation.
+
+---
+
+## 5. Strategic Link Model
+
+The primary buyer journey is:
+
+```text
+Discover
+   ↓
+Understand category or procurement need
+   ↓
+Evaluate product, variant, specification, and public price status
+   ↓
+Read guidance and verify buying requirements
+   ↓
+Build and submit a structured RFQ
+   ↓
+Continue commercially in Odoo
+```
+
+The website link graph ends at durable RFQ acceptance. CRM, quotation, negotiation, and sale-order work continue in Odoo and MUST NOT be presented as public checkout steps.
+
+### 5.1 Authority flow
 
 ```text
 Homepage
-├── Procurement hub
-│   ├── Requirements and specifications
-│   ├── Sourcing and supplier evaluation
-│   ├── Quotation comparison
-│   ├── Documentation and quality control
-│   └── Logistics and delivery coordination
-├── Process
-├── Materials hub
-│   └── Approved material pages
-├── Industries hub
-│   └── Approved industry pages
-├── Verified evidence
-│   └── Approved project details
-├── Knowledge
-│   ├── Insights and articles
-│   └── Resources and tools
-└── Request consultation
+├── Procurement and process hubs
+├── Catalog hub
+│   ├── Category pages
+│   │   ├── Product pages
+│   │   │   ├── Approved variant pages
+│   │   │   └── Related price pages
+│   │   └── Category price page
+│   └── Buying guides
+├── Price hub
+│   ├── Category price pages
+│   └── Approved product/variant price pages
+├── Articles hub
+│   └── Articles linked to canonical commercial owners
+└── Structured RFQ builder
 ```
 
-The homepage distributes authority to core hubs. Hubs distribute authority to their approved children. Detail pages return context to their parent hub and connect to the most relevant adjacent decision page. Knowledge and evidence pages support commercial pages; commercial pages selectively return users to the most useful knowledge or evidence.
+The homepage distributes authority to core hubs. Hubs link to all approved direct children. Detail pages link back to their parent, across to genuinely related decisions, and forward to the RFQ flow.
 
 ---
 
-## 4. Internal-Link Layers
+## 6. Route and Locale Rules
 
-Every internal link belongs to one of the following layers.
+### 6.1 Phase 1 URLs
 
-| Layer | Purpose | Typical component | Sitewide? |
+- Persian Phase 1 routes MUST be unprefixed.
+- `/fa/...` MUST NOT be generated or internally linked.
+- Paths MUST use lowercase ASCII, hyphenated slugs.
+- All indexable URLs MUST use `https://www.ahanassa.com` as canonical origin.
+- Internal application links SHOULD be root-relative.
+- Internal links MUST follow the trailing-slash policy in `ROUTES.md` consistently.
+- Links MUST point directly to canonical destinations and MUST NOT pass through redirects.
+
+### 6.2 Future locales
+
+The system MAY later support `/en` and `/ar`, but unpublished locales MUST return `404` and MUST NOT appear in navigation, sitemaps, `hreflang`, or internal links.
+
+When a locale is released:
+
+- ordinary internal links MUST remain inside the active locale;
+- the language switcher MUST target a real equivalent page, not an unrelated homepage;
+- translated anchors MUST reflect local user terminology;
+- route generation MUST come from the centralized locale-aware registry;
+- Persian content MUST remain unprefixed unless `DECISIONS.md` changes the locale policy.
+
+---
+
+## 7. Internal-Link Layers
+
+| Layer | Purpose | Typical component | Sitewide |
 |---|---|---|---|
-| Global navigation | Expose primary destinations | Header, mobile drawer | Yes |
-| Global support | Expose secondary, legal, and contact destinations | Footer, utility navigation | Yes |
-| Hierarchical | Show parent–child structure | Hub cards, breadcrumbs | On relevant families |
-| Contextual | Explain or continue a decision | Inline text link, callout | Page-specific |
-| Related-content | Offer a small set of genuinely adjacent pages | Related links block | Page-specific |
-| Evidence | Connect a claim to verified support | Case-study link, proof reference | When evidence exists |
-| Educational | Connect a commercial question to a guide or resource | Guide/resource link | When helpful |
-| Conversion | Move a qualified user into the request flow | CTA link/button | Major decision pages |
-| Transactional | Support an active request or confirmation | Confirmation link | System/flow pages |
+| Primary navigation | Expose major live hubs and RFQ | Header, mobile menu | Yes |
+| Support navigation | Company, contact, legal, selected hubs | Footer, utility area | Yes |
+| Hierarchical | Express parent–child structure | Hub cards, breadcrumbs | By family |
+| Contextual | Explain a relevant next decision | Inline link, callout | Page-specific |
+| Catalog relationship | Connect category, product, variant, unit | Product lists, specification modules | Page-specific |
+| Price relationship | Connect a product to its valid public price context | Price card, price table, status module | Page-specific |
+| Editorial | Connect guidance to canonical commercial owners | Article body, related guide block | Page-specific |
+| Conversion | Add an item or context to the structured RFQ | CTA, RFQ action | Decision pages |
+| Operational | Support confirmation and recovery | Thank-you/error pages | System-only |
 
-No single layer should carry the whole architecture. A page appearing only in the XML sitemap or footer is not considered adequately integrated.
+No important indexable page may rely only on the footer, internal search, an XML sitemap, or a client-side filter for discovery.
 
 ---
 
-## 5. Global Rules
+## 8. Global Link Requirements
 
-### 5.1 Link only to canonical, live routes
+### 8.1 Crawlable HTML
 
-- Every internal link must use the canonical path defined in `ROUTES.md`.
-- Do not link through redirects.
-- Do not link to `conditional`, `reserved`, draft, preview, staging, deleted, or placeholder routes.
-- Do not link to a dynamic record until its publication state, canonical slug, evidence state, and indexation rule are approved.
-- Do not link to a URL that returns `3xx`, `4xx`, `5xx`, soft-404, or incomplete placeholder content.
-- Use root-relative URLs in the application unless an absolute canonical URL is technically required.
-- Follow the project-wide trailing-slash and lowercase rules from `ROUTES.md`.
+Every SEO-relevant link MUST render as an HTML `<a>` element with a valid `href` in the initial response.
 
-### 5.2 Use real anchors
+The implementation MUST NOT use:
 
-Public navigation must use crawlable HTML anchors with valid `href` values. In Next.js, use the approved `Link` abstraction when client-side navigation is useful, while preserving rendered `<a href>` semantics.
-
-Do not use:
-
-- `div`, `span`, or button elements as substitutes for links;
+- `div`, `span`, or button elements as substitutes for navigation links;
 - `onClick`-only navigation;
-- JavaScript-generated URLs unavailable in initial HTML;
-- links hidden until client-side data fetching completes;
-- inaccessible nested interactive controls;
-- empty anchors or icon-only anchors without accessible names.
+- empty anchors;
+- client-fetched critical links absent from initial HTML;
+- URLs assembled only after user interaction;
+- icon-only links without localized accessible names.
 
-### 5.3 Do not use `nofollow` on normal internal links
+Next.js navigation MAY use the approved `Link` abstraction, provided it renders normal `<a href>` semantics.
 
-Normal internal navigation, contextual links, breadcrumbs, and conversion links must remain followable. Do not attempt to sculpt authority with `rel="nofollow"`.
+### 8.2 Canonical live destinations only
 
-Use link attributes only for their actual purpose:
+Public internal links MUST target records that are:
 
-- `aria-current="page"` for the current destination;
-- `hreflang` only in approved locale alternates, not ordinary content links;
-- `download` only for real downloadable resources where that behavior is intended;
-- `target="_blank"` only when a documented UX reason exists, never by default.
+- published;
+- publicly accessible;
+- assigned a canonical route;
+- allowed to appear in the link graph;
+- compatible with the current locale;
+- not expired, deleted, preview-only, or placeholder content.
 
-### 5.4 One canonical destination per concept
+Internal links MUST NOT target `3xx`, `4xx`, `5xx`, soft-404, preview, staging, or unpublished URLs.
 
-Each dominant topic must have one owner page. Multiple anchors may vary naturally, but they must point to the same canonical owner when they express the same intent.
+### 8.3 Normal links remain followable
 
-Do not create competing pages for:
+Normal internal links MUST NOT use `rel="nofollow"`. Authority sculpting through internal `nofollow` is prohibited.
 
+### 8.4 One canonical owner per intent
+
+Each dominant topic MUST have one canonical owner page. Similar anchor phrases expressing the same intent MUST converge on that owner.
+
+Examples of intents requiring one owner:
+
+- a steel category;
+- a commercial product;
+- an approved variant or size landing page;
+- a price topic;
+- a buying guide topic;
 - procurement management;
-- the procurement process;
-- a single material group;
-- a single industry need;
-- one guide topic;
-- one project or resource.
+- the structured RFQ flow.
 
-### 5.5 Relevant links before numerous links
+### 8.5 Relevance before quantity
 
-Every link must answer at least one question:
+Every contextual link MUST do at least one of the following:
 
-- Does this clarify the current topic?
-- Does this help the user evaluate the purchase?
-- Does this prove a visible claim?
-- Does this show the parent, child, or next stage?
-- Does this help prepare a qualified request?
+- clarify the current topic;
+- expose a parent or child relationship;
+- help compare products or variants;
+- explain price context or freshness;
+- support a visible buying decision;
+- connect guidance to the commercial topic owner;
+- help the user prepare or submit an RFQ.
 
-If none applies, remove the link.
+If none applies, the link SHOULD be removed.
 
 ---
 
-## 6. Canonical Route Families and Status
+## 9. Page-Family Link Matrix
 
-| Family | Canonical pattern | Status | Link rule |
+The following matrix defines required relationships. A requirement applies only when the destination is approved and published.
+
+| Source family | Required outgoing links | Preferred contextual links | Required inbound sources |
 |---|---|---|---|
-| Home | `/` | Launch Core | Linked by logo and selected contextual references; not used as a universal fallback |
-| Procurement hub | `/procurement` | Launch Core | Strong global and contextual inbound links |
-| Procurement capability | `/procurement/[approved-slug]` | Launch Core | Linked from hub, relevant process steps, material/industry pages, and related capability pages |
-| Process | `/process` | Launch Core | Linked globally and from pages explaining scope or next steps |
-| Materials hub | `/materials` | Launch Core | Linked globally and from procurement/process content |
-| Material detail | `/materials/[approved-slug]` | Conditional | Link only after category release gate passes |
-| Industries hub | `/industries` | Launch Core | Linked globally and from relevant commercial content |
-| Industry detail | `/industries/[approved-slug]` | Post-Launch | Link only after unique content and evidence approval |
-| Projects hub | `/projects` | Conditional | Link only after evidence release gate passes |
-| Project detail | `/projects/[project-slug]` | Conditional | Link only to verified published projects |
-| Insights hub | `/insights` | Conditional | Link only when hub has a useful approved collection |
-| Insight detail | `/insights/[article-slug]` | Conditional | Link from relevant topic owners; no forced reciprocal linking |
-| Resources hub | `/resources` | Conditional | Link only when at least one useful resource and hub context are live |
-| Resource detail | `/resources/[resource-slug]` | Conditional | Link from relevant decision pages and guides |
-| About | `/about` | Launch Core | Global/footer plus trust-context links |
-| FAQ | `/faq` | Launch Core | Footer and contextual links from questions the page expands |
-| Contact | `/contact` | Launch Core | Utility/footer; lower priority than the primary request flow |
-| Consultation request | `/request-consultation` | Launch Core | Canonical primary conversion destination |
-| Thank-you | `/request-consultation/thank-you` | System/noindex | Reach only after valid submission; never place in navigation or content |
-| Legal | `/privacy`, `/terms-of-use` | Required when approved | Footer and relevant form consent only |
-
-Approved procurement child paths are:
-
-- `/procurement/requirements-and-specifications`;
-- `/procurement/sourcing-and-supplier-evaluation`;
-- `/procurement/quotation-comparison`;
-- `/procurement/documentation-and-quality-control`;
-- `/procurement/logistics-and-delivery`.
-
-Approved conditional material paths are:
-
-- `/materials/structural-sections`;
-- `/materials/rebar-and-wire`;
-- `/materials/plates-sheets-and-coils`;
-- `/materials/hollow-sections`;
-- `/materials/pipes-and-tubes`;
-- `/materials/custom-and-fabricated-steel`.
-
-Conditional pages must not appear in components, navigation, footer, sitemap, related-content lists, or editorial copy before publication approval.
+| Homepage | Procurement hub, Process, Catalog hub, Price hub when live, request flow | Selected categories, guides, About | Logo, recovery pages, brand references |
+| Procurement hub | Approved capability children, Process, request flow | Catalog, relevant guides | Header, Homepage, Footer, child pages |
+| Procurement capability | Parent hub, Process or adjacent capability, request flow | Relevant categories, guides, price explanation | Parent hub and related commercial/editorial pages |
+| Catalog hub | Every published category, request flow | Procurement, price hub, selected guides | Header, Homepage, Footer, category pages, articles |
+| Category page | Catalog hub, published products, category price page if valid, request flow | Buying guide, related category, procurement capability | Catalog hub, product pages, price pages, relevant articles |
+| Product page | Category parent, approved variants, exact price owner if valid, request flow | Specifications guide, complementary product, related article | Category, variant, price, article, RFQ context recovery |
+| Variant page | Product parent, category parent through breadcrumb, exact price owner if valid, request flow | Closely related variants, specification guide | Product, price page, relevant article |
+| Price hub | Published category price pages, request flow | Price methodology/freshness guide, catalog hub | Header when approved, Homepage, category and product pages |
+| Category price page | Price hub, category page, priced products/variants, request flow | Price methodology, buying guide | Price hub, category, products, articles |
+| Product/variant price page | Price parent, exact product/variant, request flow | Alternatives, specification guide | Price hub/category price page, product/variant, article |
+| Articles hub | Published articles, main commercial hubs | Selected guides and request flow with low weight | Header/Footer after release, Homepage selection |
+| Article detail | Article hub, one to three canonical topic owners | Relevant price page, related article, request flow when intent is commercial | Articles hub, relevant commercial owner, curated related articles |
+| Process | Procurement hub, relevant capability, request flow | Catalog and preparation guide | Header, Homepage, commercial pages |
+| About | Procurement, Process, Contact, request flow | Verified evidence when available | Header/Footer, Homepage, trust sections |
+| Request/RFQ | Process, privacy, support contact | Preparation guide, catalog return | Header CTA, Homepage, all major commercial pages |
+| Thank-you | Process, Catalog hub or Homepage, Contact when needed | None | Valid submission flow only |
 
 ---
 
-## 7. Page-Level Link Obligations
+## 10. Homepage Rules
 
-The following matrix defines minimum relationships. “Required” means the link must exist when the destination is live and contextually supported.
+The homepage MUST link to:
 
-| Source page/family | Required outgoing links | Preferred contextual links | Required inbound sources |
-|---|---|---|---|
-| Homepage | Procurement hub, Process, Materials hub, Industries hub, primary request | About; live evidence; selected live guide/resource | Logo, not-found recovery, selected brand references |
-| Procurement hub | Five procurement children, Process, primary request | Materials, Industries, verified evidence, relevant resources | Header, Homepage, Footer, procurement children, related knowledge |
-| Procurement child | Procurement hub, relevant next/previous capability, Process, primary request | Relevant material/industry, one useful guide/resource, verified evidence | Procurement hub, related capability, relevant material/industry/knowledge |
-| Process | Procurement hub, relevant capability pages, primary request | Materials, FAQ, relevant resource | Header, Homepage, Footer, commercial pages, CTA secondary links |
-| Materials hub | Published material children, Procurement hub, Process, primary request | Requirements, quotation comparison, documentation, relevant guides | Header, Homepage, Footer, procurement and industry pages |
-| Material detail | Materials hub, Requirements, relevant procurement capability, primary request | Industry page, guide/resource, verified project | Materials hub, relevant procurement/industry/knowledge pages |
-| Industries hub | Procurement hub, Process, Materials hub, primary request | Published industry children, verified evidence | Header, Homepage, Footer, relevant commercial pages |
-| Industry detail | Industries hub, relevant material groups, relevant capability, primary request | Project, guide, resource | Industries hub, related materials, knowledge, verified project |
-| Projects hub | Published project details, Procurement hub, primary request | Relevant capabilities, materials, industries | Homepage when approved, Header/Footer when approved, About, related pages |
-| Project detail | Projects hub, capability used, relevant material/industry, primary request | Related guide/resource; next relevant project | Projects hub, directly related commercial pages, selected insight/resource |
-| Insights hub | Published articles, Procurement or Materials hub | Resources and primary request with low visual weight | Header/Footer only after release, Homepage selected content |
-| Insight article | Parent hub, one or two topic-owner pages | Relevant resource, verified project, request CTA when intent is commercial | Insights hub, relevant topic owner, related articles where genuinely useful |
-| Resources hub | Published resources, relevant commercial hubs | Insights and primary request | Header/Footer only after release, Homepage selected content |
-| Resource detail | Parent hub, topic-owner page, relevant process/capability | Related insight, request flow | Resources hub, relevant commercial and editorial pages |
-| About | Procurement hub, Process, Contact, primary request | Verified projects/evidence | Header/Footer, Homepage, trust sections, selected articles |
-| FAQ | Procurement hub, Process, relevant topic owner, primary request | Contact for non-procurement support | Footer, contextual question references, request page help |
-| Contact | Primary request for procurement needs, About, Privacy | FAQ | Utility navigation, Footer, About, system recovery |
-| Request page | Process, Privacy, FAQ or Contact for support | Relevant preparation resource | Header CTA, Homepage, every major commercial page, contextual CTAs |
+1. the procurement-management hub;
+2. the process page;
+3. the catalog hub;
+4. the canonical RFQ/request flow;
+5. About or an equivalent trust destination;
+6. the price hub when it is released and useful.
 
-### 7.1 Minimum inbound-link rule
-
-Every indexable launch page must have:
-
-- at least one structural inbound link from a parent, hub, header, or footer;
-- at least one contextual inbound link from another relevant indexable page where a natural relationship exists;
-- a crawl depth appropriate to its importance;
-- no dependency on search, filters, JavaScript state, or XML sitemap discovery alone.
-
-New detail pages should not be published until their inbound-link plan is approved.
-
----
-
-## 8. Homepage Linking Rules
-
-The homepage is the strongest discovery and authority-distribution page. It must link to the site’s major live decisions without becoming a directory.
-
-Required homepage links:
-
-1. procurement-management hub;
-2. procurement process;
-3. materials hub;
-4. industries hub;
-5. canonical request flow;
-6. about/trust destination where context supports it.
-
-Conditional homepage links:
-
-- published material children featured in a material-group section;
-- verified projects in an evidence section;
-- selected insights or resources in a knowledge section;
-- FAQ page through a clear “more questions” link.
+The homepage SHOULD feature a curated subset of high-value categories, but MUST NOT list every product or variant merely to reduce crawl depth.
 
 Rules:
 
-- Every featured card must have one canonical destination.
-- A whole-card link may be used only with accessible, valid markup; do not add several nested anchors to the same destination.
-- Avoid repeating the same destination with identical visible anchors in adjacent sections.
-- The primary CTA may appear in more than one strategic location, but repeated instances must serve different journey moments and use consistent labeling.
-- Do not link to all detail pages from the homepage merely to reduce crawl depth.
-- Conditional families disappear cleanly when unpublished; no empty headings or “coming soon” cards remain.
+- Featured cards MUST have one canonical destination.
+- A card MUST NOT contain nested links competing with the main card link.
+- Conditional sections MUST disappear cleanly when empty.
+- The primary RFQ CTA MAY appear at more than one decision point, but each instance MUST have a distinct UX role.
+- The homepage MUST NOT become a complete sitemap or price ticker.
 
 ---
 
-## 9. Hub-and-Cluster Rules
+## 11. Hub-and-Child Rules
 
-### 9.1 Hub responsibilities
+### 11.1 Hub obligations
 
-Every hub must:
+Every hub MUST:
 
-- introduce the family and its decision value;
+- introduce its family and user value;
 - link to every published direct child;
-- use unique summaries rather than duplicate child-page introductions;
-- explain how child topics relate;
-- link to the most relevant next-stage hub or process page;
-- provide a proportionate path to the request flow;
-- receive a breadcrumb or contextual return link from every child.
+- use unique child summaries;
+- explain how children differ or relate;
+- provide a relevant path to the next hub or RFQ;
+- exclude drafts and records without complete public content.
 
-### 9.2 Child responsibilities
+### 11.2 Child obligations
 
-Every child page must:
+Every detail page MUST:
 
-- link back to its parent hub;
-- link to one or two adjacent children only when the user relationship is real;
-- link to the next useful decision, not automatically to every sibling;
-- avoid copying a generic “related services” block across the whole family;
-- link to a relevant guide, resource, or project only when published and useful;
-- provide the canonical request action with editable topic context where approved.
+- link back to its true parent;
+- include a visible breadcrumb;
+- link to the next relevant decision;
+- avoid a generic list of every sibling;
+- provide a proportionate path to the RFQ flow;
+- avoid self-links and duplicate destinations in the same component.
 
-### 9.3 Sibling-link rule
+### 11.3 Sibling links
 
-Sibling links are not mandatory merely because pages share a parent. Use them when:
-
-- one capability naturally follows another;
-- two materials are commonly evaluated together;
-- a guide explicitly compares or distinguishes the sibling topics;
-- a project includes both topics;
-- the next page resolves a predictable user question.
-
-Do not render a complete sibling list at the bottom of every page if the parent hub already performs that job.
+Sibling links SHOULD appear only when the relationship is useful—for example, common comparison, substitution, compatibility, adjacent size, or shared buying decision. Sharing a parent alone is not sufficient.
 
 ---
 
-## 10. Procurement Capability Sequence
+## 12. Catalog Linking Rules
 
-The procurement family may use a logical decision sequence:
+### 12.1 Catalog hub
 
-1. `/procurement/requirements-and-specifications`
-2. `/procurement/sourcing-and-supplier-evaluation`
-3. `/procurement/quotation-comparison`
-4. `/procurement/documentation-and-quality-control`
-5. `/procurement/logistics-and-delivery`
+The catalog hub MUST link to all published steel categories and MAY also link to procurement guidance, the price hub, and the RFQ builder.
 
-This sequence is conceptual, not a rigid carousel. Each capability page should link to the most likely previous or next decision only when the page copy supports it.
+It MUST NOT expose:
 
-Recommended contextual relationships:
+- unpublished Odoo products;
+- internal product codes without user value;
+- supplier or inventory records;
+- thin pages generated only from attribute combinations;
+- query-string filter states as indexable landing pages.
 
-| Page | Strongest adjacent destination | Reason |
-|---|---|---|
-| Requirements and Specifications | Sourcing and Supplier Evaluation | Clear inputs enable reliable sourcing |
-| Sourcing and Supplier Evaluation | Quotation Comparison | Suitable options must be compared consistently |
-| Quotation Comparison | Documentation and Quality Control | Commercial comparison must include documentation and compliance |
-| Documentation and Quality Control | Logistics and Delivery | Approved documents and responsibilities support controlled delivery |
-| Logistics and Delivery | Process or Request | The user can understand the full workflow or begin an inquiry |
+### 12.2 Category pages
 
-Use natural contextual phrasing. Do not label the pages “Step 1–5” unless the approved service workflow formally defines them as fixed steps.
+Each category page MUST link to:
+
+- the catalog hub;
+- all approved direct product children, through crawlable server-rendered links;
+- the category price page when a distinct approved price intent exists;
+- the structured RFQ flow;
+- at least one relevant guide or procurement page when available.
+
+Category pages SHOULD surface the most important specifications and buying distinctions before presenting long child lists.
+
+### 12.3 Product pages
+
+Each product page MUST link to:
+
+- its category parent;
+- approved variant pages or a non-indexable variant selector;
+- its canonical price owner, when a valid public price page exists;
+- the RFQ builder with a non-sensitive product context key;
+- one relevant buying/specification guide when available.
+
+Product pages MAY link to complementary or substitute products when the relationship is curated and explained.
+
+### 12.4 Variant pages
+
+A variant page may be indexable only when it has approved search intent, unique useful content, stable identity, and sufficient inbound links. An Odoo variant alone does not justify a public page.
+
+Every published variant page MUST link to:
+
+- its product parent;
+- its canonical price page when one exists;
+- the RFQ builder;
+- one or two closely related variants only when useful;
+- an appropriate specification or buying guide.
+
+### 12.5 Free-text RFQ items
+
+The “item not found” option belongs in the RFQ experience. It MUST NOT generate a public page, indexable URL, or crawlable pseudo-product link.
 
 ---
 
-## 11. Materials Linking Rules
+## 13. Price Linking Rules
 
-Material pages support procurement decisions; they are not catalog or inventory pages.
+### 13.1 Price pages are not isolated feeds
 
-Every published material page should link to:
+Every public price page MUST connect price information to the correct category, product, or variant page and to the RFQ flow.
 
-- `/materials` as parent context;
-- `/procurement/requirements-and-specifications` for information quality;
-- one additional procurement capability based on the material’s actual buying risk;
-- `/process` when the buyer needs workflow clarity;
-- `/request-consultation` with approved, editable material context;
-- one relevant guide/resource or project when real content exists.
+Price pages MUST NOT be published as thin pages containing only a number and timestamp.
 
-Examples of useful relationships:
+### 13.2 Price eligibility
 
-- specification-heavy materials → Requirements and Documentation pages;
-- supplier-sensitive materials → Sourcing and Supplier Evaluation;
-- commercially complex orders → Quotation Comparison;
-- staged or site-sensitive deliveries → Logistics and Delivery.
+A numeric-price link or anchor that implies a current price may render only when the price is:
 
-Prohibited behavior:
+- approved for public display;
+- complete with unit and currency;
+- fresh under `PRICING_SYSTEM.md` policy;
+- mapped to a published public entity;
+- consistent with visible structured data.
 
-- auto-linking every mention of `میلگرد`, `ورق`, `پروفیل`, `لوله`, or other product words;
-- linking unapproved grade, standard, size, brand, factory, city, or price pages;
-- generating filter URLs as crawlable landing pages;
-- creating material links that imply live inventory, official dealership, lowest price, or guaranteed supply;
-- linking a generic phrase such as `محصولات` to different destinations on different pages.
+### 13.3 Fresh price state
+
+When a current public price is valid, descriptive anchors MAY include price intent, for example:
+
+- `قیمت میلگرد ۱۶`;
+- `مشاهده قیمت روز تیرآهن IPE 18`;
+- `قیمت و مشخصات ورق سیاه ۱۰ میلی‌متر`.
+
+The destination MUST visibly show the price, unit, update time, and relevant limitations.
+
+### 13.4 Stale, hidden, or unavailable price state
+
+When the price is stale, withheld, incomplete, or unapproved:
+
+- the site MUST NOT use anchor text that promises a visible current price;
+- numeric price structured data MUST be absent;
+- the user MAY be linked to a useful status or buying page using neutral text;
+- the RFQ action SHOULD become the primary commercial continuation.
+
+Acceptable examples:
+
+- `بررسی وضعیت قیمت و شرایط خرید`;
+- `ارسال درخواست قیمت`;
+- `ارسال لیست خرید برای بررسی`.
+
+### 13.5 Price-to-product reciprocity
+
+When both pages are indexable:
+
+- the price page MUST link to the exact product or variant page;
+- the product or variant page SHOULD link to the exact price owner;
+- both MUST use the same canonical entity mapping;
+- neither may generate query-string duplicates of the other.
 
 ---
 
-## 12. Industry Linking Rules
+## 14. Article and Guide Linking Rules
 
-The launch Industries hub may serve multiple buyer groups on one complete page. Individual industry pages remain unpublished until each has unique needs, workflow, proof, and content ownership.
+### 14.1 Editorial to commercial
 
-When industry children are approved, each must link to:
+Every article SHOULD link to one to three canonical topic owners where the reader needs the next explanation. The links MUST be editorially selected, not inserted through automatic keyword replacement.
 
-- `/industries`;
-- the relevant procurement capability or capabilities;
-- the relevant published material group pages;
+Typical relationships:
+
+- buying guide → category page;
+- specification article → product or selected variant page;
+- market/price explanation → canonical price hub or category price page;
+- procurement article → relevant procurement capability;
+- RFQ preparation guide → request flow.
+
+### 14.2 Commercial to editorial
+
+Commercial pages SHOULD link to guides that reduce uncertainty. They MUST NOT display an unfiltered “latest articles” feed when topical relevance is unknown.
+
+### 14.3 Related articles
+
+A related-content block SHOULD normally contain two to four curated items. Relevance takes priority over recency.
+
+### 14.4 Taxonomy and archives
+
+Tag, author, date, search-result, and filter URLs MUST NOT become indexable internal-link targets in Phase 1 unless separately approved in the sitemap and SEO map.
+
+---
+
+## 15. Procurement and Process Links
+
+The established procurement family includes:
+
+- `/procurement`;
 - `/process`;
-- verified industry evidence, when available;
-- `/request-consultation`.
+- `/procurement/quotation-comparison`;
+- `/procurement/sourcing-and-supplier-evaluation`;
+- `/procurement/documentation-and-quality-control`;
+- `/procurement/logistics-and-delivery`.
 
-Do not publish or link industry pages that merely replace the industry name in a shared template. A distinct internal-link neighborhood is one release criterion: each page should have at least two meaningful topical relationships beyond its parent and CTA.
+Each procurement capability page MUST link to:
 
----
+- `/procurement`;
+- `/process` or the most relevant adjacent capability;
+- the canonical RFQ route key;
+- relevant catalog, price, or guide pages where the relationship is real.
 
-## 13. Projects and Evidence Links
-
-Projects exist to substantiate visible claims. They must not be used as decorative galleries or fabricated social proof.
-
-### 13.1 Project detail requirements
-
-A published project detail should link to:
-
-- the Projects hub;
-- the procurement capability actually demonstrated;
-- the material and industry pages actually involved, if those pages are live;
-- a related guide/resource only when it explains a decision present in the case;
-- the request flow with neutral, non-guaranteeing copy.
-
-### 13.2 Commercial-page evidence links
-
-A commercial page may link to a project only when:
-
-- the project fact is verified and approved;
-- the visible claim and project evidence directly correspond;
-- the anchor accurately describes what the reader will see;
-- the project page does not imply a broader capability than the evidence supports.
-
-Avoid generic anchors such as `نمونه کار` when a more descriptive phrase is possible, for example:
-
-- `مشاهده نمونه مدیریت تأمین این پروژه`
-- `بررسی تجربه هماهنگی خرید و تحویل`
-
-Do not link client names, statistics, certificates, supplier logos, or outcome claims to unrelated pages.
+These pages explain Ahan Asa’s controlled procurement role. They MUST NOT imply that the site itself performs checkout, inventory reservation, payment, or final quotation.
 
 ---
 
-## 14. Insights and Resources Links
+## 16. RFQ Conversion Linking
 
-### 14.1 Editorial-to-commercial links
+The structured RFQ builder is the primary conversion destination.
 
-An insight article should contain a small number of useful links to canonical topic owners. Links must appear where the reader needs the next explanation, not in keyword-stuffed paragraphs.
+Approved primary labels include:
 
-Typical pattern:
+- `ارسال لیست خرید`;
+- `ارسال لیست آهن‌آلات`;
+- `ثبت درخواست قیمت`;
+- `افزودن به لیست استعلام`;
+- `درخواست بررسی خرید`.
 
-- article → relevant procurement capability;
-- article → relevant material or industry page;
-- article → supporting resource/checklist;
-- article → request flow only when the reader is likely ready to act.
+Generic `تماس با ما` links MUST NOT replace the RFQ action on product, variant, category, or price pages.
 
-### 14.2 Commercial-to-editorial links
+### 16.1 Context passing
 
-Commercial pages may link to a guide or resource that reduces uncertainty. They should not display a generic feed of the latest articles when topic relevance is unknown.
+Links MAY pass approved non-sensitive context such as:
 
-### 14.3 Related-content limit
+- category public ID;
+- product public ID;
+- variant public ID;
+- source page key;
+- intended action.
 
-Use a curated set, normally two to four items. Prefer topical adjacency over recency. Each item must have:
+They MUST NOT place the following in the URL:
 
-- a real destination;
-- a unique descriptive title;
-- an approved publication state;
-- a visible relationship to the current page;
-- no duplicate destination elsewhere in the same block.
+- customer name, phone, email, or company;
+- quantity or confidential buying data;
+- uploaded filenames or attachment metadata;
+- Odoo record IDs;
+- quotation, price-list, supplier, or inventory identifiers;
+- internal UTM parameters.
 
-### 14.4 Archives and taxonomy
+All RFQ fields MUST remain editable. Query variants MUST canonicalize to the single RFQ route and MUST NOT enter sitemaps or become indexable.
 
-Tag, author, date, filter, and search-result URLs must not become indexable internal-link targets during Phase 1 unless separately approved in the sitemap and SEO map. Taxonomy chips may filter the current interface without generating crawlable thin archives.
+### 16.2 “Add to RFQ” behavior
 
----
+An “Add to RFQ” control is an application action, not a substitute for the product’s canonical detail link.
 
-## 15. Conversion Linking
+- Product names MUST remain normal crawlable links to product pages.
+- Add-to-RFQ controls SHOULD be buttons when they mutate client state.
+- The final “Review/Submit RFQ” navigation MUST link to the canonical request route.
+- A client-side RFQ basket MUST NOT create crawlable item-state URLs.
 
-The canonical primary conversion is:
+### 16.3 Confirmation page
 
-> **ارسال فاکتور یا لیست خرید** → `/request-consultation`
+The thank-you page MUST:
 
-All major commercial pages must provide a clear path to this single flow. Do not create separate forms or destination paths for every material, service, article, or campaign.
-
-### 15.1 Approved supporting anchors
-
-- `ارسال فاکتور یا لیست خرید`
-- `ارسال لیست خرید برای بررسی`
-- `درخواست مشاوره خرید`
-- `آشنایی با فرآیند خرید` → `/process`
-- `تماس با ما` → `/contact`
-
-Topic-specific conversion labels are allowed only for approved live topics, for example:
-
-- `ارسال درخواست خرید ورق`
-- `ارسال درخواست خرید پروفیل`
-- `درخواست بررسی مشخصات فنی`
-
-### 15.2 Context passing
-
-When the request flow accepts source context:
-
-- pass only an approved non-sensitive topic key or source identifier;
-- keep all fields editable by the user;
-- do not place personal, commercial, document, or project data in the URL;
-- canonicalize the request page to `/request-consultation`;
-- prevent query variants from entering the XML sitemap or becoming indexable;
-- do not use internal UTM parameters.
-
-### 15.3 CTA restraint
-
-Internal linking must not turn every paragraph into a conversion prompt. A page may include:
-
-- a primary action at the appropriate decision point;
-- an optional mid-page contextual action after sufficient explanation;
-- a final action after scope, process, or proof.
-
-Adjacent repeated CTA links should be consolidated. Trust and clarity must precede pressure.
+- remain `noindex` and outside navigation and XML sitemaps;
+- be reachable only after valid acceptance or an approved recovery state;
+- link to Process, the Catalog hub, Homepage, or Contact as useful continuations;
+- avoid exposing submitted item or customer data in its URL or HTML source.
 
 ---
 
-## 16. Anchor Text System
+## 17. Anchor Text System
 
-### 16.1 Anchor principles
+### 17.1 Principles
 
-Anchor text must be:
+Anchor text MUST be:
 
-- clear in Persian without surrounding context where practical;
-- descriptive of the destination;
-- natural in the sentence;
-- consistent with the destination’s approved topic;
-- varied only when user intent varies;
-- free from exaggerated claims or keyword stuffing.
+- descriptive in Persian;
+- accurate for the destination’s visible content;
+- natural in its sentence;
+- aligned with the page’s approved topic ownership;
+- free from unsupported price, inventory, or superiority claims;
+- concise enough to scan on mobile.
 
-### 16.2 Anchor types
+### 17.2 Examples
 
-| Type | Example | Use |
+| Avoid | Prefer | Destination purpose |
 |---|---|---|
-| Exact destination label | `فرآیند همکاری` | Navigation, hubs, breadcrumbs |
-| Descriptive partial phrase | `روش مقایسه پیشنهادهای خرید` | Contextual editorial links |
-| Action-oriented | `ارسال فاکتور یا لیست خرید` | Canonical conversion |
-| Evidence-oriented | `مشاهده تجربه مدیریت تأمین پروژه` | Verified project links |
-| Educational | `راهنمای آماده‌سازی لیست خرید` | Insight/resource links |
-| Parent reference | `بازگشت به گروه‌های کالایی` | Breadcrumb or contextual return |
+| `اینجا کلیک کنید` | `مشاهده راهنمای خرید میلگرد` | Guide |
+| `بیشتر` | `مشاهده مشخصات تیرآهن IPE` | Product |
+| `محصولات` | `دسته‌بندی آهن‌آلات` | Catalog hub |
+| `قیمت` | `قیمت و شرایط خرید ورق سیاه` | Price owner |
+| `خرید فوری` | `ارسال لیست خرید برای بررسی` | RFQ |
+| `ارزان‌ترین میلگرد` | `بررسی قیمت و مشخصات میلگرد` | Neutral commercial page |
+| `خدمات` | `مدیریت تأمین فولاد` | Procurement hub |
 
-### 16.3 Good and poor examples
+### 17.3 Repetition
 
-| Avoid | Prefer | Reason |
-|---|---|---|
-| `اینجا کلیک کنید` | `آشنایی با فرآیند خرید` | Destination is understandable |
-| `بیشتر` | `مشاهده جزئیات مدیریت تأمین` | Meaning survives out of context |
-| `محصولات` | `گروه‌های کالایی فولاد` | Matches the non-retail architecture |
-| `خدمات` | `مدیریت تأمین فولاد` | Reinforces the approved position |
-| `بهترین قیمت آهن` | `بررسی شرایط و پیشنهادهای خرید` | Avoids unsupported price claim |
-| `خرید فوری` | `ارسال لیست خرید برای بررسی` | Reflects the actual workflow |
-| repeated exact-match phrase | natural topic-specific phrase | Avoids manipulation and poor reading |
+Repeated links to the same destination within one component SHOULD be consolidated. Repetition across header, breadcrumb, body, and CTA is acceptable when each instance serves a different interface role.
 
-### 16.4 Repetition rule
+### 17.4 Automatic keyword linking
 
-Repeated links to the same destination within one content block should normally be consolidated. If the same destination appears in header, breadcrumb, body, and CTA, each instance must serve a distinct interface role.
-
-Do not force a unique anchor for every occurrence. Consistency is more valuable than artificial variation.
-
-### 16.5 Linked area
-
-Link the smallest complete phrase that accurately names the destination. Avoid linking full paragraphs, long clauses, punctuation, or unrelated adjectives.
-
----
-
-## 17. Link Placement and Density
-
-There is no sitewide numeric quota. Link count must follow page length, complexity, and intent.
-
-### 17.1 Placement priority
-
-Prefer:
-
-1. a natural contextual link near the relevant statement;
-2. a structural link in a hub or breadcrumb;
-3. a curated related-content block near the end;
-4. a relevant conversion link after sufficient explanation.
-
-Avoid:
-
-- dense lists inserted only for search engines;
-- multiple links in every paragraph;
-- a large “all pages” block on every page;
-- repeated footer-like link sections inside body content;
-- links in headings unless the component intentionally represents linked cards or navigation;
-- links that interrupt Persian reading flow or create ambiguous tap targets.
-
-### 17.2 First-main-content link
-
-Where natural, the first contextual main-content link should point to the page most necessary to understand or continue the current topic—not automatically to the parent or CTA.
-
-### 17.3 Duplicate destinations
-
-Within the main content, avoid linking to the same destination more than once unless:
-
-- the page is long and the later link serves a different decision point;
-- one link is explanatory and another is the final action;
-- accessibility and responsive component behavior require a separate instance.
+The CMS MUST NOT automatically link every occurrence of terms such as `میلگرد`, `تیرآهن`, `ورق`, `پروفیل`, `لوله`, grades, sizes, factories, or cities.
 
 ---
 
 ## 18. Breadcrumbs
 
-Breadcrumbs are required for approved detail-page families and optional on top-level hubs.
+Breadcrumbs MUST express the actual public hierarchy.
 
-Recommended patterns:
+Conceptual examples:
 
 ```text
-خانه ← مدیریت تأمین ← مقایسه پیشنهادهای خرید
-خانه ← گروه‌های کالایی ← ورق، شیت و کویل
-خانه ← پروژه‌ها ← [نام پروژه]
-خانه ← دانش و بینش‌ها ← [عنوان مقاله]
-```
-
-In the Persian RTL interface, visual direction must be correct while DOM order remains logical for assistive technology.
-
-Rules:
-
-- Use real canonical anchors for ancestors.
-- The current page is plain text or uses `aria-current="page"`; it must not link to itself.
-- Do not invent breadcrumb ancestors that are absent from the sitemap.
-- Do not include query parameters, filters, or session state.
-- Breadcrumb structured data must match the visible breadcrumb.
-- Keep labels concise and consistent with navigation naming.
-- On mobile, preserve meaningful ancestors; do not replace the trail with an unlabeled back icon.
-
----
-
-## 19. Header, Footer, and Utility Links
-
-### 19.1 Header
-
-The header exposes a small set of understandable primary destinations and one high-value request action. Final labels and availability come from `HEADER_NAVIGATION_SPEC.md`, `SITEMAP.md`, and `ROUTES.md`.
-
-Header links must:
-
-- be server-rendered and crawlable;
-- use canonical paths;
-- show exact and descendant active states;
-- avoid query parameters;
-- omit conditional destinations until released;
-- remain accessible by keyboard, pointer, and touch.
-
-### 19.2 Footer
-
-The footer supports orientation; it does not duplicate the entire sitemap. It should expose approved links in compact groups:
-
-- procurement and process;
-- published material groups;
-- evidence and knowledge, when live;
-- company, contact, and consultation;
-- privacy and terms.
-
-The footer alone is insufficient as the only inbound link for an important indexable page.
-
-### 19.3 Utility links
-
-Contact, legal, and any future request-tracking function may use utility placement. A tracking link must not be shown until a real, approved route and operational workflow exist in `ROUTES.md`.
-
----
-
-## 20. Conditional, Noindex, and System Pages
-
-### 20.1 Conditional pages
-
-Until release approval, conditional pages must have no internal links. Do not create hidden links, disabled anchors, preloaded menu items, or placeholder cards.
-
-When activated:
-
-1. update the route manifest;
-2. publish complete content;
-3. add canonical metadata and indexation state;
-4. add parent/hub link;
-5. add at least one relevant contextual inbound link;
-6. add breadcrumb relationship;
-7. add outbound continuation and conversion links;
-8. include the page in the XML sitemap when indexable;
-9. test all responsive and accessibility states.
-
-### 20.2 Noindex pages
-
-Noindex does not mean unlinked. A noindex operational page may be linked when users need it, but it must not receive promotional or SEO-oriented internal links.
-
-Examples:
-
-- privacy/terms links required by forms;
-- support links required during a transaction;
-- authenticated or personalized destinations after approval.
-
-### 20.3 Thank-you page
-
-`/request-consultation/thank-you` must:
-
-- be reachable only after valid submission or an approved recovery state;
-- remain out of global navigation, body links, related-content blocks, and XML sitemap;
-- provide useful links to Process, Homepage, or Contact as appropriate;
-- avoid exposing submitted data in the URL or page source.
-
-### 20.4 Error pages
-
-404 and error pages should provide a small recovery set:
-
-- Homepage;
-- Procurement hub;
-- Materials hub;
-- Contact or Request, depending on the state.
-
-Do not render the full sitemap or link to unpublished content.
-
----
-
-## 21. Future Localization
-
-Phase 1 is Persian-first at unprefixed routes. Unsupported locales must not be linked or published as placeholders.
-
-When another locale is approved:
-
-- internal links must remain within the active locale by default;
-- language-switcher links must target the true equivalent page when available;
-- if no equivalent exists, follow `LOCALIZATION.md` rather than silently redirecting to an unrelated locale homepage;
-- translated anchors must reflect local search language and user terminology, not literal mechanical translation;
-- cross-locale links must not replace `hreflang` alternates;
-- each locale must use its own canonical route pattern and approved content state;
-- Persian RTL and future LTR layouts must use logical CSS properties and correct DOM order.
-
-Do not hardcode `/fa`, `/en`, or `/ar` strings across components. Use the centralized route and locale layer from `ROUTES.md`.
-
----
-
-## 22. Accessibility Requirements
-
-Internal links must meet WCAG-aligned project requirements.
-
-- Link purpose must be understandable from its text or accessible context.
-- Color must not be the only link indicator in body copy.
-- Focus states must be clearly visible against every background.
-- Touch targets must meet the approved minimum target size.
-- Links and buttons must not be visually identical when their behaviors differ.
-- External-opening behavior must be communicated when used.
-- Repeated navigation blocks should support appropriate landmarks and skip links.
-- Breadcrumbs require a labeled navigation landmark.
-- Card links must have one clear accessible name and avoid nested interactive elements.
-- Icon links require localized accessible names.
-- RTL visual ordering must not reverse logical keyboard or screen-reader order.
-- Link hover effects must not be the only cue and must respect reduced-motion preferences.
-
----
-
-## 23. Technical Implementation
-
-### 23.1 Central route registry
-
-All link destinations must come from a typed, centralized route registry aligned with `ROUTES.md`.
-
-Conceptual TypeScript model:
-
-```ts
-type InternalLinkKey =
-  | 'home'
-  | 'procurement'
-  | 'process'
-  | 'materials'
-  | 'industries'
-  | 'projects'
-  | 'insights'
-  | 'resources'
-  | 'about'
-  | 'faq'
-  | 'contact'
-  | 'requestConsultation';
-
-type InternalLinkRecord = {
-  key: InternalLinkKey | string;
-  href: string;
-  labelFa: string;
-  status: 'launch' | 'conditional' | 'reserved' | 'internal';
-  indexable: boolean;
-  parentKey?: string;
-};
-```
-
-Do not duplicate route strings across navigation, cards, content templates, breadcrumbs, and CTA components.
-
-### 23.2 Content relationship model
-
-Dynamic records should use controlled relationships rather than storing arbitrary URLs.
-
-```ts
-type ContentRelations = {
-  parentKey?: string;
-  relatedCapabilityKeys?: string[];
-  relatedMaterialKeys?: string[];
-  relatedIndustryKeys?: string[];
-  relatedProjectKeys?: string[];
-  relatedInsightKeys?: string[];
-  relatedResourceKeys?: string[];
-  primaryNextStepKey?: string;
-};
+خانه ← کاتالوگ آهن‌آلات ← میلگرد ← میلگرد A3
+خانه ← قیمت آهن‌آلات ← قیمت میلگرد ← قیمت میلگرد ۱۶
+خانه ← مقالات ← راهنمای خرید میلگرد
 ```
 
 Requirements:
 
-- validate every relation against a published record;
-- exclude drafts and expired content at build time;
-- prevent self-links and duplicate targets;
-- limit displayed related items by relevance and component capacity;
-- fail the build or content validation when a required parent is missing;
-- preserve editorial ordering when explicitly set.
-
-### 23.3 Rendering
-
-- Core links should exist in server-rendered HTML.
-- Do not depend on client-only intersection observers to insert critical links.
-- Navigation should work without speculative prefetch.
-- Prefetch policy must consider page weight and device/network conditions.
-- Do not prefetch every footer or related-content link by default.
-- Fragment links must target stable unique IDs and account for sticky-header offset.
-- Do not create crawlable links for accordion state, tabs, sorting, or filters unless the destination is an approved route.
-
-### 23.4 Self-link prevention
-
-Components must remove or neutralize links whose canonical destination equals the current canonical page. Active header items may remain anchors if required by the navigation implementation, but body, breadcrumb-current, related-content, and card grids must not create unnecessary self-links.
-
-### 23.5 URL normalization
-
-Validation must detect:
-
-- http/https or host inconsistencies;
-- `www`/non-`www` inconsistencies;
-- duplicate slashes;
-- uppercase path variants;
-- trailing-slash variants;
-- encoded Persian or accidental whitespace variants;
-- redirect targets;
-- fragments without matching IDs;
-- query variants without approved use;
-- old route aliases.
+- ancestors MUST be real canonical anchors;
+- the current page MUST be plain text or use `aria-current="page"` without linking to itself;
+- filters, sort states, sessions, and RFQ state MUST NOT appear in breadcrumbs;
+- visible breadcrumbs and `BreadcrumbList` JSON-LD MUST match;
+- labels MUST follow the approved Persian navigation terminology;
+- mobile layouts MUST preserve meaningful ancestors and accessible navigation semantics.
 
 ---
 
-## 24. Analytics and Measurement
+## 19. Faceted Navigation, Search, and Pagination
 
-Measure link performance to improve findability and journey design—not to maximize clicks indiscriminately.
+### 19.1 Filter states
 
-Recommended event model:
+Filters such as size, grade, brand, standard, unit, origin, availability, or sort order MUST NOT generate crawlable links unless the combination has been approved as a unique SEO landing page.
+
+For non-indexable filters:
+
+- use buttons, form controls, or application state—not crawlable `<a href>` links;
+- exclude URLs from XML sitemaps;
+- prevent filter state from entering related-content components;
+- apply the canonical and robots policy defined in `SITEMAP_ROBOTS_SPEC.md`;
+- do not rely on canonical tags alone to control an unlimited crawl space.
+
+### 19.2 Approved SEO landing pages
+
+An attribute combination may become a landing page only when it has:
+
+- approved query ownership;
+- stable canonical route;
+- unique useful content;
+- meaningful product availability or decision value;
+- parent and contextual inbound links;
+- complete metadata and indexability approval.
+
+### 19.3 Internal search
+
+Search-result URLs MUST NOT be relied on for discovery of indexable pages. Search forms and results MAY help users, but indexable catalog pages require structural crawlable links elsewhere.
+
+### 19.4 Pagination
+
+If category or article collections require pagination:
+
+- each pagination URL MUST be crawlable and stable;
+- internal links and canonical tags MUST use the same normalized URL form;
+- first-page URLs MUST be consistent about including or omitting a page parameter;
+- infinite scroll MUST provide equivalent paginated links in HTML;
+- empty or out-of-range pages MUST return the correct status.
+
+---
+
+## 20. Header, Footer, and Utility Navigation
+
+### 20.1 Header
+
+The header SHOULD expose a small set of primary destinations:
+
+- procurement or process;
+- catalog;
+- price hub when released;
+- articles/guides when released;
+- About/Contact as approved;
+- one primary RFQ action.
+
+Header links MUST be server-rendered, keyboard-accessible, canonical, and locale-aware.
+
+### 20.2 Footer
+
+The footer SHOULD expose compact groups for:
+
+- procurement and process;
+- primary catalog categories;
+- price and knowledge hubs when released;
+- company and contact;
+- RFQ;
+- privacy and terms.
+
+The footer MUST NOT duplicate the complete catalog or become a keyword-stuffed sitemap. An important page whose only inbound link is the footer is a near-orphan.
+
+### 20.3 Logo and active states
+
+- The logo MUST link to `/`.
+- Active navigation items SHOULD use `aria-current="page"` or the appropriate descendant state.
+- Body components, related blocks, and breadcrumb-current items MUST suppress unnecessary self-links.
+
+---
+
+## 21. Publication and Link Eligibility
+
+A record may appear in the internal-link graph only when all required fields are valid.
+
+Conceptual eligibility fields:
+
+```ts
+type PublicNode = {
+  id: string;
+  type: 'page' | 'category' | 'product' | 'variant' | 'price' | 'article';
+  routeKey: string;
+  canonicalPath: string;
+  locale: 'fa-IR';
+  status: 'draft' | 'review' | 'published' | 'archived';
+  indexable: boolean;
+  linkable: boolean;
+  parentId?: string;
+  odooExternalId?: string;
+  publishedAt?: string;
+  updatedAt: string;
+};
+```
+
+Rules:
+
+- `published` and `linkable` are required for public links.
+- `indexable=false` does not automatically mean `linkable=false`; legal or operational pages may need user-facing links.
+- Draft, review, archived, deleted, expired, or sync-invalid records MUST NOT appear in public related-content blocks.
+- Odoo `active=true` is not a public publication decision.
+- A sync failure MUST preserve the last known valid public link graph unless content is explicitly withdrawn for safety or accuracy.
+
+---
+
+## 22. Relationship Data Model
+
+Relationships SHOULD be stored as controlled IDs, not arbitrary URL strings.
+
+```ts
+type InternalRelation = {
+  sourceId: string;
+  destinationId: string;
+  relationType:
+    | 'parent'
+    | 'child'
+    | 'related'
+    | 'alternative'
+    | 'complementary'
+    | 'price-owner'
+    | 'commercial-owner'
+    | 'guide'
+    | 'procurement'
+    | 'rfq';
+  anchorOverrideFa?: string;
+  position?: number;
+  editorial: boolean;
+  enabled: boolean;
+};
+```
+
+Validation MUST:
+
+- resolve the destination through the canonical route registry;
+- reject self-relations and duplicates;
+- reject unpublished destinations;
+- reject locale mismatches;
+- preserve explicit editorial ordering;
+- prevent arbitrary external URLs in internal-link fields;
+- validate reciprocal parent/child and product/price mappings where required.
+
+---
+
+## 23. Central Route Registry
+
+All reusable links MUST resolve from a typed registry.
+
+```ts
+type RouteKey =
+  | 'home'
+  | 'procurement'
+  | 'process'
+  | 'catalogHub'
+  | 'categoryDetail'
+  | 'productDetail'
+  | 'variantDetail'
+  | 'priceHub'
+  | 'priceDetail'
+  | 'articleHub'
+  | 'articleDetail'
+  | 'about'
+  | 'contact'
+  | 'request'
+  | 'requestThankYou';
+
+type RouteRecord = {
+  key: RouteKey;
+  buildPath: (params?: Record<string, string>) => string;
+  status: 'launch' | 'conditional' | 'reserved' | 'system';
+  indexable: boolean;
+  localePolicy: 'unprefixed-fa' | 'localized';
+};
+```
+
+Route strings MUST NOT be duplicated across header, footer, cards, breadcrumbs, articles, catalog templates, price templates, and RFQ components.
+
+---
+
+## 24. Rendering, Performance, and Cache Rules
+
+- Critical internal links MUST exist in server-rendered HTML.
+- Link eligibility MUST be resolved before response rendering or from the cached read model.
+- Critical links MUST NOT wait for intersection observers or client-side API calls.
+- Prefetching MUST NOT be enabled blindly for every product, footer, filter, or related-content link.
+- Product grids SHOULD limit eager prefetch based on framework behavior and performance budgets.
+- Relationship changes MUST invalidate affected source-page caches as well as the changed destination page.
+- Cache invalidation SHOULD use targeted tags such as `page:<id>`, `category:<id>`, `product:<id>`, `price:<id>`, and `article:<id>`.
+- A stale cache MUST never expose a link to a withdrawn unsafe destination beyond the emergency-purge window defined in `CACHING_STRATEGY.md`.
+
+---
+
+## 25. Link Placement and Component Limits
+
+Recommended order of value:
+
+1. contextual body link at the relevant decision point;
+2. parent/child link in a clear structural module;
+3. price/product relationship link;
+4. curated related-content link;
+5. footer link.
+
+Default component capacities:
+
+| Component | Default visible links | Rule |
+|---|---:|---|
+| Related products | 3–6 | Curated or relevance-ranked from approved relations |
+| Related variants | 2–5 | Only useful alternatives or adjacent decisions |
+| Related guides/articles | 2–4 | Topic relevance before recency |
+| Related price pages | 1–4 | Exact or parent price relationships only |
+| Procurement continuation | 1–2 | Most relevant capability/process pages |
+| RFQ CTA | 1 primary per decision block | Repetition only at distinct journey stages |
+
+These are defaults, not SEO quotas. A page MAY use fewer links when fewer relationships are useful.
+
+---
+
+## 26. Crawl Depth and Inbound-Link Requirements
+
+Preferred maximum depth from the homepage:
+
+| Page family | Preferred depth |
+|---|---:|
+| Core hubs, Process, RFQ | 1 click |
+| Categories and procurement capabilities | 2 clicks |
+| Products and category price pages | 2–3 clicks |
+| Approved variants and product price pages | 3 clicks |
+| Articles and guides | 2–3 clicks |
+| Legal pages | 1 click through footer |
+
+Every indexable page MUST have:
+
+- at least one structural inbound link from a hub or parent;
+- at least one contextual or relationship-based inbound link where a natural relationship exists;
+- at least one relevant outgoing continuation;
+- discovery independent of search, filters, JavaScript state, or XML sitemaps.
+
+An XML sitemap does not cure an orphan page.
+
+---
+
+## 27. Orphan, Near-Orphan, and Dead-End Definitions
+
+### 27.1 Orphan
+
+An indexable page with no crawlable internal inbound link from another live page.
+
+### 27.2 Near-orphan
+
+A page whose only discovery path is one of the following:
+
+- footer;
+- XML sitemap;
+- internal search;
+- filter or tag archive;
+- JavaScript-only interface;
+- unrelated article;
+- low-value system page.
+
+### 27.3 Dead end
+
+A substantive page with no useful continuation beyond global navigation. Each page SHOULD provide a parent, adjacent decision, guide, price/product relationship, process step, or RFQ action.
+
+---
+
+## 28. Accessibility
+
+- Link purpose MUST be understandable from its text or accessible context.
+- Body links MUST be distinguishable without relying on color alone.
+- Focus states MUST be visible.
+- Touch targets MUST meet the project accessibility target.
+- Links and buttons MUST look and behave according to their actual function.
+- Card links MUST avoid nested interactive elements.
+- Icon links require localized accessible names.
+- Breadcrumbs require a labeled navigation landmark.
+- RTL visual order MUST preserve logical DOM, keyboard, and screen-reader order.
+- Fragment destinations MUST account for sticky-header offset.
+- Motion effects MUST respect reduced-motion preferences.
+
+---
+
+## 29. Analytics
+
+Recommended event:
 
 ```text
 internal_link_click
 ```
 
-Recommended non-sensitive parameters:
+Allowed non-sensitive parameters:
 
 - `source_path`;
 - `destination_path`;
-- `link_role` (`navigation`, `contextual`, `related`, `breadcrumb`, `cta`, `footer`);
+- `link_role`;
 - `component_id`;
 - `content_family`;
-- `position_group` (`header`, `main`, `aside`, `footer`);
+- `position_group`;
 - `locale`;
-- `cta_variant` where approved.
+- `relation_type`.
 
-Do not collect:
+Analytics MUST NOT collect customer-entered RFQ data, quantities, company details, contact details, attachment names, private price data, Odoo IDs, or full query strings.
 
-- anchor text containing user-entered content;
-- invoice, BOQ, project, phone, email, or company data;
-- uploaded filename or document metadata;
-- full query strings that may contain sensitive context.
-
-Key review signals:
-
-- orphan and near-orphan pages;
-- click paths to the request flow;
-- repeated backtracking to hubs;
-- low-use global links;
-- contextual links that help users continue;
-- broken or redirected internal destinations;
-- pages with high entrances and no useful continuation;
-- search-engine discovery and crawl anomalies.
-
-Analytics must never block navigation.
+Analytics MUST never delay navigation.
 
 ---
 
-## 25. Crawl Depth and Priority
+## 30. Content and Admin Workflow
 
-Target crawl depth from the homepage:
+Before publishing a page, the operator MUST define:
 
-| Page type | Preferred maximum depth |
-|---|---:|
-| Core hubs and Process | 1 click |
-| Core capability pages | 2 clicks |
-| Published material/industry pages | 2 clicks |
-| Project, insight, and resource hubs | 1–2 clicks after release |
-| Project/article/resource details | 2–3 clicks |
-| Legal pages | 1 click through footer |
+1. canonical route key and slug;
+2. parent/hub relationship;
+3. dominant topic owner;
+4. structural inbound link;
+5. contextual inbound opportunity;
+6. required outgoing relationships;
+7. price relationship, if applicable;
+8. RFQ context key;
+9. breadcrumb path;
+10. indexability and publication state.
 
-These are architecture targets, not reasons to add irrelevant homepage links. A page may be deeper when its importance is lower and it remains clearly reachable through a strong hub.
+The admin interface SHOULD provide controlled selectors for related products, variants, price pages, articles, and procurement pages. It SHOULD NOT require operators to paste arbitrary internal URLs.
 
-High-priority pages should receive links from high-value, relevant pages. Do not try to equalize internal-link counts across the site.
-
----
-
-## 26. Orphan and Dead-End Prevention
-
-### 26.1 Orphan definition
-
-An indexable page is orphaned when no crawlable internal link from another live indexable or navigational page reaches it. XML sitemap inclusion does not solve the problem.
-
-### 26.2 Near-orphan definition
-
-A page is a near-orphan when its only inbound link is:
-
-- the footer;
-- an XML sitemap;
-- an archive, filter, or search result;
-- a JavaScript-only interface;
-- a low-value system page;
-- a single unrelated article.
-
-### 26.3 Dead-end definition
-
-A page is a dead end when it offers no relevant continuation beyond global navigation. Every substantive page should provide at least one of:
-
-- a parent/hub return;
-- a related decision;
-- a useful educational resource;
-- a verified evidence page;
-- the next process step;
-- a qualified conversion action.
-
----
-
-## 27. Prohibited Patterns
-
-The following are prohibited:
-
-- linking to unpublished or placeholder pages;
-- links that pass through redirects;
-- automated keyword linking across every occurrence;
-- sitewide exact-match keyword blocks;
-- footer link stuffing;
-- hidden, zero-size, off-canvas, or visually obscured SEO links;
-- links matching the background color;
-- identical anchor text pointing to several unrelated pages;
-- several different anchors pointing to duplicate versions of one page;
-- orphan pages relying only on XML sitemap discovery;
-- related-content widgets based only on recency;
-- fabricated project, supplier, price, certificate, or case-study links;
-- internal UTM parameters;
-- linking to sort, filter, tag, search, preview, or session URLs;
-- linking to the thank-you page before submission;
-- self-links in breadcrumbs or related-content blocks;
-- opening ordinary internal links in a new tab;
-- linking entire large content sections with ambiguous accessible names;
-- creating doorway pages for cities, factories, grades, standards, or prices without approved unique intent and content;
-- using the primary request CTA label for destinations other than the canonical request flow.
-
----
-
-## 28. Editorial Workflow
-
-Before publishing or substantially revising a page, the content owner must define:
-
-1. parent/hub relationship;
-2. dominant topic and SEO owner;
-3. required structural inbound link;
-4. at least one relevant contextual inbound opportunity;
-5. required outgoing explanation or continuation;
-6. related content, if any;
-7. conversion destination and label;
-8. breadcrumb path;
-9. conditional destination dependencies;
-10. review date and evidence state.
-
-### 28.1 New-page release checklist
+### 30.1 New-page release checklist
 
 - [ ] Page exists in `SITEMAP.md`.
-- [ ] Canonical route exists and is active in `ROUTES.md`.
-- [ ] Topic ownership is approved in SEO maps.
-- [ ] Parent/hub page links to it.
-- [ ] At least one relevant contextual inbound link is identified.
+- [ ] Canonical path exists in `ROUTES.md`.
+- [ ] Topic ownership is approved.
+- [ ] Public content is complete and useful.
+- [ ] Parent/hub links to the page.
+- [ ] Contextual inbound link is identified where appropriate.
 - [ ] Breadcrumb is correct.
 - [ ] Outgoing links are useful and live.
-- [ ] Request or next-step path is proportionate.
-- [ ] No link implies unsupported claims.
-- [ ] XML sitemap and indexation states match.
-- [ ] Responsive, RTL, keyboard, and screen-reader behavior pass.
+- [ ] Price link copy matches price freshness and visibility.
+- [ ] RFQ action uses an approved non-sensitive context key.
+- [ ] XML sitemap, canonical, robots, and internal links agree.
+- [ ] RTL, responsive, keyboard, and screen-reader QA pass.
 
-### 28.2 Content retirement
+### 30.2 Retirement or merge
 
 When a page is removed or merged:
 
 - update or remove all internal links before release;
-- replace links with the most relevant canonical destination, not automatically the homepage;
-- add an approved permanent redirect when the old URL had value or external references;
-- remove the old URL from related-content records, navigation, breadcrumb data, and XML sitemap;
-- update anchor text when the destination topic changes;
-- document the decision in `REDIRECTS.md` and `CHANGELOG.md`.
+- point links to the most relevant surviving destination, not automatically to `/`;
+- create a permanent redirect when approved;
+- remove the old URL from navigation, relationship records, breadcrumbs, and XML sitemaps;
+- invalidate cached source pages containing the old link;
+- record the change in `REDIRECTS.md`, `CHANGELOG.md`, and `DECISIONS.md` when material.
 
 ---
 
-## 29. Automated Validation
+## 31. Automated Validation
 
-The build and QA pipeline should validate:
+The build and release pipeline MUST validate:
 
 - every internal `href` resolves to an approved canonical route;
-- no live component links to `conditional`, `reserved`, draft, or missing content;
-- no internal link resolves through a redirect;
+- no public link targets a redirect, error, draft, preview, or missing page;
+- critical links exist in rendered HTML;
 - no indexable page is orphaned;
+- no important page is a near-orphan;
 - no breadcrumb points to a missing ancestor;
-- no related-content block contains self-links or duplicates;
-- no fragment points to a missing ID;
-- no internal link uses an unapproved host or protocol;
+- no component contains self-links or duplicate destinations;
 - no internal UTM parameters exist;
-- no page exceeds component-specific related-link limits;
-- all required launch pages receive structural inbound links;
-- thank-you, preview, and system routes are absent from public link graphs;
-- locale prefixes and alternates follow `ROUTES.md`;
-- empty anchors and non-descriptive icon links are absent.
+- no filter, search, session, preview, or RFQ-state URLs leak into the crawlable graph;
+- visible breadcrumb and `BreadcrumbList` data agree;
+- product/variant and price mappings agree;
+- stale-price states do not use current-price anchors;
+- unpublished locales and `/fa` URLs are absent;
+- the thank-you page is absent from navigation and XML sitemaps;
+- route, canonical, redirect, sitemap, and internal-link forms are identical.
 
-Recommended crawl outputs:
+Recommended crawl report fields:
 
-- URL;
-- canonical URL;
-- route status;
-- indexation state;
-- crawl depth;
-- inbound link count by role;
-- outbound link count by role;
-- source pages;
-- anchor texts;
-- response status;
-- redirect chain;
-- orphan/near-orphan/dead-end flags.
+```text
+url
+canonical_url
+route_key
+entity_type
+publication_status
+indexable
+crawl_depth
+inbound_count_by_role
+outbound_count_by_role
+source_urls
+anchor_texts
+response_status
+redirect_chain
+orphan_flag
+near_orphan_flag
+dead_end_flag
+price_state
+locale
+```
 
 ---
 
-## 30. Manual QA Checklist
+## 32. Manual QA Checklist
 
 ### Architecture
 
-- [ ] Every launch page is reachable through a logical user path.
+- [ ] Every hub links to all and only published direct children.
 - [ ] Every child links to its true parent.
-- [ ] Every hub links to all and only published children.
-- [ ] Conditional families disappear completely when inactive.
-- [ ] Important pages do not rely only on footer links.
-- [ ] Crawl depth reflects business and content priority.
+- [ ] Category, product, variant, and price relationships are correct.
+- [ ] Articles link to canonical topic owners.
+- [ ] Important pages do not rely only on footer or sitemap links.
+- [ ] RFQ is the primary commercial continuation.
 
-### Relevance and copy
+### Copy and trust
 
-- [ ] Each contextual link helps answer a current user question.
-- [ ] Persian anchor text accurately describes its destination.
-- [ ] Identical anchors do not point to conflicting topics.
-- [ ] Anchors avoid retail, price-board, and marketplace framing.
-- [ ] Exact-match phrases are not repeated unnaturally.
-- [ ] Related-content lists are curated by topic, not recency alone.
-
-### Conversion
-
-- [ ] All primary acquisition links reach `/request-consultation`.
-- [ ] The primary label remains `ارسال فاکتور یا لیست خرید` where space allows.
-- [ ] Topic context is non-sensitive, approved, and editable.
-- [ ] Contact links do not replace the primary request path on commercial pages.
-- [ ] No CTA promises instant price, lowest price, guaranteed savings, or guaranteed supply.
+- [ ] Persian anchors accurately describe destinations.
+- [ ] Anchors do not imply checkout, guaranteed inventory, or guaranteed price.
+- [ ] Current-price anchors appear only when a valid current price is visible.
+- [ ] Automatic keyword stuffing is absent.
+- [ ] Related links are curated by relevance.
 
 ### Technical SEO
 
-- [ ] Internal links use canonical URLs and do not redirect.
-- [ ] Links are crawlable in rendered HTML.
-- [ ] Normal internal links have no `nofollow`.
-- [ ] No query, tag, filter, preview, or system URLs leak into the link graph.
-- [ ] Breadcrumb markup matches visible links.
-- [ ] No orphan, near-orphan, or unintended dead-end page remains.
-- [ ] XML sitemap, canonicals, redirects, and internal links agree.
+- [ ] Links are real server-rendered anchors.
+- [ ] Links point directly to canonical URLs.
+- [ ] Normal internal links do not use `nofollow`.
+- [ ] No unapproved filter or query URLs are crawlable.
+- [ ] No broken, redirected, self, or duplicate links remain.
+- [ ] Internal links, canonicals, redirects, sitemaps, and structured data agree.
 
-### Accessibility and responsive behavior
+### Accessibility and performance
 
-- [ ] Link purpose is understandable.
-- [ ] Focus states are visible.
-- [ ] Body links are distinguishable without color alone.
-- [ ] Card links contain no nested controls.
-- [ ] RTL order is visually and programmatically correct.
-- [ ] Links remain usable at `320px` width and `200%` zoom.
-- [ ] Keyboard and screen-reader tests pass.
-- [ ] Sticky header does not hide fragment targets.
+- [ ] Link purpose and focus state are clear.
+- [ ] Card components contain no nested interactive controls.
+- [ ] RTL reading and focus order are correct.
+- [ ] Links work at 320 px width and 200% zoom.
+- [ ] Critical links exist without client JavaScript.
+- [ ] Link components remain within the performance budget.
 
 ---
 
-## 31. Phase 1 Minimum Link Graph
+## 33. Minimum Phase 1 Link Graph
 
-At minimum, the launch site must implement this graph:
+The exact catalog, price, article, and RFQ paths come from `ROUTES.md`; keys are used here deliberately.
 
-| Source | Must link to |
+| Source | MUST link to |
 |---|---|
-| `/` | `/procurement`, `/process`, `/materials`, `/industries`, `/about`, `/request-consultation` |
-| `/procurement` | all five live procurement children, `/process`, `/request-consultation` |
-| each procurement child | `/procurement`, one relevant adjacent capability, `/process` or relevant hub, `/request-consultation` |
-| `/process` | `/procurement`, relevant capability pages, `/materials`, `/request-consultation` |
-| `/materials` | published material children, `/procurement`, `/process`, `/request-consultation` |
-| `/industries` | `/procurement`, `/materials`, `/process`, `/request-consultation` |
-| `/about` | `/procurement`, `/process`, `/contact`, `/request-consultation` |
-| `/faq` | relevant topic-owner pages, `/process`, `/request-consultation` |
-| `/contact` | `/about`, `/request-consultation`, required legal pages |
-| `/request-consultation` | `/process`, `/faq` or `/contact`, `/privacy` when required |
-| every detail page | parent hub, relevant next decision, canonical request flow |
-
-Conditional Projects, Insights, Resources, material children, and industry children are added only after their release gates pass.
-
----
-
-## 32. Acceptance Criteria
-
-The internal-link architecture is complete only when:
-
-- all internal destinations match the approved sitemap and route manifest;
-- Ahan Asa’s procurement-management model is more prominent than material browsing;
-- every indexable page has structural and relevant contextual discovery;
-- hubs and children form clear two-way relationships;
-- the procurement capability cluster has useful sequential and lateral paths;
-- commercial, educational, and evidence pages support one another without forced reciprocity;
-- every major commercial page leads proportionately to the canonical request flow;
-- anchors are natural Persian, descriptive, and aligned with topic ownership;
-- no link implies live pricing, inventory, marketplace behavior, or unverified capability;
-- conditional and system pages are correctly excluded from public links;
-- header, footer, breadcrumbs, related content, and CTAs serve distinct roles;
-- rendered links remain crawlable, canonical, accessible, and responsive;
-- automated crawling finds no broken links, redirect links, orphans, near-orphans, unintended dead ends, duplicate destinations, or invalid fragments;
-- internal links, canonicals, redirects, structured data, navigation, and XML sitemap agree;
-- the link graph can be maintained through centralized routes and controlled content relationships rather than scattered hardcoded URLs.
+| Home | Procurement, Process, Catalog hub, About, request; Price hub when live |
+| Procurement hub | All approved procurement children, Process, request |
+| Procurement child | Procurement parent, relevant adjacent capability or Process, relevant catalog/guide page, request |
+| Process | Procurement, relevant capability, RFQ preparation guidance, request |
+| Catalog hub | Every published category, selected buying guides, request |
+| Category | Catalog parent, every published direct product, valid category price owner, request |
+| Product | Category parent, approved variants/selector, exact valid price owner, guide, request |
+| Variant | Product parent, exact valid price owner, relevant variants/guide, request |
+| Price hub | Every published category price page, methodology/freshness guidance, request |
+| Price detail | Exact commercial entity, price parent, guide when relevant, request |
+| Articles hub | Every published article and main topic hubs |
+| Article | Article parent, canonical commercial owner(s), related guide, request when appropriate |
+| About | Procurement, Process, Contact, request |
+| Request | Process, Privacy, support contact, preparation guide |
+| Thank-you | Process, Catalog or Homepage, Contact when needed |
 
 ---
 
-## 33. Implementation Handoff
+## 34. Prohibited Patterns
 
-Before Claude Code implements the internal-link system, it must read:
+The following are prohibited:
+
+- links to unpublished, placeholder, or Odoo-only records;
+- links that pass through redirects;
+- automatic keyword linking across every occurrence;
+- sitewide exact-match keyword blocks;
+- footer link stuffing;
+- hidden or visually obscured SEO links;
+- links whose anchor promises price content that is not visible;
+- internal `nofollow` used for authority sculpting;
+- identical anchors pointing to unrelated destinations;
+- multiple indexable pages owning the same intent without an approved distinction;
+- filter, sort, tag, search, preview, session, or RFQ-state URLs in the crawlable graph;
+- internal UTM parameters;
+- linking to the thank-you page before submission;
+- self-links in breadcrumbs, related blocks, or body content;
+- opening ordinary internal links in a new tab;
+- city, factory, brand, grade, size, or price doorway pages without unique approved value;
+- creating a public variant page solely because Odoo contains a variant;
+- using live Odoo responses to generate public navigation;
+- using the RFQ CTA label for a destination other than the canonical RFQ flow.
+
+---
+
+## 35. Acceptance Criteria
+
+The internal-link system is complete only when:
+
+- one canonical route is selected for the structured RFQ flow;
+- exact catalog, product, variant, price, and article routes are approved in `ROUTES.md`;
+- every indexable page has structural discovery and a useful continuation;
+- catalog, price, article, procurement, and RFQ clusters form a coherent graph;
+- Odoo commercial identity maps to—but does not control—public link publication;
+- public navigation never depends on a live Odoo call;
+- price-related anchors respect approval, completeness, freshness, and visible content;
+- non-indexable filter states do not create crawl traps;
+- links are server-rendered, canonical, accessible, and locale-correct;
+- automated crawling reports no broken links, redirect links, orphans, unintended dead ends, invalid fragments, or route inconsistencies;
+- related-content and route data are centrally controlled rather than scattered as arbitrary URLs;
+- the link graph supports the path from research to structured RFQ without presenting a false checkout experience.
+
+---
+
+## 36. Implementation Handoff
+
+Before implementation, the coding agent MUST read:
 
 1. `PROJECT_BRIEF.md`;
-2. `SITEMAP.md`;
-3. `INFORMATION_ARCHITECTURE.md`;
-4. `ROUTES.md`;
-5. `SEO_KEYWORD_MAP.md`;
-6. `SEO_PAGE_MAP.md`;
-7. `HEADER_NAVIGATION_SPEC.md`;
-8. `FOOTER_SPEC.md`;
-9. `CONTENT_MODEL.md`;
-10. `CTA_STRATEGY.md`;
-11. this file.
+2. `DECISIONS.md`;
+3. `ROUTES.md`;
+4. `SITEMAP.md`;
+5. `INFORMATION_ARCHITECTURE.md`;
+6. `SEO_KEYWORD_MAP.md`;
+7. `SEO_PAGE_MAP.md`;
+8. `PRODUCT_CATALOG_SPEC.md`;
+9. `PRICING_SYSTEM.md`;
+10. `RFQ_SYSTEM.md`;
+11. `FORM_ARCHITECTURE.md`;
+12. `CMS_ARCHITECTURE.md`;
+13. `METADATA_SPEC.md`;
+14. `STRUCTURED_DATA.md`;
+15. `SITEMAP_ROBOTS_SPEC.md`;
+16. `CACHING_STRATEGY.md`;
+17. this document.
 
-Implementation must begin with a route/content relationship manifest and an automated crawl test. Claude Code must not invent missing routes, labels, redirects, projects, materials, industries, claims, metrics, supplier relationships, or keyword targets. Any conflict or missing dependency must be recorded for approval rather than silently resolved in code.
+Implementation MUST begin with:
 
+1. resolution of the canonical RFQ route conflict;
+2. approval of exact catalog, product, variant, price, and article patterns;
+3. a typed route registry;
+4. controlled content-relationship records;
+5. server-rendered link components;
+6. an automated internal crawl and graph report.
+
+The coding agent MUST NOT invent missing routes, product relationships, price eligibility, claims, suppliers, variants, articles, or keyword targets. Missing or conflicting inputs MUST be recorded for approval.
+
+---
+
+## 37. Authoritative References
+
+- [Google Search Central — Link best practices](https://developers.google.com/search/docs/crawling-indexing/links-crawlable)
+- [Google Search Central — SEO Starter Guide](https://developers.google.com/search/docs/fundamentals/seo-starter-guide)
+- [Google Search Central — URL structure best practices](https://developers.google.com/search/docs/crawling-indexing/url-structure)
+- [Google Search Central — Canonicalization](https://developers.google.com/search/docs/crawling-indexing/canonicalization)
+- [Google Search Central — Ecommerce URL structure](https://developers.google.com/search/docs/specialty/ecommerce/designing-a-url-structure-for-ecommerce-sites)
+- [Google Search Central — Breadcrumb structured data](https://developers.google.com/search/docs/appearance/structured-data/breadcrumb)
+
+---
+
+**End of `INTERNAL_LINKING.md`**

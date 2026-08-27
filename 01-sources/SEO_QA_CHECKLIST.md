@@ -2,11 +2,14 @@
 
 > **Project:** Ahan Asa | آهن آسا  
 > **Canonical origin:** `https://www.ahanassa.com`  
-> **Application:** Next.js App Router  
+> **Application:** Next.js App Router on Cloudflare Workers + Static Assets  
+> **Platform:** Cloudflare Workers, D1, R2, Queues/DLQ, Cron, Turnstile, Edge Cache  
+> **ERP integration:** `https://odoo.ahanassa.com`  
 > **Launch scope:** Persian (`fa`), RTL  
-> **Document status:** Implementation-ready  
+> **Document status:** Implementation-ready / Release Gate  
+> **Document version:** 2.0  
 > **Owner:** SEO + Engineering + Content  
-> **Last updated:** 2026-08-25
+> **Last updated:** 2026-08-26
 
 ---
 
@@ -30,6 +33,15 @@ Claude Code must not mark SEO QA as passed merely because the application builds
 8. No `SearchAction` may be used unless a real, accessible site search exists.
 9. Unsupported or unpublished routes must not appear in the sitemap, navigation, canonical tags, structured data, or alternate-language annotations.
 10. SEO fixes must not silently change approved page copy or business claims.
+11. Odoo is the commercial system of record. Public SEO rendering must not synchronously depend on Odoo availability.
+12. Public catalog, price, and availability output must come from the approved website read model/cache populated by Odoo synchronization.
+13. An RFQ must be durably persisted in D1 before the user receives a success response; delivery to Odoo is asynchronous and idempotent.
+14. Product, variant, size, unit, quantity, price, and RFQ relationships must match `PRODUCT_CATALOG_SPEC.md`, `DATABASE_SCHEMA.md`, and `ERP_DATA_MAPPING.md`.
+15. Price structured data and visible price claims are allowed only when the value is synchronized, timestamped, and actually visible on the page.
+16. Faceted and query URLs are either explicitly approved SEO landing pages or controlled as filter-only URLs; they must never create uncontrolled indexable combinations.
+17. Cloudflare edge caching may serve stale public content only within the approved freshness window; RFQ submission and authenticated/admin responses must not be publicly cached.
+18. Administrative, synchronization, queue, and diagnostic endpoints are private application surfaces and must not be discoverable or indexable.
+19. Any conflict between SEO documents and the approved system-of-record or route policy is a release blocker until resolved.
 
 ---
 
@@ -48,6 +60,8 @@ Claude Code must not mark SEO QA as passed merely because the application builds
 - [ ] All applicable P1 items pass.
 - [ ] Every deferred P2/P3 item has an owner, reason, and target date.
 - [ ] No open issue can change the canonical host, indexing directives, sitemap validity, or approved business claims.
+- [ ] Public pages still render correctly when Odoo is slow or unavailable.
+- [ ] Price/catalog freshness and RFQ durability checks pass for the release.
 - [ ] QA evidence is attached to the release record.
 
 ---
@@ -95,6 +109,26 @@ curl -I https://www.ahanassa.com/robots.txt
 curl -I https://www.ahanassa.com/sitemap.xml
 ```
 
+## 6A. SEO-first rendering and runtime independence
+
+- [ ] **REN-01 — P0:** The initial HTML response contains the page title, meta description, canonical, language, H1, primary content, crawlable links, and applicable JSON-LD without requiring client-side JavaScript.
+- [ ] **REN-02 — P0:** Homepage, category, product, price, article, and other approved SEO pages do not synchronously call `odoo.ahanassa.com` during the visitor request.
+- [ ] **REN-03 — P0:** A controlled Odoo outage or timeout does not turn public pages into `5xx`, empty HTML, soft errors, or uncrawlable shells.
+- [ ] **REN-04 — P1:** Server Components and static/cached rendering are used by default; client JavaScript is limited to approved interactive features such as filters, search, price calculators, and RFQ builders.
+- [ ] **REN-05 — P1:** Rendered HTML remains meaningful when JavaScript is disabled or delayed.
+- [ ] **REN-06 — P1:** The page type uses the rendering mode defined by the architecture: static/cached for SEO pages, cached dynamic for approved price data, interactive/dynamic for RFQ and admin surfaces.
+- [ ] **REN-07 — P1:** No server action, route handler, or client component exposes Odoo credentials or private ERP response data.
+- [ ] **REN-08 — P1:** Dynamic metadata is generated from stable website data and does not change unpredictably between requests.
+- [ ] **REN-09 — P2:** Streaming, prefetching, and hydration do not delay or replace critical SEO content.
+
+Required evidence for REN-02 and REN-03:
+
+```text
+1. Request trace or server log showing the public route reads static/cache/D1 data.
+2. Controlled Odoo failure test.
+3. Initial HTML capture proving title, H1, content, canonical, and links remain present.
+```
+
 ---
 
 ## 6. Crawlability and indexability
@@ -133,7 +167,7 @@ curl -I https://www.ahanassa.com/sitemap.xml
 - [ ] **CAN-02 — P0:** Canonicals are absolute HTTPS URLs on `www.ahanassa.com`.
 - [ ] **CAN-03 — P0:** Each unique indexable page uses a self-referencing canonical unless an approved consolidation rule states otherwise.
 - [ ] **CAN-04 — P0:** Canonical targets return `200` and are themselves indexable.
-- [ ] **CAN-05 — P0:** No canonical points to staging, preview, Vercel, localhost, apex, HTTP, 404, or redirected URLs.
+- [ ] **CAN-05 — P0:** No canonical points to staging, preview, deployment-provider, localhost, apex, HTTP, 404, or redirected URLs.
 - [ ] **CAN-06 — P1:** Canonical path formatting matches the site’s route and trailing-slash policy.
 - [ ] **CAN-07 — P1:** Query-string variants resolve to the approved clean canonical where appropriate.
 - [ ] **CAN-08 — P1:** Pagination or future filtered content is not incorrectly canonicalized to page one or a parent page.
@@ -270,6 +304,73 @@ Recommended automated duplicate tests:
 - [ ] **SCH-11 — P2:** Structured data passes Schema.org validation and applicable Google rich-result tests.
 - [ ] **SCH-12 — P2:** JSON-LD contains no preview hostname, relative canonical URL, `undefined`, or empty required value.
 
+## 16A. Catalog, product, and price SEO integrity
+
+- [ ] **CAT-01 — P0:** Every indexable category, product, variant, and approved price page has a stable canonical slug and a corresponding website read-model record.
+- [ ] **CAT-02 — P0:** Product/category pages do not render commercial fields from a live visitor-time Odoo request.
+- [ ] **CAT-03 — P0:** Product, variant, size, unit, and category relationships match the approved D1 schema and contain no orphaned indexable records.
+- [ ] **CAT-04 — P0:** A product or price page is not published to the sitemap until its required content, canonical, status, and SEO fields are complete.
+- [ ] **CAT-05 — P1:** Visible product specifications, unit labels, and variant names match the synchronized commercial data.
+- [ ] **CAT-06 — P1:** Each visible public price has `source`, `updated_at`, unit, currency, and freshness status according to `PRICING_SYSTEM.md`.
+- [ ] **CAT-07 — P1:** Stale, missing, withdrawn, or failed-sync prices are handled by the approved display and indexability rule; no stale value is presented as current.
+- [ ] **CAT-08 — P1:** Product and price pages contain useful non-price information and are not thin auto-generated pages.
+- [ ] **CAT-09 — P1:** Product/Offer structured data exists only when the product/price data is visible and truthful on the rendered page.
+- [ ] **CAT-10 — P1:** `priceCurrency`, `price`, availability, unit, and update text agree across visible UI, metadata, JSON-LD, and the D1 read model.
+- [ ] **CAT-11 — P1:** Price changes invalidate only the required product/category/price cache tags and update affected sitemap `lastmod` values.
+- [ ] **CAT-12 — P2:** Price history or charts expose only approved public data and do not leak internal margins, supplier data, or private customer pricing.
+- [ ] **CAT-13 — P2:** Bulk price updates are atomic from the website perspective: no page exposes a partially updated variant set.
+
+Required catalog evidence:
+
+```text
+- Odoo source record or approved sync fixture
+- D1 read-model record
+- Rendered HTML and visible price timestamp
+- Canonical/sitemap output
+- Cache invalidation or revalidation log
+```
+
+## 16B. Odoo synchronization and RFQ SEO/conversion integrity
+
+- [ ] **ERP-01 — P0:** Odoo credentials are stored only as Cloudflare secrets and are never present in browser JavaScript, HTML, logs, or repository files.
+- [ ] **ERP-02 — P0:** Public routes remain available when Odoo is unavailable; the latest valid website read model or approved fallback is used.
+- [ ] **ERP-03 — P0:** Odoo-to-website synchronization records status, version, source ID, and last-sync time for products, variants, units, and prices.
+- [ ] **ERP-04 — P0:** Website-to-Odoo RFQ delivery is asynchronous through Queues and cannot create duplicate CRM leads or orders on retry.
+- [ ] **ERP-05 — P0:** An RFQ is written to D1 before acknowledgement and receives a stable idempotency key/reference.
+- [ ] **ERP-06 — P1:** Queue retry, exponential backoff, maximum attempts, and dead-letter handling are configured and observable.
+- [ ] **ERP-07 — P1:** Failed synchronization is visible to authorized operators without exposing internal error details to visitors or crawlers.
+- [ ] **ERP-08 — P1:** Customer identity, RFQ, RFQ items, attachments, UTM/source, consent, and Odoo IDs follow `ERP_DATA_MAPPING.md`.
+- [ ] **ERP-09 — P1:** RFQ item fields support category, product, variant/size, unit, and quantity; free-text items follow the approved fallback rule.
+- [ ] **ERP-10 — P1:** R2 attachments are access-controlled, virus/file-type validated where required, and referenced safely in the Odoo record.
+- [ ] **ERP-11 — P1:** Queue consumers and sync endpoints are authenticated, rate-limited, and protected from replay or unauthorized writes.
+- [ ] **ERP-12 — P1:** A failed Odoo sync does not alter public canonical, robots, sitemap, or structured-data output incorrectly.
+- [ ] **ERP-13 — P2:** Sync reconciliation can identify missing, duplicated, stale, or conflicting records and supports safe reprocessing.
+
+RFQ acceptance sequence:
+
+```text
+Visitor
+  → validate Turnstile and input
+  → persist RFQ + items in D1
+  → enqueue idempotent delivery message
+  → acknowledge with reference number
+  → deliver to Odoo with retry/DLQ
+```
+
+The release evidence must prove that the acknowledgement step does not wait for a successful Odoo response.
+
+## 16C. Cloudflare platform and edge-boundary checks
+
+- [ ] **CF-01 — P0:** The production hostname is routed to the intended Cloudflare Worker and static assets; no legacy hosting target can serve conflicting HTML.
+- [ ] **CF-02 — P0:** Worker bindings point to the intended production D1 database, R2 bucket, Queues, and environment secrets.
+- [ ] **CF-03 — P0:** D1 foreign keys, unique constraints, and required indexes are enabled and match `DATABASE_SCHEMA.md`.
+- [ ] **CF-04 — P0:** R2 object delivery does not expose bucket internals, private attachments, signed URLs, or sensitive metadata in public SEO output.
+- [ ] **CF-05 — P1:** Turnstile and rate limits protect RFQ endpoints without blocking normal page rendering, legitimate form submissions, or approved crawlers.
+- [ ] **CF-06 — P1:** Queue consumers, Cron sync jobs, and dead-letter handling run in the intended production environment and are observable.
+- [ ] **CF-07 — P1:** Worker response headers, cache behavior, compression, and content types are correct for HTML, XML, JSON, images, fonts, and downloads.
+- [ ] **CF-08 — P1:** Error handling does not leak Worker exception text, D1 SQL details, Odoo responses, or internal binding names.
+- [ ] **CF-09 — P2:** Edge logs and traces include a correlation/reference ID for public errors, RFQs, sync jobs, and cache invalidation without logging personal data.
+
 ---
 
 ## 17. Redirects and migrations
@@ -301,6 +402,21 @@ Recommended automated duplicate tests:
 
 Record device profile, network profile, test date, URL, and report version with every performance result.
 
+## 18A. Edge cache, freshness, and invalidation
+
+- [ ] **CACHE-01 — P0:** Public HTML, robots, and sitemap responses use only the approved production origin and do not cache preview or staging output.
+- [ ] **CACHE-02 — P0:** RFQ submission, admin, authenticated, sync, queue, and diagnostic responses are not publicly cached.
+- [ ] **CACHE-03 — P0:** Cache keys vary correctly by canonical host, path, locale, and any approved content dimension; unrelated query parameters do not create uncontrolled cache variants.
+- [ ] **CACHE-04 — P1:** Cache-Control, `stale-while-revalidate`, and edge TTL values match `CACHING_STRATEGY.md` and the freshness policy.
+- [ ] **CACHE-05 — P1:** Article publication invalidates the article, listing, category, sitemap, and relevant navigation caches.
+- [ ] **CACHE-06 — P1:** Product or price synchronization invalidates the smallest required set of product, category, price, structured-data, and sitemap caches.
+- [ ] **CACHE-07 — P1:** Cache invalidation is idempotent and safe when a sync message is retried.
+- [ ] **CACHE-08 — P1:** A stale cache cannot preserve an old canonical, robots directive, locale, price, or removed route beyond the approved window.
+- [ ] **CACHE-09 — P1:** Cache HIT/MISS behavior and age headers can be verified in production-like QA.
+- [ ] **CACHE-10 — P2:** Cache performance is measured separately for HTML, images, static assets, D1 reads, and Odoo integration workers.
+
+Required evidence includes response headers before and after a content/price update, cache tag or purge event, and the first fresh response.
+
 ---
 
 ## 19. Mobile, accessibility, and UX signals
@@ -330,6 +446,12 @@ Record device profile, network profile, test date, URL, and report version with 
 - [ ] **FRM-08 — P1:** Validation errors do not expose internal system details.
 - [ ] **FRM-09 — P2:** Organic landing pages have relevant, non-deceptive CTAs tied to the page intent.
 - [ ] **FRM-10 — P2:** Lead-source attribution survives navigation and submission where defined by analytics requirements.
+- [ ] **FRM-11 — P0:** The RFQ builder persists a valid request and every line item before showing success.
+- [ ] **FRM-12 — P0:** RFQ items support category, product, variant/size, unit, and quantity with server-side validation.
+- [ ] **FRM-13 — P1:** Duplicate submission, refresh, retry, and network interruption do not create duplicate RFQs.
+- [ ] **FRM-14 — P1:** The RFQ reference number is stable, non-sensitive, and traceable to the D1 record and Odoo synchronization record.
+- [ ] **FRM-15 — P1:** Attachment upload failure does not silently discard the RFQ or falsely report complete submission.
+- [ ] **FRM-16 — P1:** The form does not expose Odoo availability, internal IDs, queue errors, or stack traces to users or crawlers.
 
 ---
 
@@ -438,6 +560,11 @@ Perform immediately after deployment:
 - [ ] **PRD-08 — P1:** Cache/CDN does not serve stale canonicals, metadata, sitemap, or robots files.
 - [ ] **PRD-09 — P1:** Mobile rendering and primary CTA remain usable.
 - [ ] **PRD-10 — P1:** No console, network, hydration, or server error affects discoverability or conversion.
+- [ ] **PRD-11 — P0:** With Odoo temporarily unavailable, homepage, category, product, article, and approved price pages still return valid SEO HTML.
+- [ ] **PRD-12 — P0:** A test RFQ is persisted in D1 and acknowledged before Odoo processing completes.
+- [ ] **PRD-13 — P1:** The test RFQ reaches Odoo exactly once after queue processing, or appears in the dead-letter/recovery workflow with an operator-visible failure.
+- [ ] **PRD-14 — P1:** A controlled price/catalog update reaches the website read model and invalidates the expected cache entries.
+- [ ] **PRD-15 — P1:** Public responses do not expose Odoo host internals, queue payloads, D1 identifiers, or private R2 URLs.
 
 ---
 
@@ -467,6 +594,9 @@ Perform immediately after deployment:
 - [ ] Review keyword cannibalization against the one-owner-per-cluster rule.
 - [ ] Validate that new content still uses approved copy and accurate business claims.
 - [ ] Review performance regressions and third-party script growth.
+- [ ] Review Odoo-to-D1 sync freshness, failed messages, dead-letter items, and reconciliation results.
+- [ ] Review public price freshness, stale-price incidents, cache invalidation failures, and catalog orphan records.
+- [ ] Review RFQ delivery success rate, duplicate prevention, acknowledgement latency, and operator recovery time.
 
 ---
 
@@ -499,6 +629,9 @@ Duplicate this section for every indexable page:
 - [ ] Performance target passed
 - [ ] CTA and form path passed
 - [ ] Analytics events passed
+- [ ] Public page renders with Odoo unavailable
+- [ ] Catalog/price freshness passed where applicable
+- [ ] RFQ persistence and asynchronous Odoo handoff passed where applicable
 
 Evidence:
 Issues:
@@ -561,6 +694,22 @@ Claude Code must consult the current versions of these documents when performing
 - `SECURITY_GUIDELINES.md`
 - `PRE_DEPLOY_CHECKLIST.md`
 - `POST_DEPLOY_CHECKLIST.md`
+- `STACK.md`
+- `TECHNICAL_ARCHITECTURE.md`
+- `DEPLOYMENT_ARCHITECTURE.md`
+- `SYSTEM_OF_RECORD.md`
+- `ODOO_INTEGRATION.md`
+- `ERP_DATA_MAPPING.md`
+- `SYNC_STRATEGY.md`
+- `FAILURE_RECOVERY.md`
+- `DATABASE_SCHEMA.md`
+- `PRODUCT_CATALOG_SPEC.md`
+- `PRICING_SYSTEM.md`
+- `RFQ_SYSTEM.md`
+- `ADMIN_PANEL_SPEC.md`
+- `AUTHORIZATION_ROLES.md`
+- `CACHING_STRATEGY.md`
+- `PERFORMANCE_BUDGET.md`
 
 If documents conflict, stop and report the exact conflict. Do not silently choose a rule, modify approved copy, or create a new SEO policy.
 
@@ -578,5 +727,6 @@ SEO QA is complete only when:
 6. structured data is truthful and valid;
 7. lead capture works without leaking personal data into analytics or QA evidence;
 8. crawl, performance, mobile, and live smoke-test evidence is recorded;
-9. all deferred issues have accountable owners and dates; and
-10. the final release decision is signed off.
+9. Odoo outage, catalog/price freshness, queue retry, idempotency, and RFQ persistence evidence is recorded;
+10. all deferred issues have accountable owners and dates; and
+11. the final release decision is signed off.

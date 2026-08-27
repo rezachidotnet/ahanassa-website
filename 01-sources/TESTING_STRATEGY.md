@@ -3,1015 +3,1081 @@
 > **Brand:** Ahan Asa | آهن آسا  
 > **Domain:** `ahanassa.com`  
 > **Document:** `TESTING_STRATEGY.md`  
-> **Status:** Draft v1.0 — implementation and release contract  
-> **Last updated:** 2026-08-25  
+> **Version:** 2.0  
+> **Status:** Implementation Baseline  
+> **Last updated:** 2026-08-26  
+> **Document owner:** Engineering / QA  
 > **Launch locale:** Persian (`fa-IR`), fully RTL  
-> **Application model:** Next.js App Router, TypeScript, static-first, server-first  
-> **Delivery model:** Vercel behind Cloudflare
+> **Runtime:** Next.js App Router on Cloudflare Workers  
+> **Business integration:** Odoo ERP at `odoo.ahanassa.com`
 
 ---
 
 ## 1. Purpose
 
-This document defines how the Ahan Asa website must be tested before code is merged, before a release is promoted, and after production deployment. It is an implementation contract for Claude Code, human developers, reviewers, and release owners.
+This document defines the mandatory testing strategy for the Ahan Asa public website, operator/admin application, catalog and public-price projection, RFQ intake, Cloudflare services, and asynchronous Odoo integration.
 
-The testing strategy must provide evidence that the website:
+It is a release contract for developers, Claude Code, reviewers, QA, operators, and release owners. A successful build is not sufficient. A change is acceptable only when the required automated tests, targeted manual checks, deployed-environment checks, and evidence have passed.
 
-1. renders approved Persian content accurately and accessibly;
-2. preserves the canonical, unprefixed Persian URL model;
-3. converts qualified visitors through the `/request` inquiry journey;
-4. validates and stores inquiry data securely and truthfully;
-5. remains usable across supported browsers, viewport sizes, input methods, and assistive technologies;
-6. meets the approved SEO, performance, privacy, analytics, and security requirements;
-7. fails safely when integrations or third-party services are unavailable;
-8. can be deployed and rolled back without silently changing public behavior.
+The strategy must prove that:
 
-Passing a build is not sufficient evidence of quality. A release is acceptable only when the relevant automated checks, targeted manual checks, and production smoke checks have passed.
-
----
-
-## 2. Product and Architecture Context
-
-Ahan Asa is a premium B2B steel procurement website. Phase 1 is not an e-commerce store, supplier marketplace, customer portal, public inventory system, or live price board.
-
-The approved architecture is:
-
-| Concern | Phase 1 baseline |
-|---|---|
-| Framework | Next.js App Router |
-| Language | TypeScript in strict mode |
-| Rendering | Static generation and React Server Components by default |
-| Client behavior | Small, justified interactive islands |
-| Primary locale | Persian (`fa-IR`), fully RTL |
-| Persian URLs | Canonical and unprefixed |
-| Future locales | English and Arabic structurally supported but unpublished until complete |
-| Primary conversion route | `/request` |
-| Inquiry endpoint | `/api/inquiries` |
-| Upload endpoint | Conditional `/api/uploads`, disabled until the complete secure workflow is approved |
-| Hosting | Vercel behind Cloudflare |
-| Analytics | Consent-aware GTM/GA4 after approved configuration |
-| Abuse protection | Server validation, rate limiting, and approved bot protection |
-
-Tests must enforce this scope. They must not normalize or legitimize unapproved features such as carts, checkout, public prices, customer accounts, or fake lead integrations.
+1. public SEO pages return useful HTML without depending on browser JavaScript or live Odoo responses;
+2. operators can manage approved articles, SEO content, catalog projections, and permitted settings safely;
+3. customers can submit any number of structured or free-form steel items and approved attachments;
+4. an RFQ is acknowledged only after durable local persistence succeeds;
+5. Odoo downtime, timeouts, retries, and duplicate queue delivery cannot lose or duplicate a lead;
+6. products, units, variants, and public prices follow the approved system-of-record and sync rules;
+7. private data, RFQ files, credentials, and ERP details never leak through public pages, caches, logs, analytics, or client bundles;
+8. the site meets the approved performance, SEO, accessibility, RTL, security, and reliability gates;
+9. deployments can be observed, verified, and rolled back safely.
 
 ---
 
-## 3. Source of Truth and Conflict Rules
+## 2. Normative Language
 
-Testing verifies the implementation against approved project documents; it does not redefine them.
+The words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are normative.
 
-Use this hierarchy:
+- **MUST / MUST NOT:** release-blocking requirement unless a formal, time-bounded exception is approved.
+- **SHOULD / SHOULD NOT:** expected behavior; deviation requires documented reasoning.
+- **MAY:** optional behavior that must still follow security, privacy, and architecture constraints.
+
+Tests MUST assert observable outcomes: HTTP behavior, accessible UI state, persisted records, emitted events, cache headers, generated metadata, and approved external effects. Tests MUST NOT primarily assert private React state, incidental DOM shape, or implementation-specific call counts unless those calls are themselves a contract.
+
+---
+
+## 3. Governing Documents and Conflict Rules
+
+Testing verifies approved behavior; it does not invent product or architecture decisions.
+
+Use this order when documents conflict:
 
 1. `CLAUDE.md` and `PROJECT_BRIEF.md`;
-2. `TECHNICAL_ARCHITECTURE.md`;
-3. the specialized document that owns the behavior being tested;
-4. this `TESTING_STRATEGY.md`;
-5. `DEVELOPMENT_RULES.md` and `CODING_STANDARDS.md`;
-6. task-specific acceptance criteria.
+2. `DECISIONS.md` and accepted ADRs;
+3. `TECHNICAL_ARCHITECTURE.md`;
+4. the specialist document that owns the behavior;
+5. this `TESTING_STRATEGY.md`;
+6. `DEVELOPMENT_RULES.md`, `CODING_STANDARDS.md`, and task acceptance criteria.
 
-Examples of governing documents:
+Relevant specialist documents include:
 
-| Test concern | Governing documents |
+| Concern | Governing documents |
 |---|---|
-| Routes, redirects, status codes | `ROUTES.md`, `SITEMAP_ROBOTS_SPEC.md`, `REDIRECTS.md` |
-| Canonical and locale behavior | `LOCALIZATION.md`, `HREFLANG_CANONICAL.md` |
-| Metadata and structured data | `METADATA_SPEC.md`, `STRUCTURED_DATA.md` |
-| Inquiry and upload behavior | `FORM_ARCHITECTURE.md`, `API_INTEGRATIONS.md`, `DATA_ARCHITECTURE.md` |
-| Security and privacy | `SECURITY_GUIDELINES.md`, `ENVIRONMENT_VARIABLES.md` |
-| Accessibility | `ACCESSIBILITY.md` |
-| Responsive behavior | `RESPONSIVE_RULES.md` |
-| Components | `COMPONENT_ARCHITECTURE.md`, `UI_COMPONENTS.md` |
-| Performance | `PERFORMANCE_GUIDELINES.md`, `IMAGE_OPTIMIZATION.md`, `FONT_STRATEGY.md`, `CACHING_STRATEGY.md` |
-| Analytics | `ANALYTICS_TRACKING.md` |
-| Deployment | `DEPLOYMENT_ARCHITECTURE.md` |
+| Data ownership and schema | `SYSTEM_OF_RECORD.md`, `DATA_ARCHITECTURE.md`, `DATABASE_SCHEMA.md` |
+| Odoo and synchronization | `ODOO_INTEGRATION.md`, `ERP_DATA_MAPPING.md`, `SYNC_STRATEGY.md`, `API_INTEGRATIONS.md` |
+| Failure handling | `FAILURE_RECOVERY.md`, `OBSERVABILITY.md` |
+| RFQ and attachments | `RFQ_SYSTEM.md`, `FORM_ARCHITECTURE.md`, `SECURITY_GUIDELINES.md` |
+| Catalog and price | `PRODUCT_CATALOG_SPEC.md`, `PRICING_SYSTEM.md` |
+| Admin authorization | `ADMIN_PANEL_SPEC.md`, `AUTHORIZATION_ROLES.md` |
+| Rendering and cache | `TECHNICAL_ARCHITECTURE.md`, `CACHING_STRATEGY.md`, `docs/seo/rendering-matrix.md` |
+| SEO | `SEO_STRATEGY.md`, `METADATA_SPEC.md`, `STRUCTURED_DATA.md`, `SITEMAP_ROBOTS_SPEC.md`, `HREFLANG_CANONICAL.md` |
+| Performance | `PERFORMANCE_BUDGET.md`, `PERFORMANCE_GUIDELINES.md`, `IMAGE_OPTIMIZATION.md`, `FONT_STRATEGY.md` |
+| Deployment | `DEPLOYMENT_ARCHITECTURE.md`, `ENVIRONMENT_VARIABLES.md`, `PRE_DEPLOY_CHECKLIST.md`, `POST_DEPLOY_CHECKLIST.md` |
 
-If documents conflict, Claude Code must not alter a test merely to make the current implementation pass. It must identify the conflict, preserve the safer working behavior, and record or request a decision. A `TBD` must remain a `TBD`; tests must not convert it into an assumed production rule.
-
----
-
-## 4. Testing Objectives
-
-### 4.1 Correctness
-
-- Approved routes render the correct page and content model.
-- Components honor their documented variants, states, and boundaries.
-- Inquiry validation produces deterministic, user-understandable results.
-- Server behavior is authoritative at every trust boundary.
-- A successful response is returned only after the approved durable lead operation succeeds.
-
-### 4.2 User trust
-
-- The site never reports a false inquiry success.
-- Contact details, claims, evidence, and calls to action are approved and consistent.
-- Personal and project data are not exposed through URLs, client bundles, analytics, or logs.
-- Unavailable capabilities are not presented as operational.
-
-### 4.3 Discoverability
-
-- Canonicals, hreflang, metadata, sitemap, robots directives, redirects, and structured data match the approved route model.
-- Primary content and navigation are present in server-rendered HTML.
-- Preview, Vercel, API, and private routes do not leak into indexable surfaces.
-
-### 4.4 Inclusive usability
-
-- Core journeys work with keyboard, touch, pointer, zoom, reduced motion, forced colors, and representative screen readers.
-- Persian reading order, bidi behavior, form labels, errors, and numbers remain understandable.
-- Future LTR support is not blocked by direction-specific component assumptions.
-
-### 4.5 Operational confidence
-
-- Pull requests receive fast, deterministic feedback.
-- High-risk paths receive deeper integration and end-to-end coverage.
-- Deployments receive read-only production verification.
-- Failures identify the affected requirement rather than producing opaque snapshots.
+If a requirement is unresolved, the implementation and test MUST retain it as a decision gate. Claude Code MUST NOT weaken a test to match accidental current behavior. Architectural deviations require an ADR.
 
 ---
 
-## 5. Risk-Based Test Priorities
+## 4. Architecture Under Test
 
-Testing effort must follow risk, not raw file count.
+The approved test target is:
 
-| Priority | Area | Failure impact | Required evidence |
+```text
+Visitor / Operator
+        │
+        ▼
+Cloudflare Edge
+        │
+        ▼
+Next.js on Cloudflare Workers
+        │
+        ├── D1: operational records + public/SEO read model
+        ├── R2: public media + private RFQ attachments
+        ├── Queues: asynchronous integration delivery
+        ├── Turnstile and rate controls
+        └── Odoo adapter (server-only)
+                    │
+                    ▼
+          odoo.ahanassa.com
+```
+
+The following architecture invariants are P0 test requirements:
+
+1. Public rendering MUST NOT synchronously call Odoo.
+2. Browser code MUST NOT call Odoo directly or contain Odoo credentials.
+3. Public catalog and price pages MUST read from the website read model/cache, not live ERP responses.
+4. RFQ success MUST mean that the RFQ, items, consent evidence, attachment metadata, and an outbox/integration intent are durably persisted.
+5. Odoo synchronization MUST be asynchronous, idempotent, retryable, and observable.
+6. Queue delivery MUST be treated as at-least-once; duplicates are expected inputs.
+7. Private attachments MUST remain non-public and non-listable.
+8. Admin, RFQ, personalized, preview, and private responses MUST NOT enter shared public caches.
+9. Stable marketing pages default to SSG; publishable content uses ISR/on-demand revalidation; dynamic rendering is limited to approved application behavior; SSR deviations require an ADR.
+10. Preview deployments MUST be non-indexable.
+
+---
+
+## 5. Testing Objectives
+
+### 5.1 Business continuity
+
+- No qualified RFQ is lost because Odoo is slow, unavailable, restarting, or upgrading.
+- No retry creates a duplicate contact, lead, opportunity, or RFQ in Odoo.
+- A customer receives a stable public RFQ reference after durable acceptance.
+- Operators can identify pending, failed, retried, dead-lettered, and synchronized records.
+- Price or catalog synchronization cannot silently publish corrupt or structurally invalid data.
+
+### 5.2 User trust
+
+- The UI never reports false success.
+- Stale public prices display the approved freshness state and timestamp.
+- Unavailable capabilities are hidden or clearly unavailable; they are never simulated.
+- Sensitive data never appears in URLs, page HTML, analytics, logs, traces, screenshots, caches, or error responses.
+
+### 5.3 Discoverability and speed
+
+- Indexable pages include meaningful content and SEO signals in the initial HTML response.
+- Canonicals, hreflang, robots, sitemap, redirects, status codes, internal links, and structured data remain consistent.
+- Performance budgets are enforced before deployment and monitored after deployment.
+- Optional scripts and integrations cannot block primary content or RFQ submission.
+
+### 5.4 Inclusive Persian experience
+
+- Core journeys work with keyboard, touch, pointer, zoom, reduced motion, forced colors, and representative assistive technology.
+- Persian reading order, mixed-direction values, technical sizes, units, phone numbers, email addresses, and product codes remain understandable.
+- Components use logical direction-aware behavior and do not block future LTR locales.
+
+---
+
+## 6. Risk Model and Release Priority
+
+| Priority | Area | Typical failure | Required evidence |
 |---|---|---|---|
-| P0 | Inquiry submission and durable persistence | Lost or falsely acknowledged lead | Unit, integration, contract, E2E, failure-path tests |
-| P0 | Personal data and document handling | Confidentiality or legal breach | Security, integration, negative, logging/privacy tests |
-| P0 | Production routing and canonical domain | Traffic/indexing loss | Route, redirect, SEO, deployment smoke tests |
-| P1 | Navigation and primary CTAs | Broken discovery or conversion | Component and E2E tests |
-| P1 | Metadata, sitemap, robots, JSON-LD | Search visibility or eligibility loss | Build-time and deployed-page tests |
-| P1 | Accessibility of core journeys | Excluded users and compliance failure | Automated plus manual accessibility tests |
-| P1 | Persian RTL and responsive layouts | Major usability failure | Component, visual, browser, and manual tests |
-| P1 | Security controls and abuse resistance | Service or data compromise | Static, dependency, API, header, and abuse tests |
-| P2 | Analytics events and consent | Corrupted measurement or privacy risk | Typed event, consent, and browser tests |
-| P2 | Media and motion | Performance or comprehension degradation | Visual, accessibility, and performance tests |
-| P2 | Integration degradation | Misleading state or operational disruption | Fault-injection and fallback tests |
-| P3 | Low-risk presentational refinements | Minor visual inconsistency | Focused component or visual checks |
+| P0 | RFQ durable acceptance | Lost or falsely acknowledged request | Unit, Worker integration, D1/R2, queue, E2E, failure injection |
+| P0 | Odoo idempotency | Duplicate contact/lead/RFQ on retry | Contract, integration, replay, concurrency tests |
+| P0 | Private data and files | Data exposure or public attachment | Security, cache, R2, logging, authorization tests |
+| P0 | Authentication/RBAC | Unauthorized admin access or mutation | Unit, integration, E2E, audit tests |
+| P0 | Production domain/route integrity | Traffic or indexing loss | Redirect, status, canonical, deployed smoke tests |
+| P1 | Catalog/public price projection | Wrong, stale, or mismatched commercial data | Mapping, schema, sync, cache invalidation tests |
+| P1 | SEO output | Missing or contradictory crawl signals | Build, crawl, deployed HTML tests |
+| P1 | Performance budgets | Slow pages or excessive client JavaScript | Bundle, Lighthouse, Web Vitals, cache tests |
+| P1 | Accessibility/RTL | Excluded or confused users | Automated and manual accessibility/RTL checks |
+| P1 | CMS publishing | Draft leak or stale page | Authorization, lifecycle, revalidation, SEO tests |
+| P2 | Analytics | Privacy breach or corrupt measurement | Consent, payload, duplicate-event tests |
+| P2 | Visual behavior | Layout or brand regression | Component, responsive, visual tests |
+| P3 | Low-risk polish | Minor presentation inconsistency | Focused component/manual review |
 
-P0 failures block merge and release. P1 failures block release unless the governing owner approves a documented, time-bounded exception. P2 and P3 exceptions require documented impact and follow-up ownership.
-
----
-
-## 6. Core Principles
-
-### 6.1 Test observable behavior
-
-Prefer assertions on accessible roles, names, visible states, generated metadata, HTTP behavior, persisted outcomes, and approved side effects. Avoid tests coupled to private component state, internal React implementation details, or incidental DOM structure.
-
-### 6.2 Use the smallest effective test level
-
-Pure rules belong in unit tests. Component interaction belongs in component tests. Trust boundaries and adapters belong in integration or contract tests. Only complete user journeys belong in E2E tests.
-
-### 6.3 Server validation is authoritative
-
-Client validation improves usability but never replaces API validation. Every client validation rule with security or data-integrity impact must also be verified at the server boundary.
-
-### 6.4 Test failure paths deliberately
-
-For forms, uploads, storage, CRM, analytics, and network-dependent behavior, the unhappy paths are release requirements. Timeouts, malformed responses, duplicate submissions, provider rejection, and partial dependency failure must not create false success.
-
-### 6.5 Keep tests deterministic
-
-Freeze time where time matters. Control randomness. Do not rely on shared production records, external network availability, arbitrary sleeps, or execution order.
-
-### 6.6 Accessibility is not snapshot coverage
-
-Automated accessibility scanning is necessary but incomplete. Keyboard, focus, zoom, reading order, screen-reader announcements, reduced motion, and content clarity require manual verification.
-
-### 6.7 Production smoke tests are non-destructive
-
-Production checks must be read-only by default. A real inquiry may be submitted only through an explicitly approved synthetic-lead procedure with tagging, ownership, notification expectations, and cleanup rules.
-
-### 6.8 No sensitive test data
-
-Tests must use synthetic names, phone numbers, emails, company names, inquiry descriptions, and files. Never copy real customer, supplier, employee, quotation, invoice, or project data into fixtures, snapshots, logs, screenshots, or CI artifacts.
+P0 failures block merge and release. P1 failures block release unless the governing owner approves a documented exception with owner, mitigation, expiration, and rollback criteria.
 
 ---
 
 ## 7. Test Portfolio
 
-The project uses a layered portfolio rather than a rigid numeric pyramid.
-
-| Level | Purpose | Typical scope | Execution |
+| Layer | Purpose | Examples | Default execution |
 |---|---|---|---|
-| Static checks | Prevent invalid code and content | TypeScript, lint, schemas, forbidden imports | Every change |
-| Unit tests | Verify pure rules and transforms | Validators, builders, selectors, normalization | Every change |
-| Component tests | Verify UI semantics and interaction | Forms, navigation, accordions, dialogs, feedback | Every change |
-| Integration tests | Verify internal boundaries | Route Handlers, repositories, adapters, content loaders | Every relevant change |
-| Contract tests | Verify external interface assumptions | CRM, storage, Turnstile, analytics payloads | Every relevant change |
-| E2E tests | Verify critical user journeys | Route discovery, inquiry flow, navigation | Preview/main |
-| Non-functional tests | Verify quality characteristics | Accessibility, SEO, performance, security, visual | Preview/release |
-| Production smoke tests | Verify deployed essentials | Domain, redirects, headers, primary pages | After deployment |
+| Static checks | Prevent invalid code/configuration | Lint, TypeScript, schemas, forbidden imports, migrations | Every pull request |
+| Unit | Verify pure rules | Validation, normalization, mapping, cache keys, retry classification | Every pull request |
+| Component | Verify semantics and interaction | RFQ builder, admin forms, navigation, feedback | Every pull request |
+| Worker integration | Verify Cloudflare runtime boundaries | D1, R2, Cache API, route handlers, bindings | Relevant pull requests |
+| Contract | Verify external/interface assumptions | Odoo JSON-2/adapter, Turnstile, analytics payloads | Relevant changes + scheduled |
+| E2E | Verify critical journeys in browsers | RFQ, publishing, price update, RBAC | Preview/release |
+| Non-functional | Verify quality characteristics | SEO, accessibility, performance, security, visual | Preview/release |
+| Resilience | Verify degraded behavior | Odoo outage, queue replay, cache/D1/R2 failure | Release candidate/scheduled |
+| Production smoke | Verify deployed essentials | Domain, HTML, headers, queues/metrics | After deployment |
 
-The suite should contain many fast tests and a small, high-value E2E layer. Do not reproduce every unit permutation in a browser test.
+Use the smallest test layer that proves the outcome. Do not reproduce every unit permutation in Playwright.
 
 ---
 
-## 8. Recommended Test Tooling
+## 8. Approved Tooling Direction
 
-Use the exact project-approved and lockfile-pinned versions. If `STACK.md` selects an equivalent tool, follow `STACK.md`.
+Exact versions are owned by `STACK.md` and the lockfile. This strategy defines capabilities, not permission to install duplicates.
 
-| Need | Recommended baseline |
+| Need | Baseline |
 |---|---|
-| Test runner and coverage | Vitest with V8 coverage |
-| DOM and component behavior | Testing Library with `@testing-library/jest-dom` |
-| User interaction | `@testing-library/user-event` |
+| Pure TypeScript and component tests | Vitest + Testing Library + `user-event` |
+| Cloudflare runtime tests | Vitest with the current Cloudflare Workers integration |
 | Browser E2E | Playwright |
-| Automated accessibility | `axe-core` through an approved Playwright or component integration |
-| HTTP dependency simulation | MSW or adapter-level fakes |
-| Schema validation | Project-approved Zod-compatible schemas |
-| Performance regression | Lighthouse CI plus Web Vitals monitoring |
-| Security checks | Secret scanning, dependency audit, static analysis, and safe preview scanning |
+| Automated accessibility | axe integration with component/browser tests |
+| HTTP simulation | Adapter fakes or MSW at owned external boundaries |
+| Schema validation | Project-approved runtime schemas |
+| Performance | Lighthouse CI, bundle budgets, and field Web Vitals monitoring |
+| Security | Secret scanning, dependency audit, static analysis, header/API checks |
 
-Rules:
+Cloudflare runtime tests SHOULD execute against the actual Workers runtime simulation and bindings, including D1 and R2. They MUST apply real D1 migrations to isolated test storage.
 
-- Do not introduce both Vitest and Jest without an approved migration reason.
-- Do not install a second browser automation framework for convenience.
-- Do not call live third-party services from pull-request tests.
-- Do not use snapshot testing as the primary assertion strategy.
-- Do not update snapshots automatically in CI.
-- Any new testing dependency must have a clear owner, locked version, and justified maintenance cost.
+Do not introduce Jest beside Vitest, or Cypress beside Playwright, without an approved migration ADR. Do not call live Odoo from ordinary pull-request tests.
+
+Coverage configuration MUST reflect the selected Workers test integration. If native V8 coverage is unsupported for that runtime integration, use the supported instrumented coverage method rather than publishing misleading numbers.
 
 ---
 
-## 9. Static and Build-Time Checks
-
-Every pull request must run:
-
-1. dependency installation from the committed `pnpm` lockfile;
-2. formatting verification where configured;
-3. linting with zero unapproved errors;
-4. TypeScript strict checking;
-5. unit and component tests;
-6. production build;
-7. content/schema validation;
-8. route, metadata, and structured-data validation where generated at build time;
-9. forbidden import and server/client boundary checks where configured;
-10. secret and high-confidence credential scanning.
-
-The build must fail when:
-
-- required public content is missing;
-- a route record violates its schema;
-- two canonical pages claim the same route unexpectedly;
-- a server-only module enters a client bundle;
-- an unpublished locale is emitted as an indexable route;
-- structured data cannot be serialized safely;
-- a required environment variable is missing from an environment that actually uses the capability;
-- an optional, disabled integration incorrectly becomes required for static public pages.
-
----
-
-## 10. Unit Testing
-
-Unit tests must cover deterministic functions without rendering the full application.
-
-### 10.1 Required targets
-
-- inquiry schemas and field-level constraints;
-- Persian and Latin digit normalization where approved;
-- whitespace, phone, email, and text normalization;
-- locale, direction, route, canonical, and alternate-link builders;
-- metadata, Open Graph, robots, and JSON-LD builders;
-- sitemap inclusion and exclusion rules;
-- content selectors, filters, sorting, and related-content logic;
-- safe analytics payload construction;
-- rate-limit decision helpers when separable from infrastructure;
-- upload allowlist, size, extension, and MIME validation rules;
-- correlation ID and safe error mapping;
-- cache key and revalidation policy helpers;
-- adapter result mapping and retry classification;
-- environment configuration parsing.
-
-### 10.2 Boundary cases
-
-Each validation rule must include valid, invalid, minimum, maximum, empty, null-like, Unicode, and normalization cases as relevant. Test mixed Persian/Latin digits, Persian/Arabic character variants, bidi-sensitive input, leading/trailing whitespace, and unexpectedly long strings.
-
-### 10.3 Prohibited patterns
-
-- Testing a private helper solely to match its current implementation.
-- Large snapshots of page HTML, JSON-LD, or configuration without semantic assertions.
-- Mocking the function under test.
-- Silently accepting unknown fields at external trust boundaries.
-
----
-
-## 11. Component Testing
-
-Component tests must verify semantics, interaction, state transitions, and direction behavior.
-
-### 11.1 Query strategy
-
-Use queries in this order:
-
-1. accessible role and accessible name;
-2. associated label text;
-3. visible text when it is the intended contract;
-4. approved stable test ID only when no meaningful semantic query exists.
-
-CSS class names, generated IDs, and DOM depth are not stable public contracts.
-
-### 11.2 Required states
-
-Interactive components must be tested, as applicable, for:
-
-- initial/default;
-- hover-independent keyboard operation;
-- focus and focus-visible behavior;
-- expanded/collapsed or open/closed;
-- loading and pending;
-- empty;
-- validation error;
-- dependency error;
-- success;
-- disabled and unavailable;
-- reduced-motion behavior;
-- RTL and future LTR direction.
-
-### 11.3 Priority components
-
-- header, mobile navigation, skip link, breadcrumbs, and footer;
-- primary and secondary CTAs;
-- inquiry form fields, grouped controls, consent, errors, and submission feedback;
-- accordions, tabs, dialogs, drawers, menus, and carousels if approved;
-- cards and links whose accessible name includes Persian text;
-- responsive image and media wrappers;
-- alert, status, toast, and inline feedback patterns;
-- any component that switches behavior between server and client boundaries.
-
-Component tests must confirm that accessible names and descriptions remain meaningful in Persian, not merely that an element exists.
-
----
-
-## 12. Integration Testing
-
-Integration tests verify boundaries between application modules without depending on real external services.
-
-### 12.1 Inquiry Route Handler
-
-`/api/inquiries` tests must cover:
-
-- accepted method and content type;
-- malformed JSON or body data;
-- missing and invalid required fields;
-- normalization followed by authoritative validation;
-- unexpected fields and payload size limits;
-- server-side bot-verification results;
-- rate-limit allowed and denied outcomes;
-- repository/lead-adapter success;
-- provider validation error;
-- provider authentication/configuration error;
-- timeout and temporary provider failure;
-- durable fallback/outbox behavior if approved;
-- duplicate/replayed submission behavior;
-- correlation ID generation and propagation;
-- safe public error response;
-- safe structured logs without personal data;
-- success only after the approved durable operation succeeds.
-
-### 12.2 Repository and Adapter Boundaries
-
-Each adapter must pass the same behavior contract:
-
-- normalized inquiry input maps correctly;
-- required business fields are preserved;
-- provider-specific errors map to stable domain errors;
-- secrets are never included in returned errors;
-- retryable and permanent failures are distinguishable;
-- idempotency behavior matches the approved integration;
-- optional providers do not break public page rendering.
-
-### 12.3 Content and Build Integration
-
-Tests must load representative real content records and verify:
-
-- schema validity;
-- unique slugs and IDs;
-- valid internal references;
-- approved media paths and required alternative text;
-- no draft content in production output;
-- no future-locale route without complete approved content;
-- deterministic sitemap and metadata generation.
-
----
-
-## 13. External Contract Testing
-
-External services must be hidden behind adapters. Contract tests verify the adapter's assumption about each provider without making ordinary CI dependent on that provider.
-
-Potential contracts include:
-
-- approved CRM or lead sink;
-- private object storage;
-- Cloudflare Turnstile verification;
-- notification service;
-- GTM/GA4 event payloads;
-- CMS, only if later approved.
-
-For each contract, maintain:
-
-1. a sanitized success fixture;
-2. documented permanent-error fixtures;
-3. documented transient-error fixtures;
-4. a schema or explicit response validator;
-5. a controlled sandbox verification procedure where the provider supports it.
-
-Provider sandbox tests may run on a schedule or before integration releases. They must use dedicated test credentials, synthetic data, explicit timeouts, and safe cleanup. Production credentials must never be available to pull-request jobs.
-
----
-
-## 14. End-to-End Testing
-
-E2E tests should cover a small number of business-critical journeys across real browser rendering.
-
-### 14.1 Mandatory journeys
-
-#### Journey A — Discover the procurement offer
-
-1. Open the canonical Persian home page.
-2. Confirm `lang="fa"` and `dir="rtl"`.
-3. Use primary navigation by keyboard.
-4. Visit a core service/capability page.
-5. Reach `/request` through the intended CTA.
-
-#### Journey B — Submit a valid inquiry
-
-1. Open `/request`.
-2. Complete all required fields with synthetic data.
-3. Verify client feedback and accessible pending state.
-4. Submit to a controlled test lead adapter.
-5. Confirm the success message and stable completion behavior.
-6. Confirm that the outbound record contains only approved normalized fields.
-
-#### Journey C — Correct an invalid inquiry
-
-1. Submit empty and invalid fields.
-2. Confirm focus moves or is guided to the error summary/first invalid control as specified.
-3. Confirm each error is associated with its field.
-4. Correct the data without losing valid entries.
-5. Submit successfully.
-
-#### Journey D — Handle dependency failure truthfully
-
-1. Simulate a lead sink timeout or failure.
-2. Confirm that no success message appears.
-3. Confirm the user receives the approved recoverable error state.
-4. Confirm no duplicate is created when retrying under the approved policy.
-
-#### Journey E — Navigate on a small screen
-
-1. Use a 320 CSS-pixel viewport.
-2. Open and close mobile navigation by keyboard and touch-equivalent input.
-3. Verify focus containment/restoration where applicable.
-4. Reach primary content and `/request` without horizontal page scrolling.
-
-#### Journey F — Verify canonical discovery
-
-1. Visit representative canonical routes.
-2. Verify title, description, canonical, robots, Open Graph, and structured data.
-3. Verify internal links use the canonical host and route form.
-4. Verify `/request` uses `noindex, follow` as specified.
-
-### 14.2 Browser projects
-
-The automated baseline should include:
-
-- Chromium desktop for the full critical suite;
-- WebKit desktop or mobile for the critical journey subset;
-- Firefox desktop for the critical journey subset;
-- a representative mobile Chromium viewport;
-- a representative mobile WebKit viewport.
-
-Exact browser versions are owned by the Playwright lockfile and CI image. Avoid hard-coding consumer version numbers in this document.
-
-### 14.3 E2E rules
-
-- Use web-first assertions; do not use arbitrary sleeps.
-- Wait for observable state, not implementation events.
-- Isolate records per test and generate unique synthetic identifiers.
-- Capture trace, screenshot, console, and network diagnostics only on failure or retry.
-- Treat unexpected page errors, unhandled rejections, failed first-party requests, and hydration errors as failures.
-- Block or control nonessential third-party scripts unless the test specifically verifies them.
-
----
-
-## 15. Form and Lead-Capture Test Matrix
-
-| Area | Required cases |
-|---|---|
-| Required fields | Empty, whitespace-only, missing key, valid value |
-| Phone | Approved Iranian/international forms, Persian digits if supported, invalid length, letters, separators |
-| Email | Empty when optional, valid, malformed, excessive length |
-| Text fields | Minimum/maximum, multiline, Unicode, bidi input, HTML-like text, unexpected control characters |
-| Consent | Unchecked, checked, clear label and link behavior |
-| Client/server parity | Client rejection, direct API rejection, normalized accepted input |
-| Pending state | Repeat click, Enter submission, disabled behavior, announced status |
-| Success | Durable write, approved message, no sensitive data in URL |
-| Failure | Validation, rate limit, bot rejection, timeout, provider failure, safe retry |
-| Duplicate control | Double click, browser retry, repeated idempotency key if approved |
-| Logging | Correlation ID present; personal fields absent or redacted |
-| Analytics | Approved outcome category only; no form content or personal data |
-
-Error messages must be tested for meaning and association, not exact punctuation unless approved copy is itself the contract.
-
----
-
-## 16. Upload Testing
-
-The upload UI and `/api/uploads` must remain unavailable until the complete approved workflow is implemented. Tests must verify that an incomplete capability is not exposed.
-
-When uploads are approved, test:
-
-- allowlisted extension, MIME type, and file signature;
-- maximum individual and total size;
-- zero-byte, truncated, corrupted, and polyglot-like files;
-- renamed executable or disallowed content;
-- filename normalization and unsafe path characters;
-- short-lived signed authorization and expiry;
-- inquiry-to-document relationship;
-- private storage and denied anonymous retrieval;
-- malware-scanning/quarantine state if required;
-- timeout, interrupted upload, cancellation, and retry;
-- cleanup of abandoned or rejected objects;
-- no public object URL in page source, analytics, logs, or success UI;
-- accessible progress and failure feedback.
-
-Use harmless purpose-built fixtures. Do not introduce actual malware into the repository. Use the approved industry test string only in an isolated security test environment when explicitly authorized.
-
----
-
-## 17. Route, Localization, and Direction Testing
-
-### 17.1 Phase 1 route rules
-
-Tests must verify:
-
-- Persian canonical pages are unprefixed;
-- `/fa` and `/fa/**` follow the approved permanent redirect policy;
-- `/en/**` and `/ar/**` are not published or indexable before complete approval;
-- canonical URLs use `https://www.ahanassa.com` if that remains the deployment specification;
-- the apex domain redirects permanently to the canonical `www` host;
-- query parameters do not create alternate canonical pages unless explicitly approved;
-- trailing-slash and case behavior are consistent;
-- removed routes follow `REDIRECTS.md` or return the approved status;
-- preview and Vercel hostnames never appear in canonical, Open Graph, sitemap, JSON-LD, or internal links.
-
-### 17.2 Document direction
-
-For Persian pages, verify:
-
-- `<html lang="fa" dir="rtl">`;
-- logical CSS properties are used where direction can change;
-- icons with directional meaning mirror only when appropriate;
-- phone numbers, emails, URLs, Latin product codes, and quantities remain readable;
-- field labels, helper text, errors, and units have correct visual and reading order;
-- horizontal overflow does not appear at 320 px or 200% zoom.
-
-### 17.3 Future locale readiness
-
-Direction-sensitive primitives should receive targeted tests under both `dir="rtl"` and `dir="ltr"`. This does not authorize publishing incomplete English or Arabic pages.
-
----
-
-## 18. SEO Testing
-
-SEO checks must run against generated output and representative deployed pages.
-
-### 18.1 Per-page checks
-
-- exactly one approved title and meta description;
-- one canonical URL matching the public route;
-- correct robots directive;
-- approved Open Graph and social metadata;
-- a meaningful, unique H1 aligned with the page specification;
-- crawlable primary navigation and internal links;
-- server-rendered main content;
-- valid structured data using only visible, approved claims;
-- no placeholder, staging, localhost, preview, or Vercel origin URL;
-- no accidental locale alternate for unpublished content.
-
-### 18.2 Site-wide checks
-
-- sitemap contains only canonical, indexable, successful public routes;
-- `/request`, API routes, private assets, preview routes, and redirected URLs are excluded as specified;
-- robots rules do not block required public assets or accidentally allow private endpoints;
-- internal links do not target redirects, 404s, or unpublished locales;
-- canonical pages return `200`, intentional redirects return the approved permanent code, and missing routes return the approved `404` behavior;
-- structured data parses and matches the approved schema contract.
-
-Automated checks must validate shape and internal consistency. Search-engine eligibility tools may be used as supplementary manual evidence, not as the sole release test.
-
----
-
-## 19. Accessibility Testing
-
-The target is the standard defined by `ACCESSIBILITY.md`; automated tools do not replace that document.
-
-### 19.1 Automated checks
-
-Run axe-based checks on at least:
-
-- home page;
-- one representative content-heavy page;
-- navigation open state;
-- `/request` default state;
-- `/request` validation-error state;
-- `/request` pending, failure, and success states;
-- any approved dialog, drawer, accordion, tabs, or carousel.
-
-No unapproved serious or critical automated accessibility violation may ship.
-
-### 19.2 Manual checks
-
-For every release candidate, verify core journeys with:
-
-- keyboard only;
-- visible focus and logical focus order;
-- skip link;
-- 200% browser zoom;
-- 320 CSS-pixel width/reflow;
-- reduced-motion preference;
-- forced-colors/high-contrast mode where supported;
-- representative screen reader and browser combinations;
-- touch target usability on mobile;
-- Persian reading order and status/error announcements.
-
-### 19.3 Content checks
-
-- alternative text communicates the approved purpose of informative images;
-- decorative images are ignored by assistive technology;
-- link text is meaningful out of context where practical;
-- headings form a useful hierarchy;
-- instructions do not rely only on color, position, shape, or motion;
-- error messages explain how to recover;
-- no auto-playing media or motion violates the approved policy.
-
-Record manual accessibility evidence in the release checklist or pull request when the change affects a core journey.
-
----
-
-## 20. Responsive and Cross-Browser Testing
-
-Test behavior at content-driven boundaries, not only device labels.
-
-### 20.1 Required viewport coverage
-
-- 320 px minimum supported width;
-- a common narrow mobile width;
-- a wider mobile/small tablet width;
-- tablet portrait/landscape as relevant;
-- standard desktop;
-- wide desktop with controlled line lengths and layout bounds.
-
-Responsive tests must inspect intermediate widths around navigation, grid, typography, table, and form transitions.
-
-### 20.2 Required assertions
-
-- no unintended horizontal page overflow;
-- no clipped focus ring, content, or CTA;
-- navigation remains operable;
-- text does not overlap or truncate essential meaning;
-- tables and long technical content follow the approved overflow pattern;
-- fixed/sticky elements do not obscure focused controls or anchors;
-- responsive media reserves space and preserves intended crop;
-- form input zoom and virtual-keyboard behavior remain usable;
-- touch interactions have a keyboard-accessible equivalent.
-
-Browser support is defined by `STACK.md` or the approved browser-support policy. Tests should focus on rendering engines and capabilities rather than an expanding list of devices.
-
----
-
-## 21. Visual Regression Testing
-
-Visual regression is appropriate for stable, high-value surfaces. It must not replace semantic assertions.
-
-Recommended visual baselines:
-
-- site header and navigation states;
-- home page above the fold;
-- representative page section composition;
-- core card/grid patterns;
-- inquiry form default, error, pending, and success states;
-- footer;
-- representative RTL and LTR component harnesses;
-- 320 px and standard desktop compositions.
-
-Baseline rules:
-
-- freeze animation, time, random content, and remote media;
-- use approved local fixtures and deterministic fonts;
-- mask only genuinely unstable, non-contract content;
-- review diffs at the same viewport, browser, device scale, and font environment;
-- require a human reviewer to approve intentional baseline changes;
-- do not accept a broad baseline update without linking it to approved design changes.
-
-Pixel differences caused by a missing font or failed asset are defects, not noise to be masked.
-
----
-
-## 22. Performance Testing
-
-`PERFORMANCE_GUIDELINES.md` owns budgets and remediation rules. Testing must enforce them.
-
-### 22.1 Field targets
-
-At the 75th percentile for representative real-user traffic, the public site should meet the accepted Core Web Vitals thresholds:
-
-- LCP: at or below 2.5 seconds;
-- INP: at or below 200 milliseconds;
-- CLS: at or below 0.1.
-
-Field data requires sufficient samples and is not available for every new route. Lab checks provide pre-release regression evidence but do not prove field performance.
-
-### 22.2 Lab checks
-
-Run Lighthouse or equivalent checks on:
-
-- home page;
-- a representative content-heavy page;
-- a media-heavy page if approved;
-- `/request`;
-- any route affected by a performance-sensitive change.
-
-Enforce the approved budgets for JavaScript, CSS, images, fonts, requests, and layout shift. Until exact budgets are ratified in `PERFORMANCE_GUIDELINES.md`, compare against the accepted baseline and block material unexplained regression rather than inventing a new budget.
-
-### 22.3 Component and build performance checks
-
-- prevent accidental client conversion of server-rendered sections;
-- detect unexpected growth in route bundles;
-- verify below-fold heavy modules are lazy-loaded where specified;
-- verify image dimensions and responsive sources;
-- verify font loading and fallback behavior;
-- verify no hydration error or avoidable layout shift;
-- verify third-party tags do not load before approved consent and timing rules.
-
-Performance tests should run in a controlled environment and be repeated before treating a marginal change as a regression.
-
----
-
-## 23. Security Testing
-
-Security testing follows `SECURITY_GUIDELINES.md` and the OWASP ASVS 5.0 Level 1 baseline, with selected Level 2 controls for inquiries, integrations, personal data, and documents.
-
-### 23.1 Automated security checks
-
-- secret and credential scanning;
-- dependency vulnerability audit;
-- static analysis for supported high-confidence rules;
-- production-build inspection for server-only values in client assets;
-- security-header assertions on preview and production;
-- API validation and content-type tests;
-- rate-limit and bot-verification integration tests;
-- safe passive/baseline scanning against an authorized preview environment.
-
-No known critical or high-severity exploitable vulnerability in shipped production code or runtime dependencies may be released without an approved security exception and mitigation. Severity alone does not replace exploitability review, but uncertainty must not be treated as safety.
-
-### 23.2 Manual security scenarios
-
-- direct API calls bypassing client validation;
-- oversized and malformed bodies;
-- HTML/script-like and injection-like input handled as data;
-- request smuggling or proxy-specific tests only in an authorized controlled environment;
-- missing/invalid bot token;
-- rate-limit evasion cases relevant to trusted proxy configuration;
-- sensitive data absence from URL, HTML, analytics, logs, and client errors;
-- cache behavior for API and personalized/error responses;
-- denied access to private uploads;
-- preview-deployment protection and environment separation.
-
-Never run destructive, high-volume, or aggressive security tests against production without explicit authorization and an operational plan.
-
-### 23.3 Header checks
-
-Verify the approved values and environment differences for:
-
-- HTTPS redirect and HSTS;
-- Content Security Policy;
-- frame-ancestor protection;
-- content-type sniffing protection;
-- referrer policy;
-- permissions policy;
-- caching rules for public pages and APIs;
-- removal of unnecessary technology disclosure where controllable.
-
-Header tests must account for the combined Cloudflare and Vercel response, not only local development.
-
----
-
-## 24. Analytics and Consent Testing
-
-Analytics tests must prove both event correctness and data minimization.
-
-Test that:
-
-- no analytics or advertising behavior starts before the approved consent condition;
-- denial or withdrawal is respected;
-- page-view behavior matches App Router navigation;
-- approved CTA events fire once with the approved event name and parameters;
-- inquiry attempt, validation outcome, success, and failure use approved categories only;
-- no name, phone, email, free-text inquiry, filename, document URL, full query string, or other personal/confidential data is sent;
-- preview and automated-test traffic are excluded or clearly identified according to the analytics specification;
-- duplicate events are not produced by hydration, route transitions, retries, or repeated listeners;
-- a blocked analytics provider never blocks content, navigation, or inquiry submission.
-
-Tests should intercept and inspect outbound payloads. A visible `dataLayer` push is not sufficient if the final transmitted payload differs.
-
----
-
-## 25. Reliability and Degraded-Service Testing
-
-Public content must remain available when optional services fail.
-
-Simulate:
-
-- CRM/lead sink timeout;
-- notification provider failure after a durable lead write;
-- analytics/tag manager blocked;
-- bot-protection script blocked or slow;
-- private storage unavailable;
-- remote media unavailable;
-- malformed CMS data if a CMS is later approved;
-- stale cache or origin error in a controlled environment.
-
-Expected principles:
-
-- public pages and navigation remain usable;
-- failure of analytics never affects conversion;
-- failure of notification does not erase a durable lead;
-- failure before durable lead persistence never displays success;
-- unavailable upload capability is hidden or clearly disabled as specified;
-- errors expose no provider secrets or internal topology;
-- retry behavior does not amplify duplicates or load.
-
----
-
-## 26. Test Data and Fixtures
-
-### 26.1 Data policy
-
-All committed fixtures must be synthetic, minimal, and reviewable. Use obviously non-real example domains and reserved documentation values where practical.
-
-Do not include:
-
-- real customer or supplier information;
-- production lead exports;
-- real quotations, invoices, bills of quantities, or contracts;
-- production access tokens, signed URLs, cookies, or provider responses containing identifiers;
-- copyrighted or confidential documents used without approval.
-
-### 26.2 Fixture design
-
-Maintain builders for:
-
-- valid minimal inquiry;
-- valid full inquiry;
-- each invalid boundary case;
-- provider success, validation failure, timeout, and transient failure;
-- representative Persian content records;
-- representative metadata and structured data;
-- safe upload samples after upload approval.
-
-Prefer builders with explicit overrides over large duplicated JSON fixtures. Keep provider fixtures sanitized and versioned with the adapter contract.
-
-### 26.3 Time and identity
-
-- freeze or inject time for date-dependent content;
-- generate a unique test correlation/idempotency marker;
-- avoid globally shared mutable records;
-- clean up sandbox records where the provider supports cleanup;
-- never assert against a production sequence number or current record count.
-
----
-
-## 27. Mocking and Simulation Policy
-
-Mock only at owned boundaries.
-
-Preferred order:
-
-1. pure fake implementing the domain adapter;
-2. HTTP interception at the external-provider boundary;
-3. provider sandbox for scheduled or release contract verification;
-4. production service only for an explicitly approved read-only or synthetic check.
-
-Do not mock:
-
-- the primary function being tested;
-- browser navigation in an E2E journey;
-- framework behavior when the test is intended to verify framework integration;
-- server validation in a form E2E test;
-- persistence success when the requirement is specifically durable persistence.
-
-Mocks must model failure as well as success. A success-only mock suite is incomplete for every P0 integration.
-
----
-
-## 28. Test Environments
-
-| Environment | Purpose | External services | Data |
-|---|---|---|---|
-| Local | Development and focused tests | Fakes by default | Synthetic |
-| CI unit/integration | Deterministic merge gates | No live third parties | Synthetic, isolated |
-| Preview | Deployed E2E, accessibility, SEO, performance, safe security checks | Sandbox/fakes as approved | Synthetic |
-| Staging, if approved | Release rehearsal and provider contracts | Sandbox or isolated non-production integrations | Synthetic |
-| Production | Read-only deployment smoke and monitoring | Real configured services | No form write unless synthetic procedure is approved |
+## 9. Test Environments
+
+| Environment | Purpose | Cloudflare resources | Odoo | Data |
+|---|---|---|---|---|
+| Local pure | Fast logic/UI development | Fakes | Fake adapter | Synthetic |
+| Local Worker | Runtime integration | Local isolated D1/R2/Queue/Cache | Stub HTTP server | Synthetic |
+| CI | Deterministic merge gate | Isolated ephemeral bindings | Recorded contracts/stub | Synthetic |
+| Preview | Deployed E2E, SEO, a11y, performance | Preview-only resources | Sandbox or adapter stub | Synthetic |
+| Staging, if approved | Release rehearsal | Isolated non-production resources | Odoo test database | Synthetic |
+| Production | Read-only smoke and monitoring | Production | Production | No writes by default |
 
 Environment requirements:
 
-- preview and production secrets are separate;
-- preview deployments remain access-controlled as specified;
-- production-only integrations cannot be accidentally selected in pull-request CI;
-- environment configuration is parsed and validated centrally;
-- missing optional integration configuration disables that capability safely;
-- test bypasses are impossible or unavailable in production.
+- production and non-production secrets MUST be separate;
+- CI MUST NOT receive production Odoo, R2, D1, Turnstile, or admin credentials;
+- test bypasses MUST be absent or impossible in production;
+- preview responses MUST be `noindex` and MUST NOT emit production canonicals incorrectly;
+- environment parsing MUST fail closed for enabled critical capabilities;
+- optional integration absence MUST NOT break static public pages;
+- local/CI resources MUST never point to production IDs.
+
+Production synthetic RFQ submission requires an approved runbook, explicit synthetic tagging, notification ownership, cleanup behavior, and a rate limit. Otherwise production smoke tests remain read-only.
 
 ---
 
-## 29. CI/CD Test Pipeline
+## 10. Test Data and Fixture Policy
 
-### 29.1 Pull request — fast gate
+All fixtures MUST be synthetic, minimal, and reviewable.
 
-Run on every relevant change:
+Never use:
 
-1. locked dependency install;
-2. format/lint/type checks;
-3. unit and component tests with coverage;
-4. integration tests using controlled adapters;
-5. content and schema validation;
-6. production build;
-7. secret scan and dependency/static security checks;
-8. changed-scope E2E smoke where infrastructure permits.
+- real customer, supplier, employee, quotation, invoice, or opportunity data;
+- exported production databases or production Odoo responses containing identifiers;
+- real RFQ documents or bills of quantities;
+- production secrets, cookies, bearer tokens, signed URLs, or API keys;
+- confidential product pricing not approved for public display.
 
-### 29.2 Preview deployment — deployed behavior
+Maintain builders for:
 
-After the preview becomes healthy:
+- minimal and full valid customers;
+- valid multi-line structured RFQs;
+- mixed structured and free-form items;
+- zero, one, and maximum permitted attachments;
+- catalog categories, products, variants, attributes, units, and public prices;
+- Odoo success, validation failure, authorization failure, conflict, rate limit, timeout, and server-error responses;
+- queue messages for first delivery, duplicate delivery, retry, malformed payload, and obsolete schema version;
+- CMS draft, scheduled, published, updated, archived, and deleted records;
+- representative Persian SEO content and mixed-direction technical values.
 
-- critical Chromium E2E journeys;
-- representative WebKit/Firefox subset;
-- automated accessibility scans;
-- metadata, canonical, robots, JSON-LD, and internal-link checks;
-- Lighthouse/budget checks on representative routes;
-- safe response-header and passive security checks;
-- console, hydration, and failed-first-party-request checks.
+Use unique correlation and idempotency markers per test. Freeze or inject time for price freshness, publishing, retry schedules, and sitemap `lastmod`. Builders with explicit overrides are preferred over duplicated large JSON snapshots.
 
-### 29.3 Main branch or release candidate — full gate
+---
 
-Run:
+## 11. Static, Schema, and Build-Time Gates
 
-- complete supported-browser critical suite;
-- full accessibility automation plus recorded manual checks;
-- visual regression suite;
-- integration contract suite appropriate to the release;
-- full route and sitemap crawl;
-- performance comparison against the accepted baseline;
-- deployment configuration review;
-- `PRE_DEPLOY_CHECKLIST.md`.
+Every pull request MUST run, as applicable:
 
-### 29.4 After production deployment
+1. locked dependency installation;
+2. formatting verification;
+3. linting with zero unapproved errors;
+4. strict TypeScript checking;
+5. unit and component tests;
+6. Worker integration tests for affected boundaries;
+7. production Cloudflare-targeted build;
+8. content and configuration schema validation;
+9. D1 migration validation on a clean database and an upgrade fixture;
+10. route, sitemap, metadata, robots, and structured-data validation;
+11. forbidden client import/server-secret checks;
+12. secret and high-confidence dependency/security scanning;
+13. route bundle and public JavaScript budget checks.
+
+The build MUST fail when:
+
+- a server-only Odoo, database, signing, or secret module enters a client bundle;
+- an indexable route lacks required server-rendered content or metadata;
+- a draft/unapproved locale enters the sitemap;
+- canonical routes collide or produce inconsistent normalized URLs;
+- D1 migrations cannot create a clean schema or upgrade the supported prior schema;
+- a queue event schema is invalid or unsupported without a migration strategy;
+- a required enabled binding or environment value is missing;
+- a public route accidentally becomes dynamic or client-heavy contrary to the rendering matrix;
+- public JavaScript exceeds the approved budget without an ADR/exception;
+- structured data cannot be safely serialized or contradicts visible content.
+
+---
+
+## 12. Unit Testing
+
+Unit tests MUST cover deterministic rules, including:
+
+- Persian/Latin digit and Persian/Arabic character normalization;
+- phone, email, name, company, unit, quantity, decimal, size, and description validation;
+- RFQ item limits, attachment limits, and payload size rules;
+- structured versus free-form item validation;
+- public RFQ reference and internal idempotency key generation;
+- canonical, alternate, robots, sitemap, metadata, Open Graph, and JSON-LD builders;
+- Odoo field mapping and external-ID construction;
+- retryable/permanent Odoo error classification;
+- queue event version parsing and unknown-version rejection;
+- price normalization, currency/unit mapping, freshness state, and safe rounding;
+- catalog slugging, filtering, sorting, attribute mapping, and indexability decisions;
+- cache keys, tags, allowlists, bypass rules, and invalidation plans;
+- RBAC policy evaluation and permission composition;
+- audit-event construction and PII-safe log redaction;
+- environment configuration parsing;
+- rate-limit decisions and safe public error mapping;
+- upload filename, extension, MIME, signature, size, and storage-key rules.
+
+For each boundary rule, include valid, invalid, minimum, maximum, empty, Unicode, bidi-sensitive, and unexpectedly long inputs where relevant.
+
+Prohibited patterns:
+
+- mocking the function under test;
+- snapshots as the primary assertion for large HTML/JSON objects;
+- silent acceptance of unknown fields at external trust boundaries;
+- tests coupled only to private helper structure;
+- using production current time, randomness, or record counts as assertions.
+
+---
+
+## 13. Component Testing
+
+Component tests MUST use accessible role/name queries first, then labels, then visible contract text, and stable test IDs only when semantic queries are impossible.
+
+Required state coverage, as applicable:
+
+- default, loading/pending, empty, error, success, disabled, and unavailable;
+- keyboard, pointer, and touch-equivalent interaction;
+- focus-visible, focus movement, focus restoration, and escape behavior;
+- reduced-motion behavior;
+- RTL and a representative LTR harness for direction-sensitive primitives;
+- long Persian content, mixed Latin product codes, decimal quantities, and technical units;
+- 320px layout and 200% zoom for high-risk components.
+
+Priority components:
+
+- header, skip link, navigation, mobile menu, breadcrumbs, and footer;
+- product/category/price cards and filters;
+- RFQ item table/builder with unlimited UI row addition subject to server safety limits;
+- category → product → variant → unit dependent controls;
+- free-form product row;
+- attachment picker/progress/error state;
+- customer/contact and consent fields;
+- admin login, protected navigation, data tables, bulk price controls, publishing controls, and confirmations;
+- alerts, status regions, dialogs, drawers, pagination, and empty states;
+- image/media wrappers and freshness indicators.
+
+The RFQ builder MUST prove that adding, editing, reordering if approved, and removing rows preserves other valid rows and produces deterministic accessible labels for every row.
+
+---
+
+## 14. Cloudflare Worker Integration Testing
+
+Worker integration tests MUST run in a compatible Workers runtime, not only Node.js emulation.
+
+Test:
+
+- route handlers through realistic `Request`/`Response` boundaries;
+- D1 queries after applying actual migrations;
+- R2 put/get/head/delete behavior using isolated bindings;
+- Cache API keys, headers, tags/versions, and bypass rules;
+- Queue producer payloads and consumer outcomes;
+- scheduled reconciliation/retry handlers where used;
+- Turnstile verification adapter responses;
+- environment bindings and server-only module boundaries;
+- Workers-compatible APIs used by the Next.js deployment output.
+
+Every Worker test file MUST have isolated state or explicit cleanup. Parallel tests MUST NOT share mutable IDs. If a platform simulator has timing limitations, tests MUST inject a clock at the domain layer and retain at least one deployed-environment check for real expiry behavior.
+
+---
+
+## 15. D1 Database Testing
+
+### 15.1 Migration tests
+
+Every migration set MUST prove:
+
+1. clean database creation succeeds;
+2. supported previous schema upgrades without data loss;
+3. foreign keys are enabled and enforced;
+4. required unique constraints and indexes exist;
+5. migration is deterministic and does not depend on production data;
+6. rollback/forward-fix behavior follows `DATABASE_SCHEMA.md` and deployment policy.
+
+Migration tests MUST include representative legacy rows for the immediately supported upgrade path.
+
+### 15.2 Integrity tests
+
+Verify:
+
+- an RFQ owns N items and N attachment metadata records;
+- deleting or archiving parent records follows the approved cascade/restrict policy;
+- catalog/category/product/variant/unit references cannot point to missing records;
+- free-form items remain valid without catalog foreign keys but contain required textual fields;
+- external Odoo IDs and website idempotency keys are unique where required;
+- price history is append-only or corrected only through the approved audit path;
+- sync state transitions reject invalid jumps;
+- timestamps use the approved format and source;
+- audit records cannot be silently overwritten by ordinary admin operations.
+
+### 15.3 Query and performance tests
+
+Representative catalog, price, RFQ admin, article, and sync queries MUST be tested with realistic data volume. Tests SHOULD inspect query plans for critical queries and fail when required indexes are not used or row reads exceed the ratified threshold.
+
+---
+
+## 16. R2 and Attachment Testing
+
+Public media and private RFQ files MUST use distinct access policies or equivalent enforced isolation.
+
+Test:
+
+- approved extension, MIME type, and file-signature agreement;
+- maximum individual size, total RFQ size, file count, zero-byte, truncated, corrupted, and renamed disallowed files;
+- filename normalization and path traversal characters;
+- generated opaque object keys, not user-controlled public paths;
+- private bucket/object access denial without authorized server flow;
+- short-lived access authorization and expiry when downloads are approved;
+- upload cancellation, interruption, retry, duplicate upload, and orphan cleanup;
+- D1 attachment metadata and R2 object relationship;
+- checksum/size mismatch handling;
+- quarantine/scanning states if specified;
+- no public R2 URL or signed URL in HTML, analytics, logs, audit text, or client-persisted state;
+- authorized admin download and denied cross-role/cross-record access.
+
+Use harmless, purpose-built fixtures. Do not commit malware. Security test strings may be used only in an isolated authorized environment.
+
+---
+
+## 17. RFQ Acceptance Contract
+
+The critical acceptance transaction is:
+
+```text
+Validate request
+      ↓
+Persist customer/contact snapshot
+      ↓
+Persist RFQ + items + consent + attachment metadata
+      ↓
+Persist outbox/integration intent
+      ↓
+Commit durable transaction
+      ↓
+Return public RFQ reference
+```
+
+If any mandatory operation before commit fails, the API MUST NOT return success.
+
+### 17.1 API cases
+
+Test:
+
+- accepted method and content type;
+- malformed JSON/form-data and payload-size overflow;
+- missing, unknown, and invalid fields;
+- client/server validation parity with server authority;
+- structured item, free-form item, and mixed RFQ;
+- zero items, one item, many items, and configured maximum;
+- dependent category/product/variant/unit mismatch;
+- Persian and Latin digits and decimal quantities;
+- consent presence, version, timestamp, and source;
+- valid/invalid Turnstile response;
+- rate-limit allow, warn, and reject behavior;
+- duplicate clicks, browser retries, and repeated idempotency keys;
+- D1 failure before commit;
+- R2 metadata/object inconsistency;
+- queue publish failure after durable outbox commit;
+- safe correlation/reference response;
+- logs and analytics without RFQ content or PII;
+- approved status codes and stable public error categories.
+
+### 17.2 Durable success assertions
+
+On success, tests MUST verify:
+
+- one RFQ record exists;
+- every accepted item exists exactly once;
+- consent evidence and source metadata exist;
+- every accepted attachment has approved metadata and object state;
+- one idempotent outbox/integration intent exists;
+- the public reference is stable and contains no sequential database or Odoo identifier unless explicitly approved;
+- the response does not wait for Odoo;
+- replaying the same request returns the approved idempotent result and creates no duplicates.
+
+### 17.3 Browser journeys
+
+Mandatory E2E journeys:
+
+1. submit a valid structured multi-line RFQ;
+2. submit a mixed catalog/free-form RFQ;
+3. attach an approved file and verify accessible progress;
+4. correct validation errors without losing valid rows/files;
+5. double-click/retry without duplicate creation;
+6. submit while Odoo is unavailable and still receive durable website acceptance;
+7. experience D1/durable-write failure and receive truthful recoverable failure;
+8. resume after a network interruption according to the approved policy;
+9. complete the journey at 320px, keyboard-only, and representative mobile touch.
+
+---
+
+## 18. Queue, Outbox, Retry, and DLQ Testing
+
+Queue delivery is at-least-once. The consumer MUST be designed and tested as if every message may be delivered more than once, out of immediate timing expectations, or after a deployment.
+
+Test producer behavior:
+
+- outbox record and domain transaction commit atomically where specified;
+- event contains schema version, event ID, aggregate ID, idempotency key, correlation ID, type, and occurred-at timestamp;
+- event excludes secrets and unnecessary PII;
+- queue publication updates state without deleting recovery evidence;
+- scheduled outbox recovery publishes records missed by transient publication failure.
+
+Test consumer behavior:
+
+- first delivery creates/maps the intended Odoo records once;
+- identical redelivery is a no-op or returns the same external mapping;
+- concurrent duplicate deliveries cannot create duplicates;
+- partial Odoo success followed by timeout is reconciled before retrying creation;
+- retryable failures use bounded retry/backoff policy;
+- permanent validation/mapping failures do not retry forever;
+- exhausted failures reach the DLQ with safe diagnostic metadata;
+- malformed/unsupported event versions are quarantined safely;
+- successful processing records `odoo_id`, `external_id`, sync version, and timestamps;
+- acknowledgements occur only after the approved durable success condition;
+- batch processing isolates individual message outcomes as configured.
+
+Test recovery operations:
+
+- DLQ inspection uses authorized admin/operator access;
+- replay requires audit evidence and preserves the original event identity;
+- repeated replay remains idempotent;
+- a fixed mapping can recover a failed event without editing historical payloads invisibly;
+- queue backlog, age, retry count, failure rate, and DLQ count trigger the approved alerts;
+- pausing/resuming delivery does not lose accepted messages.
+
+---
+
+## 19. Odoo Adapter and Contract Testing
+
+The website MUST access Odoo only through the server-side adapter. The adapter protocol and model mapping depend on the confirmed Odoo version and installed modules.
+
+### 19.1 Required adapter contract
+
+Test:
+
+- base URL, database/context requirements, authentication, timeout, and TLS behavior;
+- no password/API key appears in URL, logs, traces, errors, or client output;
+- dedicated bot user has only the required access rights;
+- request/response schemas reject unknown or missing critical fields;
+- website customer maps to the approved `res.partner` representation;
+- RFQ maps to the approved CRM/opportunity/custom model representation;
+- products, variants, units, and prices map according to `ERP_DATA_MAPPING.md`;
+- attachments are referenced according to policy rather than made publicly accessible;
+- Odoo validation, access, conflict, rate-limit, timeout, and 5xx responses map to stable domain outcomes;
+- retry classification matches `SYNC_STRATEGY.md`;
+- adapter compatibility tests exist for every supported Odoo version/API mode.
+
+If Odoo 19 JSON-2 is the confirmed production interface, its Bearer API authentication and JSON-2 request/response contract MUST be verified. Legacy RPC assumptions MUST NOT be mixed silently with JSON-2 behavior.
+
+### 19.2 Sandbox and production rules
+
+- Pull-request tests use stubs/recorded sanitized contracts.
+- Scheduled or release tests MAY use a dedicated Odoo test database.
+- Test records MUST have a unique source marker and cleanup policy.
+- Production credentials MUST never enter CI.
+- Production writes are prohibited unless the synthetic-operation runbook is approved.
+
+### 19.3 Failure-injection scenarios
+
+Simulate:
+
+- DNS/connectivity failure;
+- TLS or authentication failure;
+- timeout before Odoo receives the request;
+- timeout after Odoo commits but before response reaches the Worker;
+- 429/rate limit;
+- 4xx mapping/permission failure;
+- 5xx/restart/maintenance;
+- malformed or backward-incompatible response;
+- product/UOM mapping missing;
+- duplicate external ID;
+- partial contact creation followed by RFQ failure.
+
+For every scenario, verify no lead loss, no false website failure after durable acceptance, no duplicate ERP record, correct sync state, safe retry/reconciliation, and observable operator action.
+
+---
+
+## 20. Catalog and Public-Price Synchronization
+
+Odoo owns commercial product, variant, UOM, and price facts. The website owns SEO content and the public read model.
+
+### 20.1 Inbound sync tests
+
+Verify:
+
+- full initial import and incremental updates;
+- create, update, archive/deactivate, and restore behavior;
+- deterministic external-ID mapping;
+- product template versus variant mapping;
+- category, attribute, size, standard, brand/origin if approved, and UOM mapping;
+- decimal precision, currency, tax-display policy, and unit conversions;
+- same-version duplicate event is idempotent;
+- older/out-of-order version cannot overwrite newer data;
+- invalid records are quarantined without corrupting the last valid public projection;
+- sync writes and cache invalidation follow the approved order;
+- price history receives the approved immutable entry and timestamp;
+- public `last updated` reflects source update semantics, not merely page render time.
+
+### 20.2 Public page tests
+
+Verify:
+
+- page renders from D1/cache with Odoo blocked;
+- current public price, unit, freshness, and update timestamp agree;
+- unavailable/private prices use the approved CTA/state and do not invent values;
+- stale threshold displays the approved stale state and alerting occurs;
+- related sizes/products and internal links remain valid;
+- structured data contains only visible, eligible price/offer facts;
+- thin or incomplete variants are not automatically indexable;
+- filter parameters do not generate uncontrolled indexable URL combinations.
+
+### 20.3 Bulk/admin operations
+
+If an admin price operation writes to Odoo or triggers a synchronization workflow, test authorization, preview/dry-run if specified, validation, partial failure, concurrency, audit logs, cache invalidation, and recovery. The UI MUST identify the system of record and MUST NOT create an independent conflicting price source.
+
+---
+
+## 21. CMS, Publishing, and Revalidation Testing
+
+Test the complete content lifecycle:
+
+- create draft, edit, preview, publish, update, schedule if approved, unpublish, archive, and restore;
+- operator/editor/publisher permission differences;
+- slug uniqueness and protected-route conflicts;
+- server-side content validation and sanitization;
+- media authorization and alt-text requirements;
+- draft content absent from public output, sitemap, feeds, search, and structured data;
+- preview content protected and `noindex`;
+- publish event triggers selective path/tag revalidation;
+- unchanged pages remain cached;
+- failed revalidation is observable and retryable;
+- article update changes meaningful `lastmod` only when approved public content changes;
+- concurrent edits follow the approved version/conflict policy;
+- audit log records actor, action, target, time, and safe change metadata.
+
+CMS failure MUST NOT remove the last valid published public page unless the approved operation explicitly unpublishes it.
+
+---
+
+## 22. Admin Authentication, Authorization, and Audit Testing
+
+Test:
+
+- unauthenticated access redirects or returns the approved unauthorized response;
+- expired, revoked, malformed, and replayed sessions;
+- CSRF protection for state-changing requests;
+- session cookies use approved security attributes;
+- each role can see and execute only permitted actions;
+- direct API calls cannot bypass hidden/disabled UI controls;
+- object-level authorization prevents cross-record access;
+- dangerous operations require the approved confirmation/re-authentication;
+- rate limits and lockout/recovery rules do not create account-enumeration leaks;
+- admin responses use `no-store` and are excluded from public caches/indexing;
+- audit events are created for login/security events and all material mutations;
+- audit logs exclude secrets and excessive PII and cannot be edited by ordinary operators.
+
+Maintain a permission test table generated from `AUTHORIZATION_ROLES.md`: every role × resource × action combination MUST have an allow/deny assertion at the policy layer, plus E2E coverage for high-risk combinations.
+
+---
+
+## 23. Cache and Revalidation Testing
+
+### 23.1 Cache classification
+
+Representative routes MUST verify the approved classification:
+
+| Route/data class | Shared edge cache |
+|---|---|
+| Stable public marketing/category/product/article HTML | Allowed per policy |
+| Public price projection | Allowed with approved freshness/revalidation |
+| Public images/assets | Allowed |
+| RFQ form HTML | Only if it contains no personalized/security token state |
+| RFQ submission/API response | Never |
+| Admin/auth/account/personalized data | Never |
+| Private attachments/signed responses | Never |
+| Preview/draft content | Never public-shared |
+
+Test:
+
+- `Cache-Control` and edge-specific directives;
+- cache hit, miss, stale-while-revalidate, and revalidated response behavior;
+- cache keys do not vary on irrelevant or attacker-controlled values;
+- cookies/authorization force bypass where required;
+- no PII or private response is served across users;
+- cache tags/versions invalidate only affected product, category, price, or article surfaces;
+- purge/revalidation failure retains safe last-known content and triggers observability;
+- query filters follow canonical and cache policies;
+- stale data never crosses the maximum approved business-freshness ceiling silently;
+- cache stampede/concurrent regeneration is bounded where relevant.
+
+An automated test MUST fetch a private/admin/RFQ API response as two different synthetic users and prove there is no shared-cache leakage.
+
+---
+
+## 24. SEO Testing
+
+SEO checks MUST inspect both generated/deployed initial HTML and HTTP behavior.
+
+### 24.1 Per-page assertions
+
+- successful indexable status;
+- unique, approved title and description;
+- exactly one canonical matching the normalized public URL;
+- correct `lang`, direction, and hreflang/x-default set for published locales only;
+- approved robots directive;
+- server-rendered H1, primary content, breadcrumbs, and crawlable links;
+- Open Graph/social metadata using the public host;
+- valid page-type structured data that matches visible content;
+- no localhost, preview, Worker, internal R2, D1, or Odoo URL leakage;
+- no indexable thin filter, empty catalog, draft, admin, account, or RFQ-success URL.
+
+### 24.2 Site-wide assertions
+
+- sitemap index and child sitemaps contain only canonical, indexable `200` URLs;
+- `lastmod` changes from real public-content/product/price updates only;
+- robots rules do not expose private paths or block required public assets;
+- internal links do not target redirects, 404s, drafts, or unapproved locales;
+- redirect chains contain at most the approved hop count;
+- removed URLs follow `REDIRECTS.md` or return the approved `404/410`;
+- faceted/filter URLs follow the canonical/indexability matrix;
+- structured-data entities use stable IDs and consistent organization/product relationships;
+- price/offer structured data is absent when public values are unavailable, stale beyond policy, or not visibly displayed.
+
+### 24.3 HTML-first regression
+
+For representative home, category, product, price, and article pages, disable browser JavaScript and verify that essential content, navigation, canonical metadata, structured data, and internal links remain available. Interactive filters/calculators MAY enhance the page but MUST NOT own the only copy of indexable content.
+
+---
+
+## 25. Accessibility, RTL, and Localization Testing
+
+Target compliance is owned by `ACCESSIBILITY.md`. No unapproved serious or critical automated accessibility violation may ship.
+
+Automated axe checks MUST cover:
+
+- home;
+- category/product/price page;
+- article page;
+- RFQ default, error, pending, file-upload, failure, and success states;
+- admin login and representative protected data/form page;
+- open navigation/dialog/drawer states.
+
+Manual release checks MUST cover:
+
+- keyboard-only completion of primary public and admin journeys;
+- visible focus, logical order, skip link, focus trapping/restoration;
+- 200% zoom and 320 CSS-pixel reflow;
+- reduced motion and forced colors/high contrast where supported;
+- representative screen reader/browser combinations;
+- error summary, inline errors, pending status, upload progress, and success announcements;
+- touch target size and virtual-keyboard usability;
+- heading hierarchy, meaningful links, labels, instructions, and alternative text.
+
+RTL-specific assertions:
+
+- `<html lang="fa" dir="rtl">` for Persian pages;
+- logical CSS properties for direction-sensitive layout;
+- correct order/readability of phone numbers, URLs, email, `IPE`, `A3`, `10 mm`, quantities, dates, and currency;
+- icons mirror only when their meaning is directional;
+- tables and row controls remain understandable in RTL;
+- no horizontal page overflow at supported widths or 200% zoom;
+- future LTR primitives pass a targeted harness without publishing an incomplete locale.
+
+Motion MUST follow the approved “calm control” direction: content access cannot be delayed by animation, effects remain limited, and `prefers-reduced-motion` is respected.
+
+---
+
+## 26. Responsive, Browser, and Visual Testing
+
+Browser automation baseline:
+
+- Chromium: complete critical suite;
+- WebKit: critical public/RFQ/admin subset;
+- Firefox: critical public/RFQ/admin subset;
+- representative mobile Chromium and mobile WebKit viewports.
+
+Exact versions come from the Playwright lockfile/CI image.
+
+Viewport coverage MUST include 320px, a common mobile width, tablet/intermediate breakpoints, standard desktop, and wide desktop. Test around actual component breakpoints rather than device names only.
+
+Verify:
+
+- no unintended horizontal overflow;
+- no clipped content, CTA, focus ring, menu, dialog, table control, or toast;
+- sticky/fixed UI does not cover anchors or focused controls;
+- technical tables use the approved overflow/responsive pattern;
+- long Persian titles and product attributes wrap predictably;
+- images reserve space and use correct crop/responsive source;
+- mobile navigation and RFQ row controls are touch and keyboard operable.
+
+Visual baselines SHOULD focus on stable, high-value surfaces: header/navigation, home above fold, category/product/price templates, RFQ states, admin table/form states, and footer at 320px and desktop.
+
+Freeze animations, time, fonts, and fixture content. Baseline changes require human review tied to an approved design change. Missing fonts/assets are defects, not regions to mask.
+
+---
+
+## 27. Performance Testing and Gates
+
+`PERFORMANCE_BUDGET.md` owns final budgets. Until superseded there, use these internal release targets:
+
+| Metric | Target | Release ceiling / rule |
+|---|---:|---|
+| LCP p75 | ≤ 2.0 s | Regression beyond approved field/lab tolerance blocks release |
+| INP p75 | ≤ 150 ms | Same |
+| CLS p75 | ≤ 0.05 | Same |
+| Cached public HTML TTFB | ≤ 500 ms | 800 ms hard ceiling in controlled test |
+| Public-route first-load JS | ≤ 120 KB compressed | Exceeding requires budget approval |
+| RFQ route first-load JS | ≤ 200 KB compressed | Exceeding requires budget approval |
+| Lighthouse Performance | ≥ 95 | Representative controlled runs |
+| Lighthouse SEO | 100 | No waived structural SEO error |
+| Lighthouse Accessibility | ≥ 95 | Automated score does not replace manual checks |
+| Lighthouse Best Practices | ≥ 95 | Security/runtime issues still reviewed separately |
+
+Run controlled Lighthouse/budget checks for home, representative category, product, price, article, and RFQ routes.
+
+Test:
+
+- RSC/server-first boundaries and accidental client-component expansion;
+- route bundle growth and duplicate dependencies;
+- responsive AVIF/WebP delivery and correct intrinsic dimensions;
+- critical font subset/preload and limited weights;
+- no avoidable layout shift/hydration error;
+- lazy loading of below-fold nonessential modules;
+- no third-party script before approved consent/timing;
+- edge cache-hit behavior and TTFB;
+- D1 query latency/row-read regression for cache misses;
+- RFQ interaction responsiveness with the configured maximum row count;
+- Odoo blocked/unavailable with no public page performance impact.
+
+Use repeat runs and controlled conditions for marginal lab differences. Field Real User Monitoring at p75 is the authority for sustained production experience; lab tests are pre-release regression evidence.
+
+---
+
+## 28. Security and Privacy Testing
+
+Security testing follows `SECURITY_GUIDELINES.md` and the approved OWASP baseline.
+
+Automated coverage MUST include:
+
+- secret/credential scanning;
+- dependency vulnerability and runtime/framework security review;
+- static analysis for high-confidence issues;
+- server-only value inspection in built client assets/source maps;
+- authentication, session, CSRF, RBAC, and object authorization;
+- injection, content-type confusion, schema bypass, mass assignment, and oversized payloads;
+- rate-limit and bot-protection behavior;
+- security headers, CSP, cookies, CORS, referrer, and cache policy;
+- upload validation and private object access;
+- open redirects and unsafe URL handling;
+- HTML/JSON-LD/script serialization of operator/customer content;
+- log, trace, metric, analytics, and error-response data minimization;
+- Odoo bot-user least privilege and adapter-only network path.
+
+No known exploitable critical/high vulnerability in shipped code/runtime may release without a formal security exception, mitigation, owner, and expiration. A framework critical security advisory blocks production deployment until the project-approved patched version is used and the regression suite passes.
+
+Authorized preview scanning MUST remain safe and non-destructive. Do not fuzz production or attempt to circumvent access controls without explicit scope authorization.
+
+---
+
+## 29. Observability and Operational Tests
+
+Tests MUST verify that failures are detectable without exposing private data.
+
+Required signals include:
+
+- Worker request count, latency, exceptions, and 5xx rate;
+- RFQ accepted/rejected/failure counts by safe reason category;
+- D1 error/latency and relevant query cost indicators;
+- R2 upload/read errors and orphan-cleanup failures;
+- queue produced/consumed/retried/backlog/oldest-age/DLQ metrics;
+- Odoo adapter latency, outcome category, authentication/mapping failures, and circuit/backoff state if used;
+- catalog/price sync lag, last success, rejected record count, and stale public-price count;
+- cache hit ratio, revalidation/purge failures, and stale ceiling breach;
+- 404/5xx, Core Web Vitals, and release-correlated regressions.
+
+Observability tests MUST assert:
+
+- correlation IDs connect RFQ request, outbox event, queue attempt, and Odoo result;
+- logs exclude names, phone, email, addresses, item descriptions, attachment names/URLs, tokens, and raw request bodies unless a separately approved protected audit requirement exists;
+- alerts fire in a non-production test path or are validated through configuration-as-code checks;
+- operator runbooks link to each P0/P1 alert;
+- successful recovery clears or resolves the alert according to policy.
+
+---
+
+## 30. Resilience and Chaos Scenarios
+
+The release-candidate suite MUST exercise controlled dependency failures:
+
+| Failure | Expected public behavior | Expected internal behavior |
+|---|---|---|
+| Odoo offline | Public pages and RFQ acceptance remain available | Queue retries; sync pending; alert if threshold exceeded |
+| Odoo committed then timed out | No duplicate on retry | Reconcile by external/idempotency ID |
+| Queue publish transient failure | RFQ success allowed only if durable outbox committed | Recovery publisher retries |
+| Queue duplicate | No duplicate ERP record | Idempotent no-op/reconciliation |
+| DLQ exhaustion | No customer-data loss | Alert, audited inspection/replay |
+| D1 write failure | No RFQ success | Safe recoverable error; no partial accepted state |
+| R2 upload failure | Follow approved partial/whole RFQ policy truthfully | No dangling accepted metadata |
+| Cache purge failure | Last valid public content remains | Retry/alert; freshness ceiling enforced |
+| Invalid product sync | Last valid projection remains | Quarantine and alert |
+| Analytics/tag manager blocked | No user-visible impact | Optional telemetry absent only |
+| Turnstile provider slow | Approved fail/retry path | No bypass through client manipulation |
+
+Failure tests MUST prove bounded retry, no retry storm, no false success, no secret leakage, and an operator recovery path.
+
+---
+
+## 31. Analytics and Consent Testing
+
+If analytics is enabled, verify:
+
+- consent state controls loading and event dispatch according to policy;
+- denied/unknown consent sends no prohibited storage or event;
+- events occur once for approved visible actions;
+- SPA/navigation behavior does not duplicate page views;
+- RFQ events contain only safe outcome category, route, source/UTM fields approved for analytics, and synthetic reference class if allowed;
+- no name, phone, email, address, item list/description, attachment details, Odoo ID, or raw error enters analytics;
+- analytics/tag failure cannot block navigation, rendering, or RFQ submission;
+- preview/test traffic is separated or suppressed according to policy.
+
+---
+
+## 32. End-to-End Journey Matrix
+
+The E2E suite MUST remain small and business-focused.
+
+### Public discovery
+
+1. Open the canonical Persian home page.
+2. Confirm `lang="fa"`, `dir="rtl"`, initial HTML content, canonical, and primary navigation.
+3. Navigate by keyboard through a category, product/price page, and RFQ CTA.
+4. Confirm no hydration, console, or failed first-party request errors.
+
+### RFQ
+
+Cover the journeys in Section 17 across desktop and critical mobile/browser subsets.
+
+### Content publishing
+
+1. Log in as an authorized publisher in preview/staging.
+2. Create/edit and publish synthetic content.
+3. Verify selective revalidation and public HTML/metadata/sitemap behavior.
+4. Unpublish/archive and verify approved route behavior.
+
+### Catalog/price synchronization
+
+1. Inject a versioned synthetic Odoo product/price event or sandbox update.
+2. Process it through the real non-production integration boundary.
+3. Verify D1 projection, history, public HTML, freshness, cache invalidation, and idempotent replay.
+
+### Authorization
+
+1. Verify unauthenticated denial.
+2. Verify representative viewer/operator/editor/publisher/admin permissions.
+3. Attempt direct forbidden APIs and cross-record access.
+4. Verify audit evidence for allowed/denied material operations.
+
+E2E rules:
+
+- use web-first assertions, never arbitrary sleeps;
+- generate isolated unique records;
+- control third-party services unless explicitly under contract test;
+- capture traces/screenshots/network diagnostics on failure only;
+- fail on unexpected page errors, hydration errors, unhandled rejections, and failed critical first-party requests;
+- clean up sandbox data where supported without deleting evidence required for the test.
+
+---
+
+## 33. CI/CD Pipeline
+
+### 33.1 Pull request fast gate
+
+1. locked install;
+2. format/lint/typecheck;
+3. unit/component tests and meaningful coverage;
+4. affected Worker integration tests;
+5. clean/upgrade D1 migration tests;
+6. content/schema/route/SEO generation checks;
+7. Cloudflare-targeted production build;
+8. secret/dependency/static security checks;
+9. bundle budget checks;
+10. changed-scope browser smoke where available.
+
+### 33.2 Preview gate
+
+After preview health:
+
+- critical Chromium E2E;
+- critical WebKit/Firefox subset;
+- automated accessibility states;
+- HTML-first SEO/canonical/robots/structured-data checks;
+- sitemap/internal-link crawl;
+- Lighthouse/bundle budgets;
+- cache/security-header assertions;
+- console/hydration/first-party network failure detection;
+- preview `noindex` verification.
+
+### 33.3 Main/release-candidate gate
+
+- complete critical supported-engine suite;
+- visual regression review;
+- full contract and Worker integration suite;
+- Odoo sandbox compatibility test when integration changed;
+- queue duplicate/retry/DLQ/replay scenarios;
+- full route/sitemap crawl;
+- manual accessibility/RTL/responsive evidence;
+- resilience scenarios appropriate to changed architecture;
+- performance baseline/field review;
+- `PRE_DEPLOY_CHECKLIST.md` and rollback readiness.
+
+### 33.4 Post-production gate
 
 Run read-only checks for:
 
-- `https://www.ahanassa.com/` returns a successful canonical page;
-- `https://ahanassa.com/` permanently redirects to the canonical host;
-- representative public routes return expected statuses;
-- `/fa/**` redirect behavior is correct;
-- title, canonical, robots, and structured data are correct;
-- sitemap and robots are reachable and consistent;
-- primary navigation and static assets load;
-- `/request` renders and remains `noindex, follow`;
-- security and cache headers match production policy;
-- no preview/Vercel origin leaks into public output;
-- monitoring shows no release-correlated error spike.
+- canonical domain, HTTPS, redirect chain, and representative statuses;
+- initial HTML title/canonical/robots/content/structured data;
+- sitemap/robots reachability and consistency;
+- security/cache headers;
+- static asset/image/font delivery;
+- admin/private/API non-cache/noindex behavior where safely observable;
+- release-correlated Worker, queue, Odoo sync, error, cache, and Web Vitals regressions;
+- no preview/Worker/R2/Odoo hostname leakage.
 
-Then complete `POST_DEPLOY_CHECKLIST.md`.
+Complete `POST_DEPLOY_CHECKLIST.md` after the observation window defined by deployment policy.
 
 ---
 
-## 30. Change-Based Test Selection
+## 34. Change-Based Test Selection
 
-At minimum, apply this mapping:
-
-| Changed area | Mandatory test impact |
+| Changed area | Minimum mandatory scope |
 |---|---|
-| Content only | Schema, affected page, links, metadata, visual review |
-| Design tokens/global CSS | Component, responsive, visual, accessibility, performance |
-| Shared component | Unit/component plus every critical journey using it |
-| Route/layout/middleware | Build, route, redirect, locale, SEO, E2E |
-| Inquiry schema/form | Unit, component, integration, E2E, accessibility, analytics/privacy |
-| API/adapter | Unit, integration, contract, security, failure-path E2E |
-| Upload flow | Full upload, security, privacy, storage, accessibility, failure matrix |
-| Metadata/SEO generator | Unit, site crawl, structured data, deployed-page validation |
-| Analytics | Consent, payload, duplicate-event, privacy, blocked-provider tests |
-| Dependency/framework update | Full build, unit/integration, critical E2E, bundle/performance, security review |
-| Cloudflare/Vercel config | Preview/staging verification, headers, redirects, cache, production smoke plan |
+| Content only | Schema, affected HTML/links/metadata, visual/manual review |
+| Global CSS/design tokens | Component, RTL, responsive, visual, accessibility, performance |
+| Shared component | Unit/component + every critical journey consuming it |
+| Route/layout/middleware | Build, statuses, redirects, locale, SEO, cache, E2E |
+| RFQ schema/UI/API | Unit, component, Worker, D1/R2, queue, E2E, a11y, security |
+| D1 schema/migration | Clean/upgrade migration, integrity, query, rollback/forward-fix rehearsal |
+| R2/upload | File validation, privacy, authorization, cleanup, E2E failure matrix |
+| Queue/outbox/consumer | Producer, duplicate, retry, batch, DLQ, replay, observability |
+| Odoo adapter/mapping | Unit, contract, sandbox, idempotency, partial-failure/reconciliation |
+| Catalog/price sync | Mapping, versions, history, cache invalidation, HTML/SEO, stale behavior |
+| CMS/admin/RBAC | Policy matrix, API, E2E, audit, cache/noindex |
+| Metadata/SEO generator | Unit, generated output, crawl, structured data, deployed HTML |
+| Cache policy | Worker integration, cross-user leakage, hit/miss/stale/invalidation |
+| Analytics | Consent, privacy, duplicate event, blocked-provider behavior |
+| Framework/runtime dependency | Full build, Worker suite, critical E2E, bundles, performance, security review |
+| Cloudflare config | Bindings, preview deployment, headers, cache, queues, smoke/rollback plan |
 
-Claude Code must run the broadest test scope implied by the affected shared boundary, not only the file directly edited.
+Claude Code MUST select the broadest scope implied by a changed shared boundary, not only tests adjacent to the edited file.
 
 ---
 
-## 31. Coverage Policy
+## 35. Coverage Policy
 
-Coverage is a diagnostic signal, not a quality score.
+Coverage is a diagnostic, not proof of quality.
 
-Initial repository-wide thresholds:
+Initial repository-wide targets:
 
 | Measure | Minimum |
 |---|---:|
@@ -1020,324 +1086,317 @@ Initial repository-wide thresholds:
 | Functions | 80% |
 | Branches | 75% |
 
-Critical inquiry, validation, route, metadata, security, and adapter domain modules should target at least 90% lines/statements and 85% branches, with all material failure paths explicitly tested.
+Critical RFQ, validation, Odoo mapping/idempotency, queue consumer, RBAC, cache policy, metadata, and security-domain modules SHOULD reach at least 90% lines/statements and 85% branches, with all material failure paths explicitly asserted.
 
 Rules:
 
-- New or materially changed logic must not reduce meaningful coverage.
-- Exclusions require a code comment or configuration note explaining why execution is unreachable, generated, or unsuitable for unit coverage.
-- Do not write low-value assertions solely to reach a percentage.
-- E2E coverage does not excuse missing unit coverage for pure business rules.
-- A covered line without an outcome assertion is not proof of correctness.
-
-Thresholds may be raised after the baseline suite stabilizes. Lowering them requires a documented decision.
+- new logic MUST not reduce meaningful coverage;
+- generated/runtime glue exclusions require an explanation;
+- tests written only to hit lines are prohibited;
+- E2E coverage does not excuse missing pure-rule tests;
+- Workers-runtime coverage MUST use a supported accurate method;
+- coverage thresholds may be lowered only through a documented decision.
 
 ---
 
-## 32. Test Organization and Naming
+## 36. Test Organization and Command Interface
 
-Recommended structure:
+Recommended organization:
 
 ```text
 tests/
   unit/
   component/
+  workers/
   integration/
   contract/
   e2e/
   accessibility/
   visual/
   performance/
+  resilience/
   fixtures/
   helpers/
 ```
 
-Colocation is allowed for focused unit/component tests if `FOLDER_STRUCTURE.md` approves it. Keep browser tests and cross-feature fixtures in the shared `tests/` hierarchy.
-
-Naming conventions:
-
-- `*.test.ts` for non-browser logic;
-- `*.test.tsx` for rendered components;
-- `*.spec.ts` for Playwright/browser flows;
-- test titles describe the behavior and expected outcome;
-- tags such as `@smoke`, `@critical`, `@a11y`, or `@visual` may be used only when CI selection consumes them consistently.
-
-Examples:
+Colocation is allowed when `FOLDER_STRUCTURE.md` permits it. Names MUST describe behavior, for example:
 
 ```text
-inquiry-schema.test.ts
-request-form.test.tsx
-inquiries-route.integration.test.ts
-lead-adapter.contract.test.ts
-request-flow.spec.ts
+rfq-schema.test.ts
+rfq-builder.test.tsx
+rfq-submit.worker.test.ts
+rfq-outbox.integration.test.ts
+odoo-rfq.contract.test.ts
+queue-idempotency.test.ts
+public-price-sync.test.ts
+rfq-flow.spec.ts
 canonical-routing.spec.ts
 ```
 
-Avoid generic names such as `works`, `renders correctly`, or `test 1`.
-
----
-
-## 33. Recommended Package Scripts
-
-Exact scripts must match the approved repository tools, but the interface should be predictable:
+The repository SHOULD expose a predictable command interface equivalent to:
 
 ```json
 {
   "scripts": {
     "test": "vitest run",
-    "test:watch": "vitest",
     "test:unit": "vitest run tests/unit tests/component",
+    "test:workers": "vitest run --project workers",
     "test:integration": "vitest run tests/integration tests/contract",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:e2e:smoke": "playwright test --grep @smoke",
     "test:a11y": "playwright test --grep @a11y",
     "test:visual": "playwright test --grep @visual",
-    "test:ci": "pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build"
+    "test:performance": "<project-approved Lighthouse command>",
+    "test:ci": "pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm test:workers && pnpm build"
   }
 }
 ```
 
-This is a target command interface, not permission to overwrite existing scripts or duplicate checks. Claude Code must inspect the repository and preserve compatible existing commands.
+This is an interface target, not permission to overwrite compatible existing scripts or invent unapproved dependencies.
 
 ---
 
-## 34. Failure Diagnostics and CI Artifacts
+## 37. Failure Diagnostics and Artifact Safety
 
-On failure, retain only the minimum useful artifacts:
+On failure, retain the minimum useful evidence:
 
-- concise assertion output;
-- Playwright trace for failed/retried browser tests;
-- screenshot for visual/browser failure;
-- sanitized console and network failure summary;
-- Lighthouse report for performance regression;
-- coverage report for coverage failure.
+- concise assertion and requirement reference;
+- failed/retried browser trace and screenshot;
+- sanitized console/network summary;
+- sanitized Worker/queue correlation trail;
+- Lighthouse/bundle report;
+- coverage/migration/query report where relevant.
 
-Artifacts must not contain:
+Artifacts MUST NOT contain production secrets/cookies, authorization headers, real customer data, RFQ content, private file content/names, signed URLs, raw Odoo payloads, or uncontrolled database dumps.
 
-- production secrets or cookies;
-- authorization headers;
-- real form submissions;
-- personal data;
-- private document content or signed storage URLs.
-
-Retention should follow the approved CI and privacy policy. Debug logging must be opt-in and sanitized.
+Retention follows CI/privacy policy. Debug logging MUST be opt-in, time-bounded, and sanitized.
 
 ---
 
-## 35. Flaky Test Policy
+## 38. Flaky Test Policy
 
-A flaky test is a defect in the delivery system.
+A flaky test is a delivery defect.
 
 When a test fails intermittently:
 
-1. preserve its first-failure evidence;
-2. determine whether the product, environment, or test is nondeterministic;
+1. preserve first-failure evidence;
+2. identify product, environment, platform-simulator, or test nondeterminism;
 3. fix the root cause;
-4. use quarantine only when necessary to restore pipeline signal;
-5. assign an owner and deadline;
-6. keep equivalent risk coverage active where possible.
+4. quarantine only when necessary to restore signal;
+5. assign owner and deadline;
+6. retain equivalent risk coverage.
 
-Rules:
-
-- Retries may collect diagnostics but must not redefine repeated failure as passing quality.
-- Do not add sleeps to hide synchronization errors.
-- Do not weaken assertions to reduce noise.
-- No P0 test may remain quarantined for release.
-- Quarantine must be visible in CI and release reporting.
-
-Track flaky-test rate and time-to-repair. A growing quarantine list blocks confidence and must trigger maintenance work.
+Retries collect evidence; they do not redefine instability as success. Do not add sleeps, weaken assertions, or broadly update snapshots. No P0 test may remain quarantined for release.
 
 ---
 
-## 36. Defect Severity and Release Decisions
+## 39. Defect Severity and Exceptions
 
 | Severity | Definition | Default action |
 |---|---|---|
-| S0 | Active data exposure, destructive behavior, or critical compromise | Stop release/traffic; incident process |
-| S1 | Lost/false inquiry, broken canonical site, inaccessible core journey, major security issue | Block merge and release |
-| S2 | Major function degraded with a workaround; significant SEO/performance/compatibility regression | Block release unless formally excepted |
-| S3 | Localized functional or visual defect with limited impact | Fix or document before next planned release |
-| S4 | Minor polish or test-maintenance issue | Backlog with owner |
+| S0 | Active data exposure, destructive behavior, or critical compromise | Stop release/traffic; incident response |
+| S1 | Lost/false RFQ, duplicate commercial record, broken canonical site, inaccessible core journey, major security defect | Block merge/release |
+| S2 | Major degradation, stale/wrong public prices, significant SEO/performance/compatibility regression | Block release unless formally excepted |
+| S3 | Localized functional/visual defect with limited impact | Fix or document before next release |
+| S4 | Minor polish/test maintenance | Backlog with owner |
 
-A test failure is triaged by user/business impact, not by which suite reported it. An S1 discovered manually remains an S1 even if automation missed it.
-
-Release exceptions must include:
-
-- affected requirement and user group;
-- evidence and reproducibility;
-- security/privacy/SEO impact;
-- mitigation or rollback plan;
-- accountable owner;
-- expiration date;
-- follow-up issue.
+An exception MUST record requirement, affected users/data, evidence, security/privacy/SEO impact, mitigation, monitoring, rollback, owner, expiration, and follow-up issue. S0/S1 defects cannot receive ordinary release exceptions.
 
 ---
 
-## 37. Definition of Done for a Change
+## 40. Definition of Done
 
 A change is done only when:
 
-- acceptance criteria are explicit and satisfied;
-- the implementation follows the governing documents;
-- relevant tests were added or updated at the correct level;
-- success and material failure paths are covered;
-- lint, type checks, tests, and production build pass;
-- affected E2E, accessibility, SEO, responsive, performance, and security checks pass;
-- no real personal or confidential data appears in fixtures or artifacts;
-- no unrelated tests were disabled, skipped, or weakened;
-- documentation and `CHANGELOG.md`/`DECISIONS.md` are updated when required;
-- review confirms that public content and claims remain approved;
-- preview verification is complete for user-visible changes;
-- rollback remains possible.
+- acceptance criteria and governing documents are identified;
+- correct-layer tests cover success and material failure paths;
+- lint, typecheck, relevant tests, and Cloudflare-targeted build pass;
+- affected SEO, accessibility, RTL, responsive, performance, security, cache, and observability checks pass;
+- D1 migrations and binding changes are validated where relevant;
+- Odoo/queue changes prove idempotency and recovery;
+- fixtures/artifacts contain no real or confidential data;
+- no unrelated test is disabled, skipped, weakened, or broadly re-baselined;
+- preview verification is complete for user-visible/runtime changes;
+- `CHANGELOG.md`, `DECISIONS.md`, ADRs, runbooks, and specialist documents are updated where required;
+- rollback/forward-fix remains possible;
+- the implementation report names exactly which commands/scopes passed, failed, or could not run.
 
-“Works on my machine,” a successful local render, or an updated snapshot is not Definition of Done.
+“Works locally,” “build passed,” or “snapshot updated” is not Definition of Done.
 
 ---
 
-## 38. Release Acceptance Gate
+## 41. Release Acceptance Checklist
 
-Before production promotion, confirm:
+Before production:
 
-- [ ] All P0 and P1 automated suites pass.
-- [ ] No unresolved S0 or S1 defect exists.
-- [ ] Any S2 exception is documented, owned, and time-bounded.
-- [ ] Production build uses the committed lockfile.
-- [ ] Critical inquiry journeys pass against the approved non-production lead sink.
-- [ ] Failure-path inquiry behavior shows no false success.
-- [ ] Canonical, redirects, sitemap, robots, metadata, and structured data pass.
-- [ ] Core pages pass automated accessibility checks.
-- [ ] Manual keyboard, zoom, reflow, reduced-motion, and screen-reader checks are recorded.
-- [ ] Responsive and supported-engine critical journeys pass.
-- [ ] Visual diffs are reviewed and approved.
-- [ ] Performance budgets and baseline comparisons pass.
-- [ ] Security, dependency, secret, and header checks pass.
-- [ ] Analytics consent and data-minimization checks pass.
-- [ ] Environment variables and integration targets are verified without exposing values.
-- [ ] Preview and origin hosts do not leak into public output.
-- [ ] Monitoring, rollback target, and release owner are ready.
+- [ ] All P0/P1 automated suites pass.
+- [ ] No unresolved S0/S1 defect exists.
+- [ ] S2 exceptions, if any, are approved and time-bounded.
+- [ ] Clean and upgrade D1 migration tests pass.
+- [ ] RFQ durable acceptance and truthful failure paths pass.
+- [ ] Odoo outage, committed-timeout reconciliation, duplicate queue delivery, retry, DLQ, and replay tests pass.
+- [ ] R2 private attachment authorization and leakage tests pass.
+- [ ] Catalog/public-price mapping, freshness, version ordering, and invalidation tests pass.
+- [ ] Admin RBAC matrix and audit tests pass.
+- [ ] Canonical, redirects, sitemap, robots, metadata, HTML-first content, and structured data pass.
+- [ ] Automated and manual accessibility/RTL evidence is recorded.
+- [ ] Supported-engine/responsive/visual checks pass.
+- [ ] Performance and bundle budgets pass.
+- [ ] Security, dependency, secret, header, cache-isolation, and privacy checks pass.
+- [ ] Monitoring alerts/runbooks, release owner, and rollback target are ready.
+- [ ] Preview is non-indexable and no internal hostname/secret leaks.
 - [ ] `PRE_DEPLOY_CHECKLIST.md` is complete.
 
-After promotion:
+After production:
 
-- [ ] Read-only production smoke tests pass.
-- [ ] Canonical host and redirect chain are correct.
-- [ ] Representative pages, assets, sitemap, and robots are reachable.
-- [ ] Security and cache headers are correct at the public edge.
-- [ ] No new error-rate or performance regression is observed.
+- [ ] Read-only canonical/status/HTML smoke tests pass.
+- [ ] Edge cache and security headers match policy.
+- [ ] Sitemap/robots/assets are reachable.
+- [ ] No release-correlated Worker, queue, Odoo sync, 5xx, cache, or Web Vitals regression appears.
 - [ ] `POST_DEPLOY_CHECKLIST.md` is complete.
 
 ---
 
-## 39. Claude Code Operating Rules
+## 42. Claude Code Operating Rules
 
-Before changing code or tests, Claude Code must:
+Before code/test changes, Claude Code MUST:
 
-1. read `CLAUDE.md`, the task specification, and the governing documents for the affected behavior;
-2. inspect existing test tools, scripts, patterns, fixtures, and CI configuration;
-3. identify the risk tier and affected test layers;
+1. read `CLAUDE.md`, task specification, and governing specialist documents;
+2. inspect existing tools, scripts, tests, fixtures, migrations, bindings, and CI;
+3. identify risk priority and affected layers;
 4. preserve unrelated user changes;
-5. avoid inventing provider behavior, content, routes, thresholds, or environment variables;
-6. state unresolved conflicts or `TBD` items instead of guessing.
+5. avoid inventing Odoo models, fields, routes, thresholds, roles, or environment variables;
+6. surface conflicts and decision gates instead of guessing.
 
-While implementing:
+During implementation:
 
 - add the smallest sufficient tests at the correct layer;
-- verify observable behavior and meaningful outcomes;
-- include material negative paths;
-- keep fixtures synthetic;
-- avoid broad snapshot updates;
-- do not weaken existing tests to accommodate a regression;
-- do not bypass security controls in production code for test convenience.
+- assert observable business/security outcomes;
+- include negative, duplicate, timeout, and partial-failure paths for P0 boundaries;
+- keep fixtures synthetic and logs/artifacts sanitized;
+- never add a production security bypass for test convenience;
+- never weaken existing tests to accept a regression.
 
-Before completing the task:
+Before completion:
 
-- run the relevant focused suite;
-- run the broader suite required by the changed shared boundary;
-- run type checking and the production build when relevant;
-- report exactly what passed, failed, or could not run;
-- distinguish implementation failure from environment/tooling failure;
-- provide a concise list of changed test coverage and remaining risks.
-
-Claude Code must never claim “all tests pass” if it ran only a subset. It must name the executed commands or test scopes.
+- run focused tests and the broader scope required by the shared boundary;
+- run typecheck and production build when relevant;
+- report exact commands/scopes and results;
+- distinguish product failure from environment/tool failure;
+- list remaining risks and unrun checks explicitly;
+- never claim “all tests pass” after running only a subset.
 
 ---
 
-## 40. Initial Implementation Backlog
+## 43. Initial Implementation Backlog
 
-If the repository does not yet contain the complete testing foundation, implement it in this order:
+### Phase A — Foundation
 
-### Phase A — Fast foundation
+- [ ] Confirm lockfile-pinned Vitest, Workers test integration, Testing Library, Playwright, and axe setup.
+- [ ] Add coverage using the supported method for each test project.
+- [ ] Add synthetic builders and shared clock/ID utilities.
+- [ ] Add lint/type/build/schema/secret/bundle gates.
+- [ ] Add route, canonical, metadata, robots, sitemap, and JSON-LD tests.
 
-- [ ] Confirm one approved unit/component runner.
-- [ ] Add DOM matchers and user-interaction helpers.
-- [ ] Add coverage reporting and baseline thresholds.
-- [ ] Add shared synthetic inquiry builders.
-- [ ] Test route, canonical, metadata, and inquiry schemas.
-- [ ] Test high-use navigation and form components.
-- [ ] Add lint/type/build gates to CI.
+### Phase B — Cloudflare data boundaries
 
-### Phase B — Trust boundaries
+- [ ] Apply real D1 migrations in isolated Worker tests.
+- [ ] Add D1 clean/upgrade/integrity/query suites.
+- [ ] Add R2 public/private isolation and upload suites.
+- [ ] Add Cache API allowlist/bypass/cross-user leakage tests.
+- [ ] Add queue producer/consumer/outbox/idempotency suites.
 
-- [ ] Add `/api/inquiries` integration suite.
-- [ ] Add lead-repository and adapter contract suite.
-- [ ] Add rate-limit, bot-verification, timeout, duplicate, and logging/privacy cases.
-- [ ] Add deterministic content/schema and sitemap checks.
+### Phase C — RFQ and Odoo
 
-### Phase C — Browser confidence
+- [ ] Add RFQ schema, component, Worker, transaction, and browser suites.
+- [ ] Add Odoo adapter contract fixtures for confirmed API/version.
+- [ ] Add duplicate, committed-timeout reconciliation, retry, DLQ, and replay cases.
+- [ ] Add correlation/logging/alert assertions.
 
-- [ ] Configure Playwright projects and preview base URL.
-- [ ] Add critical navigation and inquiry journeys.
-- [ ] Add canonical/SEO and console/hydration assertions.
-- [ ] Add automated accessibility checks.
-- [ ] Add 320 px and representative mobile journeys.
+### Phase D — Admin, catalog, and price
 
-### Phase D — Release quality
+- [ ] Add role × resource × action policy matrix.
+- [ ] Add CMS lifecycle/revalidation tests.
+- [ ] Add product/variant/UOM/public-price mapping and version tests.
+- [ ] Add price history, freshness, stale-state, invalidation, and HTML/SEO tests.
 
-- [ ] Add controlled visual baselines.
-- [ ] Add Lighthouse CI and approved budgets.
-- [ ] Add header and safe preview security checks.
-- [ ] Add analytics consent/payload tests after analytics approval.
-- [ ] Add post-deployment read-only smoke checks.
-- [ ] Document manual accessibility and cross-browser evidence.
+### Phase E — Release quality
 
-Upload-specific tests belong in a separate approved phase and must not expose upload UI before the secure workflow is complete.
-
----
-
-## 41. Required Decisions Before Finalizing v1.0
-
-The following values must be confirmed in their governing documents or repository configuration. Claude Code must not guess them:
-
-- exact supported browser policy;
-- exact pinned testing package versions;
-- final lead sink and provider sandbox behavior;
-- final bot-protection configuration and CI strategy;
-- exact performance asset/bundle budgets;
-- visual regression hosting and review workflow, if any;
-- final screen-reader/browser pairs for release checks;
-- production synthetic-inquiry policy;
-- CI artifact retention;
-- vulnerability exception ownership and response time;
-- whether a dedicated staging environment is required;
-- upload security workflow and test environment.
-
-Until resolved, use safe deterministic fakes, preview-based verification, the current approved public architecture, and the stricter non-destructive behavior.
+- [ ] Configure critical Playwright browser projects.
+- [ ] Add accessibility, RTL, responsive, and visual suites.
+- [ ] Add Lighthouse/bundle budgets and field monitoring.
+- [ ] Add safe preview security checks and production read-only smoke tests.
+- [ ] Rehearse rollback and failure-recovery runbooks.
 
 ---
 
-## 42. Final Acceptance Criteria for This Strategy
+## 44. Decision Gates Before Production
 
-This strategy is correctly implemented when:
+The following values MUST be confirmed in governing documents/configuration; tests MUST NOT guess them:
 
-1. every critical requirement maps to at least one explicit test layer;
-2. P0 inquiry, data, and routing risks have success and failure-path coverage;
-3. pull requests receive deterministic static, unit, component, integration, and build feedback;
-4. preview deployments receive browser, accessibility, SEO, performance, and safe security checks;
-5. releases require targeted manual accessibility and responsive verification;
-6. production deployments receive read-only smoke checks and monitoring review;
-7. test data and artifacts contain no real personal or confidential information;
-8. failures are traceable to requirements and cannot be hidden by automatic snapshot updates, retries, or disabled tests;
-9. Claude Code reports the exact scope it tested and never invents unresolved project decisions;
-10. the suite protects the Ahan Asa promise, **«ما مراقب سرمایه شما هستیم.»**, by preventing false lead success, data exposure, broken discovery, and inaccessible core journeys.
+- exact production Odoo version, installed modules, API mode, and field/model mapping;
+- final canonical host and locale publication plan;
+- maximum RFQ items, attachment count, types, per-file and total size;
+- upload scanning/quarantine and orphan-retention policy;
+- final roles, permissions, authentication/session provider, and recovery policy;
+- exact queue retry/backoff/batch/concurrency/DLQ thresholds;
+- sync conflict/version and stale-public-price thresholds;
+- production synthetic RFQ policy;
+- supported browser and screen-reader matrix;
+- alert thresholds, on-call owners, and observation windows;
+- CI artifact retention and vulnerability exception SLA;
+- final bundle budgets if `PERFORMANCE_BUDGET.md` supersedes the defaults here;
+- whether a dedicated staging/Odoo test database is mandatory.
 
+Until resolved, use deterministic fakes, isolated preview resources, non-destructive verification, and the stricter privacy/reliability behavior.
+
+---
+
+## 45. Requirement Traceability Summary
+
+| Requirement | Primary automated evidence | Manual/operational evidence |
+|---|---|---|
+| Public pages independent of live Odoo | Worker/E2E with Odoo blocked | Production monitoring |
+| Durable RFQ before success | D1/R2/outbox integration + E2E | Synthetic runbook if approved |
+| No duplicate ERP records | Queue concurrency/replay + Odoo contract | DLQ/reconciliation rehearsal |
+| Private attachments | R2 authorization/cache/security tests | Access review |
+| Correct catalog/public price | Mapping/version/history/cache/HTML tests | Operator sampling |
+| HTML-first SEO | JS-disabled crawl + metadata/status tests | Search validation sampling |
+| Fast site | Bundle/Lighthouse/cache/query tests | Field p75 Web Vitals |
+| Accessible Persian RTL | Component/axe/browser tests | Keyboard/zoom/screen reader review |
+| Safe admin | RBAC/API/E2E/audit tests | Permission review |
+| Recoverable operations | Fault injection/alerts/replay tests | Runbook/rollback rehearsal |
+
+---
+
+## 46. Reference Baseline
+
+Implementation SHOULD consult current primary documentation rather than copying outdated setup snippets:
+
+- Cloudflare Workers testing and current Vitest integration: <https://developers.cloudflare.com/workers/testing/>
+- Cloudflare Workers Vitest integration: <https://developers.cloudflare.com/workers/testing/vitest-integration/>
+- Cloudflare Queues delivery/retry/DLQ documentation: <https://developers.cloudflare.com/queues/>
+- Next.js App Router testing guides: <https://nextjs.org/docs/app/guides/testing>
+- Odoo 19 External JSON-2 API, if confirmed for production: <https://www.odoo.com/documentation/19.0/developer/reference/external_api.html>
+
+Exact repository configuration and lockfile-pinned versions remain authoritative for implementation.
+
+---
+
+## 47. Final Acceptance Criteria for This Strategy
+
+This strategy is implemented correctly when:
+
+1. every P0/P1 requirement maps to explicit automated and, where necessary, manual evidence;
+2. RFQ success proves durable website persistence rather than live Odoo availability;
+3. duplicate delivery, partial ERP success, retry, DLQ, and replay are verified as idempotent and recoverable;
+4. D1, R2, Queue, Cache, Turnstile, and Workers behavior is tested at real runtime boundaries;
+5. public catalog/price pages remain fast, HTML-first, accurate, freshness-aware, and independent of live ERP;
+6. admin permissions and every material mutation are enforceable and auditable;
+7. SEO, performance, accessibility, RTL, security, privacy, and cache isolation are release gates;
+8. production checks are safe and monitoring can detect release regressions;
+9. test evidence contains no real customer data, secrets, private files, or ERP payloads;
+10. Claude Code reports exactly what it tested and never converts unresolved decisions into invented behavior.
+
+The suite must protect the Ahan Asa promise, **«ما مراقب سرمایه شما هستیم.»**, by preventing lost requests, duplicate commercial records, misleading prices, private-data exposure, broken search discovery, and slow or inaccessible user journeys.

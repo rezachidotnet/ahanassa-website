@@ -3,230 +3,256 @@
 > **Brand:** Ahan Asa | آهن آسا  
 > **Domain:** `ahanassa.com`  
 > **Canonical production origin:** `https://www.ahanassa.com`  
+> **ERP:** `https://odoo.ahanassa.com`  
 > **Document:** `STACK.md`  
-> **Status:** Draft v1.0 — Implementation baseline  
+> **Status:** Approved implementation baseline — v2.0  
 > **Last updated:** 2026-08-25  
-> **Primary website language:** Persian (`fa-IR`), fully RTL  
-> **Launch model:** Static-first public website with secure server-side inquiry handling
+> **Primary language:** Persian (`fa-IR`), fully RTL  
+> **Architecture:** Cloudflare-native public platform with asynchronous Odoo integration
 
 ---
 
 ## 1. Purpose
 
-This document defines the approved technology stack for the Phase 1 Ahan Asa website. It is an implementation contract for Claude Code and human developers: which technologies are required, which are conditional, which are intentionally excluded, and how versions must be controlled.
+This document defines the approved technology stack for the Ahan Asa website, operator CMS, product and public-price read model, multi-item RFQ system, file intake, and Odoo ERP integration.
 
-The stack is optimized for:
+It is an implementation contract for Claude Code and human developers. It selects technologies and establishes their boundaries. Detailed schemas, mappings, retry rules, permissions, cache TTLs, and deployment procedures belong in the specialist documents listed at the end.
 
-- a premium Persian-first B2B website;
-- server-rendered and statically generated indexable content;
-- correct RTL behavior and future RTL/LTR coexistence;
-- strong Core Web Vitals;
-- secure qualified-inquiry capture;
-- low operational complexity;
-- accessibility to WCAG 2.2 AA;
-- clean migration to a future CMS, CRM, or regional architecture without rebuilding the public interface.
+The stack is designed for:
 
-`STACK.md` selects tools. `TECHNICAL_ARCHITECTURE.md` defines how the system is assembled. `FOLDER_STRUCTURE.md`, `COMPONENT_ARCHITECTURE.md`, `DATA_ARCHITECTURE.md`, `FORM_ARCHITECTURE.md`, and `DEPLOYMENT_ARCHITECTURE.md` define the detailed implementation.
-
----
-
-## 2. Decision Keywords
-
-- **MUST** — mandatory for Phase 1 unless an approved decision supersedes it.
-- **MUST NOT** — prohibited unless an approved architectural decision supersedes it.
-- **SHOULD** — default choice; deviations require a documented reason.
-- **MAY** — optional and must be justified by a real requirement.
-- **DEFERRED** — deliberately not selected in this document.
-
-Claude Code MUST NOT silently replace a locked technology, add an overlapping library, or introduce a deferred provider. Any material deviation must be recorded in `DECISIONS.md` before implementation.
+- a fast, premium Persian-first B2B steel-procurement website;
+- server-rendered, crawlable, semantically complete SEO pages;
+- operator-managed articles and SEO content;
+- public product categories, products, variants, units, and current-price views;
+- structured RFQs containing any number of steel items;
+- PDF, image, and spreadsheet attachments;
+- durable lead capture even when Odoo is unavailable;
+- asynchronous synchronization with `odoo.ahanassa.com`;
+- low client-side JavaScript and strong Core Web Vitals;
+- secure internal administration, auditability, and future regional growth.
 
 ---
 
-## 3. Stack Principles
+## 2. Binding Decision Keywords
 
-1. **Server first** — use React Server Components and static generation by default.
-2. **Minimal client JavaScript** — add a Client Component only for real browser state, events, focus, measurement, media, or progressive enhancement.
-3. **Static public content** — core copy, navigation, metadata, and structured data must be available without client-side fetching.
-4. **Secure boundaries** — inquiries, uploads, credentials, and integrations remain server-side.
-5. **Progressive enhancement** — essential reading and inquiry paths must remain understandable if nonessential JavaScript fails.
-6. **Project-owned design system** — the approved brand system controls appearance; a generic UI kit does not.
-7. **Dependency restraint** — native platform and framework capabilities are preferred to overlapping packages.
-8. **Portable content** — content identities and schemas must not become coupled to one CMS vendor.
-9. **Reproducible builds** — runtime, package manager, dependencies, and lockfile are pinned and verified in CI.
-10. **Measured performance** — packages and effects are accepted only after bundle and runtime impact are understood.
+- **MUST** — mandatory unless superseded by an approved architectural decision.
+- **MUST NOT** — prohibited unless superseded by an approved architectural decision.
+- **SHOULD** — default; deviation requires a documented reason.
+- **MAY** — optional when a real requirement and acceptance test exist.
+- **CONDITIONAL** — allowed only after its stated gate is passed.
+- **DEFERRED** — deliberately outside the current implementation baseline.
+
+Material deviations MUST be recorded in `DECISIONS.md` before implementation. Claude Code MUST NOT silently replace a locked technology, introduce a second overlapping service, or move a system-of-record responsibility.
 
 ---
 
-## 4. Stack at a Glance
+## 3. Non-Negotiable Architecture Principles
 
-| Layer | Approved selection | Phase 1 status |
+1. **Odoo is the commercial system of record.** Customers, CRM, products, variants, units of measure, commercial prices, quotations, sales, purchasing, suppliers, and inventory belong to Odoo.
+2. **The website is the presentation, SEO, CMS, and RFQ experience.** It owns editorial content, SEO overlays, public pages, RFQ intake, and the edge read model.
+3. **Public rendering MUST NOT depend on a live Odoo response.** Public pages read from static output, Cloudflare Cache, or D1.
+4. **RFQ acceptance MUST survive Odoo downtime.** The request is first durably written to D1, then queued for Odoo delivery.
+5. **Every cross-system mutation is idempotent.** Queue retries must never create duplicate customers, leads, RFQs, or attachments.
+6. **HTML first.** Indexable copy, headings, links, metadata, canonical tags, and structured data are present in the initial server response.
+7. **Server Components first.** Client Components are limited to actual interaction boundaries.
+8. **Minimal dependencies.** Platform and framework capabilities are preferred over overlapping libraries.
+9. **Private by default.** Attachments, secrets, ERP payloads, unpublished content, and personal data are never public assets.
+10. **Performance and SEO are release gates.** They are architectural constraints, not post-launch cleanup tasks.
+
+---
+
+## 4. Approved Stack at a Glance
+
+| Layer | Approved selection | Status |
 |---|---|---|
-| Runtime | Node.js `24.x` LTS | Locked |
-| Package manager | pnpm `11.x` through Corepack | Locked |
-| Framework | Next.js App Router `16.3.x`, latest security-patched release | Locked |
-| UI runtime | React `19.2.x`, security-patched version compatible with Next.js | Locked |
-| Language | TypeScript `6.0.x`, strict mode | Locked baseline |
-| Styling | Tailwind CSS `4.3.x` + CSS custom properties + limited component CSS | Locked |
-| Rendering | Static generation first; server rendering only where required | Locked |
-| Content | Repository-managed structured TypeScript data + controlled MDX for long-form content | Locked for Phase 1 |
-| Schema validation | Zod, shared by content and server input boundaries | Locked |
-| Forms | Native form semantics + Server Actions/Route Handlers + progressive enhancement | Locked |
-| CMS | None at launch; adapter-ready content model | Deferred |
-| Public database | None at launch | Locked exclusion |
-| CRM/ERP | Provider-neutral server adapter | Provider deferred |
-| File uploads | Private object storage through a server adapter | Conditional |
-| Localization | Locale-aware route/content architecture; only Persian published in Phase 1 | Locked |
-| Icons | Curated `lucide-react` subset, subject to visual approval | Approved with limits |
-| Motion | CSS/WAAPI first; Motion package only for approved complex sequences | Conditional |
-| Hosting | Vercel | Locked direction |
-| DNS/security edge | Cloudflare | Locked direction |
-| Repository | GitHub, private during development unless approved otherwise | Locked direction |
-| CI | GitHub Actions + Vercel preview deployments | Locked direction |
-| Unit tests | Vitest | Locked |
-| Component tests | React Testing Library | Locked |
+| Local/CI runtime | Node.js `24.x` LTS | Locked |
+| Production runtime | Cloudflare Workers (`workerd`) with reviewed `nodejs_compat` | Locked |
+| Package manager | pnpm `11.x`, exact patch pinned through Corepack | Locked |
+| Framework | Next.js App Router `16.3.3+` within the patched `16.3.x` line | Locked baseline |
+| UI runtime | React `19.2.x`, aligned with Next.js | Locked |
+| Language | TypeScript `6.0.x`, strict mode | Locked |
+| Styling | Tailwind CSS `4.3.x` + semantic CSS custom properties | Locked |
+| Cloudflare adapter | `@opennextjs/cloudflare` | Locked for first production release |
+| Future adapter candidate | `vinext` | Conditional; compatibility gate required |
+| Deployment CLI | Wrangler, exact compatible release pinned | Locked |
+| Public hosting | Cloudflare Workers + Static Assets | Locked |
+| Relational storage | Cloudflare D1 | Locked |
+| Data access | D1 bindings + Drizzle ORM/Kit; prepared SQL where appropriate | Locked |
+| Object storage | Cloudflare R2 | Locked |
+| Background delivery | Cloudflare Queues + Dead Letter Queues | Locked |
+| Scheduled reconciliation | Workers Cron Triggers | Locked |
+| Bot protection | Cloudflare Turnstile with server-side Siteverify | Locked for public mutation forms |
+| Edge response cache | Cloudflare Cache + framework cache/revalidation | Locked |
+| Image pipeline | R2 originals + Cloudflare Images/Image Resizing | Locked |
+| ERP | Odoo at `odoo.ahanassa.com` | Locked |
+| ERP protocol | Adapter-selected; Odoo 19 JSON-2 preferred after version verification | Locked boundary |
+| Admin authentication | Cloudflare Access + application RBAC | Locked |
+| Content validation | Zod `4.x` | Locked |
+| Article format | Stored Markdown + allowlisted server renderer; no database MDX | Locked |
+| Unit/component tests | Vitest + React Testing Library | Locked |
 | End-to-end tests | Playwright | Locked |
-| Accessibility automation | axe-core integrated with Playwright | Locked |
-| Performance checks | Lighthouse CI + field Web Vitals | Locked |
-| Analytics | Typed first-party event layer; vendor implementation deferred | Interface locked |
-| Error monitoring | Provider adapter; Sentry or equivalent only after approval | Deferred |
+| Accessibility automation | axe-core with Playwright | Locked |
+| Performance checks | Lighthouse CI + field Core Web Vitals | Locked |
+| CI/CD | GitHub Actions + Wrangler deployments | Locked |
+| Logs/metrics | Cloudflare Workers Observability | Locked baseline |
+| Analytics | Typed first-party event layer; provider chosen separately | Interface locked |
 
 ---
 
-## 5. Version Baseline and Security Notice
-
-### 5.1 Baseline date
-
-This stack was evaluated on **2026-08-25**. Package versions MUST be rechecked at project initialization and before production release.
-
-### 5.2 Next.js release rule
-
-Use the newest security-patched release in the approved Next.js `16.3` line. A scheduled Next.js security release is announced for **2026-08-26**, including a critical-severity fix. Therefore:
-
-- production MUST NOT launch on an unpatched `16.3` release;
-- use `16.3.3` or a later patched `16.3.x` release once published;
-- if the approved active-LTS line changes before implementation, record the migration in `DECISIONS.md` and run the complete test suite;
-- never use `canary`, beta, release-candidate, or experimental framework packages in production.
-
-### 5.3 Runtime rule
-
-Use Node.js `24.x` LTS, not Node.js `26.x` Current. Production workloads MUST remain on an Active LTS or Maintenance LTS Node.js line.
-
-### 5.4 TypeScript rule
-
-TypeScript `6.0.x` is the conservative Phase 1 baseline. TypeScript `7.x` may be adopted only when:
-
-1. the selected Next.js patch officially supports it or the repository proves compatibility;
-2. `pnpm typecheck`, `pnpm build`, tests, editor tooling, and CI all pass;
-3. required plugins do not rely on an incompatible compiler API;
-4. the change is recorded in `DECISIONS.md`.
-
-### 5.5 Pinning rule
-
-- `packageManager` MUST pin an exact pnpm release.
-- the Node major/minor policy MUST be declared in `engines` and a repository runtime file.
-- `pnpm-lock.yaml` MUST be committed.
-- CI MUST use `pnpm install --frozen-lockfile`.
-- dependency ranges MUST NOT use `*` or unbounded `latest` in committed production manifests.
-- security patches must be applied promptly without silently changing major versions.
-
----
-
-## 6. Runtime and Package Management
-
-### 6.1 Required runtime
+## 5. Production Topology
 
 ```text
-Node.js: 24.x LTS
-pnpm: 11.x
-Module system: ESM
-Package lock: pnpm-lock.yaml
+Visitor / Operator
+        |
+        v
+Cloudflare DNS, TLS, WAF, Cache, Turnstile, Access
+        |
+        v
+Next.js on Cloudflare Workers
+        |
+        +-------------------+-------------------+
+        |                   |                   |
+        v                   v                   v
+       D1                  R2                Queues
+  content/read model   media/attachments   async jobs + DLQ
+        |                                       |
+        |                                       v
+        |                              Odoo Integration Worker
+        |                                       |
+        +-------------------sync----------------+
+                                                |
+                                                v
+                                    odoo.ahanassa.com
 ```
 
-### 6.2 Required repository declarations
-
-The root `package.json` SHOULD include a compatible form of:
-
-```json
-{
-  "private": true,
-  "type": "module",
-  "engines": {
-    "node": ">=24 <25"
-  },
-  "packageManager": "pnpm@11.x.x"
-}
-```
-
-Replace `11.x.x` with the exact approved pnpm patch during project initialization.
-
-### 6.3 Package policy
-
-- Use one package manager only.
-- Do not commit npm or Yarn lockfiles.
-- Package installation scripts are denied by default and explicitly approved only when required and reviewed.
-- Every new runtime dependency requires a real use case, maintenance review, license review, bundle-impact review, and security check.
-- Claude Code MUST search the existing dependency graph before adding a package that duplicates an existing capability.
+The public request path MUST NOT contain a synchronous Odoo call.
 
 ---
 
-## 7. Application Framework
+## 6. Runtime, Versions, and Dependency Control
 
-### 7.1 Next.js App Router
+### 6.1 Runtime split
 
-The application MUST use the Next.js App Router.
+Node.js `24.x` LTS is the development, tooling, build, and CI runtime. Production server code runs in Cloudflare Workers, not on a persistent Node.js server.
 
-Required framework capabilities:
+Code MUST be tested with the production Workers runtime before deployment. A package working in local Node.js is not sufficient proof that it is compatible with Workers.
 
-- nested layouts;
+### 6.2 Version baseline
+
+- Next.js MUST be at least `16.3.3`, the patched Active LTS release available on the baseline date.
+- The latest security-patched compatible `16.3.x` release SHOULD be used.
+- React and React DOM MUST stay on the versions required and tested by the selected Next.js release.
+- TypeScript remains on the `6.0.x` line until the framework, adapter, ESLint, tests, and editor tooling prove compatibility with a successor.
+- pnpm remains on stable `11.x`; pnpm 12 release candidates MUST NOT be used in production.
+- Tailwind remains on a compatible patched `4.3.x` line.
+- `compatibility_date` MUST be explicit and advanced only through a reviewed change.
+- Experimental, beta, canary, and release-candidate packages MUST NOT enter production unless this document explicitly marks them conditional and their gate is passed.
+
+### 6.3 Pinning rules
+
+- `packageManager` MUST contain an exact pnpm version.
+- `pnpm-lock.yaml` MUST be committed.
+- CI MUST use `pnpm install --frozen-lockfile`.
+- Direct dependencies MUST NOT use `*` or an unbounded `latest` range in committed manifests.
+- Wrangler, the Cloudflare adapter, Drizzle Kit, and migration tooling MUST be pinned because they affect deploy output or schema state.
+- Automated dependency pull requests MAY be used, but major upgrades require an explicit decision and full regression suite.
+
+---
+
+## 7. Next.js and Cloudflare Adapter Decision
+
+### 7.1 Framework
+
+The application MUST use the Next.js App Router with:
+
 - React Server Components;
-- static generation;
-- Server Actions and/or Route Handlers for secure mutations;
+- static generation and cached server rendering;
+- Route Handlers and Server Actions for mutations;
 - Metadata API;
-- `next/image`;
-- `next/font/local`;
-- generated `sitemap.xml` and `robots.txt`;
-- route-level error, loading, and not-found handling;
-- typed routes when stable in the selected release.
+- route-level `loading`, `error`, and `not-found` states;
+- server-generated sitemaps and robots rules;
+- response streaming only where it improves real user experience;
+- minimal and isolated Client Components.
 
-The Pages Router MUST NOT be introduced.
+The Pages Router and SPA-only rendering are prohibited.
 
-### 7.2 Rendering policy
+### 7.2 Production adapter
 
-| Page/function | Default rendering |
+The first production release MUST use `@opennextjs/cloudflare` because the site requires a dependable deployment path for Next.js, Workers bindings, Server Components, Server Actions, SSR/SSG, and ISR.
+
+Cloudflare currently recommends `vinext` for new applications but labels it Beta. `vinext` is therefore a migration candidate, not the launch baseline.
+
+Migration to `vinext` is allowed only when all of the following pass:
+
+1. Cloudflare's compatibility check reports no blocking gap.
+2. Production build, Worker preview, D1, R2, Queue, Cron, and Access bindings work.
+3. Metadata, canonical, sitemap, robots, JSON-LD, RTL, and HTML-first rendering match the baseline.
+4. RFQ submission, attachment upload, admin publishing, cache invalidation, and Odoo jobs pass end-to-end tests.
+5. Bundle size, Worker CPU, TTFB, and Core Web Vitals are equal or better.
+6. Rollback is documented and tested.
+7. The migration is recorded in `DECISIONS.md`.
+
+### 7.3 Cloudflare configuration
+
+Use `wrangler.jsonc` as the canonical deploy configuration. It MUST define separate bindings for development/preview and production, including:
+
+- D1 database;
+- public-media and private-attachment R2 buckets;
+- Queue producers and consumers;
+- Dead Letter Queues;
+- Cron triggers;
+- environment variables and secrets;
+- static assets;
+- compatibility date and reviewed flags;
+- observability.
+
+Generated binding types MUST be committed or regenerated deterministically in CI.
+
+---
+
+## 8. Rendering Strategy
+
+| Route/function | Default strategy |
 |---|---|
-| Homepage and corporate pages | Static generation |
-| Capability and material pages | Static generation |
-| Projects/case studies | Static generation |
-| Insights/resources | Static generation |
-| Legal pages | Static generation |
-| Search/filter state | Server-rendered route/search params where possible |
-| Inquiry submission | Server Action or Route Handler |
-| Preview-only unpublished content | Authenticated dynamic rendering, only if later approved |
-| Personalized/customer data | Out of Phase 1 scope |
+| Homepage | Static/cached HTML |
+| Corporate pages | Static/cached HTML |
+| Steel category pages | Static/cached HTML with controlled revalidation |
+| Product SEO pages | Static/cached HTML from D1 read model |
+| Public price hubs/pages | Cached dynamic HTML with visible update time |
+| Article listing/detail | Static/cached HTML, invalidated on publish |
+| Search/filter results | Server-rendered; filter-only URLs controlled for indexing |
+| RFQ builder | Server page + isolated client-side row builder |
+| RFQ submit | Server mutation; `no-store` |
+| Admin | Authenticated dynamic rendering; `no-store`, `noindex` |
+| Odoo sync consumer | Queue Worker; no public route |
+| Scheduled reconciliation | Cron-triggered Worker |
 
-Dynamic rendering MUST NOT be used merely because it is convenient. Each dynamic route must have a documented reason.
+Rules:
 
-### 7.3 React component policy
+- Indexable routes MUST return meaningful HTML before hydration.
+- Prices shown publicly MUST come from D1 and display `last_synced_at`.
+- A stale but explicitly timestamped price may be served according to `PRICING_SYSTEM.md`; a live request to Odoo is never the fallback.
+- Private, personalized, admin, preview, and mutation responses MUST NOT be cached publicly.
+- Client-side fetching MUST NOT be used to reveal primary SEO content after page load.
+
+---
+
+## 9. React and Client-State Policy
 
 - Components are Server Components by default.
-- `'use client'` must appear at the smallest practical boundary.
-- A page or layout MUST NOT become a Client Component only to support one interactive child.
-- Context providers must be narrowly scoped.
-- Avoid global client state.
-- Prefer URL state, server data, native disclosure/dialog behavior, and local component state.
-- Redux, MobX, and Zustand are not approved for Phase 1.
-
-### 7.4 Experimental features
-
-Experimental Next.js or React features MUST NOT be enabled unless the feature is essential, isolated, tested, and approved in `DECISIONS.md`.
+- `'use client'` MUST be applied at the smallest useful boundary.
+- The RFQ item builder MAY use local reducer/state for add, remove, reorder, and field dependencies.
+- URL search parameters SHOULD hold shareable filter state.
+- No global state library is approved at launch.
+- Redux, MobX, Zustand, Apollo Client, React Query, and SWR are prohibited unless a later requirement demonstrates a real need.
+- Native form behavior, `useActionState`, progressive enhancement, and server validation are preferred.
+- Admin-only complexity MUST remain in admin route bundles and must not affect public pages.
 
 ---
 
-## 8. TypeScript and Code Quality
+## 10. TypeScript and Validation
 
-### 8.1 TypeScript configuration
-
-TypeScript MUST run in strict mode. The final `tsconfig.json` SHOULD enable or preserve:
+TypeScript MUST run in strict mode. The repository SHOULD enable:
 
 ```json
 {
@@ -237,807 +263,861 @@ TypeScript MUST run in strict mode. The final `tsconfig.json` SHOULD enable or p
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true,
-    "verbatimModuleSyntax": true,
     "isolatedModules": true,
+    "verbatimModuleSyntax": true,
     "noEmit": true
   }
 }
 ```
 
-Any option incompatible with the selected Next.js version may be adjusted only with a recorded reason.
+Zod schemas are authoritative at external boundaries:
 
-### 8.2 Type rules
+- public and admin form inputs;
+- RFQ items and attachments metadata;
+- Odoo payloads and responses;
+- Queue message envelopes;
+- webhook payloads;
+- environment configuration;
+- article and SEO records;
+- product and price sync records.
 
-- Avoid `any`; use `unknown` plus narrowing at external boundaries.
-- Do not use non-null assertions to conceal missing data.
-- Shared domain types must be derived from schemas where practical.
-- Exhaustive unions SHOULD protect content status, locale, CTA type, media role, and form result states.
-- Browser-safe and server-only modules MUST be separated.
-- Secrets or confidential entity types MUST NOT be imported into Client Components.
-
-### 8.3 Linting and formatting
-
-Use:
-
-- ESLint with flat configuration;
-- the compatible Next.js rules;
-- `typescript-eslint` rules requiring type-aware checks where valuable;
-- `eslint-plugin-jsx-a11y`;
-- Prettier for deterministic formatting;
-- `prettier-plugin-tailwindcss` only if compatible with the selected Tailwind release.
-
-Formatting and linting MUST NOT fight each other. CI is authoritative.
+Use `unknown` and narrowing at boundaries. `any`, unchecked casts, non-null assertions used to conceal missing data, and client imports of server-only types are prohibited.
 
 ---
 
-## 9. Styling and Design-System Implementation
+## 11. Styling, RTL, and UI Foundation
 
-### 9.1 Tailwind CSS
+Use Tailwind CSS `4.3.x`, semantic CSS variables, and limited component CSS.
 
-Use Tailwind CSS `4.3.x` with CSS-first configuration.
-
-Tailwind is an implementation tool, not the design authority. All public classes must resolve to the approved tokens and rules in `DESIGN_SYSTEM.md`, `COLOR_SYSTEM.md`, `TYPOGRAPHY_SYSTEM.md`, `RESPONSIVE_RULES.md`, and `MOTION_GUIDELINES.md`.
-
-### 9.2 Token layers
-
-Use this hierarchy:
-
-1. primitive brand values;
-2. semantic CSS custom properties;
-3. Tailwind theme mappings;
-4. component recipes;
-5. page composition.
-
-Example semantic direction:
-
-```css
-:root {
-  --color-brand-primary: #0b2545;
-  --color-brand-accent: #b04a2f;
-  --color-surface-canvas: #ffffff;
-}
-```
-
-The full token inventory belongs in `DESIGN_SYSTEM.md`; this file does not redefine it.
-
-### 9.3 RTL implementation
-
-- Set `lang="fa"` and `dir="rtl"` at the document root for Phase 1.
-- Prefer CSS logical properties and Tailwind logical utilities.
-- Use `margin-inline`, `padding-inline`, `inset-inline`, `border-inline`, `inline-size`, and `block-size` concepts.
-- Do not mechanically mirror the entire interface.
-- Directional icons may mirror semantically; logos, media controls, phone, search, upload/download, real photography, and documented evidence normally do not.
-- Wrap URLs, emails, phone numbers, standards, grades, measurements, and codes with direction isolation.
-- No component may assume that `left` means “start” or `right` means “end.”
-
-### 9.4 Component CSS
-
-Plain CSS or CSS Modules MAY be used for:
-
-- highly specific animations;
-- complex pseudo-elements;
-- print styling;
-- browser normalization;
-- third-party integration containment;
-- rules that become less readable as utility strings.
-
-Do not introduce styled-components, Emotion, Sass, Less, or another CSS-in-JS/compiler layer in Phase 1.
-
-### 9.5 UI library policy
-
-- Do not install a monolithic component library.
-- Do not use a generic theme as the visual foundation.
-- Project-owned components are required.
-- Native HTML is preferred for buttons, links, forms, details/disclosure, dialog, and media controls where it provides robust behavior.
-- A headless primitive package MAY be added for a genuinely complex widget only after keyboard, screen-reader, RTL, bundle, and styling review.
-- Copying a large prebuilt component collection into the repository without need is prohibited.
-
----
-
-## 10. Typography and Fonts
-
-- Use `next/font/local` for approved self-hosted Persian fonts.
-- Do not load production fonts from Google Fonts or another remote font CDN.
-- Use WOFF2 variable fonts when the approved license and source permit.
-- Limit families, weights, and subsets to the approved typography system.
-- Apply `font-display` behavior through Next.js font handling and verify no unacceptable layout shift.
-- Latin fallbacks must work inside Persian UI for domains, standards, grades, and measurements.
-- The official Persian brand wordmark must remain a separate approved vector asset; Claude Code MUST NOT fabricate it from live text.
-
-The final family, weight map, preload rules, and fallback metrics belong in `FONT_STRATEGY.md`.
-
----
-
-## 11. Icons, SVG, and Visual Assets
-
-### 11.1 Icons
-
-Use a curated, tree-shaken subset of `lucide-react` only after confirming visual compatibility with the approved icon direction.
-
-- Import icons individually.
-- Do not ship the entire icon library.
-- Do not use icon fonts.
-- Icon-only controls require accessible Persian names.
-- Decorative icons use `aria-hidden="true"`.
-- The Ahan Asa master mark must never be repurposed as a generic UI icon.
-
-If Lucide fails visual approval, replace it with a small project-owned SVG set; do not mix families.
-
-### 11.2 Images
-
-- Use `next/image` for responsive raster delivery.
-- Prefer AVIF, then WebP, with a justified fallback.
-- Every image must declare intrinsic dimensions or a stable aspect ratio.
-- Only the real LCP candidate may receive priority loading.
-- Remote image domains must be allowlisted explicitly.
-- Authentic evidence media must not be mirrored or misrepresented.
-- Decorative AI-generated imagery must not imply real inventory, facilities, clients, or project evidence.
-
-### 11.3 SVG
-
-- Keep authoritative logo masters separate from web exports.
-- Sanitize third-party SVG files.
-- Use SVG components only when style/state control is needed; otherwise use stable asset files.
-- Never inject untrusted SVG or HTML.
-
----
-
-## 12. Motion
-
-### 12.1 Default
-
-Use CSS transitions, CSS keyframes, and the Web Animations API before adding a runtime animation library.
-
-### 12.2 Optional Motion package
-
-The `motion` package MAY be installed only when an approved interaction cannot be implemented clearly and accessibly with CSS/WAAPI. If installed:
-
-- import only in affected Client Components;
-- lazy-load noncritical sequences;
-- animate `transform` and `opacity` by default;
-- support `prefers-reduced-motion`;
-- do not block content, navigation, or CTA access;
-- measure bundle and main-thread impact.
-
-GSAP, Three.js, WebGL hero scenes, scroll hijacking, and page-wide parallax are not approved for Phase 1.
-
----
-
-## 13. Content Stack
-
-### 13.1 Phase 1 source
-
-Public content is repository-managed at launch.
-
-Use:
-
-- typed TypeScript records for structured entities;
-- Zod schemas for build-time validation;
-- controlled MDX for long-form article/resource bodies;
-- static asset references for approved media;
-- stable opaque IDs and locale-independent slugs/keys for entity relationships.
-
-### 13.2 MDX restrictions
-
-- MDX is limited to trusted repository content.
-- Arbitrary script, raw HTML, and unreviewed component imports are prohibited.
-- The allowed MDX component map must be explicit and small.
-- Structured facts, SEO fields, claims, evidence status, relationships, and CTAs must remain in validated frontmatter or typed records—not buried in prose.
-- A malformed or incomplete content record must fail the production build.
-
-### 13.3 Content validation
-
-Validation MUST check, where applicable:
-
-- unique IDs and slugs;
-- supported locale;
-- publication status and dates;
-- required SEO fields;
-- canonical relationships;
-- valid internal references;
-- media dimensions, alt text, and evidence status;
-- approved claims and source records;
-- no draft or confidential records in production output;
-- valid CTA destinations;
-- sitemap/indexability rules.
-
-### 13.4 CMS position
-
-No external CMS is approved for Phase 1. The content repository and schemas must nevertheless be designed so that a future CMS adapter can supply the same domain entities.
-
-A CMS MUST NOT be selected until `CMS_ARCHITECTURE.md` defines:
-
-- editorial roles and workflow;
-- preview requirements;
-- locale behavior;
-- asset governance;
-- schema portability;
-- backup/export guarantees;
-- cost and operational ownership;
-- security and access control.
-
----
-
-## 14. Data and Persistence
-
-### 14.1 Public application data
-
-No production database is required for public content in Phase 1.
-
-The following are explicitly excluded:
-
-- public product inventory;
-- live prices;
-- marketplace data;
-- shopping cart and checkout;
-- customer accounts;
-- supplier accounts;
-- public quotation tracking;
-- client-side storage of confidential inquiry data.
-
-### 14.2 Database and ORM
-
-PostgreSQL, Prisma, Drizzle, Supabase, Firebase, and similar platforms are not approved by default. Add a database only after a defined server-side feature requires persistence and `DATA_ARCHITECTURE.md` approves the model, retention, backup, access, and deletion policy.
-
-### 14.3 Browser storage
-
-- Do not store inquiries, uploaded documents, personal data, quotations, or sensitive project details in `localStorage`, `sessionStorage`, IndexedDB, cookies readable by JavaScript, or page source.
-- Consent or low-risk UI preferences may use minimal storage only after privacy review.
-- Essential functionality must not depend on durable browser storage.
-
----
-
-## 15. Forms and Lead Capture
-
-### 15.1 Form foundation
-
-Use semantic native forms enhanced by React only where useful.
-
-Approved baseline:
-
-- HTML form semantics;
-- Next.js Server Action or Route Handler;
-- shared Zod schema;
-- native input constraints as a first client-side layer;
-- server-side validation as authoritative;
-- accessible field-level and form-level error summaries;
-- pending, success, recoverable-error, and retry states;
-- server-generated inquiry/reference ID;
-- progressive enhancement.
-
-React Hook Form is not required and MUST NOT be added unless form complexity proves that it materially improves maintainability without weakening progressive enhancement.
-
-### 15.2 Abuse controls
-
-Use layered controls:
-
-- server-side validation and normalization;
-- a honeypot field;
-- timing and duplicate-submission checks;
-- origin and content-type verification;
-- rate limiting at the edge/server boundary;
-- Cloudflare Turnstile when abuse risk or live traffic justifies it;
-- generic public errors that do not expose integration details.
-
-CAPTCHA or challenge scripts must not load on every page.
-
-### 15.3 CRM/ERP integration
-
-The production provider is **DEFERRED**. Implement a server-only adapter contract such as:
-
-```ts
-interface LeadSink {
-  submit(input: ValidatedInquiry): Promise<LeadSubmissionResult>;
-}
-```
-
-Rules:
-
-- no provider SDK in Client Components;
-- no credentials in browser bundles;
-- retries must be idempotent;
-- integration failures must be logged safely;
-- the user must receive an honest fallback path;
-- an inquiry must never be reported as received unless the defined durable handoff succeeds.
-
-Email-only delivery, Odoo, a CRM, or another provider is not approved by this file. `FORM_ARCHITECTURE.md` and `API_INTEGRATIONS.md` must select the production destination.
-
-### 15.4 Document upload
-
-Uploads are conditional and disabled until operationally approved. If enabled:
-
-- upload through a server-authorized flow to private object storage;
-- use random server-generated object keys;
-- validate extension, MIME type, signature, size, and file count;
-- scan files before downstream use;
-- never store uploads under `/public`;
-- use time-limited access;
-- define retention and deletion;
-- strip or treat metadata as untrusted;
-- never place private file URLs in analytics.
-
-The storage provider remains deferred.
-
----
-
-## 16. Localization and Directionality
-
-### 16.1 Phase 1
-
-- Publish Persian only.
-- Default locale: `fa` / `fa-IR`.
-- Root document: `lang="fa"`, `dir="rtl"`.
-- Canonical Persian URLs must not require an unnecessary `/fa` prefix unless `ROUTES.md` explicitly decides otherwise.
-
-### 16.2 Future readiness
-
-The application structure must allow future English, Arabic, and regional content without publishing empty locales.
+The visual authority remains the approved brand and design-system documents. Tailwind is an implementation mechanism, not a source of design decisions.
 
 Requirements:
 
-- locale-independent entity IDs;
-- locale-aware metadata and content access;
-- route generation isolated from display text;
-- direction derived from locale;
-- no hardcoded Persian strings inside reusable UI primitives;
-- no hreflang for an unpublished or incomplete locale;
-- no automatic translation in production.
+- `lang="fa"` and `dir="rtl"` on Persian pages;
+- CSS logical properties and Tailwind logical utilities;
+- direction isolation for URLs, email, phone numbers, grades, dimensions, standards, and product codes;
+- accessible focus states and keyboard operation;
+- no monolithic UI theme or generic page-builder design system;
+- project-owned public components;
+- headless primitives only for genuinely complex, tested widgets;
+- no CSS-in-JS runtime;
+- no Sass/Less layer at launch;
+- motion implemented with CSS/WAAPI first and respecting `prefers-reduced-motion`.
 
-### 16.3 Localization library
-
-Do not add `next-intl` or another i18n runtime in Phase 1 merely for one published locale. Keep a small typed dictionary/content interface. Adopt `next-intl` when the second locale is approved, complete, and requires runtime locale routing and messages.
-
-If the implementation team chooses to install it earlier for proven migration-risk reduction, the reason and bundle/architecture impact must be recorded in `DECISIONS.md`.
-
----
-
-## 17. SEO Stack
-
-Use native Next.js capabilities and typed project utilities:
-
-- Metadata API for title, description, canonical, Open Graph, and social metadata;
-- generated `sitemap.ts`;
-- generated `robots.ts`;
-- server-rendered JSON-LD helpers;
-- static canonical route registry;
-- build-time validation for indexability, canonical, metadata, and internal links;
-- HTML content visible without client-side fetching.
-
-Do not add a generic SEO plugin. JSON-LD must be derived from verified visible content and must not claim unsupported products, prices, ratings, inventory, locations, or services.
-
-The canonical production origin is `https://www.ahanassa.com`. Environment-specific preview domains must be `noindex` and must never become canonical.
+`lucide-react` MAY be used as a curated, tree-shaken UI icon source. The brand mark remains a separate approved asset.
 
 ---
 
-## 18. Analytics and Consent
+## 12. Data Architecture and D1
 
-### 18.1 Locked interface
+### 12.1 D1 role
 
-Implement a typed first-party event layer independent of analytics vendors.
+D1 is the website's durable operational store and edge-friendly read model. It is not a replacement for Odoo.
 
-Example event families:
+D1 owns or stores copies of:
 
-- `cta_click`;
-- `contact_method_click`;
-- `rfq_start`;
-- `rfq_validation_error`;
-- `rfq_submit_success`;
-- `rfq_submit_failure`;
-- `resource_view`;
-- `resource_download`;
-- `case_study_view`.
+- articles, article categories, drafts, revisions, and publication state;
+- website SEO overlays for categories, products, prices, and articles;
+- public product/category/variant/unit projections synchronized from Odoo;
+- public current prices and website price history projections;
+- RFQs, RFQ items, attachment metadata, status, and sync state;
+- operator role mappings and application permissions;
+- integration outbox/idempotency records;
+- audit logs and operational settings.
 
-Events must use allowlisted fields. They must not include names, phone numbers, emails, free text, document names, document URLs, quotation content, or other personal/confidential data.
+### 12.2 Data access
 
-### 18.2 Provider decision
+Use:
 
-GA4, Google Tag Manager, Vercel Web Analytics, or another vendor may be selected only in `ANALYTICS_TRACKING.md` after defining:
+- Cloudflare D1 Worker bindings;
+- Drizzle ORM for schema-safe common queries;
+- Drizzle Kit and committed SQL migrations;
+- prepared SQL for performance-critical queries or D1 features not represented cleanly by the ORM;
+- explicit transactions/batches where supported and appropriate;
+- database-enforced foreign keys, uniqueness, and indexes.
 
-- data ownership;
-- consent/legal basis;
-- measurement ID ownership;
-- environments;
-- event dictionary;
-- retention;
-- internal traffic handling;
-- cross-domain needs;
-- QA and debugging process.
+The application MUST NOT access D1 through public REST credentials.
 
-No analytics script may be hardcoded directly in page components.
+### 12.3 Index baseline
 
-### 18.3 Search monitoring
+Indexes MUST cover proven query patterns, including where applicable:
 
-Google Search Console and Bing Webmaster Tools do not require a runtime JavaScript dependency. Verification must use the approved DNS or metadata method and be documented outside component code.
+- slugs and locale;
+- publication/status timestamps;
+- category/product/variant relationships;
+- `odoo_id` and `external_id`;
+- RFQ reference and status;
+- `sync_status`, `next_retry_at`, and `last_synced_at`;
+- price entity and effective timestamp;
+- audit actor and creation timestamp.
 
----
+The exact schema and migrations belong in `DATABASE_SCHEMA.md`.
 
-## 19. Security Stack
+### 12.4 Read replication
 
-### 19.1 Platform controls
+D1 Global Read Replication MAY be enabled for international traffic. When enabled, reads MUST use the D1 Sessions API and the consistency strategy defined in `DATA_ARCHITECTURE.md`.
 
-- Cloudflare for DNS, TLS edge policy, redirects, WAF/rate controls where configured, and optional Turnstile.
-- Vercel for isolated builds, preview deployments, server execution, and environment-secret management.
-- GitHub protected branch and required checks.
-- Dependabot or Renovate for controlled dependency updates; use one, not both.
-- GitHub code scanning and secret scanning where available.
-
-### 19.2 Application controls
-
-- Zod validation at all external input boundaries.
-- `server-only` guards for modules containing secrets or confidential integrations.
-- security headers configured centrally.
-- strict allowlists for remote images, redirects, CORS, and upload types.
-- no raw HTML rendering from untrusted input.
-- no use of `dangerouslySetInnerHTML` except a reviewed structured-data helper with safe serialization.
-- no credentials, tokens, private endpoints, or internal stack traces in client code.
-- no production secrets in `.env.example`, logs, screenshots, or test fixtures.
-
-### 19.3 Dependency security
-
-- `pnpm audit` is advisory; findings must be triaged, not blindly ignored or blindly force-fixed.
-- production deployment is blocked by an applicable unmitigated critical vulnerability.
-- dependency upgrades require build, type, unit, integration, accessibility, and end-to-end checks according to risk.
-- security patches take precedence over convenience freezes.
-
-Detailed headers, CSP, upload scanning, logging, incident response, and privacy controls belong in `SECURITY_GUIDELINES.md`.
+- Public catalog reads may begin unconstrained when slight replication delay is acceptable.
+- Read-after-write admin and RFQ flows must use a bookmark or primary-constrained session as appropriate.
+- Writes always target the primary database.
 
 ---
 
-## 20. Hosting and Delivery
+## 13. System of Record
 
-### 20.1 Production topology
+| Entity/capability | Authoritative system | Website copy/use |
+|---|---|---|
+| Article and editorial workflow | D1 website CMS | Render public pages |
+| SEO title, description, copy, FAQ, internal links | D1 website CMS | Render/index pages |
+| Product commercial identity | Odoo | Projected to D1 |
+| Product variant and attributes | Odoo | Projected to D1 |
+| Unit of measure | Odoo | Projected to D1 |
+| Commercial/current price | Odoo | Public projection in D1 |
+| Website price history chart | D1 projection | Derived from approved Odoo sync snapshots |
+| Customer/contact | Odoo | Website stores RFQ submission snapshot |
+| RFQ intake | D1 first | Synchronized to Odoo |
+| CRM lead/opportunity | Odoo | Sync reference/status in D1 |
+| Quotation and sale order | Odoo | Not authored by website |
+| Inventory, purchase, supplier, accounting | Odoo | Not duplicated in website |
+| Public media originals | R2 | Delivered through image pipeline |
+| RFQ attachments | Private R2 | Reference synchronized to Odoo |
+| Audit trail for website actions | D1 | Internal administration |
+
+`SYSTEM_OF_RECORD.md` is authoritative if this table is expanded. Any contradiction must be resolved before code is written.
+
+---
+
+## 14. Odoo Integration Stack
+
+### 14.1 Boundary
+
+All Odoo communication MUST pass through a server-only adapter. UI components, routes, and domain services MUST NOT construct Odoo RPC calls directly.
+
+Recommended module boundary:
 
 ```text
-Visitor
-  → Cloudflare DNS / edge controls
-  → Vercel deployment
-  → Next.js static output and server functions
-  → approved server-side lead/media integrations only
+services/odoo/
+  client.ts
+  auth.ts
+  customers.ts
+  products.ts
+  prices.ts
+  rfqs.ts
+  attachments.ts
+  mapping.ts
+  errors.ts
 ```
 
-### 20.2 Domain policy
+### 14.2 Protocol selection
 
-- Canonical host: `www.ahanassa.com`.
-- Apex `ahanassa.com` redirects permanently to the canonical `www` host while preserving path and query.
-- HTTP redirects permanently to HTTPS.
-- Only one redirect hop is acceptable under normal conditions.
-- Vercel preview URLs are not indexable.
-- Cloudflare and Vercel redirect rules must not create loops or contradictory canonical hosts.
+The deployed Odoo version and installed modules MUST be verified before integration code is finalized.
 
-### 20.3 Environments
+- If `odoo.ahanassa.com` runs Odoo 19, use the External JSON-2 API with bearer API-key authentication where the required models and methods are exposed.
+- If the server runs an earlier supported Odoo version, prefer a small, versioned custom Odoo controller/module that exposes the exact integration contract.
+- Legacy XML-RPC/JSON-RPC MAY be used only as a documented temporary compatibility path.
+- The public website never receives the API key, database name, internal model permissions, or raw Odoo errors.
 
-Use:
+### 14.3 Integration identity
 
-- local development;
-- preview per pull request;
-- production from the protected main branch.
+Create a dedicated Odoo integration user, for example `ahanassa_website_bot`, with minimum required access rights and record rules.
 
-Add a separate staging environment only if persistent integration testing requires it. Do not create environment complexity without an owner.
+Secrets MUST be stored as Cloudflare secrets and accessed only in server/consumer code.
 
-### 20.4 Cache strategy
+### 14.4 Data flow
 
-- Static pages and hashed assets receive long-lived caching.
-- HTML revalidation is explicit and content-driven.
-- Inquiry responses and private data use `no-store`.
-- Preview and draft content use `no-store` and `noindex`.
-- Do not cache personalized errors or confidential integration responses.
-- Cloudflare cache rules must respect Vercel/Next.js behavior and must not override sensitive response headers.
+Website to Odoo:
 
-Detailed cache keys, TTLs, invalidation, and CDN behavior belong in `CACHING_STRATEGY.md`.
+- customer/contact identity;
+- company and communication fields;
+- RFQ header and all RFQ items;
+- attachment references or controlled uploads;
+- source page, locale, consent, referrer, and approved UTM fields;
+- idempotency key and website reference.
+
+Odoo to website:
+
+- products and variants;
+- units of measure;
+- public prices and effective/update times;
+- public availability labels only when approved;
+- Odoo identifiers and sync versions;
+- optional customer-visible RFQ status if later approved.
+
+### 14.5 Mapping
+
+Expected model families include `res.partner`, `crm.lead`, `product.template`, `product.product`, `uom.uom`, and Odoo pricelist/sales models. Exact fields and custom RFQ-line handling MUST be defined in `ERP_DATA_MAPPING.md` after installed modules are inspected.
 
 ---
 
-## 21. Testing Stack
+## 15. Queues, Idempotency, and Failure Recovery
 
-### 21.1 Required tools
+Use Cloudflare Queues for:
 
-| Test level | Tool | Required scope |
+- RFQ delivery to Odoo;
+- product/variant/unit synchronization;
+- price synchronization and cache invalidation;
+- attachment handoff/processing;
+- non-blocking notifications if later approved.
+
+Each job envelope MUST contain:
+
+```text
+message_id
+event_type
+schema_version
+aggregate_id
+idempotency_key
+occurred_at
+attempt_context
+payload
+```
+
+Because Queues provide at-least-once delivery, consumers MUST be idempotent. The idempotency key MUST be enforced by D1 and passed to Odoo/custom endpoints where possible.
+
+Failed jobs MUST follow controlled retry rules and ultimately enter a Dead Letter Queue. An operator-visible recovery view MUST allow inspection and safe replay without exposing secrets or customer documents.
+
+RFQ success flow:
+
+```text
+validate request
+  -> verify Turnstile
+  -> write RFQ + items + attachment metadata to D1
+  -> enqueue Odoo job
+  -> return website reference
+```
+
+The user receives success only after durable D1 acceptance. Odoo synchronization may complete later.
+
+---
+
+## 16. Scheduled Synchronization
+
+Workers Cron Triggers MUST run reconciliation jobs at intervals defined in `SYNC_STRATEGY.md`.
+
+The stack supports:
+
+- webhook/event-driven updates from Odoo when a trusted custom endpoint is available;
+- scheduled delta sync using `write_date`/version markers;
+- periodic full reconciliation of identifiers and counts;
+- price freshness monitoring;
+- replay of recoverable failed records;
+- cache-tag invalidation after successful projection updates.
+
+Cron handlers SHOULD enqueue bounded jobs rather than perform large Odoo synchronizations in one invocation.
+
+---
+
+## 17. CMS and Admin Stack
+
+### 17.1 Scope
+
+The authenticated `/admin` application manages:
+
+- dashboard and operational warnings;
+- articles, categories, drafts, preview, publish, unpublish, and revisions;
+- website SEO overlays;
+- product/category public presentation fields;
+- public-price sync visibility and history, not commercial price authorship;
+- RFQ review and website sync state;
+- media library;
+- users/roles mapping and audit logs;
+- integration failures and safe replay.
+
+Commercial prices SHOULD be changed in Odoo. The website admin may offer a controlled Odoo-linked bulk workflow only if `PRICING_SYSTEM.md` approves it and Odoo remains the authoritative writer.
+
+### 17.2 Admin authentication
+
+Use Cloudflare Access to protect `/admin` and admin APIs. The application MUST then apply its own D1-backed RBAC and verify the Access identity.
+
+Minimum roles:
+
+- `super_admin`;
+- `content_manager`;
+- `price_viewer` or approved price operator role;
+- `sales_operator`;
+- `auditor`.
+
+Cloudflare Access authentication does not replace application authorization.
+
+### 17.3 Article storage
+
+Store article bodies as Markdown, not executable MDX. Render on the server with an explicit allowlist and sanitization pipeline.
+
+Approved packages when required:
+
+- `react-markdown`;
+- `remark-gfm`;
+- `rehype-sanitize` with a project-owned schema.
+
+Raw HTML, embedded scripts, arbitrary React components, and untrusted MDX execution are prohibited.
+
+The initial editor SHOULD be a structured Markdown editor with preview. A rich-text framework such as Tiptap is conditional and must remain admin-only if adopted.
+
+---
+
+## 18. Product Catalog and Price Stack
+
+The public catalog uses two linked layers:
+
+1. **Odoo commercial layer:** product, variant, attributes, units, pricelists, internal codes, inventory, suppliers, purchasing, and sales.
+2. **Website SEO layer:** slug, localized title, introduction, specifications, buying guide, FAQ, related pages, internal links, metadata, canonical, indexability, and approved media.
+
+Rules:
+
+- Odoo identifiers and website identifiers MUST be stored separately.
+- Product sync MUST never overwrite website-authored SEO content.
+- Public prices MUST show unit, currency, source/effective time, and last update time.
+- Public price pages MUST state that final commercial terms are confirmed through quotation where legally/operationally required.
+- Thin, automatically generated combinations MUST remain non-indexable.
+- Filter query URLs are non-indexable unless explicitly promoted to a curated landing page.
+- Search starts with indexed D1 queries; no external search service is approved at launch.
+
+---
+
+## 19. RFQ Stack
+
+The RFQ builder MUST support any number of rows. Each row supports:
+
+```text
+category
+product
+variant / size
+unit
+quantity
+description
+```
+
+It MUST also support a free-form item when the requested product is not present in the catalog.
+
+Submission modes:
+
+- structured items only;
+- attachments only when minimum contact/request context is present;
+- structured items plus attachments.
+
+Approved attachment classes include PDF, image, CSV, and approved spreadsheet formats. Files are not automatically trusted or parsed merely because their extension is allowed.
+
+Validation is shared conceptually but authoritative on the server. Client validation improves usability only.
+
+No RFQ, item, personal data, or attachment metadata may enter analytics payloads.
+
+---
+
+## 20. R2 and File Security
+
+Use separate R2 buckets or strict prefixes/policies for:
+
+- approved public media originals;
+- private RFQ uploads;
+- quarantine/pending-scan uploads;
+- processed/safe private files if scanning is enabled.
+
+Requirements:
+
+- random opaque object keys;
+- no customer filename as an object key;
+- size and file-count limits;
+- extension, MIME type, and file-signature validation;
+- private-by-default access;
+- short-lived signed access for authorized operators;
+- lifecycle/retention rules;
+- malware-scanning or quarantine workflow defined before production attachment access;
+- audit trail for upload, view, handoff, and deletion;
+- no private R2 URL in HTML, logs, analytics, or Odoo chatter visible beyond intended roles.
+
+Uploads MAY use a server-authorized direct-to-R2 flow to avoid proxying large bodies through application code, but authorization and final metadata commit remain server-controlled.
+
+---
+
+## 21. Images and Fonts
+
+### 21.1 Images
+
+Use R2 for originals and Cloudflare Images/Image Resizing for responsive delivery.
+
+Requirements:
+
+- AVIF/WebP negotiation with a safe fallback;
+- width appropriate to layout and device;
+- intrinsic dimensions or stable aspect ratios;
+- one intentional LCP image priority per route at most;
+- lazy loading below the fold;
+- long-lived immutable caching for versioned media;
+- accessible alt text for informative media;
+- no public exposure of RFQ attachments through the image pipeline.
+
+`next/image` MAY be used with a project-owned Cloudflare loader or the adapter-supported integration. Generated URLs and cache behavior MUST be verified in Workers preview.
+
+### 21.2 Fonts
+
+- self-host licensed WOFF2 fonts;
+- use `next/font/local` when compatible with the deployed adapter output;
+- subset Persian/Arabic/Latin glyphs only when licensing and QA permit;
+- preload only the critical face;
+- minimize families and weights;
+- define metric-compatible fallbacks;
+- verify no unacceptable layout shift.
+
+---
+
+## 22. Cache Strategy
+
+Use layered caching:
+
+1. versioned static assets at the Cloudflare edge;
+2. framework route/data cache for public renderable content;
+3. Cloudflare response cache for eligible public responses;
+4. D1 as the durable read model;
+5. Odoo only as an asynchronous upstream system.
+
+Use selective tags/keys such as:
+
+```text
+article:{id}
+category:{id}
+product:{id}
+price:{variant_id}
+catalog
+prices
+```
+
+After a successful publish or sync, invalidate only affected content. Whole-site purges require an operational incident or approved release action.
+
+Public content SHOULD use stale-while-revalidate where the content policy allows it. Admin, RFQ, private media, preview, authentication, and mutation responses MUST use `no-store` and must never enter public cache.
+
+---
+
+## 23. Security Controls
+
+Use:
+
+- Cloudflare TLS, WAF, rate limiting, Access, and Turnstile;
+- mandatory server-side Turnstile Siteverify for protected forms;
+- Zod validation and normalization;
+- origin and content-type checks for mutations;
+- server-only modules for secrets and integrations;
+- strict security headers and CSP;
+- CSRF protection appropriate to Server Actions/Route Handlers and admin flows;
+- least-privilege D1/R2/Queue bindings;
+- least-privilege Odoo integration user;
+- redacted structured logging;
+- audit logs for privileged actions;
+- dependency and secret scanning in CI.
+
+Turnstile tokens MUST be validated server-side and treated as short-lived, single-use values. Turnstile is one layer; it does not replace validation, rate limiting, idempotency, or authorization.
+
+No secret belongs in:
+
+- browser JavaScript;
+- `NEXT_PUBLIC_*` variables;
+- Git history;
+- `.env.example` values;
+- analytics;
+- screenshots, fixtures, or logs.
+
+---
+
+## 24. SEO Stack
+
+Use native Next.js capabilities and small typed utilities:
+
+- Metadata API;
+- server-generated title, description, canonical, Open Graph, and robots directives;
+- `sitemap.ts` with segmented sitemaps when scale requires it;
+- `robots.ts`;
+- server-rendered JSON-LD;
+- `BreadcrumbList`, `Organization`, `WebSite`, `Article`, and appropriate `Product`/`Offer` schemas only when visible content supports them;
+- crawlable `<a href>` internal links;
+- stable status codes and redirects;
+- localized metadata/content architecture;
+- build/CI validation for canonical, indexability, sitemap membership, and broken internal links.
+
+Rules:
+
+- Persian canonical URLs SHOULD be unprefixed unless `ROUTES.md` decides otherwise.
+- Unpublished locales MUST NOT receive hreflang or indexable placeholder pages.
+- Preview and admin origins/routes MUST be `noindex`.
+- Public price/product pages MUST not depend on client-side fetching for core content.
+- Faceted/filter URLs are non-indexable by default.
+- Product and price pages are indexable only when they provide unique, useful content beyond a data row.
+- JSON-LD MUST match visible page content and current data freshness rules.
+
+No generic SEO plugin is approved.
+
+---
+
+## 25. Performance Budget and Delivery Rules
+
+Project targets at the 75th percentile on representative production traffic:
+
+```text
+LCP   < 2.0 s
+INP   < 150 ms
+CLS   < 0.05
+TTFB  < 500 ms for uncached representative HTML
+```
+
+Lighthouse CI targets for representative public routes:
+
+```text
+Performance      >= 95
+SEO              = 100
+Accessibility    >= 95
+Best Practices   >= 95
+```
+
+These are internal release targets, not promises for every device/network.
+
+Rules:
+
+- no site-wide third-party script without a site-wide requirement;
+- no global animation runtime;
+- no hydration for static content;
+- no client data-fetching library for public SEO content;
+- no oversized hero video at launch;
+- no below-the-fold priority images;
+- no unbounded icon imports;
+- no synchronous Odoo request in page rendering or RFQ acceptance;
+- route-specific dependencies remain route-specific;
+- public and admin bundles are measured separately;
+- database query plans and indexes are reviewed for frequent routes.
+
+Detailed byte/CPU/query budgets and CI thresholds belong in `PERFORMANCE_BUDGET.md` and `PERFORMANCE_GUIDELINES.md`.
+
+---
+
+## 26. Localization
+
+The launch locale is Persian (`fa-IR`) and RTL. The content and routing model MUST remain ready for English and Arabic without publishing incomplete locales.
+
+Use locale-independent entity IDs and locale-specific content records.
+
+`next-intl` is CONDITIONAL:
+
+- it SHOULD be added when a second complete locale is approved;
+- it MAY be introduced earlier if implementation testing proves that it reduces migration risk without harming public bundle size or routing clarity;
+- the decision must be recorded in `DECISIONS.md`.
+
+No automatic machine-translated production pages are allowed.
+
+---
+
+## 27. Analytics and Observability
+
+### 27.1 Observability
+
+Use Cloudflare Workers Observability as the baseline for:
+
+- Worker exceptions and latency;
+- D1 query errors/latency;
+- Queue depth, retries, and DLQ growth;
+- Odoo request latency and failure categories;
+- sync freshness;
+- RFQ acceptance failures;
+- cache hit behavior;
+- 404 and 5xx trends.
+
+Logs MUST use structured fields and redact personal data, RFQ content, filenames, API keys, tokens, and confidential Odoo payloads.
+
+External error monitoring is deferred until ownership, retention, privacy, alerts, and cost are approved.
+
+### 27.2 Analytics
+
+Implement a typed first-party event interface. GA4, GTM, Cloudflare Web Analytics, or another provider must be selected in `ANALYTICS_TRACKING.md`.
+
+Public analytics MUST NOT include names, phones, emails, free text, RFQ items, quantities, attachment names/URLs, quotation values, or Odoo identifiers.
+
+Search Console and Bing Webmaster Tools require no global runtime SDK.
+
+---
+
+## 28. Testing Stack
+
+| Test level | Tool | Required coverage |
 |---|---|---|
-| Schema/unit | Vitest | validators, utilities, route helpers, metadata, event payloads |
-| Components | React Testing Library | interactive and accessibility-critical components |
-| End-to-end | Playwright | navigation, RFQ, errors, downloads, responsive behavior |
-| Accessibility | axe-core + Playwright | representative pages and component states |
-| Visual regression | Playwright screenshots | header, menu, hero, forms, tables, key layouts |
-| Performance | Lighthouse CI | representative production builds |
+| Schema/unit | Vitest | validation, mapping, money/unit logic, idempotency, cache tags |
+| Components | React Testing Library | RFQ rows, admin controls, filters, accessible states |
+| Integration | Vitest + Workers test environment/mocks | D1, R2 metadata, Queue envelopes, Odoo adapter |
+| End-to-end | Playwright | public navigation, SEO HTML, RFQ, uploads, admin publish, failure states |
+| Accessibility | axe-core + Playwright | representative routes and dynamic states |
+| Visual regression | Playwright screenshots | key RTL public/admin layouts |
+| Performance | Lighthouse CI | home, category, product, price, article, RFQ |
 | Type safety | `tsc --noEmit` | complete repository |
 | Static analysis | ESLint | complete repository |
+| Migration validation | Wrangler/Drizzle commands | preview database before production |
 
-### 21.2 Required browser coverage
+Mandatory integration scenarios:
 
-Playwright CI SHOULD cover:
+- Odoo available;
+- Odoo timeout/down;
+- duplicate Queue delivery;
+- malformed Odoo payload;
+- partial product/price sync failure;
+- DLQ and replay;
+- RFQ with many rows;
+- free-form item;
+- attachment rejection and quarantine;
+- Turnstile failure/expiry/replay;
+- admin without role;
+- stale public price;
+- cache invalidation after article publish and price sync;
+- D1 read-after-write consistency where required.
 
-- Chromium;
-- WebKit;
-- Firefox;
-- representative mobile viewport;
-- representative desktop viewport.
-
-Manual QA must still cover real mobile Safari and Chrome before launch.
-
-### 21.3 Required RTL cases
-
-Tests must include:
-
-- Persian navigation and mobile menu;
-- focus order matching DOM and reading order;
-- mixed Persian/Latin strings;
-- phone, email, URL, grade, dimensions, and standards;
-- directional icon behavior;
-- form error summaries and field association;
-- zoom and reflow;
-- reduced motion;
-- long Persian headings and content expansion.
-
-### 21.4 No snapshot-only assurance
-
-Snapshots may detect visual change, but they do not replace semantic assertions, keyboard tests, screen-reader review, content validation, or manual inspection.
+Turnstile test keys MUST be used in automated tests.
 
 ---
 
-## 22. Performance and Observability
+## 29. CI/CD and Environments
 
-### 22.1 Performance tooling
+Use four logical environments:
 
-Use:
+- local;
+- preview per pull request;
+- staging/integration for Odoo tests;
+- production.
 
-- Next.js build output and bundle analysis when needed;
-- Lighthouse CI;
-- field Core Web Vitals through the approved analytics/observability adapter;
-- browser Performance tools for interaction analysis;
-- Vercel Speed Insights only if approved in the analytics/privacy decision.
+Each non-production environment MUST have separate D1, R2, Queue, Access, Turnstile, and secret configuration. Preview code MUST NOT write to production Odoo or production storage.
 
-### 22.2 Performance rules
+GitHub Actions MUST run:
 
-- No global third-party script without a site-wide requirement.
-- No animation library in the root layout by default.
-- No client-side data-fetching library for static content.
-- No carousel library for a simple list or scroll-snap layout.
-- No oversized hero video at launch.
-- No below-the-fold image priority loading.
-- No unbounded icon or utility imports.
-- No hydration for content that can remain static HTML.
-- Route-specific dependencies must remain route-specific.
+```text
+frozen install
+format check
+lint
+typecheck
+unit/component tests
+content/schema validation
+database migration validation
+production build
+Workers runtime preview smoke tests
+Playwright critical paths
+accessibility checks
+Lighthouse CI
+```
 
-### 22.3 Error monitoring
+Production deployment uses Wrangler from a protected branch/workflow. Database migrations MUST be forward-only, reviewed, backed up where appropriate, and applied before code that requires them.
 
-The application must expose a server-side logging interface and user-safe error states. A hosted provider such as Sentry is deferred until ownership, retention, privacy, alerting, and cost are approved.
-
-Logs MUST redact personal and confidential content.
+Rollback MUST distinguish Worker code rollback from data/schema recovery; Cloudflare Worker versions do not roll back D1 or R2 state.
 
 ---
 
-## 23. Development and CI Commands
+## 30. Expected Package Set
 
-The repository SHOULD expose these stable commands:
+### 30.1 Production dependencies
+
+| Package | Purpose | Policy |
+|---|---|---|
+| `next` | Framework | Required; patched line |
+| `react`, `react-dom` | UI/runtime | Required; aligned |
+| `zod` | Boundary validation | Required |
+| `drizzle-orm` | Typed D1 access | Required |
+| `@opennextjs/cloudflare` | Workers deployment adapter | Required for launch |
+| `react-markdown` | Safe article rendering | Required when CMS launches |
+| `remark-gfm` | Controlled Markdown features | Required when CMS launches |
+| `rehype-sanitize` | Allowlisted sanitization | Required when CMS launches |
+| `lucide-react` | Curated icons | Limited |
+| `jose` | Access/JWT verification if required by implementation | Conditional |
+| `next-intl` | Multi-locale routing/messages | Conditional |
+
+### 30.2 Development dependencies
+
+- `typescript`;
+- `wrangler`;
+- `drizzle-kit`;
+- `tailwindcss` and compatible integration package;
+- ESLint with compatible Next.js/TypeScript/accessibility rules;
+- Prettier;
+- Vitest;
+- React Testing Library packages;
+- Playwright;
+- `@axe-core/playwright`;
+- Lighthouse CI tooling;
+- `tsx` for controlled repository scripts if needed.
+
+Do not install conditional packages during scaffolding without implementing their approved use case.
+
+---
+
+## 31. Stable Repository Commands
+
+The final scripts SHOULD expose equivalent commands:
 
 ```json
 {
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "preview:cf": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy:cf": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "cf:typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:a11y": "playwright test --grep @a11y",
     "content:validate": "tsx scripts/validate-content.ts",
-    "links:validate": "tsx scripts/validate-links.ts",
-    "ci": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm content:validate && pnpm test && pnpm build && pnpm test:e2e"
+    "links:validate": "tsx scripts/validate-links.ts"
   }
 }
 ```
 
-Exact command composition may evolve, but equivalent checks must remain available and CI-enforced.
-
-### 23.1 Pull-request gate
-
-Before merge:
-
-1. frozen dependency installation succeeds;
-2. format check passes;
-3. lint passes;
-4. typecheck passes;
-5. content validation passes;
-6. unit/component tests pass;
-7. production build succeeds;
-8. critical Playwright tests pass against the preview;
-9. automated accessibility checks pass;
-10. preview deployment receives visual and content review.
+Exact commands may change with adapter releases, but equivalent gates must remain.
 
 ---
 
-## 24. Core Package Set
+## 32. Explicitly Rejected or Deferred Technologies
 
-### 24.1 Expected production dependencies
+The launch stack MUST NOT include:
 
-| Package | Purpose | Policy |
-|---|---|---|
-| `next` | application framework | Required; approved patched line only |
-| `react` | UI runtime | Required; version controlled by Next compatibility |
-| `react-dom` | server/client renderer | Required; version aligned with React |
-| `zod` | content and input validation | Required |
-| `lucide-react` | approved icon subset | Limited and replaceable |
-
-Conditional production dependencies:
-
-| Package/category | When allowed |
-|---|---|
-| `@next/mdx` | Controlled long-form MDX is included |
-| `remark-gfm` | Approved Markdown tables/lists require it |
-| `motion` | Approved complex interaction needs runtime motion |
-| analytics SDK | `ANALYTICS_TRACKING.md` approves provider |
-| error-monitoring SDK | monitoring decision approves provider |
-| CRM/email SDK | server adapter provider is approved |
-| object-storage SDK | secure uploads are approved |
-| `next-intl` | second complete locale is approved or early adoption is justified |
-
-### 24.2 Expected development dependencies
-
-- `typescript`;
-- `tailwindcss` and the compatible Next.js integration package;
-- `eslint` and compatible plugins;
-- `prettier`;
-- `vitest`;
-- `@testing-library/react`;
-- `@testing-library/jest-dom`;
-- `@testing-library/user-event`;
-- `@playwright/test`;
-- `@axe-core/playwright`;
-- `tsx` for repository validation scripts;
-- Lighthouse CI tooling;
-- optional bundle analyzer compatible with the selected Next.js release.
-
-Do not install every conditional package during scaffolding.
-
----
-
-## 25. Explicitly Rejected or Deferred Technologies
-
-Unless a later approved decision changes scope, Phase 1 MUST NOT include:
-
-- WordPress or a coupled page-builder backend;
-- a public e-commerce engine;
-- Shopify, WooCommerce, or Magento;
-- a public product/price feed;
-- a client-side SPA-only architecture;
-- Create React App;
-- the Next.js Pages Router;
-- a second JavaScript package manager;
-- Redux, MobX, or a global state framework;
-- Apollo Client or another GraphQL client without an approved GraphQL service;
-- React Query/SWR for static public content;
-- Prisma/Drizzle or a database without a persistence requirement;
-- styled-components, Emotion, Sass, or Less;
+- Vercel hosting or Vercel server functions;
+- Cloudflare Pages for the full-stack application;
+- direct browser-to-Odoo calls;
+- synchronous Odoo calls during public rendering or RFQ acceptance;
+- Odoo as the public headless CMS;
+- a second commercial product/price master outside Odoo;
+- WordPress or a coupled page builder;
+- Shopify, WooCommerce, Magento, or a public checkout engine;
+- client-side SPA-only rendering;
+- Next.js Pages Router;
+- a second package manager or lockfile;
+- an unreviewed beta/canary adapter in production;
+- database-stored executable MDX;
+- Prisma unless a future database decision requires it;
+- a global state library at launch;
 - a generic full UI theme;
-- icon fonts;
-- GSAP, Three.js, or WebGL effects at launch;
-- uncontrolled third-party chat widgets;
-- client-visible CRM/ERP credentials;
-- public storage for inquiry documents;
-- automatic machine-translated production pages;
-- analytics scripts added outside the approved event/consent architecture.
-
-“Popular” or “already familiar” is not sufficient justification for adding a technology.
-
----
-
-## 26. Claude Code Operating Rules
-
-Before adding or changing technology, Claude Code MUST:
-
-1. read `PROJECT_BRIEF.md`, `TECHNICAL_ARCHITECTURE.md`, `STACK.md`, `DESIGN_SYSTEM.md`, `CONTENT_MODEL.md`, `ACCESSIBILITY.md`, and relevant specialist documents;
-2. inspect the current repository and lockfile;
-3. confirm that the needed capability is not already available;
-4. check compatibility with the pinned Node, Next.js, React, TypeScript, and Tailwind versions;
-5. evaluate server/client boundary, RTL, accessibility, performance, security, and SEO impact;
-6. avoid modifying unrelated dependencies;
-7. update tests and documentation;
-8. record material decisions in `DECISIONS.md`;
-9. run the required verification commands;
-10. report exactly what changed and any unresolved risk.
-
-Claude Code MUST NOT upgrade a major version, introduce a provider, enable an experimental flag, or weaken a release gate silently.
+- CSS-in-JS runtime;
+- public RFQ attachment buckets;
+- permanent signed attachment URLs;
+- unbounded user uploads;
+- client-visible ERP/API credentials;
+- blanket cache purges as the normal invalidation strategy;
+- automatically indexed faceted URLs;
+- analytics containing personal or commercial RFQ data;
+- Sentry or another monitoring vendor before approval;
+- Algolia/Elastic/Meilisearch before D1 search is proven insufficient;
+- customer portal/account functionality before a separate scope and security design is approved.
 
 ---
 
-## 27. Open Decisions
-
-The following are intentionally unresolved and must be completed in their authoritative documents:
+## 33. Open Decisions That Must Be Resolved Before Production
 
 | Decision | Authority |
 |---|---|
-| Final CRM/ERP or lead destination | `FORM_ARCHITECTURE.md`, `API_INTEGRATIONS.md` |
-| Durable lead fallback and retry queue | `FORM_ARCHITECTURE.md` |
-| Secure upload provider and scanning | `FORM_ARCHITECTURE.md`, `SECURITY_GUIDELINES.md` |
+| Exact Odoo version and installed modules | `ODOO_INTEGRATION.md` |
+| JSON-2 methods or custom Odoo controller | `ODOO_INTEGRATION.md` |
+| Final Odoo field/model mapping | `ERP_DATA_MAPPING.md` |
+| Sync frequency, conflicts, reconciliation | `SYNC_STRATEGY.md` |
+| D1 schema and migration sequence | `DATABASE_SCHEMA.md` |
+| RFQ status model and Odoo representation | `RFQ_SYSTEM.md` |
+| Attachment limits, scanning, retention | `SECURITY_GUIDELINES.md`, `RFQ_SYSTEM.md` |
+| Admin role permission matrix | `AUTHORIZATION_ROLES.md` |
+| Public-price freshness and disclaimer rules | `PRICING_SYSTEM.md` |
+| Exact cache TTL/tag invalidation | `CACHING_STRATEGY.md` |
 | Analytics/consent provider | `ANALYTICS_TRACKING.md` |
-| Error monitoring provider | `SECURITY_GUIDELINES.md` / observability decision |
-| Final CMS, if later needed | `CMS_ARCHITECTURE.md` |
-| Database/ORM, if later needed | `DATA_ARCHITECTURE.md` |
-| Final font files and license | `FONT_STRATEGY.md`, `BRAND_GUIDELINES.md` |
-| Final canonical route policy | `ROUTES.md`, `HREFLANG_CANONICAL.md` |
-| Exact security headers and CSP | `SECURITY_GUIDELINES.md` |
-| Exact cache TTL and invalidation | `CACHING_STRATEGY.md` |
-| Package update automation | `DEVELOPMENT_RULES.md` |
+| Alert destinations and on-call ownership | `FAILURE_RECOVERY.md` |
+| Second locale and `next-intl` adoption | `LOCALIZATION.md`, `DECISIONS.md` |
+| `vinext` migration timing | `DECISIONS.md` after compatibility gate |
 
-Until resolved, use the safest reversible implementation and do not fabricate production configuration.
+An open decision does not permit a developer to fabricate production values.
 
 ---
 
-## 28. Launch Acceptance Checklist
+## 34. Launch Acceptance Checklist
 
-The stack is correctly implemented only when:
-
-- [ ] Node.js and pnpm are pinned and CI uses the frozen lockfile.
-- [ ] Next.js uses the approved security-patched `16.3.x` release or a formally approved successor.
-- [ ] React and React Server Components are on patched compatible versions.
-- [ ] TypeScript strict checks pass with no hidden `any` escape layer.
-- [ ] Server Components are the default and client boundaries are minimal.
-- [ ] Core Persian content and metadata render without client-side fetching.
-- [ ] Tailwind tokens match the approved design system.
-- [ ] RTL and mixed-direction behavior pass automated and manual QA.
-- [ ] Fonts are local, licensed, optimized, and stable.
-- [ ] Content schemas fail builds on invalid or confidential publication data.
-- [ ] Inquiry validation is authoritative on the server.
-- [ ] No lead, document, or secret is exposed to the client.
-- [ ] CRM/upload providers are either approved and tested or their features remain disabled.
-- [ ] Canonical, robots, sitemap, metadata, and JSON-LD are generated correctly.
-- [ ] Preview deployments are `noindex`.
-- [ ] Analytics contains no personal or confidential data.
-- [ ] Unit, component, Playwright, accessibility, and build gates pass.
-- [ ] Representative pages meet approved Core Web Vitals and performance budgets.
-- [ ] Cloudflare and Vercel redirects produce one canonical HTTPS host without loops.
-- [ ] All technology deviations are recorded in `DECISIONS.md`.
+- [ ] Public hosting is Cloudflare Workers, not Vercel or Pages.
+- [ ] Next.js is on `16.3.3` or a later approved patched `16.3.x` release.
+- [ ] Node, pnpm, Wrangler, adapter, and lockfile are pinned.
+- [ ] Workers preview passes with production-like bindings.
+- [ ] D1 schema, foreign keys, uniqueness, indexes, and migrations are validated.
+- [ ] Public rendering does not call Odoo.
+- [ ] Odoo version, API contract, dedicated bot user, and permissions are verified.
+- [ ] Products, variants, units, and prices synchronize without overwriting SEO fields.
+- [ ] RFQs are durably accepted in D1 before Odoo delivery.
+- [ ] Queue duplicates do not create duplicate Odoo records.
+- [ ] Retry, DLQ, alert, and replay workflows pass.
+- [ ] Attachments remain private and pass the approved validation/quarantine process.
+- [ ] Cloudflare Access and application RBAC protect admin routes.
+- [ ] Article draft, preview, publish, unpublish, revision, and cache invalidation pass.
+- [ ] Current price and `last_synced_at` render from D1.
+- [ ] Turnstile is verified server-side and tested for expiry/replay.
+- [ ] Core SEO content and metadata are present in initial HTML.
+- [ ] Canonical, robots, sitemap, JSON-LD, status codes, and internal links pass QA.
+- [ ] Faceted URLs follow the approved index policy.
+- [ ] Public Client Components and JavaScript remain within the performance budget.
+- [ ] Images and fonts follow the optimized Cloudflare delivery strategy.
+- [ ] No personal/RFQ/ERP data appears in analytics or unredacted logs.
+- [ ] Unit, integration, Playwright, accessibility, Workers preview, and Lighthouse gates pass.
+- [ ] Environment isolation prevents preview/staging writes to production systems.
+- [ ] Code rollback and data recovery procedures are documented separately.
+- [ ] All material deviations are recorded in `DECISIONS.md`.
 
 ---
 
-## 29. Official Technical References
+## 35. Official Technical References
 
-Version and security decisions should be checked against primary sources:
+Version and capability claims MUST be rechecked against primary sources at implementation and release time:
 
-- Next.js releases and security notices: `https://nextjs.org/blog`
+- Cloudflare Next.js on Workers: `https://developers.cloudflare.com/workers/framework-guides/web-apps/nextjs/`
+- Cloudflare OpenNext adapter: `https://developers.cloudflare.com/workers/framework-guides/web-apps/opennext/`
+- Cloudflare Workers: `https://developers.cloudflare.com/workers/`
+- Cloudflare D1: `https://developers.cloudflare.com/d1/`
+- D1 read replication: `https://developers.cloudflare.com/d1/best-practices/read-replication/`
+- Cloudflare R2: `https://developers.cloudflare.com/r2/`
+- Cloudflare Queues delivery guarantees: `https://developers.cloudflare.com/queues/reference/delivery-guarantees/`
+- Cloudflare Turnstile server validation: `https://developers.cloudflare.com/turnstile/get-started/server-side-validation/`
+- Cloudflare Workers Observability: `https://developers.cloudflare.com/workers/observability/`
+- Cloudflare Images: `https://developers.cloudflare.com/images/`
+- Odoo 19 External JSON-2 API: `https://www.odoo.com/documentation/19.0/developer/reference/external_api.html`
+- Next.js documentation and security news: `https://nextjs.org/docs` and `https://nextjs.org/blog`
 - Node.js release status: `https://nodejs.org/en/about/previous-releases`
-- React releases and security notices: `https://react.dev/blog`
-- TypeScript releases: `https://devblogs.microsoft.com/typescript/`
-- Tailwind CSS releases: `https://tailwindcss.com/blog`
 - pnpm releases: `https://pnpm.io/blog`
-- Vercel documentation: `https://vercel.com/docs`
-- Cloudflare documentation: `https://developers.cloudflare.com/`
-- Playwright documentation: `https://playwright.dev/docs/intro`
-- Vitest documentation: `https://vitest.dev/guide/`
+- TypeScript releases: `https://www.typescriptlang.org/docs/handbook/release-notes/overview.html`
+- Tailwind CSS releases: `https://tailwindcss.com/blog`
 - WCAG 2.2: `https://www.w3.org/TR/WCAG22/`
 
-Third-party tutorials are not authoritative for version, security, or deployment decisions.
+Third-party tutorials are not authoritative for security, version, deployment, or ERP decisions.
 
 ---
 
-## 30. Related Documents and Authority
+## 36. Related Documents and Authority
 
 Read this document with:
 
 - `PROJECT_BRIEF.md`
 - `TECHNICAL_ARCHITECTURE.md`
-- `FOLDER_STRUCTURE.md`
-- `COMPONENT_ARCHITECTURE.md`
+- `SYSTEM_OF_RECORD.md`
 - `DATA_ARCHITECTURE.md`
+- `DATABASE_SCHEMA.md`
 - `CMS_ARCHITECTURE.md`
-- `FORM_ARCHITECTURE.md`
+- `ADMIN_PANEL_SPEC.md`
+- `PRODUCT_CATALOG_SPEC.md`
+- `PRICING_SYSTEM.md`
+- `RFQ_SYSTEM.md`
+- `AUTHORIZATION_ROLES.md`
+- `ODOO_INTEGRATION.md`
+- `ERP_DATA_MAPPING.md`
+- `SYNC_STRATEGY.md`
+- `FAILURE_RECOVERY.md`
 - `API_INTEGRATIONS.md`
-- `ANALYTICS_TRACKING.md`
-- `SECURITY_GUIDELINES.md`
-- `PERFORMANCE_GUIDELINES.md`
+- `FORM_ARCHITECTURE.md`
 - `CACHING_STRATEGY.md`
+- `PERFORMANCE_GUIDELINES.md`
+- `PERFORMANCE_BUDGET.md`
+- `IMAGE_OPTIMIZATION.md`
+- `FONT_STRATEGY.md`
+- `SECURITY_GUIDELINES.md`
 - `DEPLOYMENT_ARCHITECTURE.md`
 - `ENVIRONMENT_VARIABLES.md`
-- `LOCALIZATION.md`
-- `FONT_STRATEGY.md`
 - `TESTING_STRATEGY.md`
+- `SEO_QA_CHECKLIST.md`
 - `CLAUDE.md`
+- `TASKS.md`
 - `DECISIONS.md`
 
-If documents conflict, the latest explicitly approved record in `DECISIONS.md` takes precedence, followed by `PROJECT_BRIEF.md`. The affected documents must then be updated so the repository returns to one consistent source of truth.
+If documents conflict, the latest explicitly approved entry in `DECISIONS.md` takes precedence, followed by `PROJECT_BRIEF.md`, `SYSTEM_OF_RECORD.md`, and this document. All affected documents must then be updated so the project returns to a consistent source of truth.
 
 ---
 

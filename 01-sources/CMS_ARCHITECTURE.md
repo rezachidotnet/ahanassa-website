@@ -5,916 +5,1033 @@
 | مشخصه | مقدار |
 |---|---|
 | پروژه | Ahan Asa — آهن آسا |
-| وضعیت سند | تصمیم معماری پیشنهادی |
-| نسخه | 1.0 |
-| تاریخ | 2026-08-25 |
-| مالک تصمیم | Product / Engineering |
-| اسناد مرتبط | `CONTENT_MODEL.md`، `DATA_ARCHITECTURE.md`، `TECHNICAL_ARCHITECTURE.md`، `SEO_STRATEGY.md`، `MEDIA_GUIDELINES.md`، `LOCALIZATION.md` |
+| دامنه عمومی | `ahanassa.com` |
+| ERP | `odoo.ahanassa.com` |
+| وضعیت سند | معماری مصوب برای Implementation |
+| نسخه | 2.0 |
+| تاریخ بازنویسی | 2026-08-25 |
+| مالک تصمیم | Product / Engineering / Content |
+| زیرساخت اصلی | Next.js App Router روی Cloudflare Workers + D1 + R2 + Queues |
+| اسناد مرجع | `SYSTEM_OF_RECORD.md`، `DATA_ARCHITECTURE.md`، `DATABASE_SCHEMA.md`، `ODOO_INTEGRATION.md`، `SYNC_STRATEGY.md`، `SEO_STRATEGY.md`، `AUTHORIZATION_ROLES.md`، `PERFORMANCE_BUDGET.md` |
 
 ---
 
-## 1. تصمیم اجرایی
+## 1. تصمیم قطعی
 
-وب‌سایت آهن آسا در نسخه نخست نباید به‌طور کامل به CMS وابسته باشد. معماری مصوب، **Hybrid Headless CMS** است:
+CMS آهن آسا یک **CMS داخلی، Headless و کنترل‌شده** است که در همان اکوسیستم Cloudflare سایت اجرا می‌شود. پنل `/admin` رابط مدیریت آن است، داده تحریری در Cloudflare D1 نگهداری می‌شود و فایل‌ها و تصاویر در Cloudflare R2 قرار می‌گیرند.
 
-- ساختار فنی، Routeها، Componentها، فرم‌ها، قواعد تجاری، متن‌های حقوقی حساس و محتوای کم‌تغییر در مخزن کد نگهداری می‌شوند.
-- محتوای تکرارشونده و قابل‌مدیریت توسط تیم محتوا—مانند مقالات، پروژه‌ها، پرسش‌های متداول و فایل‌های دانلودی—در صورت فعال‌شدن نیاز عملیاتی وارد CMS می‌شود.
-- Frontend فقط از طریق یک لایه داخلی و Provider-agnostic به CMS متصل می‌شود؛ Componentها نباید مستقیماً به SDK یا Query Language یک CMS وابسته باشند.
-- CMS پیشنهادی در صورت فعال‌سازی: **Sanity** به‌عنوان Headless CMS.
-- سایت با Next.js App Router، رندر Static/ISR و بازاعتبارسنجی هدفمند پس از انتشار محتوا کار می‌کند.
+استفاده از Sanity، WordPress، Odoo Website یا هر CMS خارجی در نسخه مصوب پیش‌فرض نیست. اضافه‌کردن یا جایگزینی Provider خارجی فقط با ADR جدید مجاز است.
 
-> نتیجه: تا زمانی که انتشار محتوا محدود و تحت کنترل تیم توسعه است، CMS نصب نمی‌شود. معماری کد از روز اول برای اضافه‌شدن CMS آماده خواهد بود.
+```text
+CMS = Editorial Content + SEO Content + Media Metadata + Publication Workflow
 
----
+Odoo = Commercial Product Data + Prices + Customers + CRM + Quotations + Sales
+```
 
-## 2. معیار تشخیص نیاز به CMS
+اصول غیرقابل‌مذاکره:
 
-CMS زمانی فعال شود که حداقل **دو مورد** از شرایط زیر برقرار باشد:
-
-1. اعضای غیرتوسعه‌دهنده باید به‌صورت هفتگی محتوا منتشر یا اصلاح کنند.
-2. انتشار مقاله، پروژه یا فایل دانلودی به چرخه منظم تبدیل شود.
-3. بیش از یک نفر نیازمند Draft، Review و Approval باشد.
-4. محتوای چندزبانه به‌صورت مستقل توسط مترجم یا مدیر بازار نگهداری شود.
-5. Preview پیش از انتشار برای تیم مدیریت ضروری باشد.
-6. زمان انتشار محتوا نباید به Commit و Deploy وابسته باشد.
-7. تاریخچه تغییرات و بازگشت به نسخه قبلی به یک نیاز عملیاتی تبدیل شود.
-
-### مواردی که به‌تنهایی دلیل کافی برای CMS نیستند
-
-- ویرایش چند شماره تماس یا آدرس در سال
-- داشتن یک فرم استعلام قیمت
-- نمایش محصولات فولادی بدون قیمت‌گذاری و موجودی لحظه‌ای
-- داشتن صفحات ثابت معرفی برند و خدمات
-- نیاز به SEO؛ SEO خوب الزاماً به CMS وابسته نیست
+1. سایت عمومی برای Render شدن نباید به پاسخ لحظه‌ای Odoo وابسته باشد.
+2. CMS نباید منبع حقیقت قیمت، موجودی، مشتری، RFQ یا فروش باشد.
+3. محتوای Published باید از Read Model سریع D1 و Cache لبه خوانده شود.
+4. ویرایشگر اجازه تزریق HTML، JavaScript، CSS یا JSON-LD خام ندارد.
+5. انتشار محتوا باید قابل Audit، بازگشت و ابطال هدفمند Cache باشد.
+6. صفحات SEO باید در پاسخ اولیه HTML، محتوای اصلی و Metadata کامل داشته باشند.
 
 ---
 
-## 3. اهداف معماری
+## 2. اهداف معماری
 
-- حفظ سرعت، امنیت و قابلیت Static Rendering سایت
-- استقلال Frontend از Vendor و امکان تعویض CMS
-- جلوگیری از تبدیل CMS به Page Builder بدون کنترل
-- تفکیک روشن محتوای بازاریابی، داده تجاری و Leadها
-- پشتیبانی آماده از فارسی RTL و زبان‌های آینده
-- کنترل دقیق Metadata، Canonical، Hreflang و Structured Data
-- Preview امن پیش از انتشار
-- انتشار محتوا بدون Build کامل سایت
-- حفظ یکپارچگی Design System و لحن برند
-
-## 4. خارج از محدوده CMS
-
-موارد زیر نباید در CMS ذخیره یا مدیریت شوند:
-
-- اطلاعات فرم‌های کاربران و Leadها
-- درخواست‌های RFQ و سوابق مذاکره
-- قیمت لحظه‌ای آهن، موجودی، سفارش، فاکتور و پرداخت
-- اطلاعات محرمانه تأمین‌کنندگان
-- منطق محاسبات قیمت، وزن، حمل یا تخفیف
-- Secretها، API Keyها و Environment Variableها
-- Permissionهای اپلیکیشن و منطق Authentication
-- CSS، Tokenهای طراحی و تنظیمات Responsive
-- متن پیام‌های خطای امنیتی و Validation فرم‌ها
-
-Leadها باید مستقیماً به CRM یا سرویس امن Lead Capture ارسال شوند. CMS پایگاه داده CRM نیست.
+- انتشار مقاله و به‌روزرسانی محتوای سایت بدون Commit و Deploy
+- ایجاد پنل ساده و فارسی برای اپراتور غیرتوسعه‌دهنده
+- حفظ Performance و SEO در سطح معماری، نه به‌عنوان اصلاح پس از اجرا
+- جلوگیری از وجود دو منبع حقیقت بین Website و Odoo
+- پشتیبانی از Draft، Review، Approval، Scheduling، Publish و Archive
+- نگهداری Revision و Audit Log برای تمام تغییرات حساس
+- مدیریت رسانه در R2 با Metadata و سیاست دسترسی روشن
+- پشتیبانی از فارسی RTL و آماده‌بودن برای انگلیسی و عربی
+- اعمال Role/Permission در سمت سرور
+- امکان بازیابی محتوا بدون وابستگی به یک Vendor خارجی
 
 ---
 
-## 5. معماری کلان
+## 3. خارج از محدوده CMS
+
+موارد زیر در CMS ساخته یا ویرایش نمی‌شوند:
+
+- Customer و Contact تجاری
+- Lead، Opportunity و فعالیت‌های CRM
+- RFQ، اقلام RFQ و وضعیت مذاکره
+- Quotation، Sale Order، Invoice و Payment
+- Product Template و Product Variant تجاری
+- UOM، Pricelist، قیمت پایه و قیمت مشتری
+- Inventory، Purchase، Supplier و Accounting
+- Secret، API Key و Environment Variable
+- منطق محاسبه وزن، قیمت، تخفیف، مالیات و حمل
+- داده حساس مشتریان یا پیوست‌های محرمانه RFQ
+- Design Token، CSS، Component implementation و Route handler
+
+CMS می‌تواند **محتوای نمایشی و SEO مرتبط با یک محصول Odoo** را نگهداری کند، اما حق تغییر شناسه تجاری، واحد، قیمت یا موجودی آن را ندارد.
+
+---
+
+## 4. معماری کلان
 
 ```mermaid
 flowchart TD
-    E["Editor / Reviewer"] --> S["CMS Studio"]
-    S --> D["Draft & Published Content"]
-    D --> A["CMS Read API"]
-    A --> L["Content Repository Layer"]
-    C["Content in Repository"] --> L
-    L --> N["Next.js App Router"]
-    N --> U["Website Visitor"]
-    S --> W["Signed Publish Webhook"]
-    W --> R["Targeted Revalidation"]
-    R --> N
+    A["Editor / Reviewer"] --> B["Admin Panel"]
+    B --> C["CMS Service on Workers"]
+    C --> D["D1 Editorial Store"]
+    C --> E["R2 Media"]
+    C --> F["Publish Queue"]
+    F --> G["Published Read Model + Edge Cache"]
+    G --> H["Public Website"]
 ```
 
-### اصل جریان داده
+ارتباط با ERP جداگانه و غیرهمزمان است:
 
-1. محتوای ثابت از مخزن کد خوانده می‌شود.
-2. محتوای Editorial از CMS در Server Component یا لایه Server-only خوانده می‌شود.
-3. داده CMS قبل از تحویل به UI، Normalize و Validate می‌شود.
-4. UI فقط Typeهای داخلی پروژه را می‌شناسد.
-5. انتشار CMS یک Webhook امضاشده ایجاد می‌کند.
-6. Webhook فقط Tagها یا Pathهای مرتبط را Revalidate می‌کند.
-
----
-
-## 6. مرز مسئولیت منابع داده
-
-| نوع داده | منبع اصلی | دلیل |
-|---|---|---|
-| Route و URL policy | مخزن کد | نیازمند کنترل فنی و Review |
-| Header، Footer و Navigation | ابتدا مخزن کد؛ سپس CMS با Guardrail | جلوگیری از شکستن ناوبری |
-| صفحه اصلی و صفحات Conversion | مخزن کد یا مدل محدود CMS | حساس به طراحی و نرخ تبدیل |
-| خدمات و قابلیت‌های اصلی | Hybrid | ساختار در کد، محتوای قابل‌ویرایش در CMS |
-| گروه‌های محصولات فولادی | CMS پس از فعال‌سازی | محتوای ساختاریافته و قابل توسعه |
-| مقاله و Insight | CMS | انتشار مداوم و Workflow |
-| پروژه و Case Study | CMS | Collection تکرارشونده |
-| FAQ | CMS با Reference | استفاده مجدد در چند صفحه |
-| فایل‌های دانلودی | CMS + Asset Storage | مدیریت عنوان، نسخه و Metadata |
-| SEO Metadata | همان منبع محتوای صفحه | جلوگیری از دو منبع حقیقت |
-| Redirectها | فایل نسخه‌بندی‌شده در مخزن | اثر فنی و SEO بالا |
-| Lead و RFQ | CRM / Backend امن | حریم خصوصی و فرایند فروش |
-| قیمت و موجودی | ERP/API اختصاصی | داده عملیاتی، نه Editorial |
-
----
-
-## 7. انتخاب CMS
-
-### انتخاب پیشنهادی: Sanity
-
-علت انتخاب:
-
-- Headless و سازگار با Next.js
-- Schema-as-code و قابلیت Version Control برای مدل محتوا
-- پشتیبانی مناسب از Preview و محتوای ساختاریافته
-- Asset management و Reference بین اسناد
-- امکان مدل‌سازی ترجمه در سطح Document
-- Webhook برای بازاعتبارسنجی هدفمند
-- امکان محدودکردن تجربه Editor به ساختار برند آهن آسا
-
-### شرط مهم انتخاب
-
-کد Frontend نباید به Sanity قفل شود. تمام Queryها و Mappingها داخل `lib/cms/providers/sanity/` باقی می‌مانند و بیرون از این پوشه فقط Interfaceهای داخلی پروژه مصرف می‌شوند.
-
-### گزینه‌های جایگزین
-
-| گزینه | زمان مناسب استفاده | ملاحظه |
-|---|---|---|
-| Content-as-Code | نسخه اولیه و تیم محتوای کوچک | ساده‌ترین و کم‌هزینه‌ترین مسیر |
-| Sanity | انتشار منظم، Preview و چندزبانه | انتخاب پیش‌فرض این سند |
-| Payload | نیاز جدی به Self-hosting و کنترل Backend | هزینه عملیات و نگهداری بیشتر |
-| Directus | اتصال به دیتابیس موجود و مدل‌های relational | نیازمند مدیریت زیرساخت |
-
-تعویض Provider فقط با ADR جدید و بدون تغییر Contractهای UI انجام شود.
-
----
-
-## 8. قرارداد لایه CMS
-
-Frontend فقط از قرارداد زیر استفاده می‌کند:
-
-```ts
-export interface ContentRepository {
-  getSiteSettings(locale: Locale): Promise<SiteSettings>;
-  getNavigation(locale: Locale): Promise<Navigation>;
-  getPageBySlug(input: SlugInput): Promise<PageContent | null>;
-  getServiceBySlug(input: SlugInput): Promise<Service | null>;
-  getSteelCategoryBySlug(input: SlugInput): Promise<SteelCategory | null>;
-  getArticleBySlug(input: SlugInput): Promise<Article | null>;
-  listArticles(input: ArticleListInput): Promise<Paginated<ArticleCard>>;
-  getProjectBySlug(input: SlugInput): Promise<Project | null>;
-  listProjects(input: ProjectListInput): Promise<Paginated<ProjectCard>>;
-  getFaqs(input: FaqQuery): Promise<FaqItem[]>;
-}
+```mermaid
+flowchart TD
+    A["Odoo ERP"] --> B["Integration Worker"]
+    B --> C["Queue"]
+    C --> D["D1 Commercial Read Model"]
+    D --> E["CMS Product SEO Link"]
+    E --> F["Public Product Page"]
 ```
 
-### قواعد قرارداد
-
-- نوع‌های خروجی در `types/content/` تعریف شوند، نه در پوشه Provider.
-- خروجی Provider باید داده خام CMS را به مدل داخلی Normalize کند.
-- `null`، خطای شبکه و سند ناقص باید رفتار مشخص داشته باشند.
-- Queryها فقط فیلدهای موردنیاز را دریافت کنند.
-- هیچ Token یا CMS Client در Client Component وارد نشود.
-- Client Component فقط داده آماده نمایش دریافت کند.
+| جزء | مسئولیت |
+|---|---|
+| `/admin` | رابط اپراتور، ویرایش، Preview، Review و انتشار |
+| CMS Service | Validation، Authorization، Workflow و ثبت Revision |
+| D1 Editorial Store | محتوای Draft/Published، روابط، Revision و Audit |
+| D1 Commercial Read Model | نسخه عمومی و همگام‌شده Product/Variant/Unit/Price از Odoo |
+| R2 | تصاویر، PDF، فایل‌های دانلودی و مشتقات رسانه |
+| Queues | Publication job، پردازش رسانه، Sync و Retry |
+| Integration Worker | Adapter مستقل Website ↔ Odoo |
+| Edge Cache | پاسخ سریع صفحات عمومی و Assetها |
 
 ---
 
-## 9. مدل‌های محتوای CMS
+## 5. System of Record
 
-### 9.1 مدل‌های Singleton
+| داده یا عملیات | منبع حقیقت | نقش CMS |
+|---|---|---|
+| مقاله و دسته مقاله | Website CMS | مالک کامل |
+| صفحه ثابت و Landing Page | Website CMS | مالک محتوای قابل‌ویرایش |
+| FAQ | Website CMS | مالک کامل |
+| Navigation و Footer | Website CMS با Approval | مالک نسخه منتشرشده |
+| SEO صفحه، مقاله و دسته | Website CMS | مالک کامل |
+| SEO محصول و دسته کالایی | Website CMS | مالک محتوای تحریری؛ Link به `odoo_id` |
+| رسانه عمومی | R2 + Metadata در D1 | مالک Metadata و Lifecycle |
+| Product/Variant/UOM | Odoo | فقط نمایش Read-only و انتخاب Reference |
+| قیمت تجاری | Odoo | فقط نمایش نسخه همگام‌شده |
+| تاریخچه عمومی قیمت | D1 از Sync | فقط Context/Caption و سیاست Index |
+| مشتری | Odoo | بدون مدیریت در CMS |
+| RFQ و اقلام آن | Website RFQ Store + Odoo | فقط لینک به ماژول تخصصی RFQ Admin |
+| Quotation/Sale | Odoo | بدون مدیریت در CMS |
+| Redirect | Registry محافظت‌شده Website | ویرایش فقط برای نقش SEO/Admin |
 
-#### `siteSettings`
+هرجا این جدول با سند دیگری تعارض داشت، `SYSTEM_OF_RECORD.md` مرجع نهایی است و تعارض باید پیش از Implementation رفع شود.
 
-- `siteName`
-- `legalName`
+---
+
+## 6. مرز CMS و Odoo
+
+### 6.1 داده‌ای که از Odoo به سایت می‌آید
+
+- `odoo_id` و `external_id`
+- Product Template و Variant فعال
+- Category تجاری
+- Attribute و Value
+- UOM
+- Public Price مجاز برای نمایش
+- Currency و Price Unit
+- Availability عمومی در صورت تصمیم کسب‌وکار
+- زمان آخرین Sync
+
+این داده‌ها با Integration Worker و Queue وارد D1 می‌شوند. CMS آن‌ها را Read-only نمایش می‌دهد تا Editor بتواند محتوای SEO را به Entity صحیح متصل کند.
+
+### 6.2 داده‌ای که CMS برای محصول نگهداری می‌کند
+
+- Slug عمومی
+- SEO Title و Meta Description
+- Intro و Buying Guide
+- مشخصات توضیحی قابل انتشار
+- FAQ
+- تصاویر و Alt Text
+- لینک‌های داخلی
+- Related Products/Articles
+- Index policy و Canonical policy
+- محتوای تکمیلی صفحه قیمت
+
+### 6.3 قانون استقلال Runtime
+
+مسیر ممنوع:
+
+```text
+Visitor → Website → Odoo → Response
+```
+
+مسیر مصوب:
+
+```text
+Odoo → Background Sync → D1 Read Model → Edge Cache → Visitor
+```
+
+اگر Odoo قطع باشد، آخرین داده معتبر همگام‌شده همراه با `last_synced_at` نمایش داده می‌شود و CMS همچنان قابل استفاده می‌ماند.
+
+---
+
+## 7. محدوده پنل مدیریت
+
+```text
+/admin
+├── Dashboard
+├── Content
+│   ├── Pages
+│   ├── Articles
+│   ├── Article Categories
+│   └── FAQs
+├── Catalog Content
+│   ├── Category SEO
+│   ├── Product SEO
+│   └── Price Page Content
+├── Media
+├── Navigation
+├── SEO
+│   ├── Metadata
+│   ├── Redirects
+│   └── Indexing Health
+├── Publications
+│   ├── Drafts
+│   ├── Reviews
+│   ├── Scheduled
+│   └── History
+├── Integrations
+│   └── Odoo Sync Status — Read-only/Retry by permission
+├── RFQs — لینک به ماژول تخصصی RFQ
+├── Users & Roles
+└── Settings
+```
+
+قیمت در منوی CMS قابل ویرایش نیست. اگر صفحه‌ای با عنوان Prices در Admin وجود داشته باشد، فقط وضعیت Sync، زمان آخرین دریافت، خطاها و لینک ورود به Odoo را نشان می‌دهد.
+
+---
+
+## 8. مدل‌های محتوایی
+
+مدل دقیق جداول در `DATABASE_SCHEMA.md` تعریف می‌شود. این سند Contract مفهومی CMS را مشخص می‌کند.
+
+### 8.1 `site_settings`
+
+- `locale`
+- `site_name`
 - `tagline`
-- `defaultSeo`
-- `contactChannels`
-- `socialLinks`
-- `officeLocations`
-- `defaultOgImage`
-- `organizationSchemaData`
-
-#### `navigation`
-
-- `locale`
-- `primaryItems[]`
-- `utilityItems[]`
-- `primaryCta`
-- `mobileMenuSettings`
-
-#### `footer`
-
-- `locale`
-- `columns[]`
-- `contactSummary`
-- `legalLinks[]`
-- `certifications[]`
-- `copyrightText`
-
-Singletonها باید با Document ID ثابت و Action حذف غیرفعال پیاده‌سازی شوند.
-
-### 9.2 مدل‌های Collection
-
-#### `page`
-
-- `title`
-- `slug`
-- `locale`
-- `translationGroupId`
-- `pageType`
-- `hero`
-- `sections[]`
-- `seo`
-- `publicationSettings`
-
-#### `service`
-
-- `title`
-- `slug`
-- `locale`
-- `shortDescription`
-- `valueProposition`
-- `scopeItems[]`
-- `processSteps[]`
-- `relatedCategories[]`
-- `relatedProjects[]`
-- `faqs[]`
-- `cta`
-- `seo`
-
-#### `steelCategory`
-
-این مدل برای معرفی گروه‌های کالایی است و نباید نقش موجودی یا فروشگاه لحظه‌ای را بازی کند.
-
-- `name`
-- `slug`
-- `locale`
-- `categoryType`
-- `summary`
-- `standards[]`
-- `commonGrades[]`
-- `commonDimensions[]`
-- `applications[]`
-- `procurementNotes`
-- `qualityControlNotes`
-- `relatedServices[]`
-- `relatedArticles[]`
-- `seo`
-
-#### `project`
-
-- `title`
-- `slug`
-- `locale`
-- `clientDisplayName` — اختیاری و فقط با اجازه انتشار
-- `location`
-- `year`
-- `industry`
-- `scope`
-- `challenge`
-- `solution`
-- `results[]`
-- `metrics[]`
-- `gallery[]`
-- `relatedServices[]`
-- `testimonial`
-- `seo`
-
-#### `article`
-
-- `title`
-- `slug`
-- `locale`
-- `excerpt`
-- `coverImage`
-- `author`
-- `reviewer`
-- `publishedAt`
-- `updatedAt`
-- `categories[]`
-- `tags[]`
-- `body`
-- `relatedArticles[]`
-- `relatedServices[]`
-- `faqItems[]`
-- `seo`
-
-#### `faqItem`
-
-- `question`
-- `answer`
-- `locale`
-- `topic`
-- `reviewedAt`
-- `reviewedBy`
-
-#### `downloadableAsset`
-
-- `title`
-- `locale`
-- `assetType`
-- `summary`
-- `file`
+- `contact_summary`
+- `social_links`
+- `default_seo`
+- `default_og_media_id`
+- `organization_public_data`
+- `updated_by`
 - `version`
-- `revisionDate`
-- `thumbnail`
-- `accessMode` — `public` یا `leadGate`
-- `relatedCategories[]`
-- `seo`
 
-### 9.3 Objectهای مشترک
+### 8.2 `navigation_sets`
 
-- `seoFields`
-- `cta`
-- `link`
-- `responsiveImage`
-- `metric`
-- `address`
-- `contactChannel`
-- `publicationSettings`
-- `contentSection`
+- `locale`
+- `location` — header/footer/utility
+- `items[]` ساختاریافته
+- `status`
+- `published_revision_id`
 
-تعریف دقیق Fieldها، Enumها و روابط باید با `CONTENT_MODEL.md` همگام بماند.
+Navigation فقط Link داخلی ثبت‌شده، URL خارجی HTTPS یا Action تأییدشده را می‌پذیرد.
+
+### 8.3 `pages`
+
+- `id`، `page_type`، `locale`، `translation_group_id`
+- `title`، `slug`، `summary`، `template_key`
+- `content_blocks`، `seo_record_id`
+- `workflow_status`، `published_revision_id`، `scheduled_at`
+- `created_by`، `updated_by`، `created_at`، `updated_at`
+
+### 8.4 `articles`
+
+- `id`، `locale`، `translation_group_id`
+- `title`، `slug`، `excerpt`، `cover_media_id`
+- `author_id`، `reviewer_id`، `category_ids`
+- `body_blocks`، `published_at`، `updated_at_public`
+- `seo_record_id`، `workflow_status`
+
+### 8.5 `article_categories`
+
+- `name`، `slug`، `locale`، `description`
+- `seo_record_id`، `display_order`، `is_active`
+
+### 8.6 `faqs`
+
+- `question`، `answer_blocks`، `locale`، `topic`
+- `reviewed_by`، `reviewed_at`، `status`
+
+FAQ قابل Reference از چند صفحه است. حذف FAQ استفاده‌شده تا زمان حذف Reference ممنوع است.
+
+### 8.7 `product_content`
+
+- `odoo_product_template_id` یا `odoo_variant_id`
+- `locale`، `public_slug`، `display_title_override`
+- `intro`، `buying_guide_blocks`، `technical_notes`
+- `faq_ids`، `related_article_ids`، `related_product_refs`
+- `media_ids`، `seo_record_id`، `workflow_status`
+
+Reference به Product غیرفعال Odoo باعث هشدار و جلوگیری از انتشار جدید می‌شود؛ محتوای Published قبلی طبق Policy می‌تواند Archive یا Noindex شود.
+
+### 8.8 `category_content`
+
+- `odoo_category_id`، `locale`، `public_slug`
+- `intro`، `selection_guide`، `standards_content`
+- `faq_ids`، `related_article_ids`
+- `seo_record_id`، `workflow_status`
+
+### 8.9 `price_page_content`
+
+این مدل قیمت را ذخیره نمی‌کند و فقط محتوای پیرامون صفحه قیمت را نگهداری می‌کند:
+
+- `commercial_entity_ref`، `locale`
+- `intro`، `price_methodology_note`، `unit_explanation`
+- `buying_notes`، `faq_ids`، `seo_record_id`، `index_policy`
+
+### 8.10 `seo_records`
+
+- `meta_title`، `meta_description`، `canonical_path`
+- `robots_index`، `robots_follow`
+- `open_graph_title`، `open_graph_description`، `open_graph_media_id`
+- `breadcrumb_label`، `schema_profile`
+
+JSON-LD خام ذخیره نمی‌شود. `schema_profile` فقط Enum مجاز است و کد سایت Schema نهایی را می‌سازد.
+
+### 8.11 `media`
+
+- `r2_key`، `mime_type`، `size_bytes`، `width`، `height`
+- `checksum`، `original_filename`، `safe_filename`
+- `alt_by_locale`، `caption_by_locale`، `credit`، `license`
+- `focal_point`، `visibility`، `processing_status`، `created_by`
+
+### 8.12 `content_revisions`
+
+- `entity_type`، `entity_id`، `revision_number`
+- `snapshot_json`، `change_summary`، `created_by`، `created_at`
+
+Revision منتشرشده Immutable است. ویرایش بعدی Draft و Revision جدید می‌سازد.
+
+### 8.13 `publication_jobs`
+
+- `entity_type`، `entity_id`، `revision_id`
+- `operation` — publish/unpublish/archive
+- `scheduled_at`، `status`، `attempt_count`
+- `idempotency_key`، `last_error_code`
+
+### 8.14 `audit_logs`
+
+- Actor و Action
+- Entity type/id
+- Before/after summary یا Revision reference
+- Request ID و Timestamp
+- IP hash یا داده ممیزی مطابق Privacy policy
+
+Audit Log از UI قابل حذف نیست.
 
 ---
 
-## 10. Page Builder محدود
+## 9. Content Blocks و Page Builder محدود
 
-CMS نباید امکان طراحی آزاد صفحه را به Editor بدهد. Editor فقط می‌تواند از Sectionهای تأییدشده استفاده کند:
+Editor فقط از Blockهای Allowlisted استفاده می‌کند:
 
 1. `hero`
-2. `introEditorial`
-3. `serviceHighlights`
+2. `richText`
+3. `imageText`
 4. `categoryGrid`
-5. `processSteps`
-6. `proofMetrics`
-7. `projectShowcase`
-8. `testimonialQuote`
-9. `faqGroup`
-10. `richText`
-11. `downloadBanner`
-12. `ctaBand`
+5. `productTable`
+6. `priceSnapshot`
+7. `technicalSpecs`
+8. `buyingGuide`
+9. `processSteps`
+10. `proofMetrics`
+11. `faqGroup`
+12. `relatedContent`
+13. `downloadCard`
+14. `ctaBand`
 
-### محدودیت‌ها
+قواعد:
 
-- رنگ دلخواه، Font دلخواه و CSS داخل CMS ممنوع است.
-- Editor فقط `themeVariant`های تعریف‌شده در Design System را انتخاب می‌کند.
-- ترتیب Sectionها قابل تغییر است، اما ترکیب‌های ناسازگار با Validation رد می‌شوند.
-- Hero هر صفحه فقط یک‌بار مجاز است.
-- بیش از دو CTA اصلی در یک Section مجاز نیست.
-- Nested Page Builder و Section تو‌در‌تو ممنوع است.
-- محتوای Rich Text نباید Componentهای Layout را شبیه‌سازی کند.
-
-صفحه اصلی و Landing Pageهای کلیدی بهتر است Template ثابت داشته باشند و فقط Slotهای محتوایی آنها از CMS تغذیه شود.
-
----
-
-## 11. چندزبانه و RTL/LTR
-
-### تصمیم
-
-- فاز اول: فارسی با `fa` به‌عنوان Locale اصلی.
-- معماری از ابتدا برای `en` و `ar` آماده است، اما فعال‌سازی هر زبان نیازمند محتوای واقعی و QA مستقل است.
-- ترجمه در سطح **Document** انجام می‌شود، نه یک Object بزرگ شامل تمام زبان‌ها.
-- هر ترجمه مستقل Draft و Publish می‌شود.
-
-### فیلدهای لازم هر سند
-
-- `locale: 'fa' | 'en' | 'ar'`
-- `translationGroupId`
-- `slug`
-- `translationStatus: missing | draft | review | approved`
-
-### قواعد
-
-- فارسی در مسیر Canonical اصلی سایت قرار می‌گیرد.
-- زبان‌های بعدی فقط پس از تصمیم `ROUTES.md` با Prefix فعال می‌شوند.
-- Slug، Title، Description، OG و Alt Text برای هر زبان مستقل هستند.
-- ترجمه خودکار بدون Review انسانی منتشر نمی‌شود.
-- نبود ترجمه نباید باعث نمایش محتوای فارسی زیر URL زبان دیگر شود.
-- `dir="rtl"` برای فارسی و عربی و `dir="ltr"` برای انگلیسی در Layout تعیین شود؛ Editor این مقدار را کنترل نمی‌کند.
+- هر Block Schema نسخه‌دار و Validation مستقل دارد.
+- Editor رنگ، Font، CSS class یا اندازه آزاد وارد نمی‌کند.
+- HTML، iframe و embed آزاد ممنوع است.
+- Rich Text فقط Mark و Nodeهای Allowlisted را می‌پذیرد.
+- `hero` در هر Page حداکثر یک‌بار مجاز است.
+- Product/Price block داده تجاری را از Read Model می‌خواند، نه از متن دستی.
+- Templateهای Homepage، Product و RFQ ساختار ثابت دارند و فقط Slotهای مشخص قابل ویرایش‌اند.
+- نسخه Block همراه محتوا ذخیره می‌شود تا Migration آینده قابل‌کنترل باشد.
 
 ---
 
-## 12. SEO در CMS
-
-Object مشترک `seoFields` شامل موارد زیر است:
-
-```ts
-type SeoFields = {
-  metaTitle?: string;
-  metaDescription?: string;
-  canonicalPath?: string;
-  robots: {
-    index: boolean;
-    follow: boolean;
-  };
-  openGraphTitle?: string;
-  openGraphDescription?: string;
-  openGraphImage?: CmsImage;
-  structuredDataVariant?: string;
-};
-```
-
-### قواعد SEO
-
-- Canonical فقط Path یا URL متعلق به Domain مجاز را قبول کند.
-- Slug در هر Locale یکتا باشد.
-- تغییر Slug بدون ثبت Redirect ممنوع است.
-- `noindex` با هشدار واضح در Studio نمایش داده شود.
-- Metadata خالی از Defaultهای کنترل‌شده استفاده کند؛ از محتوای زبان دیگر کپی نشود.
-- Schema.org توسط کد تولید شود؛ Editor فقط داده‌های معتبر را وارد کند.
-- JSON-LD خام و آزاد داخل CMS ممنوع است.
-- FAQ Schema فقط در صورت نمایش همان FAQ در صفحه تولید شود.
-- Article و Project باید `publishedAt` و `updatedAt` معتبر داشته باشند.
-- Sitemap فقط اسناد Published، Canonical و Indexable را دریافت کند.
-
-تغییر Slug باید از طریق فرایندی انجام شود که مسیر قدیم را به `REDIRECTS.md` یا Registry کنترل‌شده Redirect اضافه کند.
-
----
-
-## 13. Workflow انتشار
+## 10. Workflow انتشار
 
 ```mermaid
 stateDiagram-v2
     [*] --> Draft
     Draft --> InReview: Submit
-    InReview --> Draft: Request changes
+    InReview --> Draft: RequestChanges
     InReview --> Approved: Approve
+    Approved --> Scheduled: Schedule
     Approved --> Published: Publish
-    Published --> Draft: Revise
+    Scheduled --> Published: DueTime
+    Published --> Draft: CreateRevision
     Published --> Archived: Archive
 ```
 
 ### قواعد Workflow
 
-- نویسنده نباید محتوای حساس خود را بدون Review منتشر کند.
-- صفحات اصلی، خدمات، اطلاعات حقوقی و ادعاهای تجاری به تأیید مدیر محتوا نیاز دارند.
-- پروژه‌هایی که نام یا تصویر مشتری دارند، نیازمند تأیید مجوز انتشار هستند.
-- تغییر `robots`, `canonicalPath`, Navigation و CTA اصلی نیازمند Review ویژه است.
-- حذف محتوا با Unpublish/Archive انجام شود؛ Delete دائمی فقط برای Admin.
-- انتشار گروهی برای Campaignها باید در Preview بررسی شود.
+- Save Draft انتشار عمومی ایجاد نمی‌کند.
+- تغییر Draft پس از Approval، تأیید قبلی را باطل می‌کند.
+- Publish دقیقاً یک Revision تأییدشده را منتشر می‌کند.
+- Scheduled Publish با UTC ذخیره و در UI با Timezone کاربر نمایش داده می‌شود.
+- Publish/Unpublish باید `idempotency_key` یکتا داشته باشد.
+- در تغییر Slug، Redirect معتبر در همان عملیات انتشار ثبت می‌شود.
+- Archive با Soft Delete انجام می‌شود؛ Delete دائمی تابع Retention policy است.
+- Rollback یک Revision قدیمی را به Revision جدید تبدیل می‌کند؛ تاریخچه بازنویسی نمی‌شود.
 
-### نقش‌ها
+### Publish Transaction
 
-| نقش | دسترسی |
+1. Authorization و Validation نهایی
+2. بررسی Version برای جلوگیری از Lost Update
+3. ثبت Revision مصوب
+4. تغییر Pointer نسخه Published
+5. ثبت Redirect در صورت تغییر Slug
+6. ایجاد Publication Job با Idempotency Key
+7. ثبت Audit Log
+8. ارسال Job به Queue پس از Commit
+9. Revalidation/Purge هدفمند
+10. به‌روزرسانی Sitemap و Feedهای مرتبط
+
+اگر ارسال Queue بعد از Commit شکست خورد، Outbox/Retry job باید آن را دوباره ارسال کند؛ وضعیت Published در D1 نباید گم شود.
+
+---
+
+## 11. نقش‌ها و مجوزها
+
+| نقش | مجوز اصلی |
 |---|---|
-| Admin | مدیریت کامل پروژه و کاربران |
-| Developer | Schema، Integration و تنظیمات فنی |
-| Managing Editor | تأیید و انتشار همه محتوا |
-| Editor | ایجاد و ویرایش محتوای مجاز |
-| Translator | ویرایش Locale تخصیص‌یافته |
-| Reviewer | Comment و Approval بدون تغییر فنی |
+| Admin | مدیریت کاربران، نقش‌ها، تنظیمات و تمام محتوا |
+| Developer | Schema/Migration/Integration؛ بدون انتشار محتوای تجاری پیش‌فرض |
+| Managing Editor | Review، Approval، Publish و Archive |
+| Editor | ایجاد و ویرایش Draft در محدوده تخصیص‌یافته |
+| SEO Manager | Metadata، Canonical، Index policy و Redirect |
+| Translator | ویرایش Locale تخصیص‌یافته؛ بدون Publish مستقل |
+| Reviewer | Comment، Approve یا Request Changes |
+| Viewer/Auditor | مشاهده Read-only تاریخچه و گزارش‌ها |
 
-قابلیت دقیق Roleها باید با پلن CMS تطبیق داده شود. در صورت محدودیت پلن، تعداد کاربران و دسترسی‌ها محدودتر شود؛ کنترل امنیتی نباید صرفاً با قرارداد شفاهی جایگزین شود.
+اصول:
 
----
+- Authentication به‌تنهایی مجوز عملیات نیست.
+- Authorization در تمام Mutationها سمت سرور اعمال می‌شود.
+- مخفی‌کردن دکمه در UI کنترل امنیتی محسوب نمی‌شود.
+- Permissionها Action-based هستند؛ مانند `article.create` و `article.publish`.
+- Scopeهای Locale/Content Type در D1 نگهداری می‌شوند.
+- حساب اشتراکی ممنوع است.
+- غیرفعال‌کردن کاربر باید Session فعال او را بی‌اعتبار کند.
 
-## 14. Preview و Draft Mode
-
-Preview باید با Draft Mode در Next.js پیاده‌سازی شود.
-
-### جریان Preview
-
-1. Editor از Studio گزینه Preview را انتخاب می‌کند.
-2. CMS به Endpoint امن `/api/draft/enable` درخواست می‌فرستد.
-3. Endpoint، Secret و مقصد را اعتبارسنجی می‌کند.
-4. Draft Mode Cookie امن فعال می‌شود.
-5. صفحه با Perspective پیش‌نویس و Token فقط‌خواندنی Server-side نمایش داده می‌شود.
-6. خروج از Preview از `/api/draft/disable` انجام می‌شود.
-
-### الزامات امنیتی
-
-- Preview Secret فقط در Environment Variable نگهداری شود.
-- Redirect مقصد فقط از Allowlist مسیرهای داخلی پذیرفته شود.
-- Open Redirect ممنوع است.
-- Draft Token هرگز به Browser Bundle نرسد.
-- صفحات Preview نباید Cache عمومی شوند.
-- Preview URL در Analytics به‌عنوان ترافیک واقعی ثبت نشود.
+برای تیم داخلی می‌توان Cloudflare Access را لایه ورودی `/admin` قرار داد، اما مجوزهای محتوایی همچنان باید داخل Application enforce شوند.
 
 ---
 
-## 15. انتشار، Cache و Revalidation
+## 12. Authentication و Session
 
-### حالت پیش‌فرض
+- `/admin` و Admin APIها بدون احراز هویت در دسترس نیستند.
+- Session در Cookie با `HttpOnly`، `Secure` و `SameSite` مناسب نگهداری می‌شود.
+- CSRF protection برای تمام Mutationها الزامی است.
+- Session expiry و idle timeout تعریف می‌شود.
+- Login، logout، failure و permission denial ثبت ممیزی می‌شوند.
+- Endpointهای Admin Rate Limit جداگانه دارند.
+- Secret و Credential هیچ‌گاه به Client Bundle وارد نمی‌شود.
 
-- صفحات عمومی با Static Rendering یا ISR تولید شوند.
-- داده عمومی Published می‌تواند از CDN خوانده شود.
-- داده Draft فقط Server-side و بدون CDN عمومی خوانده شود.
-- هر Query دارای Cache Tag قابل پیش‌بینی باشد.
+جزئیات Provider هویت در `SECURITY_GUIDELINES.md` و `AUTHORIZATION_ROLES.md` قطعی می‌شود؛ مدل محتوایی به Provider هویت قفل نمی‌شود.
 
-### الگوی Tagها
+---
+
+## 13. Preview
+
+1. Editor روی Preview کلیک می‌کند.
+2. Server مجوز کاربر و Entity/Revision را بررسی می‌کند.
+3. Preview token کوتاه‌عمر و تک‌منظوره صادر می‌شود.
+4. صفحه از Draft Read path و بدون Cache عمومی Render می‌شود.
+5. Header واضح «پیش‌نمایش» و Revision number نمایش داده می‌شود.
+
+قواعد امنیتی:
+
+- Preview URL دائمی یا قابل Index نیست.
+- Response دارای `noindex, nofollow` و `private, no-store` است.
+- Token در Log، Analytics یا Referrer افشا نمی‌شود.
+- Redirect مقصد فقط از Allowlist داخلی پذیرفته می‌شود.
+- Draft API از CORS عمومی استفاده نمی‌کند.
+- Preview از Odoo Fetch مستقیم انجام نمی‌دهد.
+
+---
+
+## 14. Localization و RTL/LTR
+
+- Locale اولیه `fa` است؛ معماری از ابتدا `en` و `ar` را پشتیبانی می‌کند.
+- ترجمه‌ها Document مستقل با `translation_group_id` مشترک هستند.
+- هر Locale دارای Slug، Title، Metadata، Alt Text و Workflow مستقل است.
+- ترجمه خودکار بدون Review انسانی Published نمی‌شود.
+- نبود ترجمه باعث نمایش فارسی در URL زبان دیگر نمی‌شود.
+- `dir` از Locale در Layout تعیین می‌شود و Editor آن را تغییر نمی‌دهد.
+- تاریخ ذخیره‌شده UTC و نمایش تاریخ مطابق Locale است.
+- اعداد تجاری در Storage استاندارد می‌مانند؛ تبدیل رقم فقط Presentation concern است.
 
 ```text
-cms:all
-cms:settings:{locale}
-cms:navigation:{locale}
-cms:page:{locale}:{slug}
-cms:service:{locale}:{slug}
-cms:steel-category:{locale}:{slug}
-cms:article:{locale}:{slug}
-cms:article-list:{locale}
-cms:project:{locale}:{slug}
-cms:project-list:{locale}
+missing → draft → in_review → approved → published → stale
 ```
 
-### Webhook انتشار
-
-- Endpoint: `/api/cms/revalidate`
-- Method: `POST`
-- Webhook باید Signature/Secret معتبر داشته باشد.
-- Payload فقط Type، ID، Locale، Slug قبلی و Slug جدید را ارسال کند.
-- Endpoint بر اساس Type، Tagهای جزئی و فهرست مرتبط را با `revalidateTag` با semantics سازگار با نسخه Next.js پروژه منقضی کند.
-- در تغییر Slug، Path قدیم و جدید هر دو Revalidate شوند.
-- در تغییر داده Global، Tagهای Settings یا Navigation تمام Localeهای مربوط را منقضی کنند.
-- پاسخ Webhook نباید Secret یا جزئیات داخلی را افشا کند.
-
-### سیاست Fallback
-
-- اگر CMS موقتاً در دسترس نبود، نسخه Cache‌شده قبلی نمایش داده شود.
-- اختلال CMS نباید صفحه اصلی Published را از دسترس خارج کند.
-- محتوای اختیاری ناقص مخفی شود؛ محتوای اجباری ناقص نباید Publish شود.
-- خطاهای CMS در Logging ثبت شوند، اما متن داخلی خطا به کاربر نمایش داده نشود.
+ویرایش محتوای منبع می‌تواند ترجمه‌ها را `stale` علامت‌گذاری کند، اما خودکار Unpublish نمی‌کند مگر Policy جداگانه تعریف شود.
 
 ---
 
-## 16. Asset و Media
+## 15. SEO Architecture در CMS
 
-هر Image در CMS باید این داده‌ها را داشته باشد:
+### الزامات هر Entity قابل Index
 
-- Asset reference
-- `alt` مستقل برای هر Locale
-- Caption اختیاری
-- Credit/License در صورت نیاز
-- Focal point / hotspot
-- Width و Height قابل استخراج
-- Asset purpose یا usage tag
+- Title و H1 معتبر
+- Meta Description مستقل
+- Canonical محاسبه‌شده و کنترل‌شده
+- Robots policy و Open Graph metadata
+- Breadcrumb label و Internal links قابل Crawl
+- Structured data profile مجاز
+- Inclusion policy برای Sitemap
 
-### قواعد Media
+### قواعد
 
-- آپلود تصویر بدون Alt برای محتوای معنادار ممنوع است.
-- تصاویر تزئینی با `decorative: true` و Alt خالی مشخص شوند.
-- فایل SVG آپلودشده توسط Editor فقط پس از Sanitization مجاز است.
-- ویدئوی سنگین مستقیماً از CMS تحویل نشود؛ از سرویس ویدئو یا Storage/CDN مناسب استفاده شود.
-- PDFها باید Title، Version، Date، Language و File Size داشته باشند.
-- نام فایل‌ها انگلیسی، کوتاه، lowercase و بدون فاصله باشد.
-- Crop و Resize در Delivery Layer انجام شود؛ فایل اصلی فقط یک بار ذخیره شود.
-- Component تصویر باید ابعاد، `sizes`، Lazy Loading و Format بهینه را کنترل کند.
+- HTML اصلی، Headingها، Links و Metadata در پاسخ اولیه Server-generated باشند.
+- Canonical پیش‌فرض توسط Route Registry تولید شود؛ Override فقط برای SEO Manager.
+- Canonical خارجی فقط از Domain allowlist پذیرفته شود.
+- Slug در محدوده `entity_type + locale` یکتا است.
+- تغییر Slug بدون Redirect قابل Publish نیست.
+- `noindex` در UI هشدار واضح دارد و در Audit ثبت می‌شود.
+- Sitemap فقط Published + Canonical + Indexable entityها را شامل می‌شود.
+- `lastmod` از تغییر واقعی نسخه Published می‌آید، نه زمان Build.
+- Schema فقط وقتی تولید می‌شود که داده متناظر در صفحه قابل مشاهده باشد.
+- Raw JSON-LD، Meta tag آزاد و Script injection ممنوع است.
+- Filter URLها پیش‌فرض Indexable نیستند؛ فقط Landing Pageهای تأییدشده Index می‌شوند.
+
+### جلوگیری از Thin Content
+
+ساخت خودکار هزاران صفحه Product/Price صرفاً به دلیل وجود Variant در Odoo ممنوع است. Index شدن صفحه نیازمند حداقل محتوای ارزشمند است:
+
+- قیمت/واحد و زمان به‌روزرسانی معتبر
+- توضیح فنی و راهنمای خرید
+- سایزها یا Variantهای مرتبط
+- FAQ یا پاسخ به Intent واقعی
+- لینک‌های داخلی مرتبط
 
 ---
 
-## 17. Validation محتوا
+## 16. Media Architecture
 
-### Validation اجباری
+- فایل اصلی در Bucket خصوصی R2 ذخیره می‌شود.
+- D1 فقط Metadata و `r2_key` را نگهداری می‌کند.
+- دسترسی عمومی از Delivery route یا دامنه Asset کنترل‌شده انجام می‌شود.
+- Upload از Admin با URL امضاشده کوتاه‌عمر یا Worker authenticated انجام می‌شود.
 
-- Title، Slug، Locale و وضعیت انتشار
-- یکتایی Slug در هر Locale و Type
-- طول منطقی Title و Meta Description با Warning، نه برش خودکار
-- عدم استفاده از URL خارجی برای لینک‌های داخلی
-- ممنوعیت `javascript:` و Protocolهای ناامن
-- وجود Alt برای تصاویر معنادار
-- وجود CTA label و destination با هم
-- وجود تاریخ و نویسنده برای Article
-- حداقل یک نتیجه یا شاهد معتبر برای Project منتشرشده
-- ممنوعیت Publish ترجمه با `translationStatus != approved`
-- عدم انتخاب یک سند به‌عنوان Related Content خودش
-- کنترل Reference شکسته پیش از Publish
+R2 از `PUT` در Presigned URL پشتیبانی می‌کند؛ Uploadهای بزرگ می‌توانند Multipart باشند. نوع فایل، اندازه، نام، Checksum و مالک قبل و بعد از Upload اعتبارسنجی می‌شوند.
+
+```text
+Upload → Quarantine/Validation → Metadata Extraction → Image Variants → Ready
+```
+
+قواعد:
+
+- MIME واقعی با Extension تطبیق داده شود.
+- SVG و فایل اجرایی پیش‌فرض رد یا Sanitized شوند.
+- تصویر معنادار بدون Alt در Locale هدف Published نمی‌شود.
+- تصویر تزئینی با `decorative=true` و Alt خالی ثبت می‌شود.
+- ابعاد و Aspect Ratio برای جلوگیری از CLS ذخیره می‌شوند.
+- AVIF/WebP و اندازه Responsive در Delivery layer تولید می‌شوند.
+- نام فایل Safe و کلید R2 غیرقابل‌برخورد باشد.
+- فایل استفاده‌شده بلافاصله حذف نمی‌شود؛ ابتدا Dependency check و Soft Delete.
+- RFQ attachment و CMS media در Prefix/Bucket و Policy جدا نگهداری می‌شوند.
+
+---
+
+## 17. Cache، Read Model و Revalidation
+
+```text
+Request → Cloudflare Edge Cache → Next.js/Worker → D1 Published Read Model
+```
+
+Draft table یا Revision history در Query عمومی خوانده نمی‌شود.
+
+### Cache Tagها
+
+```text
+content:{type}:{locale}:{id}
+route:{locale}:{slug}
+list:articles:{locale}
+category:{locale}:{id}
+product:{odoo_id}:{locale}
+price:{odoo_id}
+navigation:{locale}
+sitemap:{locale}:{type}
+```
+
+### Invalidation
+
+- مقاله: صفحه مقاله + List + Category + Sitemap مرتبط
+- Product SEO: صفحه محصول + Category listing + Sitemap مرتبط
+- قیمت Sync‌شده: Price/Product cache مرتبط، نه کل سایت
+- Navigation: فقط Layout cache همان Locale
+- Settings عمومی: Tag محدود و مشخص
+- Full purge: فقط Incident یا Migration بزرگ با دسترسی Admin
+
+شکست Revalidation باید Retry و Alert داشته باشد؛ آخرین نسخه Cache‌شده تا جایگزینی معتبر قابل سرو است.
+
+### D1 Read Replication
+
+در صورت فعال‌سازی Global Read Replication، Queryهای عمومی باید از D1 Sessions API استفاده کنند. برای مسیرهای Read-after-write، Bookmark/Session consistency رعایت شود.
+
+---
+
+## 18. Performance Budget مرتبط با CMS
+
+| شاخص | هدف معماری |
+|---|---|
+| CMS SDK در Client صفحات عمومی | صفر |
+| Fetch مستقیم Odoo در Public request | صفر |
+| Query عمومی صفحه جزئیات | یک Query اصلی + Batch محدود |
+| N+1 query | ممنوع |
+| Full-site rebuild برای مقاله | غیرضروری |
+| Purge کل Cache برای تغییر عادی | ممنوع |
+| زمان هدف انتشار تا مشاهده عمومی | حداکثر 60 ثانیه در حالت عادی |
+| محتوای اصلی وابسته به Client JavaScript | ممنوع |
+
+- Server Components انتخاب پیش‌فرض صفحات محتوایی هستند.
+- Client Component فقط برای Interaction واقعی استفاده می‌شود.
+- List query بدنه کامل مقاله را دریافت نمی‌کند.
+- Pagination و Projection فیلدها الزامی است.
+- Block payload قبل از Publish محدودیت اندازه دارد.
+- تصاویر Below-the-fold Lazy-load می‌شوند؛ تصویر LCP آگاهانه Priority می‌گیرد.
+- Normalize سنگین در Write/Publish path انجام می‌شود، نه Public Runtime.
+
+اهداف نهایی Core Web Vitals و Lighthouse در `PERFORMANCE_BUDGET.md` تعریف می‌شوند.
+
+---
+
+## 19. Validation
+
+### Validation عمومی
+
+- Required field و Enumهای مجاز
+- Unique slug در Locale و Entity type
+- محدودیت طول و حجم Blockها
+- لینک داخلی معتبر و URL خارجی HTTPS
+- جلوگیری از `javascript:`، HTML خام و Protocol ناامن
+- Alt Text برای تصویر معنادار
+- Reference سالم و جلوگیری از Self-reference
+- Version check برای Optimistic Concurrency
+- تاریخ‌بندی صحیح Schedule
+- عدم Publish ترجمه تأییدنشده
 
 ### Validation دامنه آهن آسا
 
-- ادعای قیمت قطعی بدون تاریخ، منبع و Disclaimer منتشر نشود.
-- ادعای استاندارد، گرید یا کیفیت باید قابل استناد و تأییدشده باشد.
-- نام تأمین‌کننده یا مشتری بدون مجوز انتشار وارد نشود.
-- اعداد پروژه باید Unit مشخص داشته باشند.
-- CTAهای خرید نباید القای فروشگاه آنلاین کنند، مگر زیرساخت واقعی آن فعال باشد.
+- قیمت دستی داخل Rich Text به‌عنوان «قیمت جاری» ممنوع است.
+- Price block فقط داده همگام‌شده Odoo را نمایش می‌دهد.
+- ادعای استاندارد، گرید، اصالت یا کیفیت نیازمند Review تخصصی است.
+- هر عدد دارای Unit و Context مشخص باشد.
+- ادعای موجودی یا تحویل قطعی بدون منبع عملیاتی مجاز نیست.
+- نام یا لوگوی مشتری/تأمین‌کننده بدون مجوز انتشار ممنوع است.
+- CTA نباید قابلیت فروش آنلاین موجودنشده را القا کند.
+- محتوای حقوقی و شرایط فروش فقط با Approval مجاز منتشر می‌شود.
+
+Validation سمت Client صرفاً UX است؛ تمام قواعد در Server دوباره اجرا می‌شوند.
 
 ---
 
-## 18. امنیت و حریم خصوصی
+## 20. امنیت
 
-- Dataset عمومی فقط شامل محتوای قابل انتشار باشد.
-- Write Token و Preview Token فقط Server-side نگهداری شوند.
-- Tokenها حداقل Permission لازم را داشته باشند.
-- CORS فقط برای Domainهای شناخته‌شده Studio و Website تنظیم شود.
-- Webhook با Secret و Signature validation محافظت شود.
-- Rate limiting روی Endpointهای Preview و Revalidation اعمال شود.
-- PII، Lead، قرارداد، قیمت خرید و اطلاعات محرمانه در CMS ذخیره نشود.
-- Logها نباید Token، Payload حساس یا محتوای Draft محرمانه را ثبت کنند.
-- Dependencyها و CMS SDK در چرخه نگهداری امنیتی پروژه قرار گیرند.
-- دسترسی کاربران پس از تغییر نقش یا خروج از همکاری فوراً لغو شود.
-- Backup/Export دوره‌ای متناسب با نرخ تغییر محتوا تعریف شود.
+- اصل Least Privilege برای User، Service binding و Odoo bot اعمال می‌شود.
+- API Key اودوو فقط Cloudflare Secret است و به CMS UI یا Browser نمی‌رسد.
+- تمام Mutationها Authentication، Authorization، CSRF protection و Audit دارند.
+- Inputها با Schema runtime validate و Outputها Encode می‌شوند.
+- Rich Text renderer فقط Componentهای Allowlisted را Map می‌کند.
+- Uploadها محدودیت MIME، حجم، Rate و Checksum دارند.
+- Admin و Public API Rate Limit جدا دارند.
+- Error عمومی شامل Stack، SQL، Token یا Payload داخلی نیست.
+- Preview و Draft از Cache عمومی جدا هستند.
+- PII در Search index یا CMS analytics ثبت نمی‌شود.
+- Backup، Restore و Incident procedure قبل از Production آزمایش می‌شود.
+- هیچ عملیات Bulk بدون Dry Run، شمارش رکورد و Confirmation UI انجام نمی‌شود.
 
 ---
 
-## 19. Performance
+## 21. همزمانی، یکپارچگی و Idempotency
 
-- Queryها Projection حداقلی داشته باشند.
-- فهرست‌ها نباید Body کامل مقاله یا Project را Fetch کنند.
-- Pagination اجباری است؛ دریافت تمام اسناد در Runtime ممنوع است.
-- Referenceها به‌صورت Batch resolve شوند و N+1 Query ایجاد نکنند.
-- تصاویر با Pipeline استاندارد Next.js و URL Builder امن تحویل شوند.
-- Rich Text فقط با Renderer allowlisted رندر شود.
-- Componentهای CMS تا حد ممکن Server Component باقی بمانند.
-- Hydration فقط برای Interactionهای واقعی انجام شود.
-- تغییر محتوای یک سند نباید باعث Purge کامل Cache سایت شود.
-- `cms:all` فقط در Migration یا تغییر Schema عمده استفاده شود.
+### Optimistic Locking
 
-### بودجه پیشنهادی
+هر Entity فیلد `version` دارد. Mutation باید Version خوانده‌شده را ارسال کند. اگر نسخه تغییر کرده باشد، سرور `409 Conflict` برمی‌گرداند و تغییر جدید را بی‌صدا Overwrite نمی‌کند.
 
-| معیار | هدف |
+### Idempotency
+
+این عملیات Idempotency Key دارند:
+
+- Publish/Unpublish
+- Media finalize
+- Odoo sync apply
+- Cache invalidation job
+- Scheduled publication
+
+Queue ممکن است پیام را بیش از یک‌بار تحویل دهد؛ Consumer باید نتیجه قبلی همان Key را تشخیص دهد.
+
+### Soft Delete
+
+- Entityهای محتوایی ابتدا Archive می‌شوند.
+- Media ابتدا `pending_delete` می‌شود.
+- حذف فیزیکی پس از Retention period و Dependency check انجام می‌شود.
+- Audit log فقط طبق Policy حقوقی مشخص حذف می‌شود.
+
+---
+
+## 22. Failure Recovery
+
+| خرابی | رفتار مورد انتظار |
 |---|---|
-| Query صفحه جزئیات | حداکثر 1 Query اصلی + Batch references |
-| Payload محتوای اولیه | فقط داده موردنیاز Above-the-fold و صفحه |
-| Revalidation | کمتر از 60 ثانیه تا مشاهده نسخه Published |
-| CMS dependency در Client bundle | صفر برای صفحات غیرتعاملی |
-| Full-site rebuild برای تغییر Editorial | غیرضروری |
+| Odoo unavailable | CMS و سایت با آخرین Read Model معتبر ادامه می‌دهند |
+| Publish Queue failure | Retry با Backoff؛ سپس DLQ و Alert |
+| Cache purge failure | نسخه قبلی سرو می‌شود؛ Job مجدداً اجرا می‌شود |
+| D1 write conflict | `409` و درخواست Merge/Reload؛ بدون overwrite خاموش |
+| Media processing failure | Asset در وضعیت failed/quarantine؛ قابل Publish نیست |
+| Invalid CMS record | Draft حفظ می‌شود؛ Publish رد می‌شود |
+| Scheduled job duplicate | Consumer با Idempotency Key آن را تکراری تشخیص می‌دهد |
+| Slug collision | Transaction رد می‌شود؛ Route قبلی حفظ می‌گردد |
+
+Jobهای ناموفق پس از سقف Retry به DLQ منتقل و در Dashboard نمایش داده می‌شوند. Recovery دستی باید Idempotency و Parent reference را حفظ کند.
 
 ---
 
-## 20. ساختار پوشه پیشنهادی
+## 23. Backup و بازیابی
+
+- D1 Time Travel لایه بازیابی عملیاتی است، نه جایگزین Export و تست Restore.
+- قبل از Migration مخرب، Bookmark/Backup و Export منطقی گرفته می‌شود.
+- Export دوره‌ای محتوای Published، Revisionهای لازم و Media manifest نگهداری می‌شود.
+- R2 lifecycle برای Temporary upload و Multipart ناقص تعریف می‌شود.
+- Restore ابتدا در محیط غیرProduction آزمایش می‌شود.
+- بازیابی Production نیازمند Runbook، تأیید مسئول و ثبت Incident است.
+- هدف‌های RPO/RTO در `FAILURE_RECOVERY.md` تعیین می‌شوند.
+
+Retention دقیق Time Travel باید هنگام راه‌اندازی از مستندات و Plan جاری Cloudflare تأیید شود.
+
+---
+
+## 24. Logging، Monitoring و Audit
+
+### Metrics
+
+- Draft save latency/error
+- Publish success/failure/time-to-visible
+- Queue backlog، retry و DLQ count
+- Odoo sync lag و last successful sync
+- Cache hit ratio و purge failure
+- D1 query latency/error
+- R2 upload/processing failure
+- 404 ناشی از Slug/Redirect
+- Sitemap generation failure
+- Preview access error
+
+### Alertها
+
+- چند Publish ناموفق متوالی
+- عبور Sync lag از SLA
+- وجود Job در DLQ
+- عدم مشاهده نسخه Published پس از SLA
+- افزایش 5xx Admin یا Public content API
+- Asset عمومی با Reference شکسته
+- تغییر ناگهانی `noindex` یا Canonical صفحات کلیدی
+
+### قواعد Log
+
+- Correlation/Request ID در مسیر Admin → Worker → Queue → Consumer حفظ شود.
+- Secret، Session token، متن کامل PII یا API credential Log نشود.
+- Audit business event از Application log فنی جدا باشد.
+- نمایش Audit برای Auditor Read-only است.
+
+---
+
+## 25. API Contract
+
+UI نباید مستقیماً SQL اجرا کند یا به Odoo متصل شود.
+
+```ts
+export interface CmsRepository {
+  getPublishedPage(input: PageLookup): Promise<PublishedPage | null>;
+  getDraftEntity(input: DraftLookup, actor: Actor): Promise<DraftEntity | null>;
+  listArticles(input: ArticleListQuery): Promise<Paginated<ArticleCard>>;
+  saveDraft(input: SaveDraftCommand, actor: Actor): Promise<SaveResult>;
+  submitForReview(input: ReviewCommand, actor: Actor): Promise<WorkflowResult>;
+  approve(input: ApprovalCommand, actor: Actor): Promise<WorkflowResult>;
+  publish(input: PublishCommand, actor: Actor): Promise<PublicationResult>;
+  archive(input: ArchiveCommand, actor: Actor): Promise<WorkflowResult>;
+}
+```
+
+```ts
+export interface CommercialReadRepository {
+  getProductByOdooId(id: number): Promise<PublicProduct | null>;
+  getVariantByOdooId(id: number): Promise<PublicVariant | null>;
+  getPublicPrice(ref: CommercialRef): Promise<PublicPriceSnapshot | null>;
+  listProductReferences(input: ProductReferenceQuery): Promise<Paginated<ProductRef>>;
+}
+```
+
+- Typeهای Domain مستقل از D1 row و Odoo response هستند.
+- Validation و Mapping در مرز Repository انجام می‌شود.
+- Client فقط View Model لازم را دریافت می‌کند.
+- Errorها Code پایدار، Message امن و Request ID دارند.
+- Pagination cursor-based برای فهرست‌های بزرگ ترجیح دارد.
+
+---
+
+## 26. ساختار پوشه پیشنهادی
 
 ```text
 src/
 ├── app/
-│   ├── api/
-│   │   ├── cms/revalidate/route.ts
-│   │   └── draft/
-│   │       ├── enable/route.ts
-│   │       └── disable/route.ts
-│   └── ...
+│   ├── (public)/
+│   ├── admin/
+│   └── api/
+│       ├── admin/
+│       ├── media/
+│       ├── preview/
+│       └── internal/
 ├── components/
-│   └── content/
-│       ├── section-renderer.tsx
-│       └── sections/
-├── content/
-│   ├── static/
-│   └── defaults/
+│   ├── admin/
+│   └── content-blocks/
+├── features/
+│   ├── articles/
+│   ├── pages/
+│   ├── product-content/
+│   ├── seo/
+│   ├── media/
+│   └── publishing/
 ├── lib/
-│   └── cms/
-│       ├── index.ts
-│       ├── contract.ts
-│       ├── cache-tags.ts
-│       ├── normalize.ts
-│       ├── validation.ts
-│       └── providers/
-│           ├── local/
-│           └── sanity/
-│               ├── client.ts
-│               ├── queries.ts
-│               ├── repository.ts
-│               └── image.ts
-├── sanity/
-│   ├── schemaTypes/
-│   │   ├── documents/
-│   │   ├── objects/
-│   │   └── index.ts
-│   ├── structure/
-│   └── validation/
+│   ├── auth/
+│   ├── cms/
+│   │   ├── domain/
+│   │   ├── repositories/
+│   │   ├── validation/
+│   │   ├── workflow/
+│   │   └── cache/
+│   ├── commercial-read-model/
+│   ├── odoo/adapter/
+│   ├── db/
+│   ├── queues/
+│   └── observability/
 └── types/
-    └── content/
+
+migrations/
+workers/
+├── publication-consumer/
+├── media-consumer/
+└── odoo-sync-consumer/
 ```
 
-اگر Studio در همان Repository میزبانی شود، پوشه `sanity/` حفظ می‌شود. اگر تیم و چرخه انتشار جدا شد، Studio می‌تواند به Repository مستقل منتقل شود، بدون تغییر Contract داخلی Frontend.
+Public component نباید از `lib/odoo/adapter` import مستقیم داشته باشد.
 
 ---
 
-## 21. Environment Variableها
+## 27. Environment و Secretها
+
+نام نهایی متغیرها با `ENVIRONMENT_VARIABLES.md` همگام می‌شود:
 
 ```text
-CMS_PROVIDER=local|sanity
-NEXT_PUBLIC_SANITY_PROJECT_ID=
-NEXT_PUBLIC_SANITY_DATASET=
-NEXT_PUBLIC_SANITY_API_VERSION=
-SANITY_READ_TOKEN=
-SANITY_PREVIEW_TOKEN=
-SANITY_WEBHOOK_SECRET=
-DRAFT_MODE_SECRET=
+DB
+CMS_MEDIA_BUCKET
+PUBLICATION_QUEUE
+MEDIA_QUEUE
+ODOO_SYNC_QUEUE
+ODOO_BASE_URL
+ODOO_DATABASE
+ODOO_API_KEY
+ODOO_API_MODE
+PREVIEW_SIGNING_SECRET
+SESSION_SECRET
+TURNSTILE_SECRET_KEY
 ```
 
-### قواعد
-
-- هیچ مقدار واقعی در Git Commit نشود.
-- متغیرهای `NEXT_PUBLIC_*` فقط شامل شناسه‌های غیرمحرمانه باشند.
-- Production، Preview و Development از Dataset یا تنظیمات محیطی مشخص استفاده کنند.
-- نام API Version ثابت و صریح باشد؛ استفاده از تاریخ جاری در Runtime ممنوع است.
-- نبود Environment Variable ضروری باید در Startup/Build با پیام واضح Fail شود.
+- مقدار واقعی Secret در Git و Documentation ثبت نمی‌شود.
+- Odoo API Key فقط Secret سمت Worker است.
+- Preview/Production Binding و Database جدا هستند.
+- Migration به‌صورت Versioned و در Pipeline کنترل‌شده اجرا می‌شود.
+- نبود Binding حیاتی باید Deploy/Startup را Fail کند.
 
 ---
 
-## 22. محیط‌ها و Datasetها
+## 28. Migration و Rollout
 
-### پیشنهاد اولیه
+### Phase 1 — Foundation
 
-| محیط | Dataset | کاربرد |
-|---|---|---|
-| Local Development | `development` | تست Schema و داده نمونه |
-| Preview/Staging | `staging` یا Dataset مشترک با Draft perspective | QA محتوا و Integration |
-| Production | `production` | محتوای Published عمومی |
+- D1 schema، Migration و Seed نقش‌ها
+- Authentication/Authorization
+- Audit log و Revision engine
+- Media upload به R2
+- Published Read path
 
-برای تیم کوچک، دو Dataset `development` و `production` کافی است. اضافه‌کردن Staging فقط وقتی انجام شود که Release Workflow آن را توجیه کند.
+### Phase 2 — Articles
 
-انتقال Schema بین محیط‌ها از طریق Git انجام می‌شود؛ انتقال محتوا باید با Export/Import کنترل‌شده و ثبت‌شده باشد.
+- Article و Article Category
+- Draft/Review/Publish و Preview
+- SEO fields، Revalidation و Sitemap update
 
----
+### Phase 3 — Website Content
 
-## 23. Migration و فعال‌سازی مرحله‌ای
+- Pages، FAQ، Navigation و Settings
+- Page templates و Blockهای محدود
+- Localization foundation
 
-### Phase 0 — بدون CMS
+### Phase 4 — Catalog SEO
 
-- پیاده‌سازی `ContentRepository`
-- استفاده از Provider محلی
-- ذخیره محتوا در TypeScript/JSON/MDX کنترل‌شده
-- تثبیت Routeها، SEO و Componentها
+- Odoo product reference browser
+- Product/Category SEO content
+- Price page content و Sync health view
 
-### Phase 1 — Pilot CMS
+### Phase 5 — Operational Hardening
 
-- ایجاد Project و Dataset
-- پیاده‌سازی Schemaهای پایه
-- انتقال `article` و `project`
-- پیاده‌سازی Preview و Webhook
-- آموزش یک Editor و یک Reviewer
+- Scheduled publishing
+- DLQ dashboard و replay کنترل‌شده
+- Backup/restore drill
+- Content health report
+- Performance و Security regression gates
 
-### Phase 2 — محتوای سازمانی
-
-- انتقال FAQ، Downloadها و Steel Categoryها
-- فعال‌سازی Localization در سطح Document
-- افزودن Workflow و Validation پیشرفته
-
-### Phase 3 — بهینه‌سازی
-
-- داشبورد سلامت محتوا
-- گزارش اسناد بدون ترجمه یا Metadata
-- Scheduled/Release publishing در صورت نیاز عملیاتی و پشتیبانی پلن
-- اتصال کنترل‌شده به Analytics برای سنجش عملکرد محتوا
-
-### ترتیب Migration هر Collection
-
-1. نهایی‌کردن Schema
-2. ساخت Mapping از مدل قبلی
-3. Export و Backup
-4. Import به Development
-5. Validation تعداد و Referenceها
-6. QA بصری و SEO
-7. Import Production
-8. فعال‌سازی Provider CMS
-9. Revalidation
-10. ثبت نتیجه در `CHANGELOG.md`
+هر Phase فقط پس از Acceptance Criteria خودش وارد Production می‌شود.
 
 ---
 
-## 24. قابلیت خروج و جلوگیری از Vendor Lock-in
+## 29. تست و QA
 
-- تمام مدل‌های عمومی در TypeScript مستقل تعریف شوند.
-- CMS SDK فقط در Provider مربوط استفاده شود.
-- Rich Text به یک AST داخلی محدود یا Renderer جداگانه Map شود.
-- Asset metadata و URL اصلی قابل Export باشد.
-- Export کامل Dataset و فایل‌ها دوره‌ای انجام شود.
-- IDهای CMS نباید در URL عمومی استفاده شوند.
-- Routeها از Slug و Registry داخلی تولید شوند.
-- هیچ Component نمایشی Query خام CMS اجرا نکند.
-- تغییر Provider باید فقط Repository implementation و Migration را درگیر کند.
+### Unit
 
----
+- Validation schema، Workflow transitions و Permission matrix
+- Slug/Canonical و Cache tag generation
+- Odoo-to-read-model mapper
+- Rich Text allowlist renderer و Idempotency consumer
 
-## 25. Logging و Monitoring
+### Integration
 
-موارد زیر ثبت شوند:
+- D1 transaction و Optimistic locking
+- Save Draft → Review → Publish
+- Scheduled publish و Slug change + Redirect
+- R2 upload/finalize/delete lifecycle
+- Queue retry/DLQ و Odoo unavailable fallback
+- Cache invalidation هدفمند
 
-- شکست Query CMS
-- Timeout و Rate-limit
-- خطای Preview
-- Webhook نامعتبر یا تکراری
-- نتیجه Revalidation بدون ثبت Secret
-- سند Published با داده ناقص که از Validation عبور کرده است
-- Reference شکسته
-- Image delivery failure
+### End-to-End
 
-### Alertهای ضروری
+- Login و Session expiry
+- Editor نمی‌تواند Publish کند
+- Reviewer می‌تواند Request Changes دهد
+- SEO Manager می‌تواند Redirect ثبت کند
+- Preview Draft برای کاربر مجاز و `noindex`
+- Published article در HTML اولیه و Sitemap ظاهر می‌شود
+- تغییر قیمت Odoo پس از Sync بدون ویرایش CMS نمایش داده می‌شود
+- RFQ/PII در CMS قابل جست‌وجو یا مشاهده نیست
 
-- چند شکست متوالی Webhook
-- عدم نمایش محتوای Published پس از SLA تعریف‌شده
-- افزایش خطاهای CMS در Production
-- انقضای Token یا Permission error
-- شکست Sitemap generation یا Structured Data generation مرتبط با CMS
+### Security و Performance
 
----
-
-## 26. تست و QA
-
-### Unit Test
-
-- Normalizerها و Mapperها
-- Cache tag generation
-- Slug و URL validation
-- SEO fallbackها
-- Locale resolution
-- Rich Text renderer allowlist
-
-### Integration Test
-
-- خواندن Published content
-- خواندن Draft content فقط در Preview
-- ردکردن Webhook نامعتبر
-- Revalidation سند، فهرست و Route مرتبط
-- رفتار Not Found برای Slug نامعتبر
-- رفتار Fallback هنگام قطع CMS
-
-### Content QA
-
-- Preview Desktop، Tablet و Mobile
-- RTL فارسی و عربی
-- LTR انگلیسی
-- Heading hierarchy
-- Alt text و Caption
-- Internal links و Related content
-- Metadata، Canonical و Hreflang
-- Structured Data
-- تاریخ‌ها، اعداد و واحدها
-- CTA و مقصد آن
-
-### Regression Test
-
-- تغییر Navigation
-- تغییر Slug
-- Unpublish مقاله یا پروژه
-- حذف Asset استفاده‌شده
-- انتشار ترجمه ناقص
-- تغییر Schema با داده قدیمی
+- CSRF، XSS، Injection، Open Redirect، IDOR و Upload spoofing
+- Secret leakage، replay، rate limiting و session fixation
+- Public cache hit/miss، D1 query count و latency
+- عدم ورود Admin bundle به Public route
+- Image delivery و Core Web Vitals روی Templateهای اصلی
 
 ---
 
-## 27. معیار پذیرش پیاده‌سازی CMS
+## 30. معیار پذیرش Production
 
-CMS فقط زمانی آماده Production است که همه موارد زیر برقرار باشد:
-
-- [ ] `ContentRepository` مستقل از Provider پیاده‌سازی شده است.
-- [ ] هیچ CMS Token در Client Bundle وجود ندارد.
-- [ ] Draft Preview امن کار می‌کند.
-- [ ] Webhook امضاشده، انتشار را بدون Deploy کامل منعکس می‌کند.
-- [ ] Cache فقط برای محتوای مرتبط Revalidate می‌شود.
-- [ ] اسناد ناقص قابل Publish نیستند.
-- [ ] Slug در هر Locale یکتا است.
-- [ ] تغییر Slug فرایند Redirect مشخص دارد.
-- [ ] Metadata و Sitemap فقط از Published content استفاده می‌کنند.
-- [ ] JSON-LD از داده ساختاریافته و کنترل‌شده تولید می‌شود.
-- [ ] UI بدون داده CMS حیاتی از کار نمی‌افتد.
-- [ ] نقش‌ها و حداقل دسترسی اعمال شده‌اند.
-- [ ] Backup/Export آزمایش شده است.
-- [ ] راهنمای Editor نوشته شده است.
-- [ ] سناریوهای RTL/LTR و چندزبانه QA شده‌اند.
-- [ ] هیچ Lead یا PII در CMS ذخیره نمی‌شود.
-- [ ] تست Provider محلی و Provider CMS هر دو موفق‌اند.
-
----
-
-## 28. قوانین قطعی برای Claude Code
-
-Claude Code هنگام پیاده‌سازی باید این قواعد را رعایت کند:
-
-1. قبل از نصب CMS، وجود Triggerهای بخش 2 را بررسی کند.
-2. بدون تصمیم ثبت‌شده، محتوای ثابت را به CMS منتقل نکند.
-3. SDK و Queryهای CMS را خارج از Provider وارد نکند.
-4. Schema را بدون هماهنگی با `CONTENT_MODEL.md` تغییر ندهد.
-5. Field یا Section با کنترل مستقیم Style ایجاد نکند.
-6. Secret، Token یا Dataset خصوصی را در کد Client قرار ندهد.
-7. Preview و Revalidation را بدون Validation امنیتی پیاده‌سازی نکند.
-8. هنگام تغییر Slug، Redirect و SEO impact را بررسی کند.
-9. CMS را برای ذخیره فرم‌ها، Leadها، قیمت و موجودی استفاده نکند.
-10. قبل از Migration از Dataset Export بگیرد.
-11. هر تغییر Schema یا Migration را در `CHANGELOG.md` ثبت کند.
-12. برای هر مدل جدید، Type، Validation، Query، Mapper و Test اضافه کند.
-13. هیچ Document منتشرشده را با Script بدون Dry Run و Backup حذف نکند.
-14. در صورت نبود CMS، Provider محلی و Build سایت باید همچنان کار کنند.
+- [ ] CMS داخلی روی Workers و D1 پیاده‌سازی شده است.
+- [ ] `/admin` احراز هویت و Authorization سمت سرور دارد.
+- [ ] Article می‌تواند Draft، Review، Approve، Publish و Archive شود.
+- [ ] هر Publish دارای Revision، Audit و Idempotency Key است.
+- [ ] Rollback بدون حذف تاریخچه کار می‌کند.
+- [ ] Preview امن، خصوصی و `noindex` است.
+- [ ] Media در R2 با Validation و Metadata ذخیره می‌شود.
+- [ ] هیچ Odoo credential در Browser یا Repository نیست.
+- [ ] قیمت، Product و UOM تجاری در CMS قابل ویرایش نیستند.
+- [ ] صفحات عمومی هنگام قطع Odoo با Read Model ادامه می‌دهند.
+- [ ] Cache فقط برای Entityهای مرتبط باطل می‌شود.
+- [ ] Slug جدید بدون Redirect مسیر قبلی Published نمی‌شود.
+- [ ] Metadata، Canonical، Hreflang و Sitemap از Published content ساخته می‌شوند.
+- [ ] JSON-LD خام در CMS وجود ندارد.
+- [ ] Rich Text و Blockها Allowlisted هستند.
+- [ ] Queue retry و DLQ آزمایش شده‌اند.
+- [ ] Backup/restore drill موفق ثبت شده است.
+- [ ] سناریوهای RTL فارسی و عربی و LTR انگلیسی QA شده‌اند.
+- [ ] هیچ Lead، RFQ attachment یا PII در CMS ذخیره نمی‌شود.
+- [ ] Performance Budget و Security tests در CI پاس می‌شوند.
 
 ---
 
-## 29. تصمیم نهایی
+## 31. قوانین قطعی برای Claude Code
 
-برای آهن آسا، CMS یک **زیرساخت اختیاری و مرحله‌ای** است، نه پیش‌نیاز شروع طراحی و توسعه. نسخه اولیه با Content-as-Code و یک `ContentRepository` مستقل ساخته می‌شود. پس از شکل‌گیری نیاز واقعی Editorial، Sanity ابتدا فقط برای Article و Project فعال می‌شود و سپس به Collectionهای دیگر گسترش می‌یابد.
-
-این تصمیم سه مزیت اصلی دارد:
-
-1. سرعت بیشتر در راه‌اندازی نسخه اول
-2. کاهش هزینه و پیچیدگی عملیاتی
-3. آمادگی برای توسعه تیم محتوا بدون بازنویسی Frontend
+1. CMS خارجی یا SDK آن را بدون ADR نصب نکند.
+2. Public route را مستقیماً به Odoo متصل نکند.
+3. قیمت، Product commercial data یا Customer را در CMS قابل ویرایش نکند.
+4. Schema را بدون Migration نسخه‌دار تغییر ندهد.
+5. هیچ Mutation را فقط با کنترل UI محافظت نکند.
+6. Secret یا Token را در Client Component یا `NEXT_PUBLIC_*` قرار ندهد.
+7. Raw HTML، CSS، Script، iframe یا JSON-LD آزاد به Editor ندهد.
+8. Publish را بدون Revision، Audit و Idempotency اجرا نکند.
+9. Queue consumer را با فرض exactly-once delivery ننویسد.
+10. تغییر Slug را بدون Redirect و Revalidation منتشر نکند.
+11. Draft/Preview را در Cache عمومی ذخیره نکند.
+12. برای تغییر عادی Content، Full cache purge یا Full rebuild انجام ندهد.
+13. Admin dependency و bundle را وارد Route عمومی نکند.
+14. حذف فیزیکی Bulk را بدون Dry Run، Backup و Approval اجرا نکند.
+15. هر مدل جدید را همراه Type، Validation، Permission، Migration و Test اضافه کند.
+16. اگر این سند با `SYSTEM_OF_RECORD.md` تعارض داشت، Implementation را متوقف و تعارض را ثبت کند.
 
 ---
 
-## 30. منابع فنی رسمی
+## 32. تصمیم نهایی
 
-- [Next.js — Revalidating cached data](https://nextjs.org/docs/app/getting-started/revalidating)
-- [Next.js — `revalidateTag`](https://nextjs.org/docs/app/api-reference/functions/revalidateTag)
-- [Next.js — Backend for Frontend and CMS webhooks](https://nextjs.org/docs/app/guides/backend-for-frontend)
-- [Sanity — Localization](https://www.sanity.io/docs/studio/localization)
-- [Sanity — Content Releases configuration](https://www.sanity.io/docs/studio/content-releases-configuration)
-- [Sanity — Content operators guide](https://www.sanity.io/docs/user-guides/content-operations-cheatsheet)
+CMS آهن آسا از این پس یک قابلیت اختیاری یا اتصال آینده به Sanity نیست. این CMS بخشی از Backend سایت و ابزار روزانه اپراتور است، اما عمداً فقط دامنه **Editorial و SEO** را پوشش می‌دهد.
 
+```text
+Admin CMS
+  → D1 Editorial Store
+  → R2 Media
+  → Publication Queue
+  → Published Read Model
+  → Cloudflare Edge Cache
+  → Public Website
+
+Odoo ERP
+  → Integration Worker
+  → D1 Commercial Read Model
+  → Product/Price Pages
+```
+
+نتیجه:
+
+- اپراتور محتوای سایت را بدون Deploy مدیریت می‌کند.
+- Odoo تنها منبع حقیقت تجاری باقی می‌ماند.
+- اختلال ERP، سایت و CMS را از دسترس خارج نمی‌کند.
+- صفحات عمومی سریع، Cacheable و HTML-first باقی می‌مانند.
+- SEO، Revision، Audit و امنیت از ابتدا در جریان انتشار تعبیه می‌شوند.
+
+---
+
+## 33. منابع رسمی
+
+- [Cloudflare D1 — Overview](https://developers.cloudflare.com/d1/)
+- [Cloudflare D1 — Workers API و Sessions](https://developers.cloudflare.com/d1/worker-api/d1-database/)
+- [Cloudflare D1 — Time Travel and backups](https://developers.cloudflare.com/d1/reference/time-travel/)
+- [Cloudflare R2 — Upload objects](https://developers.cloudflare.com/r2/objects/upload-objects/)
+- [Cloudflare R2 — Presigned URLs](https://developers.cloudflare.com/r2/api/s3/presigned-urls/)
+- [Cloudflare Workers — Storage options](https://developers.cloudflare.com/workers/platform/storage-options/)
+- [Odoo 19 — External JSON-2 API](https://www.odoo.com/documentation/19.0/developer/reference/external_api.html)
+- [Odoo 19 — External RPC API migration notice](https://www.odoo.com/documentation/19.0/developer/reference/external_rpc_api.html)
+
+> نسخه دقیق Odoo در `odoo.ahanassa.com` باید پیش از Implementation اتصال تأیید شود. Adapter باید براساس نسخه واقعی، JSON-2 یا روش سازگار تأییدشده را انتخاب کند؛ هیچ بخش CMS نباید مستقیماً به API نسخه‌خاص Odoo وابسته شود.

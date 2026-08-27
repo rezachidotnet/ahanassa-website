@@ -3,81 +3,118 @@
 > **Brand:** Ahan Asa | آهن آسا  
 > **Domain:** `ahanassa.com`  
 > **Document:** `SITEMAP_ROBOTS_SPEC.md`  
-> **Status:** Draft v1.0 — Implementation contract for approval  
-> **Last updated:** 2026-08-25  
-> **Launch locale:** Persian (`fa`), fully RTL  
-> **Target stack:** Next.js App Router + TypeScript  
-> **Primary outputs:** `/sitemap.xml` and `/robots.txt`
+> **Status:** Draft v2.0 — implementation contract  
+> **Last updated:** 2026-08-26  
+> **Launch locale:** Persian (`fa`), RTL  
+> **Platform:** Next.js App Router on Cloudflare Workers  
+> **Data boundary:** Website CMS/D1 SEO read model ↔ asynchronous Odoo integration  
+> **Primary outputs:** `/sitemap.xml`, child XML sitemaps, and `/robots.txt`
 
 ---
 
 ## 1. Purpose
 
-This document defines how the Ahan Asa website must generate, serve, validate, and maintain its XML sitemap and `robots.txt` file.
+This document defines the production contract for sitemap generation, crawler access, indexation boundaries, and operational monitoring for Ahan Asa.
 
-It is an implementation contract for the project owner, SEO team, content team, developers, QA, and Claude Code. It answers:
+It covers:
 
-- which URLs may appear in the XML sitemap;
-- which URLs must be excluded;
-- how published CMS records enter or leave the sitemap;
-- how locale, canonical, redirect, status, and indexability rules interact;
-- how `lastmod` must be calculated;
-- how production, staging, preview, and development environments differ;
-- which crawler paths may be disallowed in `robots.txt`;
-- how the two files must be implemented in Next.js App Router;
-- which automated and manual checks are required before deployment.
+- canonical, indexable public pages;
+- category, product, product-variant, price, article, project, industry, and resource URLs;
+- separation of SEO pages from RFQ, account, admin, API, upload, and ERP application URLs;
+- ownership of sitemap data between the website, D1, R2, and Odoo;
+- truthful `lastmod` values, including frequently updated public prices;
+- control of faceted navigation and query-parameter crawl spaces;
+- Persian launch behavior and future locale activation;
+- production, staging, preview, and Odoo-subdomain robots policies;
+- Cloudflare caching, invalidation, failure recovery, CI tests, and Search Console monitoring.
 
-The sitemap is a discovery and canonicalization signal. It is not a guarantee of crawling, indexing, or ranking. `robots.txt` controls crawler access; it is not an authentication system and must not be used to protect confidential content.
+A sitemap is a discovery and canonicalization signal, not a guarantee of crawling, indexing, or ranking. `robots.txt` controls crawler access; it is not access control, confidentiality, or a reliable de-indexing mechanism.
 
 ---
 
-## 2. Authority and Dependency Rules
+## 2. Non-Negotiable Architecture Decisions
 
-### 2.1 Source-of-truth order
+### 2.1 System boundary
 
-The implementation must use the following authority order:
+```text
+Odoo
+  └── commercial source of truth
+        ├── products and variants
+        ├── units and commercial prices
+        ├── customers and CRM/RFQs
+        └── quotations and sales
 
-1. explicit owner decisions recorded in `DECISIONS.md`;
-2. approved `PROJECT_BRIEF.md`;
-3. approved `SITEMAP.md` for page existence, hierarchy, publication status, and indexation intent;
-4. approved `ROUTES.md` for exact paths, locale prefixes, aliases, redirects, parameters, and route behavior;
-5. approved `HREFLANG_CANONICAL.md` for canonical and alternate-language mappings;
-6. approved `REDIRECTS.md` for legacy and renamed URL behavior;
-7. `SEO_PAGE_MAP.md`, `METADATA_SPEC.md`, and content records for page-level SEO state;
-8. this document for sitemap and crawler implementation;
-9. framework code.
+Website CMS + D1
+  └── public SEO read model
+        ├── canonical slugs
+        ├── publication and indexation state
+        ├── SEO copy and metadata
+        ├── category/product/price landing pages
+        ├── articles and resources
+        ├── public price snapshots
+        └── sitemap eligibility and lastmod
+```
 
-### 2.2 Conflict handling
+The public website, sitemap, and robots routes must never depend on a live request to `odoo.ahanassa.com`.
 
-Claude Code must not guess when these documents conflict.
+### 2.2 Sitemap data flow
 
-If two documents disagree about a path, locale, canonical, indexation state, or publication status:
+```text
+Odoo change
+    ↓
+Queue + integration worker
+    ↓
+validated D1 public record
+    ↓
+SEO eligibility evaluation
+    ↓
+targeted sitemap revalidation
+    ↓
+Cloudflare edge cache
+```
 
-1. stop sitemap generation for the affected URL;
-2. report the exact conflicting records;
-3. keep the URL out of the production sitemap;
-4. record the decision in `DECISIONS.md`;
-5. synchronize the affected documents before deployment.
+If Odoo is slow, unavailable, being upgraded, or returns an invalid record, the last known valid public sitemap must remain available. Unknown or partially synced records must not be promoted into a sitemap.
 
-The generator must never create a URL merely because an application folder exists. Likewise, removing a route from navigation does not automatically authorize removing or redirecting its URL.
+### 2.3 No direct ERP enumeration
 
-### 2.3 Current route assumption
+Sitemaps must not be generated by iterating all Odoo products, variants, pricelist rows, customers, attachments, or model IDs. An Odoo record becomes eligible only after it has a separate approved website SEO record.
 
-The current `ROUTES.md` contract defines:
+An `odoo_id`, database ID, SKU, or integration key must not become a public URL merely because it exists.
 
-- Persian as the active Phase 1 locale;
-- Persian canonical URLs without a locale prefix;
-- `/en/**` and `/ar/**` as reserved until their complete locale releases are approved;
-- `/fa/**`, if reachable as an alias, as a permanent redirect to the unprefixed Persian equivalent;
-- `/request` as the canonical primary conversion route and `noindex, follow`;
-- `ahanassa.com` as the business domain;
-- the final choice between apex and `www` as unresolved.
+### 2.4 HTML-first SEO
 
-This document does not hardcode the locale model independently. If an approved revision of `ROUTES.md` changes the locale contract, the sitemap and robots generators must consume that revision through the centralized route manifest.
+Every URL in a sitemap must return meaningful HTML in the initial response. Product names, price information, primary copy, headings, canonical metadata, and internal links must not require browser-only JavaScript or a live Odoo fetch.
 
-### 2.4 Launch blocker
+---
 
-The production canonical origin must be approved before launch:
+## 3. Authority and Dependencies
+
+Use this decision order:
+
+1. `DECISIONS.md`;
+2. `SYSTEM_OF_RECORD.md`;
+3. `PROJECT_BRIEF.md`;
+4. `SITEMAP.md` and `ROUTES.md`;
+5. `HREFLANG_CANONICAL.md` and `REDIRECTS.md`;
+6. `SEO_STRATEGY.md`, `SEO_PAGE_MAP.md`, `METADATA_SPEC.md`, `INTERNAL_LINKING.md`, and `STRUCTURED_DATA.md`;
+7. `PRODUCT_CATALOG_SPEC.md`, `PRICING_SYSTEM.md`, and CMS publication records;
+8. `SYNC_STRATEGY.md` and the validated D1 read model;
+9. this specification;
+10. application code.
+
+If these sources conflict for a URL:
+
+- exclude the affected URL from the sitemap;
+- do not guess from the filesystem or Odoo record;
+- report the exact conflict;
+- resolve it in `DECISIONS.md` and the owning specification;
+- deploy only after canonical, status, locale, and indexation values agree.
+
+---
+
+## 4. Canonical Origin
+
+Exactly one production origin is permitted:
 
 ```text
 https://ahanassa.com
@@ -89,1015 +126,882 @@ or:
 https://www.ahanassa.com
 ```
 
-Only one may be canonical. Until the choice is recorded, production deployment is blocked. Sitemap, robots, canonical tags, hreflang, Open Graph URLs, structured data, redirects, and internal absolute URLs must all use the same origin.
+The final choice is a launch blocker and must be stored once in validated server configuration:
+
+```text
+SITE_ORIGIN=https://CANONICAL_HOST
+APP_ENV=production
+```
+
+The same origin must be used by canonical tags, sitemaps, `robots.txt`, hreflang, Open Graph, structured data, internal absolute URLs, and Search Console.
+
+Production builds must fail when `SITE_ORIGIN`:
+
+- is absent or is not HTTPS;
+- includes a path, query, fragment, credentials, non-standard port, or trailing slash;
+- points to localhost, `workers.dev`, `pages.dev`, preview, staging, or an example host;
+- differs from the approved host.
+
+The non-canonical host must redirect to the canonical host in one hop while preserving the normalized path and permitted query string.
 
 ---
 
-## 3. Required Public Outputs
+## 5. Required Public Outputs
 
-| Output | Required route | Format | Production status | Purpose |
-|---|---|---|---|---|
-| XML sitemap | `/sitemap.xml` | UTF-8 XML | `200` | Discover canonical indexable URLs |
-| Robots file | `/robots.txt` | UTF-8 plain text | `200` | Declare crawler access policy and sitemap location |
+Use a sitemap index from the beginning so product, price, and content families can be monitored and invalidated independently.
 
-Optional future outputs are allowed only when scale or content type justifies them:
+| Output | Role | Required |
+|---|---|---:|
+| `/sitemap.xml` | Sitemap index | Yes |
+| `/sitemaps/pages.xml` | Static public pages | Yes |
+| `/sitemaps/categories.xml` | Approved product/category landings | When non-empty |
+| `/sitemaps/products.xml` | Approved product and variant SEO pages | When non-empty |
+| `/sitemaps/prices.xml` | Valuable public price landing pages | When non-empty |
+| `/sitemaps/articles.xml` | Published articles | When non-empty |
+| `/sitemaps/projects.xml` | Verified public case studies | If activated |
+| `/sitemaps/industries.xml` | Approved industry pages | If activated |
+| `/sitemaps/resources.xml` | Public resource landing pages | If activated |
+| `/robots.txt` | Host-specific crawl policy and sitemap declaration | Yes |
 
-| Optional output | Activation condition |
-|---|---|
-| Sitemap index | More than one sitemap file is required for scale, ownership, or Search Console segmentation |
-| Image sitemap | Important indexable images cannot be reliably discovered from crawlable page markup |
-| Video sitemap | Ahan Asa publishes eligible primary video content with approved metadata |
-| News sitemap | Ahan Asa becomes an eligible news publisher; not part of Phase 1 |
-
-Do not create empty specialist sitemaps for appearance. Phase 1 should use one reliable `/sitemap.xml` unless a measured need requires segmentation.
-
----
-
-## 4. Core Definitions
-
-| Term | Definition |
-|---|---|
-| Canonical URL | The single approved absolute URL intended to represent a page in search |
-| Indexable | A substantive public document eligible for `index, follow` |
-| Crawlable | Accessible to a crawler and not blocked by `robots.txt` or authentication |
-| Published | Approved content exposed in the production environment |
-| Active locale | A locale whose required pages, translations, metadata, legal content, and QA are approved |
-| Significant update | A material change to primary content, structured data, page relationships, or other search-relevant information |
-| Route manifest | The centralized typed record of public URL identity, path, locale, status, indexability, and sitemap eligibility |
-| Content manifest | The approved CMS or repository record of publication state, slug, locale, dates, and SEO status |
-
-Indexability and crawlability are separate controls. A page may need to remain crawlable so that a search engine can read its `noindex` directive.
+Do not reference an empty child sitemap. Optional image, video, or news sitemaps require a separate approved decision and real eligible content.
 
 ---
 
-## 5. Single URL Eligibility Rule
+## 6. URL Eligibility Contract
 
-A URL may appear in the XML sitemap only when every condition below is true.
+A URL may appear only when every condition is true:
 
 ```text
 eligibleForSitemap =
-  environment === "production"
-  AND route.status is launch or activated-conditional
-  AND route.public === true
-  AND route.indexable === true
-  AND route.sitemap === true
-  AND locale.status === active
-  AND content.status === published
-  AND content.approved === true
-  AND finalResponse.status === 200
-  AND robotsMeta allows index
-  AND canonical is absolute and self-referencing
-  AND canonical origin equals configured production origin
-  AND URL is not a redirect, alias, duplicate, error, preview, or parameter variant
+  environment == production
+  AND public == true
+  AND publication_status == published
+  AND editorial_approval == approved
+  AND seo_record_exists == true
+  AND indexable == true
+  AND sitemap_enabled == true
+  AND locale_status == active
+  AND sync_status == valid
+  AND canonical_is_self == true
+  AND canonical_origin == SITE_ORIGIN
+  AND response_status == 200
+  AND robots_meta_allows_index == true
+  AND x_robots_tag_allows_index == true
+  AND internal_link_exists == true
+  AND substantive_content_gate == passed
+  AND not_redirect_or_alias
+  AND not_private_or_transactional
 ```
 
-If one condition is false or unknown, exclude the URL.
+Unknown values fail closed.
 
-### 5.1 Required preconditions
+Every included URL must:
 
-Each sitemap URL must:
-
-- use HTTPS;
-- use the approved canonical host;
-- be fully qualified and absolute;
-- use the exact normalized path from `ROUTES.md`;
-- have no trailing slash except the root URL;
-- contain no fragment;
-- contain no tracking or filter query string;
-- return a direct `200` response without a redirect hop;
+- be an absolute, XML-escaped HTTPS URL;
+- use the exact normalized canonical path;
+- contain no fragment or ordinary tracking, session, sort, search, or filter parameters;
+- return `200` without a redirect hop;
 - be self-canonical;
-- use `index, follow` or its equivalent default behavior;
-- contain substantive approved content;
-- belong to an active locale;
-- be internally reachable through a normal crawlable `<a href>` path;
-- have no conflicting `X-Robots-Tag` header.
-
-### 5.2 Exclude by default
-
-Unknown, ambiguous, conditional, draft, scheduled, expired, archived-with-noindex, or operationally unverified content must remain outside the sitemap until explicitly eligible.
+- be available in the active locale;
+- contain unique, useful primary content;
+- be reachable through at least one crawlable `<a href>` link;
+- expose no conflicting `noindex` directive.
 
 ---
 
-## 6. URL-Class Indexing Matrix
+## 7. Page-Family Matrix
 
-| URL class | Example | Page robots | `robots.txt` access | XML sitemap |
+Exact paths come from `ROUTES.md`; examples describe behavior, not authorization to invent routes.
+
+| Page family | Example | Index policy | Sitemap | Data authority |
 |---|---|---|---|---|
-| Approved public core page | `/about` | `index, follow` | Allow | Include |
-| Approved substantive hub | `/insights` | `index, follow` | Allow | Include |
-| Published material category | `/steel-products/[category-slug]` | `index, follow` | Allow | Include |
-| Published industry page | `/industries/[industry-slug]` | `index, follow` | Allow | Include |
-| Verified project detail | `/projects/[project-slug]` | `index, follow` | Allow | Include |
-| Published article | `/insights/[article-slug]` | `index, follow` | Allow | Include |
-| Published resource landing page | `/resources/[resource-slug]` | `index, follow` | Allow | Include |
-| Primary request form | `/request` | `noindex, follow` | Allow | Exclude |
-| Request confirmation | `/request/confirmation` | `noindex, nofollow` | Allow unless protected | Exclude |
-| Redirect or alias | `/fa/about` | Not a document | Allow redirect | Exclude |
-| Draft or preview | implementation-defined | `noindex, nofollow, noarchive` plus authentication | Disallow as secondary control | Exclude |
-| API route | `/api/**` | Not a document | Disallow | Exclude |
-| Admin interface | `/admin/**` | Authentication required | Disallow | Exclude |
-| Reserved route | `/request-status/**` | Absent or protected | Disallow if deployed | Exclude |
-| Search/filter state | `/projects?industry=x` | Canonical to approved base or noindex per SEO decision | Allow unless crawl trap | Exclude |
-| Campaign URL | `/?utm_source=x` | Canonical to clean URL | Allow | Exclude parameter version |
-| Genuine 404 | unknown path | `noindex` | Allow | Exclude |
-| Maintenance/status | `/maintenance`, `/status` | `noindex` | Environment-dependent | Exclude |
-| Static application asset | `/_next/**` | Not applicable | Allow | Exclude |
-| Private uploaded file | implementation-defined | Authentication required | Disallow as secondary control | Exclude |
-
-Never add a `noindex` URL to the sitemap. Never block `/request` in `robots.txt` merely because it is `noindex`; crawlers must be able to fetch the page to see that directive.
+| Home/core page | `/about` | Index | `pages` | Website |
+| Category landing | `/steel-products/rebar` | Index if substantive | `categories` | Website SEO + Odoo reference |
+| Product landing | `/steel-products/rebar/a3` | Index if substantive | `products` | Website SEO + D1 public product |
+| Variant landing | `/steel-products/rebar/a3/16` | Conditional index | `products` | Website SEO + D1 public variant |
+| Price category | `/price/rebar` | Index if valuable | `prices` | Website SEO + D1 price snapshot |
+| Price detail | `/price/rebar/a3-16` | Conditional index | `prices` | Website SEO + D1 price snapshot |
+| Article | `/insights/[slug]` | Index when published | `articles` | Website CMS |
+| Project | `/projects/[slug]` | Index when verified | `projects` | Website CMS |
+| Industry | `/industries/[slug]` | Index when substantive | `industries` | Website CMS |
+| Resource landing | `/resources/[slug]` | Index when substantive | `resources` | Website CMS |
+| Public downloadable PDF | file URL | Normally noindex | No | R2 + CMS reference |
+| RFQ builder | `/request` | `noindex, follow` | No | Website application |
+| RFQ success | `/request/confirmation` | `noindex, nofollow, noarchive` | No | Website application |
+| RFQ status/account | implementation path | Private/noindex | No | Website + Odoo |
+| Search/filter state | query URL | Noindex/non-indexable | No | Website application |
+| Admin/API/auth | technical routes | Private/non-indexable | No | Website application |
+| Odoo portal/ERP | `odoo.ahanassa.com/**` | Non-indexable | Separate host policy | Odoo |
+| Redirect/alias | `/fa/**` alias | Redirect | No | Route manifest |
+| Error/empty result | any | Correct `404`/`410` | No | Application |
 
 ---
 
-## 7. Phase 1 Sitemap Inputs
+## 8. Product and Variant Rules
 
-### 7.1 Static route candidates
+### 8.1 Category eligibility
 
-The sitemap generator must read static candidates from the approved route manifest. Under the current `ROUTES.md`, the candidate set includes:
+A category landing may be indexable only if it contains:
 
-```text
-/
-/about
-/procurement
-/procurement-process
-/steel-products
-/industries
-/projects
-/insights
-/resources
-/faq
-/contact
-/privacy
-/terms
-```
+- unique title, description, H1, and meaningful introduction;
+- a useful product/variant listing;
+- relevant specifications or buying guidance;
+- crawlable links to eligible child pages;
+- current publication and canonical state;
+- enough enduring content to avoid an empty or thin page.
 
-This is a candidate list, not an unconditional output list.
+### 8.2 Product eligibility
 
-- `/projects` must be excluded until it contains substantive verified evidence.
-- `/terms` must be excluded until the route is activated and its legal content is approved.
-- `/resources`, `/insights`, `/steel-products`, and `/industries` must not launch as thin or empty shells.
-- `/request` is intentionally absent because it is `noindex, follow`.
-- Any route removed or renamed by a later approved route decision must follow the new manifest and `REDIRECTS.md`.
+An Odoo product does not automatically receive a public page. Its website SEO record must explicitly define canonical path, locale, publication status, editorial approval, indexability, sitemap eligibility, content-quality state, significant public update time, and sync state.
 
-### 7.2 Dynamic route candidates
+### 8.3 Variant eligibility
 
-The generator may query only approved published records for these families:
+Size, grade, brand, standard, origin, thickness, length, width, and unit combinations must not generate indexable pages by default.
 
-```text
-/steel-products/[category-slug]
-/industries/[industry-slug]
-/projects/[project-slug]
-/insights/[article-slug]
-/resources/[resource-slug]
-```
+A variant URL is eligible only when it has:
 
-Each record must expose at least:
+- meaningful, stable search intent;
+- a clean route approved in `SEO_PAGE_MAP.md`;
+- unique visible information beyond a substituted number;
+- a self-canonical URL and valid parent relationship;
+- a valid public D1 record;
+- sufficient internal linking;
+- no duplicate equivalent page.
 
-```ts
-type SitemapContentRecord = {
-  id: string;
-  type: 'steelProduct' | 'industry' | 'project' | 'insight' | 'resource';
-  slug: string;
-  locale: 'fa' | 'en' | 'ar';
-  status: 'draft' | 'review' | 'scheduled' | 'published' | 'archived';
-  approved: boolean;
-  indexable: boolean;
-  canonicalPath: string;
-  publishedAt: string | null;
-  significantlyUpdatedAt: string | null;
-};
-```
+All other variants remain selectable inside the product or RFQ interface without creating indexable URLs.
 
-The schema may be extended but must not omit equivalent control fields.
+### 8.4 Out-of-stock and discontinued products
 
-### 7.3 Dynamic record release gates
+Temporary unavailability does not automatically remove a useful page. Keep it when the product is expected to return and the page retains value.
 
-Before a dynamic URL enters the sitemap:
+For permanent discontinuation:
 
-- the slug must pass the validation rules in `ROUTES.md`;
-- the content must be published in the active locale;
-- project facts and media must be verified and approved;
-- the page must not expose confidential buyer, supplier, quotation, invoice, or project information;
-- the page must have unique primary content and metadata;
-- the route must resolve directly to `200`;
-- the canonical path must match the generated path;
-- an internal crawlable link must exist;
-- the record must not be superseded by another canonical record.
-
-### 7.4 Removed and archived records
-
-When a published page is removed:
-
-1. remove it from the sitemap in the same release;
-2. apply the approved `301`/`308`, `404`, or `410` behavior from `REDIRECTS.md`;
-3. update internal links;
-4. update canonical and hreflang mappings;
-5. never keep the old URL in the sitemap to encourage recrawling.
+1. remove the URL from the sitemap;
+2. redirect only to a true equivalent replacement;
+3. otherwise return `410` or `404` under `REDIRECTS.md`;
+4. remove internal links and alternate mappings;
+5. never redirect an unrelated product to a category or homepage.
 
 ---
 
-## 8. XML Sitemap Format
+## 9. Public Price Page Rules
 
-### 8.1 Phase 1 format
+An indexable price page must visibly provide:
 
-Serve a standards-compliant UTF-8 XML document at `/sitemap.xml`.
+- current public price or an explicit quotation/availability state;
+- unit and currency;
+- genuine last-update time;
+- product/category identity and specifications;
+- scope or conditions of the displayed price;
+- related sizes/products and crawlable links;
+- procurement guidance and useful explanatory content;
+- structured data only when visible content supports it.
 
-Minimum structure:
+Do not create sitemap entries for:
+
+- every Odoo pricelist row;
+- customer-specific prices or negotiated quotations;
+- supplier purchase prices;
+- draft, partial, failed, conflicting, or stale sync records;
+- price-history dates as standalone URLs;
+- zero-value placeholders;
+- variants with no unique landing-page value;
+- confidential or unavailable pricing.
+
+### 9.1 Price `lastmod`
+
+```text
+lastmod = max(
+  significant SEO content update,
+  public price update,
+  significant product specification update
+)
+```
+
+Use the time a validated public price became effective in D1—not the crawler request time and not every sync attempt. If a refresh produces no material public value/status change, do not alter `lastmod`.
+
+### 9.2 Price-page invalidation
+
+After a successful committed D1 update, enqueue targeted invalidation:
+
+```text
+price:<public-page-id>
+product:<public-page-id>
+category:<category-id>
+sitemap:prices
+sitemap:products        # only if product-page output changed
+```
+
+A failed Odoo sync must not publish partial prices or set a new `lastmod`.
+
+---
+
+## 10. Content and File Families
+
+### 10.1 Articles
+
+Only CMS records with `published` status, editorial approval, an active locale, unique canonical path, and substantive body content may enter `articles.xml`. Scheduled-future, draft, review, withdrawn, and archived-noindex records are excluded.
+
+### 10.2 Projects and industries
+
+Projects require verified facts, approved media, and removal of confidential commercial details. Industry pages require distinct sector-specific guidance. Empty hubs and template-only pages are excluded.
+
+### 10.3 Resources and R2
+
+Prefer an indexable HTML landing page as the search destination. R2 objects are not listed directly unless a separate public-file indexing policy approves them.
+
+RFQ attachments, purchase lists, spreadsheets, images, quotations, invoices, and private PDFs must:
+
+- live in a private R2 bucket or namespace;
+- require authorization or signed time-limited access;
+- never appear in a sitemap;
+- never be linked from crawlable public HTML;
+- send `X-Robots-Tag: noindex, nofollow, noarchive` where crawler access is unavoidable.
+
+---
+
+## 11. Locale and Hreflang
+
+### 11.1 Phase 1
+
+- Persian is the only active launch locale.
+- Persian canonical URLs are unprefixed unless `ROUTES.md` is formally changed.
+- `/fa/**` aliases permanently redirect to unprefixed equivalents and never enter a sitemap.
+- Reserved `/en/**` and `/ar/**` routes stay excluded until full locale QA passes.
+
+### 11.2 Future activation
+
+An alternate-language URL may enter only when it is fully translated, published, indexable, canonical, direct `200`, reciprocally mapped, and related through stable content identity rather than guessed slug similarity.
+
+Use one alternate-language dataset for HTML metadata and XML. HTML hreflang is the recommended initial method. XML hreflang may later be generated from the same data. `x-default` follows `HREFLANG_CANONICAL.md`.
+
+---
+
+## 12. Faceted Navigation, Search, Sort, and Pagination
+
+### 12.1 Indexable landing pages versus UI state
+
+SEO landings use stable clean paths approved in `SEO_PAGE_MAP.md`. Ordinary UI combinations remain non-indexable.
+
+```text
+?size=16
+?grade=a3
+?brand=x
+?standard=din
+?unit=ton
+?origin=x
+?sort=price-asc
+?q=search-term
+?view=table
+?utm_source=...
+?session=...
+```
+
+These URLs never enter a sitemap.
+
+### 12.2 Preferred implementation order
+
+1. Use a clean path for an approved SEO landing.
+2. Keep visual-only state out of the URL when shareability is unnecessary.
+3. Use URL fragments for non-indexable client-only state when appropriate.
+4. If query parameters are required, normalize names/order and avoid crawlable links to useless combinations.
+5. Use `noindex`/canonical only where crawlers can fetch them.
+6. Add robots disallow patterns for deployed crawl traps.
+
+### 12.3 Filter blocking
+
+The initial robots implementation blocks only known parameters actually deployed:
+
+```text
+Disallow: /*?*q=
+Disallow: /*?*sort=
+Disallow: /*?*view=
+Disallow: /*?*size=
+Disallow: /*?*grade=
+Disallow: /*?*brand=
+Disallow: /*?*standard=
+Disallow: /*?*unit=
+Disallow: /*?*origin=
+```
+
+Test each rule against production behavior. URLs blocked by robots must not depend on a page-level `noindex` being seen. Approved SEO landings must use clean paths rather than blocked queries.
+
+### 12.4 Empty combinations and pagination
+
+Invalid, empty, duplicate, nonsensical, and out-of-range filter/pagination URLs return a real `404`; do not redirect them to a generic page.
+
+For real pagination:
+
+- provide crawlable `<a href>` links and unique URLs;
+- self-canonicalize meaningful pages;
+- do not canonicalize every page to page 1 when items differ;
+- exclude routine page 2+ URLs from the sitemap unless SEO strategy explicitly approves them.
+
+---
+
+## 13. Sitemap XML Contract
+
+### 13.1 Index
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap>
+    <loc>https://CANONICAL_HOST/sitemaps/pages.xml</loc>
+    <lastmod>2026-08-26T10:00:00Z</lastmod>
+  </sitemap>
+</sitemapindex>
+```
+
+List only existing, non-empty children. Child `lastmod` means the last material modification of that child sitemap, not request time.
+
+### 13.2 Child sitemap
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://CANONICAL_HOST/</loc>
-    <lastmod>2026-08-25T07:00:00.000Z</lastmod>
+    <loc>https://CANONICAL_HOST/steel-products/rebar</loc>
+    <lastmod>2026-08-26T09:30:00Z</lastmod>
   </url>
 </urlset>
 ```
 
-`CANONICAL_HOST` is illustrative and must be replaced from validated runtime configuration.
+### 13.3 Required rules
 
-### 8.2 Required XML rules
+- UTF-8 and correct XML escaping;
+- absolute canonical HTTPS URLs;
+- one `loc` per canonical URL;
+- no duplicates within or across children;
+- W3C date/datetime when `lastmod` exists;
+- deterministic ordering for tests;
+- no `priority` or `changefreq`;
+- no redirect, error, noindex, private, parameter, alias, or non-production URL.
 
-- Encode the document as UTF-8.
-- Use fully qualified absolute URLs.
-- XML-escape all values.
-- Include only URLs belonging to the approved canonical site.
-- Use one `<url>` element per canonical URL.
-- Include a required `<loc>` for each entry.
-- Include `<lastmod>` only when its value is truthful and maintained.
-- Use W3C date or datetime format.
-- Do not include duplicate `<loc>` values.
-- Do not include relative paths.
-- Do not include redirect targets under a non-canonical host.
-- Do not include query-string variants, fragments, or locale aliases.
+### 13.4 Limits
 
-### 8.3 Omitted tags
-
-Do not emit:
-
-```xml
-<priority>
-<changefreq>
-```
-
-They add maintenance noise and Google ignores them. URL order also has no ranking meaning; use deterministic ordering only for reliable testing and readable diffs.
-
-### 8.4 Deterministic ordering
-
-Recommended order:
-
-1. homepage;
-2. static core routes sorted by stable manifest order;
-3. dynamic families in this order: steel products, industries, projects, insights, resources;
-4. records sorted by locale, then canonical path.
-
-Ordering must remain stable when the content set has not changed.
-
----
-
-## 9. `lastmod` Policy
-
-### 9.1 Meaning
-
-`lastmod` must represent the last significant change to the canonical page, not the time the sitemap was generated or the application was deployed.
-
-A significant change includes:
-
-- primary visible content;
-- meaningful specification or procurement guidance;
-- verified project facts or outcomes;
-- indexable media that materially changes the page;
-- structured data;
-- canonical or hreflang mapping;
-- important internal links or page relationships;
-- material legal content.
-
-The following alone do not justify updating `lastmod`:
-
-- copyright year changes;
-- analytics code changes;
-- CSS-only adjustments;
-- non-material component refactoring;
-- build time;
-- cache refresh;
-- sitemap generation time.
-
-### 9.2 Static pages
-
-Static pages must receive `lastmod` from a maintained content manifest, CMS record, or explicit page metadata field. Do not use `new Date()` during every request or build.
-
-### 9.3 Dynamic pages
-
-Use `significantlyUpdatedAt` when present; otherwise use the approved `publishedAt` timestamp.
-
-```ts
-const lastModified = record.significantlyUpdatedAt ?? record.publishedAt;
-```
-
-If neither timestamp is trustworthy, omit `<lastmod>` for that URL rather than fabricate one.
-
-### 9.4 Validation
-
-The sitemap test suite must fail when:
-
-- `lastmod` is in the future beyond reasonable clock tolerance;
-- a date cannot be parsed;
-- every URL receives the build timestamp;
-- `lastmod` changes while source content did not materially change;
-- the timestamp precedes the record's initial publication in an impossible way.
-
----
-
-## 10. Locale and Hreflang Rules
-
-### 10.1 Phase 1
-
-Only active, complete, indexable Persian URLs may appear. Do not output `/en/**` or `/ar/**` entries while those locales are reserved. Do not include `/fa/**` aliases when Persian canonical routes are unprefixed.
-
-Do not output hreflang references to nonexistent, redirected, `noindex`, draft, or untranslated pages.
-
-### 10.2 Future locale activation
-
-When another locale is approved:
-
-- every alternate must be a real canonical `200` page;
-- each page must list itself and every valid counterpart;
-- mappings must be reciprocal;
-- alternate URLs must be absolute;
-- locale relationships must use a stable page identity, not inferred slug similarity;
-- unrelated or partially translated pages must not be grouped;
-- `x-default` must follow `HREFLANG_CANONICAL.md` and must not be invented by the sitemap generator.
-
-### 10.3 One hreflang delivery method
-
-The project should choose one primary hreflang delivery method to reduce synchronization risk. HTML metadata is recommended for Phase 1 expansion because it is easier to inspect per page. If XML sitemap hreflang is later approved, it must be generated from the same translation relationship data as page metadata.
-
-Do not independently maintain two manually authored mapping systems.
-
-### 10.4 XML alternates example
-
-Only after locales are active:
-
-```xml
-<urlset
-  xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-  xmlns:xhtml="http://www.w3.org/1999/xhtml">
-  <url>
-    <loc>https://CANONICAL_HOST/about</loc>
-    <xhtml:link rel="alternate" hreflang="fa" href="https://CANONICAL_HOST/about" />
-    <xhtml:link rel="alternate" hreflang="en" href="https://CANONICAL_HOST/en/about" />
-    <xhtml:link rel="alternate" hreflang="ar" href="https://CANONICAL_HOST/ar/about" />
-  </url>
-</urlset>
-```
-
-This example is not authorization to publish the reserved locales.
-
----
-
-## 11. Sitemap Scaling and Segmentation
-
-### 11.1 Protocol limit
-
-A single sitemap must not exceed:
-
-- 50,000 URLs; or
-- 50 MB uncompressed.
-
-Split before either limit is reached. Use a sitemap index to reference the child sitemaps.
-
-### 11.2 Project threshold
-
-For operational safety, begin segmentation before the protocol ceiling:
-
-- review segmentation at 40,000 URLs or 40 MB;
-- split by stable content family, not arbitrary changing page numbers;
-- keep each child sitemap under the official limits after XML expansion;
-- ensure all child sitemaps use the same canonical origin.
-
-### 11.3 Recommended future structure
+The protocol ceiling is 50,000 entries or 50 MB uncompressed. Ahan Asa's internal limit is 40,000 entries or 40 MB per file. Split deterministic families before either internal limit:
 
 ```text
-/sitemap.xml                  # sitemap index
-/sitemaps/static.xml
-/sitemaps/steel-products.xml
-/sitemaps/industries.xml
-/sitemaps/projects.xml
-/sitemaps/insights-1.xml
-/sitemaps/resources.xml
+/sitemaps/products-1.xml
+/sitemaps/products-2.xml
 ```
 
-Do not implement this structure during Phase 1 unless required. If activated, `/robots.txt` should reference only the sitemap index unless a deliberate monitoring decision requires multiple declarations.
+---
+
+## 14. Truthful `lastmod`
+
+Significant changes include main content, public specifications, public price/availability, primary media, structured data tied to visible content, canonical/hreflang, important internal links, and material legal/procurement guidance.
+
+The following alone do not update `lastmod`:
+
+- build/deployment time or cache refresh;
+- unchanged sync attempts;
+- analytics, refactoring, or CSS-only changes;
+- copyright year;
+- private Odoo changes not reflected publicly.
+
+```ts
+function resolveLastModified(record: SitemapRecord): Date | undefined {
+  return maxValidDate([
+    record.significantContentUpdatedAt,
+    record.publicPriceChangedAt,
+    record.publicSpecificationChangedAt,
+    record.publishedAt,
+  ]);
+}
+```
+
+If no trustworthy timestamp exists, omit `lastmod`; never fabricate it with `new Date()`.
 
 ---
 
-## 12. `robots.txt` Principles
+## 15. Sitemap Read Model
 
-### 12.1 Responsibilities
+```ts
+type SitemapFamily =
+  | 'pages'
+  | 'categories'
+  | 'products'
+  | 'prices'
+  | 'articles'
+  | 'projects'
+  | 'industries'
+  | 'resources';
 
-Use `robots.txt` to:
+type SitemapRecord = {
+  websiteId: string;
+  family: SitemapFamily;
+  canonicalPath: string;
+  locale: string;
+  public: boolean;
+  publicationStatus: 'draft' | 'review' | 'scheduled' | 'published' | 'archived';
+  editorialApproval: boolean;
+  indexable: boolean;
+  sitemapEnabled: boolean;
+  contentQualityPassed: boolean;
+  syncStatus: 'valid' | 'pending' | 'failed' | 'conflict';
+  publishedAt: string | null;
+  significantContentUpdatedAt: string | null;
+  publicPriceChangedAt: string | null;
+  publicSpecificationChangedAt: string | null;
+  odooId: number | null;
+};
+```
 
-- allow crawling of public indexable content;
-- reduce crawling of technical or non-public namespaces;
-- declare the absolute sitemap URL;
-- express environment-specific crawler policy.
-
-Do not use `robots.txt` to:
-
-- keep secrets private;
-- replace authentication or authorization;
-- remove a public page from search results;
-- fix duplicate content;
-- replace canonical or redirect rules;
-- block CSS, JavaScript, fonts, or image assets required to render public pages;
-- block a public `noindex` page before crawlers can read its directive.
-
-### 12.2 Production default
-
-Production should be broadly crawlable. Disallow only approved technical, private, or crawl-waste namespaces.
-
-### 12.3 No crawler-specific favoritism
-
-The default production policy should use `User-agent: *`. Add crawler-specific groups only for a documented operational, legal, security, or performance reason approved in `DECISIONS.md`.
-
-Do not introduce unsupported directives such as `noindex` inside `robots.txt`.
+Database queries should filter publication, indexability, locale, and sync state before XML mapping, with final validation at the boundary. Candidate indexes include `family`, `publication_status`, `indexable`, `sitemap_enabled`, `locale`, `canonical_path`, `sync_status`, and `updated_at`; exact indexes belong in `DATABASE_SCHEMA.md`.
 
 ---
 
-## 13. Production `robots.txt` Contract
+## 16. Cache, Revalidation, and Recovery
 
-### 13.1 Required output
+### 16.1 Starting cache policy
 
-After the canonical host is approved, production must render the equivalent of:
+| Resource | Edge TTL | Browser TTL | Trigger |
+|---|---:|---:|---|
+| `/robots.txt` | 5 min | 5 min | Reviewed deployment/config change |
+| `/sitemap.xml` | 5 min | 5 min | Child set or child `lastmod` change |
+| Content child | 15 min | 5 min | Publish/unpublish/slug/indexability/content change |
+| Price child | 5 min | 5 min | Valid public price-page change |
+
+`CACHING_STRATEGY.md` is authoritative for final headers.
+
+Cache tags:
+
+```text
+sitemap:index
+sitemap:pages
+sitemap:categories
+sitemap:products
+sitemap:prices
+sitemap:articles
+sitemap:projects
+sitemap:industries
+sitemap:resources
+robots:production
+```
+
+### 16.2 Publish transaction
+
+1. Validate the new public record.
+2. Commit D1 state.
+3. Enqueue purge/revalidation.
+4. Invalidate affected page and child sitemap.
+5. Invalidate the index only when child list or child `lastmod` changes.
+6. Record success/failure.
+
+### 16.3 Failure behavior
+
+- Serve last known valid output where available.
+- Fail visibly instead of returning malformed, partial, or silently empty `200` XML.
+- Exclude pending, failed, conflicting, and unknown records.
+- Retry invalidation through the queue and use the dead-letter workflow in `FAILURE_RECOVERY.md`.
+- Alert when freshness SLA is exceeded.
+
+---
+
+## 17. Production `robots.txt`
+
+After exact deployed paths and parameters are confirmed, the main website host returns:
 
 ```text
 User-agent: *
 Allow: /
 Disallow: /api/
-Disallow: /admin
-Disallow: /preview
-Disallow: /draft
-Disallow: /request-status
+Disallow: /admin/
+Disallow: /account/
+Disallow: /preview/
+Disallow: /draft/
+Disallow: /request-status/
+Disallow: /*?*q=
+Disallow: /*?*sort=
+Disallow: /*?*view=
+Disallow: /*?*size=
+Disallow: /*?*grade=
+Disallow: /*?*brand=
+Disallow: /*?*standard=
+Disallow: /*?*unit=
+Disallow: /*?*origin=
 
 Sitemap: https://CANONICAL_HOST/sitemap.xml
 ```
 
-Rules whose routes do not exist may be omitted. The file must be generated from an explicit allow/disallow configuration; do not scan application folders and automatically expose internal names.
+Omit rules for nonexistent routes/parameters. Generate from reviewed configuration; do not scan source folders and expose internal names.
 
-### 13.2 Paths that must remain crawlable
+Do not block `/`, `/_next/`, `/images/`, `/fonts/`, `/request`, or `/request/confirmation`. RFQ pages stay crawlable so their `noindex` can be read; rendering assets stay crawlable.
 
-Do not disallow these simply because they are excluded from the sitemap:
-
-```text
-/request
-/request/confirmation
-/_next/
-/images/
-/fonts/
-```
-
-- `/request` needs its page-level `noindex, follow` directive to be visible.
-- `/request/confirmation` needs its `noindex, nofollow` directive to be visible if publicly reachable.
-- framework and visual assets may be required for search engines to render and understand public pages.
-
-If the confirmation page becomes authenticated or tokenized, access control—not `robots.txt`—is the primary protection.
-
-### 13.3 Query parameters
-
-Do not add broad query-string rules without evidence of a crawl trap. Canonicalization, internal-link hygiene, and controlled filter generation are the primary controls.
-
-If a measured crawl problem later requires parameter blocking, record:
-
-- the exact pattern;
-- affected search engines;
-- canonical behavior;
-- indexation risk;
-- test evidence;
-- owner and review date.
+Do not use unsupported `noindex:` lines, `crawl-delay`, crawler-specific groups, or AI-crawler rules without a recorded business/legal decision.
 
 ---
 
-## 14. Non-Production Environment Policy
+## 18. Page-Level Robots
 
-### 14.1 Staging and preview
+| State | Required directive |
+|---|---|
+| Approved public SEO page | `index, follow` or default equivalent |
+| RFQ builder | `noindex, follow` |
+| RFQ confirmation | `noindex, nofollow, noarchive` |
+| Account/login/status | `noindex, nofollow, noarchive` plus access control |
+| Search result | `noindex, follow` if crawlable |
+| Preview/draft | `noindex, nofollow, noarchive` plus authentication |
+| Private file | Authentication; `X-Robots-Tag` as defense in depth |
+| Public non-indexable PDF | `X-Robots-Tag: noindex` |
+| 404/410 | Correct HTTP status; no sitemap entry |
+| Maintenance | `noindex, nofollow` and appropriate temporary status |
 
-Staging and preview deployments must not be publicly indexable.
+Never block a page in robots when the project relies on its meta/header `noindex` being discovered.
 
-Use defense in depth:
+---
 
-1. authentication or platform access control;
-2. site-wide `X-Robots-Tag: noindex, nofollow, noarchive`;
-3. page metadata equivalent to `noindex, nofollow` where HTML is rendered;
-4. a restrictive `robots.txt` as a secondary crawl-control layer;
-5. no production sitemap submission;
-6. no production canonical origin accidentally pointing from unfinished public content.
+## 19. Odoo Subdomain
 
-Recommended secondary `robots.txt`:
+`odoo.ahanassa.com` is a separate host and needs its own policy; the main website robots file does not control it.
+
+### 19.1 Target state
+
+- ERP, CRM, backend, APIs, customer data, quotations, and authenticated portal content are not search destinations.
+- Private routes require authentication/authorization.
+- No sitemap is published or submitted for Odoo.
+- Avoid crawlable public links directly to Odoo routes; use a noindex account bridge on the main website followed by user action.
+
+After confirming no Odoo URL needs public indexing:
 
 ```text
 User-agent: *
 Disallow: /
 ```
 
-Do not include a `Sitemap:` line in non-production environments.
+This reduces crawling but does not remove already indexed URLs.
 
-### 14.2 Development and test
+### 19.2 Existing indexed Odoo URLs
 
-Local development and automated test environments do not need to emulate search-engine submission. They must still test generation logic using a safe example origin such as `https://example.test`.
+1. Remove public links and sitemap references.
+2. Protect private routes with authentication.
+3. For public non-private routes, temporarily allow crawling and return suitable `noindex`, `404`, or `410`.
+4. Verify removal in Search Console.
+5. Then apply broader crawl blocking where appropriate.
 
-### 14.3 Environment detection
+Never expose credentials, database names, tokens, record IDs, or internal endpoints in robots comments or rules.
 
-Crawler policy must be based on an explicit validated environment value, not solely on a hostname substring.
+---
 
-Recommended conceptual values:
+## 20. R2 and Media Hosts
+
+If public media uses another hostname, that host needs its own robots file.
+
+- Public product/article images may remain crawlable.
+- Private RFQ attachments never share a publicly listable namespace.
+- Directory listing is disabled.
+- Private objects require signed expiring URLs or authenticated delivery.
+- Public-but-non-indexable documents send appropriate `X-Robots-Tag`.
+- Original/transformed URLs must not create uncontrolled duplicate document URLs.
+
+An image sitemap is unnecessary when important images are discoverable in crawlable HTML. Add one only for a demonstrated discovery gap or clear image-search objective.
+
+---
+
+## 21. Non-Production Environments
+
+Preview, staging, QA, and development must not be publicly indexable.
+
+Defense in depth:
+
+1. Cloudflare Access or equivalent authentication;
+2. site-wide `X-Robots-Tag: noindex, nofollow, noarchive`;
+3. HTML metadata `noindex, nofollow`;
+4. restrictive host-level robots file;
+5. no production sitemap declaration or Search Console submission;
+6. no production canonical origin on unfinished pages.
 
 ```text
-APP_ENV=development | test | preview | staging | production
-NEXT_PUBLIC_SITE_URL=https://<approved-origin>
+User-agent: *
+Disallow: /
 ```
 
-Fail closed for unknown environments: noindex globally and do not expose a production sitemap.
+Do not include a `Sitemap:` line. Unknown environments fail closed.
 
 ---
 
-## 15. Page-Level Robots Directives
+## 22. Next.js App Router Implementation
 
-`robots.txt` and page-level robots metadata must be coordinated.
-
-| Page state | Required directive |
-|---|---|
-| Approved public indexable page | `index, follow` |
-| Request form | `noindex, follow` |
-| Confirmation/success | `noindex, nofollow, noarchive` |
-| Draft/preview | `noindex, nofollow, noarchive` plus authentication |
-| 404/error | `noindex` and correct HTTP status |
-| Maintenance | `noindex, nofollow`; use appropriate temporary HTTP behavior |
-| Private document | Authentication; use `X-Robots-Tag: noindex, nofollow, noarchive` as secondary control |
-
-For non-HTML indexable files such as approved public PDFs, indexing rules must use HTTP headers because HTML metadata is unavailable. Public PDF indexation requires a separate content and SEO decision; a resource landing page is preferred as the canonical search destination unless the PDF has a distinct approved intent.
-
----
-
-## 16. Next.js App Router Implementation Contract
-
-### 16.1 Required conventions
-
-Use Next.js metadata route conventions:
+### 22.1 Route shape
 
 ```text
-app/sitemap.ts
 app/robots.ts
+app/sitemap.xml/route.ts       # explicit sitemap-index XML
+app/sitemaps/[file]/route.ts   # allowlisted child *.xml files
 ```
 
-Equivalent route handlers may be used only when the metadata API cannot satisfy an approved requirement. Do not maintain both a static public file and a dynamic route for the same path.
+The standard `app/sitemap.ts` metadata convention returns a URL set; it must not be used as if it returned a sitemap index. Because this contract requires `/sitemap.xml` to be an index, use an explicit route handler unless the installed Next.js version provides a verified native index implementation with identical output. Use `app/robots.ts` for the robots metadata convention when its serialized output matches this contract. Do not maintain a static and dynamic file for the same URL.
 
-### 16.2 Shared data sources
+### 22.2 Shared modules
 
-Both generators must import:
+```text
+lib/seo/site-origin.ts
+lib/seo/url-normalization.ts
+lib/seo/route-manifest.ts
+lib/seo/sitemap-repository.ts
+lib/seo/sitemap-policy.ts
+lib/seo/sitemap-xml.ts
+lib/seo/robots-policy.ts
+lib/seo/locale-registry.ts
+```
 
-- validated canonical-origin configuration;
-- the centralized route manifest;
-- the locale registry;
-- the published content repository or CMS adapter;
-- canonical-path normalization helpers.
+All sitemap and metadata generators reuse the same canonical URL, locale, and route-manifest logic.
 
-They must not contain independent duplicated route arrays after the route manifest exists.
-
-### 16.3 Sitemap implementation shape
-
-Conceptual example:
+### 22.3 Repository contract
 
 ```ts
-import type { MetadataRoute } from 'next';
-
-import { getSiteConfig } from '@/lib/config/site';
-import { getSitemapStaticRoutes } from '@/lib/routes/manifest';
-import { getPublishedSitemapRecords } from '@/lib/content/sitemap';
-import { buildCanonicalUrl } from '@/lib/seo/url';
-
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const { canonicalOrigin, environment } = getSiteConfig();
-
-  if (environment !== 'production') return [];
-
-  const staticRoutes = getSitemapStaticRoutes();
-  const dynamicRecords = await getPublishedSitemapRecords();
-
-  return [...staticRoutes, ...dynamicRecords]
-    .filter((item) => item.indexable && item.sitemapEligible)
-    .map((item) => ({
-      url: buildCanonicalUrl(canonicalOrigin, item.canonicalPath),
-      ...(item.lastSignificantModification
-        ? { lastModified: item.lastSignificantModification }
-        : {}),
-    }));
+interface SitemapRepository {
+  listFamilies(): Promise<SitemapFamily[]>;
+  listEligibleRecords(family: SitemapFamily): Promise<SitemapRecord[]>;
+  getFamilyLastModified(family: SitemapFamily): Promise<Date | undefined>;
 }
 ```
 
-The final code must deduplicate entries and validate the origin, status, locale, canonical path, and dates before returning data.
+The repository reads the website/D1 public model. It never calls Odoo.
 
-### 16.4 Robots implementation shape
+### 22.4 Generator behavior
 
-Conceptual example:
-
-```ts
-import type { MetadataRoute } from 'next';
-
-import { getSiteConfig } from '@/lib/config/site';
-
-export default function robots(): MetadataRoute.Robots {
-  const { canonicalOrigin, environment } = getSiteConfig();
-
-  if (environment !== 'production') {
-    return {
-      rules: [{ userAgent: '*', disallow: '/' }],
-    };
-  }
-
-  return {
-    rules: [
-      {
-        userAgent: '*',
-        allow: '/',
-        disallow: [
-          '/api/',
-          '/admin',
-          '/preview',
-          '/draft',
-          '/request-status',
-        ],
-      },
-    ],
-    sitemap: `${canonicalOrigin}/sitemap.xml`,
-  };
-}
-```
-
-This is a behavioral example, not a mandatory internal folder structure. Omit unused rules and ensure the final output matches the deployed Next.js version.
-
-### 16.5 Rendering and cache behavior
-
-- The production outputs must be reliably available after deployment.
-- Sitemap data may be statically generated when all sources are build-time stable.
-- If CMS content changes independently, use an approved revalidation strategy.
-- A content publish, unpublish, slug change, indexability change, or significant update must invalidate the sitemap within the approved freshness window.
-- Robots changes should deploy only through reviewed configuration changes.
-- Generation failure must not silently serve a malformed partial XML file.
-
-### 16.6 Failure behavior
-
-If the CMS or content source is unavailable:
-
-- prefer the last known valid generated sitemap when the deployment architecture safely supports it;
-- otherwise fail the build or regeneration visibly;
-- never replace the sitemap with an empty successful response without an alert;
-- never add draft or unknown records as a fallback.
-
-The exact fallback mechanism belongs in `CACHING_STRATEGY.md` and `DEPLOYMENT_ARCHITECTURE.md`.
+- allowlist family names;
+- enforce production environment and origin;
+- filter and validate every record;
+- normalize and deduplicate paths across families;
+- sort deterministically;
+- serialize large children efficiently;
+- reject malformed dates/XML values;
+- expose internal metrics without leaking record data.
 
 ---
 
-## 17. Canonical-Origin Validation
+## 23. HTTP and Edge Requirements
 
-At application startup or build time, validate that the production origin:
+| Resource | Status | Content type | Redirect | Auth |
+|---|---:|---|---:|---:|
+| `/robots.txt` | `200` | `text/plain; charset=utf-8` | None | No |
+| `/sitemap.xml` | `200` | XML-compatible UTF-8 | None | No |
+| Child sitemap | `200` | XML-compatible UTF-8 | None | No |
 
-- uses `https:`;
-- has no path, query, or fragment;
-- has no trailing slash;
-- matches the approved host exactly;
-- is not localhost, a preview host, a deployment-provider subdomain, or an example domain;
-- is the same origin used by metadata and structured data.
-
-Conceptual validation:
-
-```ts
-function validateCanonicalOrigin(value: string): URL {
-  const origin = new URL(value);
-
-  if (origin.protocol !== 'https:') throw new Error('Canonical origin must use HTTPS');
-  if (origin.pathname !== '/') throw new Error('Canonical origin must not include a path');
-  if (origin.search || origin.hash) throw new Error('Canonical origin must be clean');
-
-  return origin;
-}
-```
-
-Production builds must fail when the canonical origin is missing or invalid.
+- Compression is allowed; protocol size is uncompressed.
+- Cloudflare must not transform XML into HTML.
+- Cookies, sessions, authorization, geolocation, and user-specific state must not vary sitemap content.
+- Unknown child families return `404`, not empty `200`.
+- Transient failure serves last known good output if available.
+- Persistent failure alerts; `5xx` must not replace valid cached XML.
 
 ---
 
-## 18. HTTP Response Requirements
+## 24. Security and Privacy
 
-### 18.1 `/sitemap.xml`
+Never include in sitemap, XML/robots comments, URLs, cache tags, or public diagnostics:
 
-- status: `200`;
-- content type: XML-compatible, normally `application/xml` or `text/xml`;
-- encoding: UTF-8;
-- no redirect;
-- no authentication in production;
-- no `noindex` requirement because this is a sitemap resource;
-- valid XML with all URLs entity-escaped.
+- customer/contact data or RFQ line items;
+- uploaded lists or signed R2 URLs;
+- quotations, invoices, sale orders, or payments;
+- API keys, tokens, webhook paths, or database names;
+- Odoo model/record IDs;
+- supplier/purchase prices;
+- private project documents;
+- preview tokens or internal errors.
 
-### 18.2 `/robots.txt`
-
-- status: `200`;
-- content type: `text/plain`;
-- encoding: UTF-8;
-- served at the root of each relevant host;
-- no redirect on the canonical host;
-- absolute `Sitemap:` URL in production;
-- environment-appropriate rules.
-
-### 18.3 Non-canonical hosts
-
-The non-canonical production host should redirect page requests to the canonical host in one hop. Its root `robots.txt` behavior must not contradict the migration strategy. The canonical host's robots file is authoritative, and all submitted sitemaps must use the canonical origin.
+Robots rules are public. List only stable namespaces with crawl-control value; never use robots as a hidden-route inventory.
 
 ---
 
-## 19. Security and Privacy Rules
+## 25. Automated Validation
 
-- Never list invoice files, purchase lists, quotations, user uploads, private PDFs, lead records, secure tokens, internal IDs, webhook URLs, or admin routes in a sitemap.
-- Do not include personal data in URLs, sitemap values, logs, monitoring labels, or Search Console annotations.
-- Protect private content with authentication and authorization.
-- Treat `robots.txt` as public information; never reveal sensitive infrastructure names through unnecessary disallow rules.
-- Do not enumerate hidden provider endpoints.
-- Preview tokens must not appear in URLs discoverable through sitemap or public links.
-- Upload URLs must be private, time-limited where appropriate, and outside public static assets.
+CI blocks deployment on failure.
 
----
+### 25.1 Sitemap index
 
-## 20. Build-Time Validation
+- valid UTF-8 XML and namespace;
+- only approved, existing, non-empty children;
+- absolute HTTPS URLs on one origin;
+- no duplicate child;
+- truthful child `lastmod`;
+- limits respected.
 
-The build or CI pipeline must validate the generated sitemap data before production deployment.
+### 25.2 Child sitemaps
 
-### 20.1 Required automated checks
-
-- no duplicate URLs;
-- no non-HTTPS URL;
-- one approved origin only;
-- no relative URL;
-- no query string or fragment;
-- no trailing slash except root;
-- no redirect source or locale alias;
-- no `noindex` route;
-- no draft, scheduled, reserved, prohibited, internal, or unpublished record;
+- no duplicate within/across families;
+- no query/fragment unless explicitly approved as canonical;
+- no redirect, alias, 4xx, 5xx, noindex, private, or non-production URL;
+- no draft, scheduled-future, archived-noindex, or invalid-sync record;
 - no unsupported locale;
-- no invalid or future `lastmod`;
-- no `<priority>` or `<changefreq>`;
-- no URL count or file-size limit violation;
-- no private route or personal data pattern;
-- every static sitemap route exists in the approved route manifest;
-- every dynamic URL maps to one approved published content record;
-- deterministic output for unchanged inputs;
-- valid `robots.txt` sitemap reference;
-- non-production output contains no production sitemap URL.
+- no future/invalid/fabricated `lastmod`;
+- no `priority` or `changefreq`;
+- deterministic output;
+- one approved website record and family per URL;
+- at least one crawlable internal link.
 
-### 20.2 Cross-document checks
+### 25.3 Robots
 
-CI should compare:
+- production is not `Disallow: /`;
+- non-production is `Disallow: /` with no sitemap line;
+- production sitemap declaration matches `SITE_ORIGIN`;
+- RFQ pages are not blocked while relying on `noindex`;
+- required CSS/JS/font/image assets are crawlable;
+- wildcard rules match only intended URLs;
+- Odoo policy is tested on the Odoo host;
+- status and MIME types are correct.
 
-```text
-SITEMAP.md
-ROUTES.md
-route manifest
-content publication records
-page robots metadata
-canonical URL output
-sitemap output
-REDIRECTS.md
-```
+### 25.4 Cross-document validation
 
-The build must fail for contradictory states such as:
-
-- indexable in the sitemap but `noindex` on the page;
-- sitemap URL redirects;
-- published locale missing from the locale registry;
-- canonical points to a different URL;
-- redirect source remains in the sitemap;
-- dynamic record published without an approved page family;
-- active route missing from both the sitemap and an explicit exclusion list.
+Compare `ROUTES.md`, `SITEMAP.md`, `REDIRECTS.md`, `HREFLANG_CANONICAL.md`, `SEO_PAGE_MAP.md`, `METADATA_SPEC.md`, route manifest, locale registry, CMS/D1 records, page robots, canonicals, and sitemap output. Contradictions block deployment.
 
 ---
 
-## 21. Pre-Launch QA Procedure
+## 26. Pre-Launch QA
 
-### 21.1 File checks
+### 26.1 Direct responses
 
-- Fetch `/robots.txt` directly.
-- Fetch `/sitemap.xml` directly.
-- Confirm both return `200` on the canonical host.
-- Confirm MIME types and UTF-8 encoding.
-- Parse the sitemap as XML.
-- Verify the sitemap declared in `robots.txt` is reachable.
-- Confirm no preview or staging hostname appears.
+- fetch robots, index, and every child from the canonical host;
+- confirm `200`, MIME type, encoding, cache headers, and no redirect;
+- parse XML and verify every referenced child;
+- confirm no staging, preview, `workers.dev`, `pages.dev`, Odoo, or private R2 host appears.
 
-### 21.2 URL sampling
+### 26.2 URL sampling
 
-For every static URL and a representative sample from each dynamic family:
+For every static URL and a representative sample of every dynamic family, verify direct `200`, self-canonical, correct robots, meaningful initial HTML, locale, visible/structured-data consistency, truthful timestamp, internal link, and no live Odoo dependency.
 
-- follow zero redirects from the sitemap URL;
-- confirm final status `200`;
-- inspect rendered canonical;
-- inspect page robots metadata and `X-Robots-Tag`;
-- confirm locale and language metadata;
-- verify page identity and internal links;
-- verify `lastmod` against its source record.
+### 26.3 Exclusion sampling
 
-### 21.3 Exclusion sampling
+Explicitly verify absence of RFQ/confirmation, admin, API, account/status, preview, locale aliases, reserved languages, filters, sort/search/tracking/session URLs, invalid pagination, drafts, invalid sync records, customer prices, private attachments, signed URLs, Odoo URLs/IDs, redirects, and error pages.
 
-Explicitly confirm these are absent:
+### 26.4 Crawl comparison
 
-```text
-/request
-/request/confirmation
-/api/**
-/admin/**
-/preview/**
-/request-status/**
-/fa/** aliases
-/en/** and /ar/** while reserved
-404 and error routes
-redirect sources
-tracking URLs
-filter combinations
-draft records
-private files
-```
+Crawl from the homepage:
 
-### 21.4 Crawl simulation
-
-Run an approved crawl from the homepage and compare discovered indexable canonical URLs with the sitemap. Investigate both differences:
-
-- sitemap URLs not found through internal links may be orphaned;
-- indexable discovered URLs absent from the sitemap may be missing or accidentally generated.
-
-The expected result is a deliberate, documented relationship—not necessarily identical raw URL counts when excluded utility pages exist.
+- sitemap URLs not internally discovered are potential orphans;
+- indexable discovered URLs absent from sitemap require inclusion or documented exclusion;
+- parameter growth beyond approved patterns is a crawl-trap warning.
 
 ---
 
-## 22. Search Engine Submission and Monitoring
+## 27. Monitoring and Alerts
 
-After production launch:
+Monitor response status/latency, robots hash, counts per family, XML/size, sitemap redirects/errors/noindex, `lastmod` anomalies, D1 latency, queue backlog/retries/dead letters, Odoo sync failures, purge failures, freshness SLA, unexpected hosts/locales, Search Console reports, and faceted crawl growth.
 
-1. verify ownership of the final canonical domain property in Google Search Console;
-2. submit the absolute `/sitemap.xml` URL;
-3. confirm the sitemap is also declared in `/robots.txt`;
-4. monitor fetch status, parsing errors, submitted URLs, indexed URLs, and canonical mismatches;
-5. inspect representative core and dynamic URLs;
-6. record material sitemap issues in `CHANGELOG.md` or the project issue tracker.
+Alert immediately when:
 
-Submitting a sitemap is a hint, not proof of indexing. Do not repeatedly resubmit an unchanged sitemap as a substitute for resolving content quality, canonical, crawlability, internal-linking, or HTTP-status problems.
+- production robots becomes `Disallow: /`;
+- index becomes empty;
+- family count changes outside threshold;
+- preview, Odoo, or signed/private URL appears;
+- price sitemap exceeds freshness SLA;
+- sitemap routes fail two consecutive checks.
 
-### 22.1 Monitoring alerts
-
-Create an alert or release check for:
-
-- `/sitemap.xml` or `/robots.txt` returning non-`200`;
-- malformed XML;
-- sudden URL-count drop or spike beyond an approved threshold;
-- production origin changing unexpectedly;
-- staging host appearing in production output;
-- sitemap containing redirects, `404`, or `5xx` URLs;
-- all `lastmod` values changing at the same build;
-- robots changing to `Disallow: /` in production;
-- sitemap becoming empty.
+Exact thresholds and channels belong in the monitoring/deployment specification.
 
 ---
 
-## 23. Change Management
+## 28. Search Engine Submission
 
-The following changes require review of this document and synchronized implementation:
+1. Verify the final canonical domain property in Google Search Console.
+2. Submit only the canonical `/sitemap.xml` index.
+3. Confirm the same index is declared in robots.
+4. Monitor each child family.
+5. Inspect representative core/category/product/price/article URLs.
+6. Fix canonical, crawl, quality, and indexation causes instead of repeatedly resubmitting unchanged sitemaps.
 
-- canonical host selection or domain migration;
-- default-locale or prefix strategy change;
-- activation of English, Arabic, or another locale;
-- new public route family;
-- new CMS or content source;
-- page indexation-policy change;
-- new filter, search, pagination, or faceted-navigation system;
-- public PDF indexation;
-- sitemap segmentation;
-- crawler-specific robots rules;
-- private portal, account, supplier, admin, or request-tracking functionality;
-- major redirect migration.
-
-Every published slug change must update, in the same release:
-
-1. route record;
-2. redirect map;
-3. sitemap;
-4. canonical;
-5. hreflang mapping when applicable;
-6. structured data;
-7. internal links.
+Do not submit preview, staging, Odoo, R2, or individual children without a documented monitoring reason.
 
 ---
 
-## 24. Claude Code Execution Rules
+## 29. Change Management
 
-Claude Code must:
+Review this specification after changes to canonical host, locale routing, public route families, variant/price strategy, faceted navigation, pagination, CMS/D1 schema, Odoo mapping/sync, public files, R2 hostname, sitemap sharding, crawler policies, or account/portal/RFQ functionality.
 
-- inspect the existing repository before implementation;
-- read `SITEMAP.md`, `ROUTES.md`, `REDIRECTS.md`, `HREFLANG_CANONICAL.md`, `METADATA_SPEC.md`, and the technical architecture documents when available;
-- identify the actual Next.js version before using metadata APIs;
-- reuse the centralized route and content manifests;
-- avoid hardcoded duplicate route inventories;
-- fail safely on unknown environment, canonical origin, locale, status, or content state;
-- generate only production-approved canonical URLs;
-- add automated tests for all acceptance criteria;
-- report document conflicts instead of silently resolving them;
-- avoid publishing unsupported languages, product categories, projects, evidence, prices, supplier data, claims, or private files;
-- preserve unrelated code and user changes;
-- record material design or architecture decisions.
-
-Claude Code must not:
-
-- infer sitemap eligibility from the filesystem alone;
-- use the build time as every page's `lastmod`;
-- place every route in the sitemap;
-- use `robots.txt` as a privacy mechanism;
-- block crawlable assets required for rendering;
-- publish `/en`, `/ar`, or `/fa` duplicates without approved route changes;
-- submit or modify Search Console without explicit authorization;
-- deploy while the canonical-host decision remains unresolved.
+A slug change updates in the same release: route, redirect, sitemap, canonical, hreflang, structured data, internal links, and cache invalidation.
 
 ---
 
-## 25. Definition of Done
+## 30. Coding-Agent Rules
 
-`SITEMAP_ROBOTS_SPEC.md` is implemented when:
+The implementing agent must inspect the repository/Next.js version, read Section 3 dependencies, reuse shared route/locale/canonical data, keep Odoo behind the queue, use validated D1 records, preserve unrelated changes, implement tests, report conflicts, and record decisions.
 
-- `/sitemap.xml` and `/robots.txt` are generated by one coherent source-of-truth system;
-- the canonical origin is approved, validated, and used consistently;
-- all sitemap entries are canonical, indexable, published, approved, `200` URLs;
-- all required exclusions are absent;
-- production and non-production crawler policies are different and tested;
-- `/request` is crawlable but excluded and marked `noindex, follow`;
-- preview, draft, private, admin, API, confirmation, error, redirect, alias, and parameter URLs are excluded;
-- `lastmod` is accurate or omitted;
-- locales appear only after full activation;
-- XML and robots formats validate;
-- route, canonical, robots-meta, redirect, and sitemap states have no conflicts;
-- automated checks pass in CI;
-- manual production QA passes;
-- the production sitemap is submitted to the verified canonical-domain Search Console property;
-- monitoring is in place for critical regressions.
+It must not infer URLs from folders, enumerate Odoo automatically, create pages for every variant/filter, expose private records, use build time as every `lastmod`, emit `priority`/`changefreq`, block rendering assets, depend on Odoo at request time, or deploy before host/route decisions are resolved.
 
 ---
 
-## 26. Open Decisions
+## 31. Definition of Done
 
-| Decision | Current state | Owner | Launch impact |
+- One canonical origin is approved and validated.
+- `/sitemap.xml` indexes existing non-empty children.
+- Page/category/product/price/article and activated optional families are segmented.
+- Every URL is approved, canonical, indexable, direct `200`, and internally linked.
+- Odoo is never called during sitemap/public-page rendering.
+- Valid price changes update D1 and targeted caches.
+- Invalid sync records stay out.
+- Variants/filters cannot create uncontrolled indexable spaces.
+- RFQ, account, admin, API, private R2, and Odoo URLs are excluded.
+- Production, non-production, Odoo, and media policies are separately tested.
+- `lastmod`, locale, recovery, CI, QA, submission, and monitoring requirements pass.
+
+---
+
+## 32. Open Decisions
+
+| Decision | State | Owner | Impact |
 |---|---|---|---|
-| Canonical host: apex or `www` | TBD | Project Owner + Technical | Blocks production absolute URLs |
-| Final route alignment between all sitemap-related documents | Pending review | Project Owner + SEO | Blocks affected URLs |
-| Exact public material categories | TBD | Business + Content | Dynamic sitemap records |
-| Exact published industry pages | TBD | Business + Content | Dynamic sitemap records |
-| Verified project inventory | TBD | Project Owner | `/projects` and detail pages |
-| Launch insight/resource inventory | TBD | Content + SEO | Hub and detail eligibility |
-| Legal approval for `/privacy` and `/terms` | TBD | Legal/Project Owner | Page publication and indexation |
-| CMS and revalidation strategy | TBD | Technical | Sitemap freshness |
-| Public PDF indexation policy | TBD | SEO + Content | Header and sitemap behavior |
-| Future locale activation and hreflang method | Reserved | Project Owner + Localization + SEO | Multilingual sitemap behavior |
-| Sitemap freshness SLA after content publication | TBD | Technical + Content | Cache/revalidation behavior |
+| Canonical apex vs `www` | TBD | Owner + Technical | Blocks absolute URLs |
+| Exact category/product/price paths | Pending | SEO + Technical | Family membership |
+| Variants with unique SEO pages | TBD | SEO + Product | Page count/thin-content risk |
+| Price freshness SLA | TBD | Sales + Technical | Cache/alerts |
+| Stale/unknown price behavior | TBD | Sales + Legal | Page eligibility |
+| Deployed filter parameters | Pending UI | Technical + SEO | Robots rules |
+| Pagination policy per hub | TBD | SEO | Crawl/canonical |
+| Public PDF indexing | Default noindex | SEO + Content | R2/headers |
+| English/Arabic activation | Reserved | Owner + Localization | Hreflang/sitemaps |
+| Odoo portal entry flow | TBD | ERP + UX + Security | Crawl exposure |
+| Monitoring thresholds | TBD | Technical + SEO | Alerts |
 
-Unresolved decisions must not be filled with assumptions in production.
-
----
-
-## 27. Approval Checklist
-
-The project owner and relevant reviewers must confirm:
-
-- [ ] The canonical host is selected.
-- [ ] Persian is currently unprefixed, or an approved revised locale rule is recorded.
-- [ ] `/request` remains `noindex, follow` and excluded from the sitemap.
-- [ ] Static and dynamic eligibility rules are accepted.
-- [ ] Production `robots.txt` disallow rules match real deployed namespaces.
-- [ ] Non-production environments use authentication and global noindex controls.
-- [ ] `lastmod` fields have a reliable source.
-- [ ] Locale activation gates are accepted.
-- [ ] Private files and inquiry data can never enter public sitemap sources.
-- [ ] CI cross-checks and production monitoring have owners.
-- [ ] Search Console submission responsibility is assigned.
+Unknown decisions must not be guessed in production.
 
 ---
 
-## 28. Approval Record
+## 33. Approval Checklist
+
+- [ ] Canonical host and routes approved.
+- [ ] Product, variant, and price gates approved.
+- [ ] Persian unprefixed strategy confirmed.
+- [ ] D1 read-model fields and indexes confirmed.
+- [ ] No request-time Odoo dependency confirmed.
+- [ ] Price freshness/stale policies approved.
+- [ ] Facet parameters and robots patterns tested.
+- [ ] RFQ/account/admin/API/private-file exclusions verified.
+- [ ] Odoo and media-host policies deployed separately.
+- [ ] Non-production access control/noindex verified.
+- [ ] Cache invalidation, retry, and last-known-good behavior tested.
+- [ ] CI, smoke tests, monitoring, and Search Console owners assigned.
+
+---
+
+## 34. Official References
+
+- [Google Search Central — Build and submit a sitemap](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap)
+- [Google Search Central — Manage sitemap index files](https://developers.google.com/search/docs/crawling-indexing/sitemaps/large-sitemaps)
+- [Google Search Central — Introduction to robots.txt](https://developers.google.com/search/docs/crawling-indexing/robots/intro)
+- [Google Crawling Infrastructure — Write and submit robots.txt](https://developers.google.com/crawling/docs/robots-txt/create-robots-txt)
+- [Google Crawling Infrastructure — Robots.txt specification](https://developers.google.com/crawling/docs/robots-txt/robots-txt-spec)
+- [Google Search Central — Block indexing with noindex](https://developers.google.com/search/docs/crawling-indexing/block-indexing)
+- [Google Crawling Infrastructure — Manage faceted-navigation crawling](https://developers.google.com/crawling/docs/faceted-navigation)
+- [Google Search Central — Ecommerce URL structure](https://developers.google.com/search/docs/specialty/ecommerce/designing-a-url-structure-for-ecommerce-sites)
+- [Google Search Central — Pagination and incremental loading](https://developers.google.com/search/docs/specialty/ecommerce/pagination-and-incremental-page-loading)
+- [Google Search Central — Localized versions and hreflang](https://developers.google.com/search/docs/specialty/international/localized-versions)
+- [Sitemaps.org — Sitemap protocol](https://www.sitemaps.org/protocol.html)
+- [Next.js — Sitemap metadata convention](https://nextjs.org/docs/app/api-reference/file-conventions/metadata/sitemap)
+- [Next.js — Robots metadata convention](https://nextjs.org/docs/app/api-reference/file-conventions/metadata/robots)
+
+---
+
+## 35. Approval Record
 
 | Role | Name | Status | Date |
 |---|---|---|---|
 | Project Owner | A.M. Taleghani | Pending | — |
 | SEO Approval | TBD | Pending | — |
 | Technical Approval | TBD | Pending | — |
+| ERP/Odoo Approval | TBD | Pending | — |
 | Content/CMS Approval | TBD | Pending | — |
-| Legal/Privacy Approval | TBD | Pending | — |
-
----
-
-## 29. Official References
-
-- [Google Search Central — Build and submit a sitemap](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap)
-- [Google Search Central — Introduction to robots.txt](https://developers.google.com/search/docs/crawling-indexing/robots/intro)
-- [Google Search Central — Localized versions and hreflang](https://developers.google.com/search/docs/specialty/international/localized-versions)
-- [Sitemaps.org — Sitemap protocol](https://www.sitemaps.org/protocol.html)
-- [Next.js — `sitemap.xml` metadata convention](https://nextjs.org/docs/app/api-reference/file-conventions/metadata/sitemap)
-- [Next.js — `robots.txt` metadata convention](https://nextjs.org/docs/app/api-reference/file-conventions/metadata/robots)
+| Security/Privacy Approval | TBD | Pending | — |

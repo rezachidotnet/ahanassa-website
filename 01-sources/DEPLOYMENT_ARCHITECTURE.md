@@ -3,663 +3,819 @@
 **Document:** `DEPLOYMENT_ARCHITECTURE.md`  
 **Project:** Ahan Asa (`ahanassa.com`)  
 **Status:** Approved baseline for implementation  
-**Last updated:** 2026-08-25  
-**Primary stack:** Next.js App Router, TypeScript, Vercel, Cloudflare DNS  
-**Related documents:** `TECHNICAL_ARCHITECTURE.md`, `STACK.md`, `CACHING_STRATEGY.md`, `ENVIRONMENT_VARIABLES.md`, `SECURITY_GUIDELINES.md`, `PRE_DEPLOY_CHECKLIST.md`, `POST_DEPLOY_CHECKLIST.md`
+**Last updated:** 2026-08-26  
+**Primary platform:** Next.js App Router on Cloudflare Workers + Static Assets  
+**Commercial system of record:** Odoo at `https://odoo.ahanassa.com`  
+**Governing documents:** `DECISIONS.md`, `SYSTEM_OF_RECORD.md`, `SECURITY_GUIDELINES.md`  
+**Related documents:** `STACK.md`, `TECHNICAL_ARCHITECTURE.md`, `DATA_ARCHITECTURE.md`, `DATABASE_SCHEMA.md`, `ODOO_INTEGRATION.md`, `SYNC_STRATEGY.md`, `FAILURE_RECOVERY.md`, `CACHING_STRATEGY.md`, `PERFORMANCE_BUDGET.md`, `ENVIRONMENT_VARIABLES.md`, `TESTING_STRATEGY.md`, `PRE_DEPLOY_CHECKLIST.md`, `POST_DEPLOY_CHECKLIST.md`
 
 ---
 
-## 1. Purpose
+## 1. Purpose and Precedence
 
-This document defines how the Ahan Asa website is built, validated, released, hosted, observed, rolled back, and recovered. It is the source of truth for deployment decisions and must be read before changing domains, environments, build commands, hosting settings, CI checks, caching, or release workflows.
+This document defines how Ahan Asa is built, validated, released, hosted, observed, rolled back, and recovered. It replaces the former Vercel deployment baseline.
 
 The deployment must remain:
 
-- Repeatable: every release comes from a traceable Git commit.
-- Reversible: production can be restored to a known-good deployment quickly.
-- Isolated: development, preview, and production data and secrets never mix.
-- Secure: secrets stay server-side and production access follows least privilege.
-- Observable: a release is not complete until automated and manual checks pass.
-- Search-safe: canonical hosts, redirects, robots directives, and sitemaps remain correct.
+- **Cloudflare-native:** application runtime, static assets, data, files, queues, bot protection, access control, and observability use the Cloudflare platform.
+- **Edge-first:** public responses are served at the edge and never wait for Odoo.
+- **Static-first:** indexable routes return useful HTML initially and ship minimal client JavaScript.
+- **Durable:** an RFQ is committed before ERP delivery is attempted.
+- **Traceable:** every release maps to a reviewed Git commit and immutable Worker version.
+- **Reversible:** code can return to a known-good Worker version without assuming data or bindings also roll back.
+- **Isolated:** local, preview, and production data, credentials, and effects never mix.
+- **Search-safe:** canonical host, redirects, status codes, robots, sitemap, metadata, links, and structured data are release gates.
+
+`MUST`, `MUST NOT`, `SHOULD`, and `MAY` are normative. `DECISIONS.md` and `SYSTEM_OF_RECORD.md` take precedence if a conflict exists; this file must then be corrected in the same change.
 
 ---
 
-## 2. Architecture Decision Summary
+## 2. Approved Decisions
 
 | Area | Decision |
 | --- | --- |
-| Source control | Git repository with a protected `main` branch |
-| Hosting and runtime | Vercel, using the native Next.js runtime |
-| DNS authority | Cloudflare |
-| Web DNS mode | **DNS-only** for Vercel-bound apex and `www` records unless a documented exception is approved |
-| Canonical production URL | `https://www.ahanassa.com` |
-| Apex behavior | `https://ahanassa.com/*` permanently redirects to `https://www.ahanassa.com/*` with path and query preserved |
-| Production trigger | Merge or push to protected `main` after required checks pass |
-| Preview trigger | Every pull request and non-production branch |
-| Local environment | Developer machine only; never publicly indexed |
-| Rendering strategy | Static-first; dynamic runtime only where a feature explicitly requires it |
-| Release unit | Immutable Vercel deployment linked to a Git commit SHA |
-| Rollback | Promote or roll back to the last verified production deployment |
-| Package manager | Use the repository lockfile; exactly one package manager is permitted |
-| Node.js version | Pinned in the repository and aligned with the selected Vercel runtime |
-| Infrastructure changes | Reviewed and documented; never performed as an untracked dashboard-only experiment |
+| Source control | Git repository with protected `main` |
+| CI/CD | GitHub Actions with repository scripts and pinned Wrangler |
+| Hosting | Cloudflare Workers with Static Assets |
+| Next.js path | `vinext`, subject to Section 8 compatibility gate |
+| Fallback | OpenNext only for a documented `vinext` blocker |
+| Canonical URL | `https://www.ahanassa.com` |
+| Apex URL | Permanent redirect to matching `www` URL; path/query preserved |
+| Public runtime | Dedicated web Worker |
+| ERP sync | Separate queue-consumer/integration Worker |
+| Public read model | D1 binding `DB_PUBLIC` |
+| Operational/PII data | Separate D1 binding `DB_OPS` |
+| Public media | R2 binding `R2_PUBLIC_MEDIA` |
+| Private RFQ files | Separate R2 binding `R2_PRIVATE_RFQ` |
+| Async integration | Cloudflare Queue with retry and Dead Letter Queue |
+| Abuse protection | Turnstile, rate limiting, server validation |
+| Admin protection | Cloudflare Access plus application authorization |
+| Odoo endpoint | `https://odoo.ahanassa.com`, server-to-server only |
+| Commercial source of truth | Odoo: customers, CRM, products, variants, UOM, prices, quotations, sales, inventory, purchasing, accounting |
+| Website source of truth | Articles, SEO/presentation, RFQ capture, public read model, media references |
+| Production trigger | Reviewed merge to protected `main`, followed by deployment gates |
+| Preview | Versioned Worker preview URL for each reviewed change |
+| Release unit | Immutable Worker version plus release manifest |
+| Rollback | Roll back affected Worker; recover data separately |
+| Infrastructure | Wrangler config, migrations, scripts, and documented platform settings are version-controlled |
 
-### Important Cloudflare boundary
+### Superseded baseline
 
-Cloudflare remains the authoritative DNS provider. The normal web path uses DNS-only records so Vercel directly terminates requests and retains its native firewall, CDN, deployment protection, and request visibility. Cloudflare proxying in front of Vercel is a controlled exception because an additional reverse proxy can change firewall behavior, caching, client-IP handling, certificate troubleshooting, and incident diagnosis.
-
-If Cloudflare proxying is later required for a specific business or security reason, record the reason in `DECISIONS.md`, define the cache bypass rules in `CACHING_STRATEGY.md`, and complete the exception tests in Section 15 before enabling it.
+Vercel hosting, Vercel previews/promotions/rollbacks, DNS-only web records pointing to Vercel, and synchronous public Odoo reads are no longer approved.
 
 ---
 
-## 3. Deployment Topology
+## 3. Target Topology
 
 ```mermaid
 flowchart TD
-    U["Visitor"] --> DNS["Cloudflare DNS"]
-    DNS --> EDGE["Vercel Edge Network"]
-    EDGE --> APP["Next.js Application"]
-    APP --> STATIC["Static assets and generated pages"]
-    APP --> API["Approved server routes and integrations"]
-    GIT["Git repository"] --> CI["Checks and build"]
-    CI --> PREVIEW["Preview deployment"]
-    CI --> PROD["Production deployment"]
-    PREVIEW --> EDGE
-    PROD --> EDGE
+    VISITOR["Visitor or crawler"] --> EDGE["Cloudflare DNS, TLS, WAF and cache"]
+    OPERATOR["Authorized operator"] --> ACCESS["Cloudflare Access"]
+    ACCESS --> WEB["Ahan Asa web Worker"]
+    EDGE --> WEB
+    WEB --> DATA["D1 public and ops data"]
+    WEB --> FILES["R2 public and private files"]
+    WEB --> QUEUE["Odoo sync queue"]
+    QUEUE --> SYNC["Odoo integration Worker"]
+    SYNC --> ODOO["odoo.ahanassa.com"]
+    SYNC --> DLQ["Dead Letter Queue"]
 ```
 
-### Request path
+### Public request boundary
 
-1. The browser resolves `ahanassa.com` or `www.ahanassa.com` through Cloudflare DNS.
-2. DNS returns the Vercel-configured target.
-3. Vercel terminates TLS, applies its edge controls, resolves the active deployment, and serves cached/static content or invokes the required Next.js runtime.
-4. The application contacts only allow-listed external services from server-side code where possible.
-5. Responses include the security, cache, canonical, and locale headers or metadata defined in the related specifications.
+Approved:
 
-Cloudflare Workers, Cloudflare Pages, a custom reverse proxy, and a separate container platform are **not** part of the baseline architecture.
+```text
+Visitor → Cloudflare Edge → Web Worker / Static Asset → D1 or R2 → Response
+```
+
+Prohibited:
+
+```text
+Visitor → Web Worker → Odoo → Response
+```
+
+Public pages, price/catalog routes, SEO output, and form acknowledgements must remain available when Odoo is slow, restarting, upgrading, or unavailable.
+
+### RFQ durability boundary
+
+```text
+Validate
+  ↓
+Commit RFQ and items to DB_OPS
+  ↓
+Confirm private R2 attachments
+  ↓
+Publish idempotent queue event
+  ↓
+Return RFQ reference
+  ↓
+Integration Worker sends to Odoo asynchronously
+```
+
+If D1 commit and queue publication cannot be atomic, use a transactional outbox in `DB_OPS`. A dispatcher publishes unsent records. The site must never return success for an RFQ held only in memory.
 
 ---
 
-## 4. Environments
+## 4. Deployable Units and Resources
 
-| Environment | Source | URL | Data and integrations | Indexing | Purpose |
+### 4.1 Web Worker: `ahanassa-web`
+
+Responsibilities:
+
+- Next.js pages, layouts, metadata, route handlers, and server actions;
+- Static Assets delivery;
+- public catalog, article, product, and price reads;
+- `/admin` UI and protected website-owned mutations;
+- RFQ validation, durable capture, upload authorization, and queue production;
+- sitemap, robots, redirects, canonical enforcement, health responses, Turnstile, rate controls, and cache policy.
+
+The web Worker must not contain Odoo credentials or call Odoo directly. It emits typed integration events only.
+
+### 4.2 Integration Worker: `ahanassa-odoo-sync`
+
+Responsibilities:
+
+- consume website-to-Odoo events;
+- call Odoo through the typed adapter in `ODOO_INTEGRATION.md`;
+- enforce idempotency using stable external/event keys;
+- map website entities to Odoo models;
+- write sync status and Odoo IDs to `DB_OPS`;
+- reconcile allowed products, units, prices, availability, and status fields from Odoo;
+- update the public read model and trigger targeted invalidation;
+- route terminal failures to the DLQ with sanitized diagnostics.
+
+It deploys and rolls back independently from the web Worker.
+
+### 4.3 Data resources
+
+| Binding | Purpose | Public cache | PII |
+| --- | --- | --- | --- |
+| `DB_PUBLIC` | Published articles, catalog/SEO read model, public prices/history | Via approved responses only | No |
+| `DB_OPS` | RFQs/items, contact data, outbox, sync state, audit logs | Never | Yes |
+| `R2_PUBLIC_MEDIA` | Approved public media/documents | Yes | No |
+| `R2_PRIVATE_RFQ` | Customer Excel/PDF/image attachments | Never | Potentially |
+| `ODOO_SYNC_QUEUE` | Integration commands/events | N/A | Minimized payload |
+| `ODOO_SYNC_DLQ` | Events exceeding retry policy | N/A | Minimized, restricted |
+
+D1 is never browser-accessible. All reads/writes pass through authorized Worker code.
+
+### 4.4 Platform services
+
+- Cloudflare DNS and managed TLS;
+- Workers Static Assets and edge cache;
+- Turnstile, Access, WAF/rate limiting according to the plan;
+- Workers Logs, metrics, traces, and alert export;
+- D1 Time Travel and validated exports;
+- Cron Triggers for reconciliation, outbox recovery, and maintenance.
+
+Actual IDs, resource names, account/zone IDs, routes, and secrets are resolved from the approved account and recorded in the private deployment inventory—not guessed or hard-coded here.
+
+---
+
+## 5. Domain, Routes, and TLS
+
+| Host | Owner | Behavior |
+| --- | --- | --- |
+| `www.ahanassa.com` | Web Worker custom domain | Canonical production site |
+| `ahanassa.com` | Redirect rule or minimal redirect Worker | `301`/`308` to matching `www` URL |
+| `odoo.ahanassa.com` | Odoo infrastructure | ERP only; excluded from website Worker routes |
+| Versioned `workers.dev` URLs | Workers | Protected, non-indexable preview only |
+
+The web Worker must never use a wildcard route that captures `odoo.ahanassa.com`.
+
+These must converge without loops and preserve path/query:
+
+```text
+http://ahanassa.com/path?x=1
+https://ahanassa.com/path?x=1
+http://www.ahanassa.com/path?x=1
+https://www.ahanassa.com/path?x=1
+
+→ https://www.ahanassa.com/path?x=1
+```
+
+Host normalization should occur at the edge before rendering. The application generates only production-`www` canonical, Open Graph, hreflang, sitemap, structured-data, and absolute internal URLs.
+
+TLS requirements:
+
+- strict end-to-end TLS for proxied origin subdomains;
+- live verification of certificate and security headers;
+- HSTS only after all required subdomains are HTTPS-safe;
+- `includeSubDomains` and preload require separate approval;
+- preview URLs never appear in production canonical or asset URLs.
+
+---
+
+## 6. Environments and Isolation
+
+| Environment | Runtime | Resources | Odoo | Indexing | Effects |
 | --- | --- | --- | --- | --- | --- |
-| Local | Developer branch | `http://localhost:3000` | Mock, sandbox, or explicitly approved development services | Not applicable | Implementation and local testing |
-| Preview | Pull request or feature branch | Vercel-generated preview URL | Sandbox/test integrations only | Must be blocked from indexing | Review, QA, and stakeholder approval |
-| Production | Protected `main` | `https://www.ahanassa.com` | Production integrations only | Indexable according to SEO specifications | Public website |
+| Local | Local Vite/`workerd` | Local emulation or disposable development | Mock/sandbox | N/A | Disabled by default |
+| Preview | Immutable version URL | Non-production D1, R2, queue, Turnstile, secrets | Test database only | Access + `noindex, nofollow` | Test-only |
+| Production | `www.ahanassa.com` | Production bindings/secrets | Production Odoo | Page policy | Real |
 
-### Environment isolation rules
+Rules:
 
-- Production credentials must never be available to local or preview builds unless a service has no safe sandbox and the exception is approved.
-- Preview must not send real customer notifications, create real CRM leads, charge payments, or modify production records.
-- Preview URLs must emit `noindex, nofollow` and should use Vercel deployment protection when stakeholder access permits it.
-- `NEXT_PUBLIC_*` values are public by design and must never contain credentials or sensitive identifiers.
-- A value required by browser code and a server secret must be treated as two different configuration classes.
-- Environment variables are managed in the hosting environment; `.env*` files containing secrets are never committed.
-
-The authoritative variable inventory, owners, validation rules, and rotation policy belong in `ENVIRONMENT_VARIABLES.md`.
-
----
-
-## 5. Git and Release Model
-
-### Branches
-
-- `main`: production branch; protected; always expected to be deployable.
-- Feature branches: short-lived branches named by task, for example `feat/rfq-form` or `fix/mobile-navigation`.
-- Emergency fixes: branch from the current production commit, validate through preview, then merge normally unless the incident commander approves an expedited path.
-
-Long-lived `develop` or `staging` branches are not required for the baseline. If a permanent staging environment becomes necessary, introduce it through an architecture decision rather than overloading preview.
-
-### Required pull-request controls
-
-- At least one qualified review for application or infrastructure changes.
-- No direct pushes to `main` except an audited emergency procedure.
-- Required status checks must pass before merge.
-- The pull request must state user impact, test evidence, SEO impact, configuration changes, and rollback considerations.
-- Generated files, dependency lockfile changes, migrations, and environment-variable changes must be explicitly called out.
-- The merge commit or squash commit must describe the released behavior, not only the internal task name.
-
-### Release identity
-
-Every production release must be traceable to:
-
-- Git commit SHA;
-- pull request or approved change record;
-- build logs;
-- Vercel deployment identifier and URL;
-- release timestamp;
-- responsible person;
-- post-deployment verification result.
+- Production and non-production D1, R2, queues, secrets, Turnstile, Access policies, and Odoo credentials are distinct.
+- Preview never writes to production Odoo, sends real customer notifications, or publishes production content.
+- If previews share non-production resources, mutable records carry a preview scope and destructive tests use disposable data.
+- Preview uses Access and `X-Robots-Tag: noindex, nofollow` as defense in depth.
+- Local development uses either `.dev.vars` or `.env`, never both; neither is committed.
+- Cloudflare `vars` contain non-secret configuration only. Credentials use Workers Secrets.
+- Required secret names are declared so upload/deployment fails when configuration is incomplete.
+- A permanent staging host is not required initially. Add one only for a stable callback/business QA need, with fully isolated resources.
 
 ---
 
-## 6. Build Contract
+## 7. Configuration as Code
 
-The repository is the source of build truth. Dashboard settings may supply secrets and project bindings, but must not silently replace repository behavior.
+Git is the source of truth for deployable behavior.
 
-### Required scripts
+Version-controlled:
 
-The exact package manager is determined by the committed lockfile. The following logical commands must exist, even if the script names vary by an approved repository convention:
+- web and integration source;
+- exactly one lockfile;
+- pinned Node.js, Next.js, React, `vinext`, Vite, and Wrangler versions/ranges;
+- one Wrangler configuration format;
+- binding names without secrets;
+- D1 migrations;
+- queue retry/DLQ settings and Cron schedules;
+- code-owned headers, redirects, and cache behavior;
+- CI workflows, tests, health checks, and release-manifest schema.
 
-```json
-{
-  "scripts": {
-    "dev": "next dev",
-    "lint": "next lint",
-    "typecheck": "tsc --noEmit",
-    "test": "<project test command>",
-    "build": "next build",
-    "start": "next start"
-  }
-}
+Documented when platform-owned:
+
+- DNS/custom domains;
+- Access, WAF/rate-limit, zone redirect/cache rules;
+- alert destinations and log export;
+- API-token scopes/owners, never token values.
+
+Dashboard-only production experiments are prohibited. Emergency platform changes are logged immediately and reconciled with the repository/inventory after the incident.
+
+The Worker `compatibility_date` is pinned. Advancing it is a runtime upgrade requiring preview tests, integration tests, and rollback planning.
+
+---
+
+## 8. Next.js Runtime and Adapter Gate
+
+Cloudflare recommends `vinext` for new Next.js applications on Workers, but it is beta. Adoption is conditional.
+
+Baseline:
+
+- Next.js App Router and TypeScript remain the application contract.
+- `vinext` is the preferred Workers path for this new project.
+- Generated configuration/build scripts are reviewed and pinned.
+- Cloudflare bindings are imported only in server-side modules.
+- Browser/server boundaries remain explicit.
+
+Bootstrap gate:
+
+1. Pin intended Next.js, React, Vite, `vinext`, and Wrangler versions.
+2. Run the official `vinext` compatibility check.
+3. Build/run with the production-compatible Workers runtime.
+4. Verify App Router metadata, RSC, server actions, route handlers, middleware/proxy behavior, streaming, images, fonts, D1, R2, Queue production, Turnstile, and error boundaries.
+5. Run smoke/E2E tests on a versioned preview URL.
+6. Record approved versions and results in `DECISIONS.md` and `STACK.md`.
+
+If a required compatibility gap remains, stop. OpenNext requires a recorded decision with the blocker, pinned version, test evidence, migration path back to `vinext`, and operational differences. Pages static export is not the full-stack baseline.
+
+Runtime constraints:
+
+- Prefer Workers/Web APIs.
+- Enable Node compatibility/polyfills only for audited dependencies.
+- Native modules, filesystem assumptions, long-lived processes, or unsupported Node APIs block release.
+- Long ERP/file/reconciliation work never runs in a visitor request.
+- CI checks Worker bundle/runtime limits for the active plan.
+
+---
+
+## 9. Rendering and Route Classes
+
+| Route class | Rendering | Cache | Live Odoo |
+| --- | --- | --- | --- |
+| Home/marketing | Static or edge-cached HTML | Long/event invalidated | Never |
+| Category/product SEO | Static or edge-cached from `DB_PUBLIC` | Event invalidation + safety TTL | Never |
+| Articles/resources | Static or controlled revalidation | Approved SWR | Never |
+| Public prices | Cached dynamic HTML/read API from `DB_PUBLIC` | Short freshness TTL | Never |
+| Search/filter | Server initial result + client enhancement | Query allowlist | Never |
+| RFQ/contact | HTML-first interactive form | Mutation/state: `no-store` | Queue only |
+| Admin/auth | Dynamic | `private, no-store` | No browser-to-Odoo |
+| Upload authorization | Dynamic | `no-store` | Never |
+| Sitemap/robots | Build/server generated | Explicit short cache | Never |
+| Health | Minimal dynamic | `no-store` | No sensitive checks |
+
+Indexable pages must expose meaningful content, title, description, canonical, headings, crawlable links, and applicable structured data in initial HTML. Client JavaScript is limited to interactive islands such as RFQ rows, filters, search, calculators, and navigation.
+
+---
+
+## 10. Git and Release Governance
+
+Branches:
+
+- `main`: protected production branch; always deployable.
+- Short-lived feature/fix branches: versioned previews.
+- Emergency fixes: branch from active production commit and use an audited expedited path.
+
+Pull-request controls:
+
+- qualified review for app, schema, security, SEO, or infrastructure changes;
+- no direct pushes to `main` except documented emergency procedure;
+- required checks pass before merge;
+- PR states user impact, units affected, bindings/config, migrations, Odoo/SEO impact, evidence, and rollback;
+- dependency, lockfile, adapter, compatibility-date, route, secret-name, queue, Cron, DNS, Access, WAF, and cache changes are explicit.
+
+Each production release record contains:
+
+- commit SHA and PR;
+- web/integration Worker version IDs;
+- timestamp/operator and pinned tools;
+- configuration hash and D1 migration IDs;
+- changed bindings, queues, Cron, routes, DNS, Access, WAF, or cache rules;
+- preview URL/test evidence;
+- rollout stages and observation;
+- known-good rollback versions;
+- post-deploy result.
+
+---
+
+## 11. CI/CD Pipeline
+
+GitHub Actions orchestrates deployment. Cloudflare credentials use a protected environment and least-privilege token. Actions are pinned per repository policy.
+
+### Pull request
+
+1. Check out exact commit and frozen-lockfile install.
+2. Validate configuration/required secret names without values.
+3. Run format, lint, typecheck, unit, and component tests.
+4. Apply D1 migrations to local/disposable data and run schema tests.
+5. Build both Workers with production-compatible tooling.
+6. Check bundle/runtime limits.
+7. Run route, metadata, canonical, structured-data, robots, sitemap, links, accessibility, and security checks.
+8. Upload immutable Worker versions without production traffic.
+9. Run smoke/E2E against versioned preview URLs.
+10. Verify Access protection, `noindex`, and no production external effects.
+11. Publish evidence to the PR.
+
+### Production
+
+1. Re-run deterministic gates from merged `main`.
+2. Confirm production bindings, custom domains, secrets, queues, consumers, and Cron targets.
+3. Record current known-good Worker versions and configuration.
+4. Confirm D1 recovery and record pre-migration time.
+5. Apply reviewed backward-compatible expand migrations.
+6. Upload new Worker versions without traffic.
+7. Run non-destructive preview checks with production-equivalent bindings.
+8. Deploy the integration Worker independently if changed; verify queue health.
+9. Roll out the web Worker through approved stages where compatible.
+10. Gate each stage on errors, latency, RFQ success, queue/DLQ, cache, and synthetics.
+11. Promote to 100%, verify SEO/security/performance/business flows, and record release.
+
+Suggested normal rollout:
+
+```text
+Version preview → 5% → 25% → 100%
 ```
 
-If the installed Next.js version does not provide `next lint`, use the repository's ESLint command. Claude Code must inspect the installed version and existing scripts before modifying this block.
+Use atomic release when parallel versions are unsafe (for example, incompatible schema/event contracts), and record why. Enable version affinity when multi-request journeys could switch versions.
 
-### Pinned inputs
+Authentication rules:
 
-- Commit exactly one lockfile.
-- Pin the Node.js major version using the repository's approved mechanism.
-- Do not use `latest` as a production dependency strategy.
-- Dependency upgrades require a separate review when they affect Next.js, React, authentication, forms, analytics, image processing, or deployment adapters.
-- CI and Vercel must use the same package manager and compatible Node.js version.
+- dedicated Cloudflare API token, never a global key;
+- minimum account/zone/resource permissions;
+- preview lacks production deployment authority;
+- production requires protected-environment approval;
+- Odoo credentials exist only in the integration Worker;
+- secrets are never printed, artifacted, source-mapped, or sent to preview.
 
-### Build-time validation order
-
-1. Install dependencies with the frozen-lockfile mode.
-2. Validate required environment-variable names without printing their values.
-3. Run formatting verification if configured.
-4. Run linting.
-5. Run TypeScript checking.
-6. Run unit and component tests.
-7. Build the production application.
-8. Run route, metadata, internal-link, and generated-file checks.
-9. Deploy an immutable preview.
-10. Run smoke and end-to-end tests against that preview.
-
-No setting may suppress TypeScript or ESLint build errors merely to make deployment succeed. Fix the defect or document a narrowly scoped, reviewed exception.
+Manual production deploy from an uncommitted local tree is prohibited.
 
 ---
 
-## 7. Rendering and Runtime Strategy
+## 12. D1 Schema Deployment
 
-The site is static-first because Ahan Asa is initially a marketing and procurement website. Choose the least complex runtime that satisfies each route.
+D1 changes are committed, append-only migrations after production use.
 
-| Route type | Preferred behavior | Notes |
-| --- | --- | --- |
-| Marketing pages | Static generation | Rebuild on content release |
-| Articles and resources | Static generation or controlled revalidation | Revalidation policy belongs in the caching specification |
-| RFQ/contact interface | Static UI plus secure server endpoint | Validate server-side; apply abuse controls |
-| Sitemap and robots | Generated from the canonical route inventory | Must vary correctly by environment |
-| Health endpoint | Lightweight dynamic or static response | Must not disclose secrets or internal topology |
-| Admin/CMS | Separate protected service if introduced | Never expose an improvised public admin route |
+Rules:
 
-Do not enable a full static export (`output: "export"`) unless every required Next.js feature and integration is compatible with it. Native Vercel static generation is sufficient for a static-first site and preserves the option to add secure route handlers later.
+- Test every migration locally and on production-like non-production data.
+- Use explicit named environment and exact database binding.
+- Destructive SQL, large backfills, or rewrites require recovery rehearsal.
+- Do not assume success until CI verifies schema/application compatibility.
+- Public health responses never disclose schema detail.
 
-Runtime selection rules:
+Use expand–migrate–contract:
 
-- Prefer the default supported runtime.
-- Use edge runtime only when a measured requirement justifies it and all dependencies are compatible.
-- Set function duration and regional behavior deliberately for external integrations.
-- Never perform long-running procurement, document-generation, or batch work inside a user-facing request. Queue such work when it is introduced.
+1. **Expand:** add nullable columns/tables/indexes; remove nothing.
+2. **Compatible code:** tolerate old/new schema and dual-write only when required.
+3. **Backfill:** bounded batches outside visitor requests.
+4. **Switch:** make new path authoritative after validation.
+5. **Contract:** remove old fields in a later release after rollback window.
+
+Worker rollback does not roll back D1. A migration applied before gradual rollout must remain compatible with the previous Worker.
+
+Recovery:
+
+- D1 Time Travel is the primary point-in-time mechanism; verify actual plan retention before launch.
+- Record pre-migration timestamp/bookmark and migration list.
+- High-risk changes also require a validated export or restore rehearsal.
+- Point-in-time restore requires technical/data-owner approval because it can discard valid later writes.
+- Recover `DB_PUBLIC` and `DB_OPS` independently.
 
 ---
 
-## 8. Vercel Project Configuration
+## 13. Odoo Integration Deployment
 
-### Project binding
+Odoo is commercial truth, not part of public rendering. Only the integration Worker uses the typed adapter.
 
-- One Vercel project maps to the Ahan Asa production website.
-- The correct Git repository is connected directly to that project.
-- Production branch is `main`.
-- Framework preset is Next.js unless an explicit repository configuration requires otherwise.
-- Root directory remains the repository root unless the project becomes a reviewed monorepo.
-- Build and install commands use framework defaults unless the repository defines intentional overrides.
+The Odoo version/modules must be recorded before production. For Odoo 19, JSON-2 is preferred. Other versions/custom modules may require another adapter; browser/web Worker code remains protocol-independent.
 
-### Deployment behavior
+Requirements:
 
-- Each pull request creates an isolated preview deployment.
-- Merging to `main` creates a production candidate.
-- Production is considered released only after verification, even if traffic has already moved to the deployment.
-- Unverified deployments must not be manually promoted.
-- Deployment retention must preserve enough verified releases to support the rollback objective in Section 12.
+- dedicated least-privilege Odoo bot user;
+- API key only in integration Worker secrets;
+- allow-listed base URL and explicit database;
+- validated TLS; no insecure bypass;
+- timeouts, bounded retries/backoff, circuit breaking;
+- stable versioned event schema;
+- unique idempotency key for each RFQ/command;
+- external-ID lookup before create;
+- no full files, secrets, or raw sensitive Odoo responses in queues/logs;
+- contract tests against non-production Odoo.
 
-### Configuration-as-code rule
+Event changes:
 
-Use `vercel.json` only for behavior that cannot be expressed more clearly in Next.js configuration or code. Do not duplicate redirects, headers, or rewrites across `next.config.*`, middleware/proxy files, Cloudflare rules, and Vercel settings. Each rule has one owner.
+1. Deploy consumer accepting old/new event versions.
+2. Verify queue/DLQ health.
+3. Deploy producer emitting new version.
+4. Drain/expire old messages.
+5. Remove old support in a later release.
 
-Rule ownership:
+Cloudflare Queues provides at-least-once delivery, not an exactly-once business guarantee. Consumers must therefore remain idempotent under retry, redelivery, timeout, and manual replay.
 
-| Concern | Primary owner |
+If Odoo is unavailable, RFQ capture stays active. Queue retries; terminal events enter `ODOO_SYNC_DLQ` and alert operations. A customer never needs to resubmit a successfully accepted RFQ.
+
+Scheduled reconciliation may sync approved products, variants, UOM, public prices/timestamps, availability labels, and RFQ status fields. It writes D1 then invalidates targeted cache; public pages never render from the live Odoo response.
+
+---
+
+## 14. Cache and Invalidation
+
+`CACHING_STRATEGY.md` owns TTLs. Deployment enforces boundaries:
+
+- hashed assets: immutable long cache;
+- public HTML/read APIs: explicit allowlist only;
+- articles/evergreen content: event invalidation plus approved SWR;
+- public prices: short freshness window and visible `updated_at`;
+- admin, auth, RFQ, upload, preview, webhook, personalized, mutation, and errors: `no-store`;
+- authorization/cookies prevent public caching;
+- query parameters normalized; unapproved filter URLs neither cached nor indexed.
+
+Worker versions use independent caches. CI warms only critical allowlisted routes. Publication/price sync invalidates affected product/category/article/price keys or tags. TTL is a safety net. Full-zone purge is an incident action. Rollback verifies both code version and content freshness.
+
+---
+
+## 15. Security and Data Protection
+
+- Individual accounts and MFA for GitHub, Cloudflare, registrar, and Odoo admin.
+- No shared human credentials; at least two authorized recovery owners.
+- Production approval is separate from code review.
+- Access protects `/admin`; application roles remain mandatory.
+- Service tokens are machine-only.
+- Secrets never appear in Git, Wrangler config, issues, chat, logs, analytics, client bundles, or `NEXT_PUBLIC_*` values.
+- Secret names/owners/rotation are inventoried in `ENVIRONMENT_VARIABLES.md`.
+- `DB_PUBLIC` contains no PII or operational secrets.
+- `DB_OPS` and `R2_PRIVATE_RFQ` responses are never edge-cached.
+- Private objects require short-lived purpose-bound authorization or authorized Worker streaming.
+- Upload type, size, count, and content policy is server-enforced.
+- Queue messages reference files and minimize fields; logs use IDs and redaction.
+- Suspected exposure triggers revoke, rotate, redeploy, audit, and session/token invalidation.
+
+DNS, routes, domains, Access, WAF, cache rules, D1 recovery, R2, queues, Cron, secrets, and Odoo permissions are production mutations requiring exact target, verification, and rollback/recovery.
+
+---
+
+## 16. Observability and Release Gates
+
+Enable Workers Observability for both Workers with structured correlation IDs.
+
+| Area | Required signals |
 | --- | --- |
-| Application redirects and rewrites | Next.js configuration or application routing |
-| Apex-to-`www` domain redirect | Vercel domain configuration |
-| DNS records | Cloudflare DNS |
-| Page metadata and canonical URLs | Next.js metadata implementation |
-| Static asset caching | Next.js/Vercel defaults plus `CACHING_STRATEGY.md` |
-| Security headers | One reviewed application or platform configuration layer |
-| Legacy URL map | `REDIRECTS.md` and its generated implementation |
+| Web | volume, status, exceptions, CPU/wall time, latency, cache status |
+| SEO/static | key-route availability, canonical, robots, sitemap, metadata/schema |
+| RFQ | accepted, rejected, duplicate, persistence/attachment/queue failure, outbox age |
+| Queue | backlog, oldest age, retries, consumer errors, DLQ |
+| Odoo | latency, timeout/auth/error, sync lag, reconciliation drift |
+| D1/R2 | query/object errors, latency, migration version, growth |
+| Security | Turnstile, rate limits, Access denials, WAF events |
+| Experience | field CWV, synthetic TTFB/LCP, client errors, conversion health |
+
+Structured fields:
+
+```text
+timestamp, environment, worker_name, worker_version, release_sha,
+request_id/event_id, route_class/event_type, result, duration, error_code
+```
+
+Never log names, phone/email/address, attachment bodies, API keys, authorization headers, or raw sensitive Odoo responses.
+
+Priorities:
+
+- **P1:** site unavailable, RFQ cannot be durably accepted, suspected breach, widespread wrong prices.
+- **P2:** Odoo sync stalled, queue age/backlog growing, DLQ event, admin unavailable, elevated `5xx`.
+- **P3:** performance/cache regression, reconciliation drift, sitemap/metadata defect without outage.
+
+Ordinary releases require at least 30 minutes active observation after 100%. Runtime, schema, queue, Odoo, DNS, route, cache, or security changes use a longer PR-defined window.
 
 ---
 
-## 9. Domain, DNS, TLS, and Redirects
+## 17. Rollback and Failure Recovery
 
-### Target state
+Targets:
 
-| Host | Purpose | Behavior |
-| --- | --- | --- |
-| `www.ahanassa.com` | Canonical production host | Serves the active Vercel production deployment |
-| `ahanassa.com` | Apex alias | Permanent redirect to the matching `www` URL |
-| Vercel preview domains | QA only | Non-indexable and not canonical |
+- begin rollback within 10 minutes of confirmed release-caused critical incident;
+- restore known-good application within 30 minutes when Cloudflare is operational;
+- preserve every RFQ that received a success reference.
 
-### DNS procedure
+These are internal targets, not contractual SLAs.
 
-1. Add both apex and `www` domains to the correct Vercel project.
-2. Read the exact DNS targets shown by Vercel; do not copy stale values from another project.
-3. Create the required records in Cloudflare DNS.
-4. Keep Vercel-bound web records DNS-only by default.
-5. Remove conflicting `A`, `AAAA`, or `CNAME` records.
-6. Wait for Vercel domain verification and certificate issuance.
-7. Configure `www.ahanassa.com` as the primary domain.
-8. Configure the apex to redirect to `www`, preserving path and query parameters.
-9. Verify HTTP and HTTPS behavior for both hosts.
+**Critical boundary:** Worker rollback changes code only. It does not roll back D1, R2, queues, secrets, routes, custom domains, Cron, DNS, Access, WAF, or bindings.
 
-Do not hard-code example Vercel IP addresses or CNAME targets in this document because Vercel provides the project-specific required values.
+Web rollback:
 
-### Redirect contract
+1. Declare incident and freeze unrelated changes.
+2. Stop rollout or route 100% to verified version.
+3. Confirm compatibility with current schema/bindings.
+4. Execute approved rollback.
+5. Verify host, pages, RFQ, assets/cache, robots/sitemap, and headers.
+6. Monitor and retain failed version/evidence.
 
-All of these must resolve in at most one canonical redirect after the HTTP-to-HTTPS hop controlled by the platform:
+Integration rollback/pause:
 
-- `http://ahanassa.com/example?x=1`
-- `https://ahanassa.com/example?x=1`
-- `http://www.ahanassa.com/example?x=1`
-- `https://www.ahanassa.com/example?x=1`
-
-The final URL must be:
-
-`https://www.ahanassa.com/example?x=1`
-
-Avoid redirect chains, loops, dropped query strings, mixed canonical hosts, and locale-changing redirects.
-
-### TLS requirements
-
-- TLS is issued and renewed by the serving platform.
-- Production must never be launched while certificate state is pending or invalid.
-- HSTS may be enabled only after every required subdomain is confirmed HTTPS-ready. Adding `includeSubDomains` or preload requires a separate irreversible-risk review.
-
----
-
-## 10. Caching and CDN Responsibilities
-
-Detailed TTLs and invalidation rules belong in `CACHING_STRATEGY.md`. Deployment must observe these boundaries:
-
-- Vercel is the default application CDN and edge cache.
-- Hashed framework assets may be cached as immutable.
-- HTML, JSON, API responses, redirects, and error pages must not receive blanket “cache everything” rules.
-- Authenticated, form, RFQ, preview, and personalized responses must not be publicly cached.
-- Cache behavior must be testable from response headers.
-- A release process must not depend on manual full-zone purges under the baseline DNS-only design.
-
-If Cloudflare proxying is approved later:
-
-- Bypass cache for Next.js data requests, APIs, forms, preview paths, authenticated requests, and non-GET/HEAD methods.
-- Respect application cache headers unless an individual rule has documented ownership.
-- Never modify Vercel or Next.js internal request headers without compatibility testing.
-- Purge only the necessary cache keys after a release; a full purge is an incident tool, not the normal deployment mechanism.
-- Verify that rollback restores both application deployment and edge-visible content.
-
----
-
-## 11. Deployment Workflow
-
-### A. Pull-request preview
-
-1. Developer creates or updates a feature branch.
-2. Local lint, typecheck, tests, and production build pass.
-3. A pull request is opened with the required change summary.
-4. CI runs all required checks.
-5. Vercel creates a preview deployment.
-6. Automated smoke and end-to-end tests target the preview URL.
-7. Reviewer validates responsive UI, RTL behavior, forms, metadata, accessibility, and the changed user journey.
-8. Any new environment variable is configured separately for Preview and Production before merge.
-9. Approval is recorded in the pull request.
-
-### B. Production release
-
-1. Merge the approved pull request into protected `main`.
-2. Vercel builds an immutable production deployment.
-3. Confirm build logs contain no secret values and no unexpected warnings.
-4. Run automated production smoke tests.
-5. Complete the critical manual checks in Section 14.
-6. Record the deployment SHA, timestamp, responsible person, and result in `CHANGELOG.md` or the release record.
-7. Monitor errors, availability, Web Vitals, form delivery, and analytics during the observation window.
-
-### C. Manual promotion
-
-Manual promotion of a preview deployment is permitted only when:
-
-- it is tied to the exact reviewed commit;
-- all required checks passed against that deployment;
-- production environment variables are validated;
-- the promoter has production release authority;
-- the action and reason are recorded.
-
-Manual deployment from an uncommitted local working tree is prohibited for production.
-
----
-
-## 12. Rollback and Recovery
-
-### Recovery objectives
-
-- **Deployment rollback target:** begin within 10 minutes of confirming a release-caused critical incident.
-- **Service restoration target:** restore the last known-good application within 30 minutes where the hosting platform is operational.
-- **Data recovery objective:** defined by each future stateful integration; the baseline marketing build must avoid deployment-coupled state changes.
-
-These are operational targets, not contractual service-level agreements.
-
-### Rollback triggers
-
-- Homepage or critical route returns repeated `5xx` responses.
-- RFQ/contact submissions fail or are routed incorrectly.
-- A security regression or secret exposure is suspected.
-- Canonical, robots, sitemap, or redirect behavior risks widespread SEO damage.
-- A severe responsive, RTL, navigation, or accessibility defect blocks the primary user journey.
-- Error rate or latency crosses the approved incident threshold.
-
-### Rollback procedure
-
-1. Declare the incident and freeze unrelated production changes.
-2. Identify the most recent verified production deployment.
-3. Use Vercel's production rollback/promote mechanism to restore it.
-4. Verify canonical host, critical routes, static assets, forms, APIs, sitemap, and robots output.
-5. If Cloudflare proxying is active under an exception, purge or bypass only stale affected cache entries.
-6. Confirm monitoring has returned to normal.
-7. Record the incident timeline and open a corrective pull request.
-
-Do not “fix forward” under time pressure when a safe known-good rollback is available. Do not delete the failed deployment; retain it for diagnosis.
-
-### Non-application failures
+1. Pause/reduce consumption if corruption/duplicates are possible.
+2. Preserve messages; never delete/replay blindly.
+3. Deploy last compatible or corrected consumer.
+4. Verify idempotency/event compatibility.
+5. Resume in controlled batches and reconcile Odoo.
 
 | Failure | Immediate response |
 | --- | --- |
-| DNS misconfiguration | Restore the last known-good Cloudflare DNS records; do not change application code |
-| Certificate failure | Confirm domain verification and DNS mode; remove conflicting records; avoid unsafe TLS bypasses |
-| External CRM/API outage | Degrade gracefully, preserve the lead when feasible, alert operations, and avoid repeated uncontrolled retries |
-| Analytics outage | Keep the core website operational; analytics must fail non-blockingly |
-| Vercel regional/platform incident | Confirm provider status, avoid repeated redeployments, communicate status, and use the approved disaster-recovery plan if thresholds are met |
-| Compromised credential | Revoke and rotate it, redeploy affected environments, audit access, and invalidate exposed sessions or tokens |
+| Odoo unavailable | Queue, retry, alert, DLQ after limit; RFQ capture remains live |
+| Queue producer unavailable | RFQ remains in outbox; dispatcher retries; alert on age |
+| Bad consumer | Pause, rollback/fix, idempotent replay |
+| D1 migration defect | Stop rollout; forward migration or approved PITR; no automatic rewind |
+| `DB_PUBLIC` corruption | Disable affected cache/page; restore/rebuild read model |
+| `DB_OPS` outage | Do not return false success; alert P1 and restore |
+| Private R2 failure | Preserve structured RFQ when allowed; show accurate attachment state |
+| DNS/route/TLS failure | Restore known-good platform config; never bypass TLS |
+| Cache defect | Targeted purge/bypass and freshness verification |
+| Analytics outage | Fail non-blockingly |
+| Credential compromise | Revoke, rotate, redeploy, audit, invalidate |
+
+Detailed runbooks belong in `FAILURE_RECOVERY.md`.
 
 ---
 
-## 13. Observability and Alerts
+## 18. Backups and Disaster Recovery
 
-### Required signals
+Recoverable assets:
 
-- Deployment success/failure and build duration.
-- Production availability for the canonical homepage and at least one critical internal route.
-- `4xx` and `5xx` trends, separated by route class where possible.
-- Server-side exceptions and rejected external integration calls.
-- Core Web Vitals and performance regressions.
-- RFQ/contact submission success, validation failure, upstream delivery failure, and duplicate rate.
-- Sitemap fetch, robots fetch, and canonical-host correctness.
-- Analytics/tag-loading health without storing sensitive form data.
+- Git, releases, lockfile, migrations;
+- release manifests and known-good Worker IDs;
+- private inventory of bindings, routes, domains, DNS, Access, WAF, cache, queues, Cron, alerts;
+- secret owner/rotation inventory (values stay in approved secret system);
+- D1 Time Travel plus validated exports per criticality;
+- public media originals and private RFQ retention/recovery plan;
+- independent Odoo backup/restore owned by ERP administrator;
+- RFQ-to-Odoo reconciliation report.
 
-### Alert principles
+At least twice yearly and after major platform/domain/data change, rehearse:
 
-- Alerts must be actionable and identify environment, deployment, route, severity, and first response.
-- Production alerts must not expose submitted personal data or secrets.
-- Synthetic checks must follow redirects and assert the final canonical URL.
-- A successful HTTP status alone is insufficient; critical checks should assert expected content or response structure.
-- Alert ownership and escalation destinations must be recorded before launch.
+1. identify active commit/versions;
+2. reconstruct config without exposing secrets;
+3. create isolated working deployment;
+4. restore/rebuild `DB_PUBLIC` and test approved `DB_OPS` recovery;
+5. validate R2 privacy boundaries;
+6. replay a test event idempotently into non-production Odoo;
+7. restore domain/redirect inventory;
+8. verify pages, RFQ, SEO, and monitoring.
 
-### Release observation window
-
-For ordinary releases, actively observe the production deployment for at least 30 minutes. For domain, DNS, forms, analytics, dependency, framework, or caching changes, extend observation based on risk and traffic.
-
----
-
-## 14. Required Deployment Checks
-
-### Automated pre-merge gates
-
-- [ ] Frozen-lockfile installation succeeds.
-- [ ] Formatting check passes, if configured.
-- [ ] Lint passes with no release-blocking warnings.
-- [ ] Typecheck passes.
-- [ ] Unit and component tests pass.
-- [ ] Production build passes.
-- [ ] No known high/critical exploitable dependency issue is accepted without documented risk approval.
-- [ ] Route inventory contains no unintended duplicate paths.
-- [ ] Internal link check passes.
-- [ ] Metadata and canonical generation tests pass.
-- [ ] Sitemap and robots generation tests pass.
-- [ ] Preview smoke tests pass.
-- [ ] Preview is non-indexable.
-
-### Manual preview approval
-
-- [ ] Homepage and modified pages match approved specifications.
-- [ ] Persian content is RTL; embedded numbers, email, and technical terms render correctly.
-- [ ] Mobile, tablet, and desktop layouts work at required breakpoints.
-- [ ] Navigation, footer, CTAs, forms, validation, success, and failure states work.
-- [ ] Keyboard navigation and visible focus are intact.
-- [ ] Images have correct dimensions, loading behavior, and alternatives.
-- [ ] No console error appears in the primary journeys.
-- [ ] No test content, placeholder, preview URL, or secret is visible.
-
-### Production verification
-
-- [ ] `https://www.ahanassa.com` returns the expected release.
-- [ ] Apex, `www`, HTTP, and HTTPS resolve to one canonical host without loops.
-- [ ] Path and query strings survive host redirects.
-- [ ] TLS certificate is valid.
-- [ ] Homepage, key landing page, contact/RFQ page, `404`, sitemap, and robots routes work.
-- [ ] Canonical and Open Graph URLs use the production host.
-- [ ] Production is indexable only where intended.
-- [ ] Form submission reaches the approved destination exactly once.
-- [ ] Analytics and consent behavior work without blocking the page.
-- [ ] Security and cache headers match their specifications.
-- [ ] Monitoring and alerts identify the new deployment.
-- [ ] Rollback target is known and retained.
+Odoo disaster recovery is independent of website deployment recovery.
 
 ---
 
-## 15. Cloudflare Proxy Exception Checklist
+## 19. Performance and Capacity Gates
 
-Complete every item before changing a Vercel-bound record from DNS-only to proxied:
+Initial internal targets from `PERFORMANCE_BUDGET.md`:
 
-- [ ] Business/security reason and approver recorded in `DECISIONS.md`.
-- [ ] Vercel's reverse-proxy limitations reviewed for the current platform behavior.
-- [ ] Client IP and forwarding headers verified end-to-end.
-- [ ] Vercel firewall, deployment protection, bot controls, and rate limits re-tested.
-- [ ] Cloudflare SSL mode is strict and the origin certificate path is valid.
-- [ ] No cache-everything rule applies to HTML, APIs, forms, previews, or authenticated traffic.
-- [ ] Next.js static assets load across releases without stale-build mixing.
-- [ ] Redirects do not loop between Cloudflare, Vercel, and Next.js.
-- [ ] Preview deployments remain isolated and non-indexable.
-- [ ] Rollback test proves users receive the restored version after edge caching.
-- [ ] Purge permissions follow least privilege.
-- [ ] Monitoring can distinguish Cloudflare-edge errors from Vercel-origin errors.
-- [ ] A DNS-only rollback procedure and expected propagation behavior are documented.
+```text
+LCP  < 2.0 s
+INP  < 150 ms
+CLS  < 0.05
+TTFB < 500 ms
 
-If any item fails, retain DNS-only mode.
+Lighthouse Performance    95+
+Lighthouse SEO            100
+Lighthouse Accessibility  95+
+Lighthouse Best Practices 95+
+```
 
----
+Release gates include route JS/CSS budgets, responsive images, font/preload budget, Worker size/runtime limits, critical D1 query cost/latency, absence of synchronous Odoo calls in public traces, eligible cache-hit behavior, p75 field CWV where sufficient data exists, and pre-launch RFQ/queue/idempotency load tests.
 
-## 16. Security Controls in Deployment
-
-- Production access requires individual accounts, multi-factor authentication, and least privilege.
-- Shared credentials and API tokens are prohibited.
-- Git, Vercel, Cloudflare, domain registrar, analytics, and integration access must have at least two authorized business owners to prevent single-person lockout.
-- Repository secrets must be scanned before merge and in CI where available.
-- Build and runtime logs must redact credentials and personal data.
-- Dependencies, Next.js, and React security releases must be reviewed promptly; WAF protection is not a substitute for patching.
-- Preview URLs must not expose production administration or unprotected diagnostic endpoints.
-- Health endpoints return only minimal status information.
-- Source maps, debug output, and verbose errors must follow the production security policy.
-- Security headers are verified after deployment, not assumed from configuration.
-- Domain registrar and Cloudflare changes require change logging and recovery-capable access.
+A budget regression blocks release unless the technical owner records measured reason, business justification, and remediation date.
 
 ---
 
-## 17. Backups and Disaster Recovery
+## 20. Checklists
 
-The deployed website can be reconstructed from Git plus authorized environment configuration. This does not automatically protect content or data held by external services.
+### Initial setup
 
-### Required recoverable assets
+- [ ] Confirm Git repository, Cloudflare account/zone, and owners.
+- [ ] Protect `main`; pin lockfile/runtime/deployment tools.
+- [ ] Pass/record `vinext` compatibility gate.
+- [ ] Create independent web and integration Workers.
+- [ ] Create isolated production/non-production D1, R2, queues, and secrets.
+- [ ] Configure queue consumer, retries, DLQ, and approved Cron jobs.
+- [ ] Attach `www.ahanassa.com`; configure apex redirect.
+- [ ] Prove web routes do not capture `odoo.ahanassa.com`.
+- [ ] Configure Access, Turnstile, WAF/rate limits.
+- [ ] Create least-privilege CI and Odoo bot credentials.
+- [ ] Enable observability, dashboards, and alerts.
+- [ ] Validate D1 recovery and data retention.
+- [ ] Rehearse preview→production, web rollback, and queue replay.
 
-- Git repository and release history.
-- Production environment-variable inventory and rotation ownership; secret values remain in an approved secret system.
-- Cloudflare DNS zone record export or documented record inventory.
-- Vercel project/domain configuration record.
-- CMS content export when a CMS is introduced.
-- RFQ/CRM records according to the business retention policy.
-- Media originals stored outside generated build output.
+### Automated pre-merge
 
-### Recovery test
+- [ ] Frozen install, format, lint, typecheck, unit/component tests pass.
+- [ ] Disposable D1 migrations/schema tests pass.
+- [ ] Both production builds and runtime limits pass.
+- [ ] Routes, links, metadata, canonical, hreflang, schema, sitemap, robots, accessibility pass.
+- [ ] Security, secret, and dependency checks pass.
+- [ ] Preview smoke/E2E pass; preview is protected/non-indexable.
+- [ ] Preview cannot reach production Odoo or notifications.
+- [ ] Browser bundles contain no server bindings/secrets.
 
-At least twice per year, or after a major hosting/domain architecture change, verify that an authorized operator can:
+### Manual preview
 
-1. identify the production commit;
-2. reconstruct required configuration without copying secrets into chat or tickets;
-3. create a working isolated deployment;
-4. validate the canonical route set and forms;
-5. restore DNS from the approved inventory.
+- [ ] Persian RTL and numbers/email/units render correctly.
+- [ ] Mobile/tablet/desktop match specifications.
+- [ ] Navigation, filters, RFQ rows, validation, upload, success/failure work.
+- [ ] Keyboard/focus/labels/error announcements work.
+- [ ] Images/fonts/loading/layout meet budgets.
+- [ ] Indexable content/links exist in initial HTML.
+- [ ] Admin requires Access and app authorization.
+- [ ] Test events use correct schema/idempotency.
+- [ ] No console error, placeholder, preview URL, test data, or secret appears.
+
+### Production
+
+- [ ] `www` serves expected Worker; apex/protocol redirects preserve path/query.
+- [ ] `odoo.ahanassa.com` reaches Odoo, not the web Worker.
+- [ ] TLS/security headers pass.
+- [ ] Home, category/product/price/article, RFQ, `404`, sitemap, robots pass.
+- [ ] Canonical/hreflang/OG/schema/sitemap use production host.
+- [ ] Index/noindex is correct.
+- [ ] Public cache and price freshness are correct.
+- [ ] Admin/RFQ/upload/auth are `no-store`.
+- [ ] One production-safe RFQ is committed once, queues once, and creates/updates one Odoo record.
+- [ ] Attachment privacy passes.
+- [ ] Queue/DLQ/D1/R2/Odoo sync/alerts are healthy.
+- [ ] Performance budgets pass.
+- [ ] Release manifest and rollback versions are recorded.
 
 ---
 
-## 18. Responsibilities
+## 21. Responsibilities
 
 | Role | Responsibility |
 | --- | --- |
-| Product owner | Approves user-visible scope and planned launch timing |
-| Technical owner | Owns architecture, release readiness, rollback, and incident decisions |
-| Developer / Claude Code operator | Implements changes, runs required checks, and records configuration impact |
-| Reviewer | Reviews code, architecture, security, SEO, and test evidence |
-| Content/SEO owner | Approves indexability, metadata, redirects, sitemap, and canonical behavior |
-| Operations owner | Verifies leads/integrations and receives production alerts |
-| Domain administrator | Controls registrar and Cloudflare changes with recoverable access |
+| Product owner | Scope, launch timing, business degradation rules |
+| Technical owner | Architecture, readiness, rollout, rollback, incidents |
+| Developer/coding-agent operator | Implementation, gates, config/migration records |
+| Reviewer | Code, schema, infrastructure, security, SEO, performance evidence |
+| Content/SEO owner | Publication, indexability, metadata, redirects, sitemap |
+| Operations/sales | RFQs, queue/sync verification, customer follow-up |
+| ERP owner | Odoo version/modules, bot rights, API, backup/recovery |
+| Domain/security admin | Registrar, Cloudflare recovery, DNS, Access, WAF |
+| Data owner | Retention, PII recovery, destructive migration/PITR approval |
 
-One person may hold multiple roles, but the responsibilities do not disappear.
-
----
-
-## 19. Claude Code Rules
-
-Claude Code must:
-
-1. Read this file and the related specifications before deployment-related edits.
-2. Inspect the repository, lockfile, installed versions, and existing provider configuration before proposing commands.
-3. Never guess DNS targets, project IDs, team IDs, secret names, regions, or account settings.
-4. Never print, commit, copy, or expose secret values.
-5. Never bypass lint, type, test, or build failures to obtain a green deployment.
-6. Never deploy an uncommitted or unexplained working tree to production.
-7. Never alter production DNS, domains, environment variables, cache rules, or protection settings without explicit authorization.
-8. Show the exact scope, risk, verification plan, and rollback path before a production infrastructure change.
-9. Preserve unrelated user changes in a dirty working tree.
-10. Update this document and `DECISIONS.md` when the actual deployment architecture changes.
-
-### Stop conditions
-
-Claude Code must stop and request direction when:
-
-- the target Vercel project, Git repository, Cloudflare zone, or canonical domain is ambiguous;
-- production secrets or account permissions are missing;
-- a destructive DNS/domain change would remove a working production target;
-- preview and production environment values cannot be safely separated;
-- required checks fail and the requested action would bypass them;
-- a database or external system change has no verified rollback path;
-- the observed production architecture conflicts with this approved baseline.
+One person may hold multiple roles; responsibilities/evidence remain.
 
 ---
 
-## 20. Initial Setup Checklist
+## 22. Coding-Agent Rules and Stop Conditions
 
-- [ ] Confirm the correct Git repository and owners.
-- [ ] Protect `main` and configure required checks.
-- [ ] Commit one lockfile and pin the Node.js major version.
-- [ ] Create or connect the Vercel project.
-- [ ] Configure separate Preview and Production variables.
-- [ ] Add `ahanassa.com` and `www.ahanassa.com` to Vercel.
-- [ ] Configure project-specific Cloudflare DNS records in DNS-only mode.
-- [ ] Set `www.ahanassa.com` as canonical and apex as redirect.
-- [ ] Verify TLS and the four host/protocol combinations.
-- [ ] Add preview `noindex` protection.
-- [ ] Configure CI build and test gates.
-- [ ] Add uptime, error, form-delivery, and Web Vitals monitoring.
-- [ ] Perform one preview-to-production rehearsal.
-- [ ] Perform and record one rollback rehearsal before public launch.
-- [ ] Record owners and emergency access for Git, Vercel, Cloudflare, registrar, analytics, and integrations.
+A coding agent must:
 
----
+1. read this and governing/related specs before deployment edits;
+2. inspect repository, lockfile, installed versions, Wrangler config, and actual account targets;
+3. never guess IDs, resource names, routes, domains, secret names, Odoo database/version;
+4. never expose secrets/customer data;
+5. never bypass lint, types, tests, compatibility, migrations, or build errors;
+6. never deploy uncommitted/unexplained production work;
+7. never make public rendering depend on Odoo;
+8. never bind preview to production resources;
+9. never apply destructive migration without recovery and approval;
+10. never mutate production platform/Odoo permissions without authorization;
+11. show exact target, impact, verification, and rollback/recovery before mutation;
+12. preserve unrelated dirty-worktree changes;
+13. update this file and `DECISIONS.md` when architecture changes.
 
-## 21. Acceptance Criteria
+Stop when:
 
-This architecture is implemented when:
-
-- every production release originates from an identifiable reviewed commit;
-- every pull request receives an isolated, non-indexable preview;
-- the production build cannot pass by ignoring type or lint errors;
-- `https://www.ahanassa.com` is the only canonical production host;
-- apex and protocol redirects preserve path and query without loops;
-- Cloudflare DNS and Vercel responsibilities are unambiguous;
-- preview and production secrets and integrations are isolated;
-- critical paths, forms, SEO outputs, and monitoring are verified after release;
-- a known-good deployment can be restored within the rollback target;
-- production access, recovery ownership, and incident escalation are documented.
+- repository/account/zone/domain/Worker/environment/Odoo database is ambiguous;
+- required `vinext` compatibility fails;
+- secrets, permissions, bindings, or recovery access are missing;
+- a route could capture `odoo.ahanassa.com`;
+- environment isolation cannot be proven;
+- synchronous public Odoo dependency is requested;
+- required checks fail;
+- D1/R2/Odoo change lacks recovery;
+- idempotency cannot be proven for replay;
+- observed production conflicts with this baseline;
+- scope risks deleting/overwriting unapproved production resources.
 
 ---
 
-## 22. Open Decisions
+## 23. Acceptance Criteria
 
-Resolve these before the affected feature enters production:
+Implemented when:
 
-| Decision | Current state | Owner |
+- full-stack site runs on Workers + Static Assets;
+- approved adapter passes compatibility gate;
+- web/integration Workers deploy independently;
+- production/preview resources are isolated;
+- `www` is sole canonical and apex preserves path/query;
+- Odoo subdomain is outside web routing;
+- public HTML/SEO never waits for Odoo;
+- RFQ is durable before success;
+- Odoo delivery is queued, idempotent, retryable, observable, and DLQ-recoverable;
+- public/private files are separate;
+- every release maps to reviewed commit and immutable versions;
+- migrations are backward-compatible across rollout/rollback;
+- code rollback and data recovery are separate;
+- cache is route-specific/event-invalidated;
+- performance/SEO/accessibility/security/business gates pass;
+- observability covers Workers, D1, R2, Queue/DLQ, and Odoo without PII;
+- known-good web version restores within target;
+- owners and emergency access are recorded/rehearsed.
+
+---
+
+## 24. Open Decisions
+
+| Decision | Safe current state | Owner |
 | --- | --- | --- |
-| Git repository URL and default organization | TBD | Technical owner |
-| Package manager and lockfile | TBD until repository inspection | Technical owner |
-| Pinned Node.js major version | TBD until framework version is selected | Technical owner |
-| Production form/RFQ destination | TBD | Product and operations owners |
-| Error monitoring provider | TBD | Technical owner |
-| Synthetic uptime provider and alert channel | TBD | Operations owner |
-| Analytics and consent implementation | TBD; see `ANALYTICS_TRACKING.md` | Marketing/technical owners |
-| CMS and content publication workflow | TBD; see `CMS_ARCHITECTURE.md` | Content/technical owners |
-| Permanent staging environment | Not required initially | Technical owner |
-| Cloudflare proxy in front of Vercel | Not approved; DNS-only baseline | Technical/security owners |
-| Disaster-recovery hosting alternative | Deferred until justified by business impact | Technical/product owners |
+| Git repository/organization | Resolve before CI connection | Technical |
+| Package manager/Node major | Resolve from bootstrap testing; pin | Technical |
+| Exact framework/adapter/Wrangler versions | Pin after compatibility gate | Technical |
+| Cloudflare plan | Verify limits, D1 retention, WAF/log features | Technical/security |
+| Odoo version/modules | Detect before adapter | ERP |
+| Odoo test database | Required before integration tests | ERP |
+| External OTEL/error destination | Cloudflare native baseline; external TBD | Technical |
+| Alert channels/on-call | Required before production | Operations |
+| Permanent staging | Not initially; isolated only if justified | Technical |
+| R2 retention/deletion | Define from privacy/business policy | Data |
+| Secondary D1/R2 backup schedule | Define from recovery objectives | Data/technical |
+| Automated rollout thresholds | Manual gated stages until baseline data | Technical |
 
 ---
 
-## 23. Official References
+## 25. Official References
 
-- [Vercel — Deployments](https://vercel.com/docs/deployments)
-- [Vercel — Environments](https://vercel.com/docs/deployments/environments)
-- [Vercel — Adding and configuring a custom domain](https://vercel.com/docs/domains/working-with-domains/add-a-domain)
-- [Vercel — Deploying and redirecting domains](https://vercel.com/docs/domains/working-with-domains/deploying-and-redirecting)
-- [Vercel — Reverse proxy servers and Vercel](https://vercel.com/docs/security/reverse-proxy)
-- [Vercel — Production rollback](https://vercel.com/docs/deployments/rollback-production-deployment)
-- [Next.js — Deploying](https://nextjs.org/docs/app/getting-started/deploying)
-- [Next.js — Environment variables](https://nextjs.org/docs/app/guides/environment-variables)
-- [Cloudflare — DNS records](https://developers.cloudflare.com/dns/manage-dns-records/)
+- [Cloudflare Workers — Next.js](https://developers.cloudflare.com/workers/framework-guides/web-apps/nextjs/)
+- [Cloudflare Workers — OpenNext](https://developers.cloudflare.com/workers/framework-guides/web-apps/opennext/)
+- [Workers Static Assets](https://developers.cloudflare.com/workers/static-assets/)
+- [Wrangler configuration](https://developers.cloudflare.com/workers/wrangler/configuration/)
+- [GitHub Actions](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/)
+- [Versions and deployments](https://developers.cloudflare.com/workers/versions-and-deployments/)
+- [Preview URLs](https://developers.cloudflare.com/workers/versions-and-deployments/preview-urls/)
+- [Worker rollbacks](https://developers.cloudflare.com/workers/versions-and-deployments/rollbacks/)
+- [Workers Secrets](https://developers.cloudflare.com/workers/configuration/secrets/)
+- [Workers local development](https://developers.cloudflare.com/workers/local-development/)
+- [Workers Observability](https://developers.cloudflare.com/workers/observability/)
+- [D1 migrations](https://developers.cloudflare.com/d1/reference/migrations/)
+- [D1 Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/)
+- [D1 environments](https://developers.cloudflare.com/d1/configuration/environments/)
+- [Queues retries and DLQ](https://developers.cloudflare.com/queues/configuration/batching-retries/)
+- [Odoo 19 External JSON-2 API](https://www.odoo.com/documentation/19.0/developer/reference/external_api.html)
+
+Repository-tested pinned versions control deployment. Newer documentation never authorizes an automatic upgrade.
 
 ---
 
-## 24. Change Control
+## 26. Change Control
 
-Update this document in the same pull request whenever any of these changes:
+Update this file in the same PR when changing:
 
-- hosting provider or runtime;
-- Git branching or production trigger;
-- canonical domain or redirect owner;
-- Cloudflare DNS/proxy mode;
-- build command, output mode, package manager, or Node.js version policy;
-- environment model;
-- release gates;
-- caching ownership;
-- rollback method or objectives;
-- monitoring and alert ownership;
-- disaster-recovery strategy.
+- hosting, Worker topology, adapter, compatibility date;
+- canonical host, redirects, domains, routes, DNS, TLS;
+- environments, production trigger, release governance;
+- bindings, D1, R2, queues/DLQ, Cron, Turnstile, Access;
+- Odoo endpoint/adapter/auth/event/data ownership;
+- rendering, caching, invalidation, assets;
+- migrations, backup, recovery, rollback, DR;
+- performance, security, testing, observability, alerts;
+- responsibilities or stop conditions.
 
-Each update must include the reason, risk, migration steps, verification evidence, and rollback plan in `DECISIONS.md`.
+Every material change also updates `DECISIONS.md` with reason, alternatives, risks, migration, evidence, and rollback/recovery.

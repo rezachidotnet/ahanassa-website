@@ -1,501 +1,914 @@
-# Ahan Asa Website — Project Brief
+# Ahan Asa Digital Procurement Platform — Project Brief
 
 > **Brand:** Ahan Asa | آهن آسا  
-> **Domain:** `ahanassa.com`  
+> **Domain:** `https://www.ahanassa.com`  
+> **ERP:** `https://odoo.ahanassa.com`  
 > **Document:** `PROJECT_BRIEF.md`  
-> **Status:** Draft v1.0 — Foundational source of truth  
+> **Status:** Draft v2.0 — Foundational source of truth  
 > **Last updated:** 2026-08-25  
-> **Primary website language:** Persian (Farsi), fully RTL
+> **Launch language:** Persian (Farsi), fully RTL  
+> **Initial market:** Iran
 
 ---
 
-## 1. Project Definition
+## 1. Executive Summary
 
-Ahan Asa is a premium B2B steel procurement management brand. The company must be presented as a trusted commercial and technical partner that protects the client's capital throughout the steel purchasing process—not as a generic steel marketplace, commodity-price board, or traditional iron retailer.
+Ahan Asa is a premium B2B steel procurement management brand. It helps serious project buyers define requirements, compare supply options, control commercial and technical risk, and coordinate purchasing and delivery. The approved promise is:
 
-The website will be Ahan Asa's primary digital trust, positioning, lead-generation, and sales-support platform. It must explain what Ahan Asa does, why its procurement method reduces commercial and execution risk, and how a qualified buyer can begin an inquiry.
+> **ما مراقب سرمایه شما هستیم.**  
+> **We protect your capital.**
 
-The initial release will be a Persian-first, fully RTL corporate website focused on the Iranian market. The information architecture and technical implementation should remain ready for future multilingual and regional expansion without prematurely adding unsupported languages or services.
+`ahanassa.com` will not be a brochure-only website. It will be the fast, search-visible, customer-facing layer of a broader digital procurement system that includes:
 
-## 2. Brand Foundation
+- a premium public website;
+- a structured steel catalog and selected public price information;
+- a multi-item request-for-quotation experience;
+- secure material-list and document uploads;
+- an operator-managed website CMS;
+- asynchronous integration with Odoo ERP at `odoo.ahanassa.com`;
+- a resilient Cloudflare data, storage, queue, security, and delivery layer.
 
-### 2.1 Brand name
+The governing architecture is:
 
-- English: **Ahan Asa**
-- Persian: **آهن آسا**
-- Website/domain form: **ahanassa.com**
+```text
+Visitor / Search Engine
+          │
+          ▼
+  Cloudflare Edge
+          │
+          ▼
+ Next.js Application
+     │      │      │
+     │      │      └── Turnstile / security controls
+     │      └───────── R2 media and private attachments
+     └──────────────── D1 website data and public read models
+                         │
+                         ▼
+                  Cloudflare Queues
+                         │
+                         ▼
+               Odoo Integration Layer
+                         │
+                         ▼
+              odoo.ahanassa.com
+```
 
-### 2.2 Brand category
+Four principles govern all later decisions:
 
-**Steel procurement management and project purchasing support**
+1. **Odoo is the commercial system of record.**
+2. **Cloudflare is the fast and resilient website platform.**
+3. **Public page rendering and RFQ acceptance must not depend on a live Odoo response.**
+4. **SEO, performance, accessibility, security, and observability are architectural constraints from the first implementation—not post-launch cleanup.**
 
-### 2.3 Core brand promise
+---
 
-Ahan Asa manages steel procurement with commercial discipline, technical awareness, supplier control, and clear coordination so clients can make safer purchasing decisions and protect project capital.
+## 2. Project Definition
 
-### 2.4 Approved slogan
+The project is a Persian-first digital procurement platform for steel products and project purchasing services. It combines content, catalog discovery, approved public price snapshots, lead qualification, structured RFQ capture, and ERP-enabled sales operations.
 
-**ما مراقب سرمایه شما هستیم.**  
-**We protect your capital.**
+The public experience must present Ahan Asa as a controlled procurement partner—not as:
 
-The Persian slogan is the primary public-facing version. The English line is a meaning-aligned translation and should not replace the Persian slogan on the Persian website.
+- a generic iron retailer;
+- a consumer e-commerce shop;
+- an open supplier marketplace;
+- a commodity-trading terminal;
+- a price-only lead generator;
+- a source of unverified live prices, inventory, or delivery promises.
 
-### 2.5 Approved brand assets
+Price and product discovery support the procurement journey; they do not replace technical review, commercial validation, or a formal quotation.
 
-- The approved master icon must be used without altering its core geometry.
-- Primary color: Steel Navy `#0B2545`
-- Accent color: Forge Copper `#B04A2F`
-- Neutral color: White `#FFFFFF`
-- Persian brand typography direction: modern, bold, geometric, corporate, and visually aligned with Estedad.
+---
 
-Detailed logo, color, typography, spacing, and misuse rules belong in `BRAND_GUIDELINES.md` and `DESIGN_SYSTEM.md`. This brief establishes only the approved strategic foundation.
+## 3. Brand Foundation
 
-## 3. Business Context
+### 3.1 Identity
 
-Steel procurement is rarely just a price-comparison task. Buyers must evaluate specifications, quantities, supplier reliability, market timing, documentation, logistics, delivery coordination, and the financial consequences of errors or delays.
+- English name: **Ahan Asa**
+- Persian name: **آهن آسا**
+- Primary public domain: **`www.ahanassa.com`**
+- Brand category: **Steel procurement management and project purchasing support**
+- Primary slogan: **ما مراقب سرمایه شما هستیم.**
+- Meaning-aligned English line: **We protect your capital.**
 
-Many competitors reduce the experience to product listings and daily prices. Ahan Asa should occupy a more valuable position: a procurement manager that helps clients control the full purchasing decision and execution process.
+The Persian slogan is the primary public-facing version for the launch website.
 
-The website must therefore communicate three forms of credibility:
+### 3.2 Approved visual foundation
 
-1. **Commercial credibility** — disciplined sourcing, quotation comparison, and purchasing control.
-2. **Technical credibility** — understanding of specifications, quantities, and project requirements.
-3. **Operational credibility** — supplier coordination, documentation, logistics, and delivery follow-through.
+- Steel Navy: `#0B2545`
+- Forge Copper: `#B04A2F`
+- White: `#FFFFFF`
+- The approved master icon must be used without changing its core geometry.
+- Persian typography must feel modern, clear, engineered, and corporate, in the direction established for Estedad.
 
-## 4. Project Vision
+Detailed visual rules belong in `BRAND_GUIDELINES.md`, `DESIGN_DIRECTION.md`, and `DESIGN_SYSTEM.md`.
 
-Create the most credible, composed, and premium digital presence in the Iranian steel procurement sector—one that makes a serious project buyer feel that Ahan Asa can bring order, transparency, and control to a high-value purchasing decision.
+### 3.3 Desired perception
 
-The experience should feel closer to a high-end procurement consultancy and industrial partner than to a crowded commodity marketplace.
+The experience should feel precise, trustworthy, protective, commercially disciplined, technically informed, calm, premium, practical, fast, and operationally credible.
 
-## 5. Primary Objectives
+---
 
-### 5.1 Business objectives
+## 4. Business Context and Opportunity
 
-- Establish Ahan Asa as a credible and differentiated steel procurement management brand.
-- Generate qualified B2B inquiries from real projects and purchasing teams.
-- Support sales conversations by explaining the procurement process before direct contact.
-- Reduce low-quality, price-only inquiries through clear positioning and qualification.
-- Build a scalable foundation for future SEO content, project evidence, resources, and regional expansion.
+Steel procurement is not only a price-comparison exercise. A professional buyer must control specifications, standards, quantities, units, supplier suitability, market timing, documentation, logistics, delivery coordination, and the financial impact of errors or delay.
 
-### 5.2 User objectives
+Many competing websites reduce the buyer experience to crowded product tables, telephone numbers, and daily-price claims. Ahan Asa should occupy a higher-value position: a procurement manager that makes the buying process more structured, traceable, and commercially responsible.
+
+The platform must communicate three forms of credibility:
+
+1. **Commercial credibility** — disciplined sourcing, comparison, negotiation support, and purchasing control.
+2. **Technical credibility** — correct interpretation of grades, sizes, variants, units, quantities, standards, and project requirements.
+3. **Operational credibility** — accountable handling of RFQs, documents, customer records, quotations, suppliers, logistics, and delivery follow-through.
+
+The website creates demand and captures structured intent. Odoo converts that intent into managed CRM, quotation, sales, purchasing, and operational workflows.
+
+---
+
+## 5. Vision
+
+Create the most credible, composed, and useful digital procurement experience in the Iranian steel market: a platform that helps a serious buyer move from uncertainty to a well-defined request, while giving the Ahan Asa team reliable data to manage the commercial process in Odoo.
+
+The public site should feel closer to a premium procurement consultancy and industrial operating partner than to a crowded commodity marketplace.
+
+---
+
+## 6. Primary Objectives
+
+### 6.1 Business objectives
+
+- Establish Ahan Asa as a differentiated B2B steel procurement management brand.
+- Generate qualified inquiries from real projects, purchasing teams, contractors, and industrial buyers.
+- Convert unstructured buying requests into accurate, actionable RFQs.
+- Reduce duplicated manual entry by connecting website demand to Odoo CRM and sales workflows.
+- Maintain one authoritative source for commercial customer, product, unit, and price data.
+- Enable operators to publish articles and maintain approved website content without code changes.
+- Support controlled product and price visibility without becoming a price-board brand.
+- Build a scalable foundation for Iran first and later regional expansion.
+
+### 6.2 User objectives
 
 - Understand within seconds what Ahan Asa does and who it serves.
-- Recognize the difference between managed procurement and basic steel selling.
-- Understand how Ahan Asa reduces purchasing, quality, delivery, and financial risk.
-- Review relevant capabilities, process, evidence, and trust signals.
-- Submit a clear project inquiry or start a direct conversation with minimal friction.
+- Find a relevant steel category, product, size, variant, unit, or buying guide.
+- View an approved, timestamped public price where available.
+- Understand that a displayed price is informational until confirmed by quotation.
+- Submit one or many requested items without unnecessary friction.
+- Upload an existing Excel, PDF, or image material list.
+- Add an uncatalogued item when the required product is not in the catalog.
+- Receive immediate confirmation and a durable RFQ reference number.
+- Trust that temporary Odoo unavailability will not lose the request.
 
-### 5.3 Website objectives
+### 6.3 Operational objectives
 
-- Present a premium, modern, industrial, and trustworthy brand experience.
-- Provide a clear path from discovery to qualification to inquiry.
-- Deliver fast, accessible, mobile-first, SEO-ready pages.
-- Create reusable content and component structures for future growth.
-- Avoid unsupported claims, fake statistics, fabricated projects, or generic marketing language.
+- Give operators a controlled environment for content, media, SEO, permitted catalog presentation, RFQ visibility, and integration monitoring.
+- Give sales teams customer, campaign, RFQ, attachment, and line-item context inside Odoo.
+- Prevent duplicate customer, lead, or RFQ creation during retries.
+- Preserve an audit trail for sensitive administrative and integration actions.
+- Surface failed integrations, queue backlogs, stale prices, and RFQ errors before they become customer problems.
 
-## 6. Target Market
+### 6.4 Quality objectives
 
-### 6.1 Initial geographic focus
+- Deliver indexable HTML-first public content.
+- Minimize client-side JavaScript on public SEO pages.
+- Meet strict internal Core Web Vitals and Lighthouse targets.
+- Remain usable on mobile, desktop, keyboard, slow networks, and assistive technologies.
+- Use verified claims and approved data only.
+- Make privacy, security, and resilience part of the conversion experience.
 
-- Primary: Iran
-- Future expansion readiness: Iraq, Oman, and selected GCC markets
+---
 
-Future markets must not be presented as active operational coverage until formally approved and supported by real capabilities.
+## 7. Target Market and Audience
 
-### 6.2 Primary customer segments
+### 7.1 Geographic scope
+
+- Primary launch market: Iran
+- Future-ready markets: Iraq, Oman, and selected GCC countries
+
+Future markets and languages must not be presented as active until operating coverage, legal requirements, content, service capacity, and commercial ownership are approved.
+
+### 7.2 Primary customer segments
 
 - Construction contractors and general contractors
 - Developers and project owners
 - Industrial companies and factory owners
 - EPC companies
 - Steel structure fabricators and installers
-- Architecture and engineering firms involved in procurement decisions
-- Project managers, procurement managers, and purchasing departments
+- Engineering and architecture firms involved in material decisions
+- Procurement departments and professional purchasing teams
 - Investors responsible for high-value construction or industrial projects
 
-### 6.3 Primary decision-makers
+### 7.3 Primary decision-makers
 
 - Business owners and investors
 - Procurement and purchasing managers
 - Project directors and project managers
 - Technical office managers
 - Commercial managers
-- Engineers and consultants who influence material approval
+- Engineers and consultants influencing specification or material approval
 
-## 7. Core Audience Needs
+### 7.4 Core audience questions
 
-Visitors are likely to ask:
+- Does Ahan Asa understand the specification correctly?
+- Can it source the right material rather than merely the cheapest material?
+- Is the displayed product or price current, qualified, and clearly described?
+- Can supplier, documentation, timing, and delivery risk be controlled?
+- Can I send my complete purchase list in the format I already have?
+- What must I provide to receive a meaningful quotation?
+- What happens after I submit the request?
+- Will the process remain clear and accountable?
 
-- Can this company understand my technical requirement correctly?
-- Can it source the right material, not merely the cheapest material?
-- Can I trust the supplier and documentation?
-- Can it reduce purchasing risk and prevent costly mistakes?
-- Can it coordinate quantities, timing, logistics, and delivery?
-- Will communication be clear and accountable?
-- What information must I provide to receive a meaningful proposal?
+Every important page should answer one or more of these questions.
 
-Every major page should answer one or more of these questions.
+---
 
-## 8. Positioning
+## 8. Positioning and Value Proposition
 
 ### 8.1 Positioning statement
 
-For project owners, contractors, industrial companies, and professional purchasing teams that need reliable steel procurement, Ahan Asa is a procurement management partner that combines commercial control, technical understanding, and supplier coordination. Unlike conventional steel sellers that focus primarily on price and transaction volume, Ahan Asa helps clients manage the complete purchasing decision and protect project capital.
+For project owners, contractors, industrial companies, and professional purchasing teams that require reliable steel procurement, Ahan Asa is a procurement management partner combining commercial control, technical understanding, and supplier coordination. Unlike conventional sellers focused mainly on unit price and transaction volume, Ahan Asa helps clients manage the complete purchasing decision and protect project capital.
 
 ### 8.2 Strategic differentiators
 
 - Procurement management rather than simple product selling
-- Technical review before commercial commitment
-- Structured supplier and quotation comparison
-- Attention to total procurement risk, not unit price alone
-- Coordination of documentation, logistics, and delivery
-- Clear, accountable, project-oriented communication
-- Premium advisory experience for high-value B2B purchases
+- Technical clarification before commercial commitment
+- Structured multi-item RFQ capture
+- Disciplined supplier and quotation comparison
+- Evaluation of total procurement risk rather than headline price alone
+- Traceable handoff from website inquiry to ERP workflow
+- Controlled documentation, logistics, and delivery coordination
+- Premium advisory experience for high-value B2B purchasing
 
-All differentiators must be supported by actual operating procedures or evidence before being framed as guarantees.
+No differentiator may be presented as a guarantee unless it is contractually and operationally supportable.
 
-### 8.3 Desired brand perception
+### 8.3 Value pillars
 
-Visitors should describe Ahan Asa as:
+1. **Requirement clarity** — define specifications, quantities, units, documentation, timing, and destination before purchase.
+2. **Sourcing control** — identify and compare suitable supply options against approved project priorities.
+3. **Commercial protection** — consider compliance, supplier risk, documentation, timing, logistics, and total cost.
+4. **Delivery coordination** — coordinate approved purchasing and delivery milestones within the agreed scope.
 
-- Precise
-- Trustworthy
-- Protective
-- Commercially disciplined
-- Technically aware
-- Calm and confident
-- Modern
-- Premium but practical
+---
 
-## 9. Value Proposition Framework
+## 9. Product Definition
 
-The website should consistently communicate value across four pillars:
+The product consists of four connected surfaces.
 
-### 9.1 Requirement clarity
+### 9.1 Public website
 
-Help the client define material specifications, quantities, documentation, timing, and delivery requirements before purchase.
+The public site provides brand positioning, procurement methodology, product/category discovery, selected price information, articles/resources, trust evidence, and RFQ entry points.
 
-### 9.2 Sourcing control
+### 9.2 RFQ system
 
-Identify and compare suitable supply options according to project priorities and approved evaluation criteria.
+The RFQ system lets a buyer enter a structured material list, upload an existing list, or combine both methods. It immediately stores the request, assigns a reference number, and submits an asynchronous integration event to Odoo.
 
-### 9.3 Commercial protection
+### 9.3 Website administration
 
-Evaluate the full purchasing decision—including specification compliance, supplier risk, documentation, timing, logistics, and total cost—rather than focusing only on the headline price.
+The website administration surface lets authorized operators manage articles, editorial content, SEO fields, media, selected catalog presentation data, RFQ visibility, and integration monitoring. It must not become a second ERP.
 
-### 9.4 Delivery coordination
+### 9.4 Odoo ERP
 
-Coordinate approved procurement steps and maintain clear communication through order and delivery milestones within the agreed scope.
+Odoo is the commercial operations environment for customer records, CRM, products and variants, units of measure, prices/pricelists, quotations, sales, suppliers, purchasing, inventory where applicable, and accounting where applicable.
 
-## 10. Intended Customer Journey
+---
 
-1. **Discover** — The visitor arrives through search, referral, campaign, or direct brand discovery.
-2. **Understand** — The visitor quickly understands Ahan Asa's role and the difference between procurement management and commodity selling.
-3. **Evaluate** — The visitor reviews capabilities, process, evidence, FAQs, and relevant content.
-4. **Trust** — The visitor sees credible methodology, real documentation, real project evidence, and clear operating boundaries.
-5. **Qualify** — The visitor determines whether Ahan Asa fits the project type, scale, location, and purchasing need.
-6. **Act** — The visitor submits an inquiry, requests a consultation, or starts an approved direct-contact channel.
-7. **Handoff** — The inquiry enters the defined sales/CRM workflow with enough context for a useful response.
+## 10. System-of-Record Boundaries
 
-## 11. Primary Conversion Model
+The same commercial fact must not be maintained independently in two systems.
 
-### 11.1 Primary CTA
+| Data or operation | Authoritative system | Website responsibility |
+|---|---|---|
+| Brand and public-page content | Website CMS | Store, render, version, and publish |
+| Articles and resources | Website CMS | Full ownership |
+| Product SEO copy, slug, metadata, FAQ, links | Website CMS | Full ownership, linked to Odoo identifiers |
+| Product commercial identity | Odoo | Synchronized read-optimized copy |
+| Product variants and attributes | Odoo | Synchronized read-optimized copy |
+| Units of measure | Odoo | Synchronized read-optimized copy |
+| Current commercial price and pricelist logic | Odoo | Timestamped public snapshot when approved |
+| Public price history | Odoo-derived D1 read model | Store approved snapshots and render |
+| Customer/contact | Odoo | Capture provisional submission data and synchronize |
+| CRM lead/opportunity | Odoo | Create through asynchronous integration |
+| RFQ and RFQ items | Website at acceptance; Odoo after sync | Durable first capture and sync metadata |
+| Formal quotation and sale order | Odoo | No independent commercial engine |
+| Suppliers, purchasing, inventory, accounting | Odoo | No website ownership in Phase 1 |
+| Public media | R2 | Store and deliver optimized derivatives |
+| Private RFQ attachments | Private R2 | Store securely; provide controlled Odoo reference |
+| Users, roles, audit logs | Owning application | Enforce least privilege and record material actions |
 
-**Request a procurement consultation / Submit a project inquiry**
+The detailed contract belongs in `SYSTEM_OF_RECORD.md` and `ERP_DATA_MAPPING.md`.
 
-The final Persian CTA wording will be defined in `CTA_STRATEGY.md` and `COPY_GUIDELINES.md`.
+---
 
-### 11.2 Secondary CTAs
+## 11. Odoo Integration Requirements
 
-- Speak with a procurement advisor
-- Send project documents or a material list
-- Review the procurement process
-- Explore capabilities or material categories
-- View verified projects or case studies
-- Access technical or procurement resources
+### 11.1 Integration principle
 
-### 11.3 Lead qualification intent
+No browser component and no public page may call Odoo directly. All Odoo access must pass through a server-side adapter layer using a dedicated least-privilege integration user and server-held credentials.
 
-The inquiry experience should collect only information necessary for a useful first response. Potential fields include:
+The exact protocol must be selected after the installed Odoo version and modules on `odoo.ahanassa.com` are verified. Website code must depend on an internal Odoo adapter contract, not directly on a version-specific endpoint.
 
-- Name and company
-- Role or department
-- Phone and email
-- Project name and location
-- Required material/category
-- Estimated quantity or procurement value, if known
-- Required delivery date, if known
-- Message and document upload
-- Preferred contact method
+### 11.2 Website to Odoo
 
-The final form fields, validation, privacy notice, integrations, and fallback behavior belong in `FORM_ARCHITECTURE.md`.
+The integration must support, as approved:
 
-## 12. Phase 1 Website Scope
+- customer and company data;
+- contact details and preferred contact method;
+- source page, campaign, UTM, locale, and consent data;
+- RFQ header and reference number;
+- RFQ line items;
+- free-text uncatalogued items;
+- secure attachment references or controlled transfers;
+- integration status and idempotency keys.
 
-The Phase 1 website should include enough content to establish trust and generate qualified inquiries without pretending that incomplete capabilities are ready.
+The target business flow is:
 
-### 12.1 Required page families
+```text
+Website RFQ
+    ↓
+Customer / Contact
+    ↓
+CRM Lead or Opportunity
+    ↓
+Reviewed RFQ
+    ↓
+Formal Quotation
+    ↓
+Negotiation
+    ↓
+Confirmed Sale Order
+```
+
+### 11.3 Odoo to website
+
+The synchronized public read model may include active products and categories, variants, sizes, grades, standards, units, approved public prices, effective/update times, approved availability language, and integration identifiers.
+
+Customer-specific pricelists, supplier details, internal cost, margin, inventory internals, accounting data, and private CRM data must never be exposed through public responses.
+
+### 11.4 Resilient processing
+
+RFQ acceptance must follow this sequence:
+
+```text
+Validate request
+      ↓
+Save RFQ and items in D1
+      ↓
+Store verified attachments in private R2
+      ↓
+Commit queue event
+      ↓
+Return success and RFQ reference
+      ↓
+Synchronize with Odoo asynchronously
+```
+
+Odoo downtime, upgrade, timeout, or network failure must not cause a customer-facing failure after the website has accepted the RFQ.
+
+Every integration event requires a stable unique key. Retries must update or reuse the existing record instead of creating a duplicate. Exhausted failures must enter a dead-letter workflow with operator visibility.
+
+Detailed mapping, retries, reconciliation, and recovery belong in `ODOO_INTEGRATION.md`, `SYNC_STRATEGY.md`, `ERP_DATA_MAPPING.md`, and `FAILURE_RECOVERY.md`.
+
+---
+
+## 12. Product Catalog Requirements
+
+### 12.1 Catalog hierarchy
+
+```text
+Category
+   └── Product
+          └── Variant
+                 ├── Attributes
+                 ├── Size / grade / standard
+                 ├── Unit of measure
+                 └── Approved public price snapshot
+```
+
+Initial examples may include beams, rebar, sheets, profiles, pipes, tubes, and related project steel products, but the launch taxonomy must be approved before production content is created.
+
+### 12.2 Commercial and SEO separation
+
+Odoo product data should remain operational. The website may enrich an Odoo-linked item with a canonical slug, Persian/search title, metadata, technical explanation, selection guidance, FAQs, media, breadcrumbs, internal links, structured-data fields, and publication/indexability status.
+
+Commercial synchronization must never erase approved editorial content, and website SEO fields must never overwrite commercial identity in Odoo.
+
+### 12.3 Catalog resilience
+
+The public catalog must read from Cloudflare-hosted website data and caches, not synchronously from Odoo. A sync failure may make a timestamped snapshot stale, but it must not make the public catalog unavailable. Stale-data rules and operator alerts must be explicit.
+
+---
+
+## 13. Pricing Requirements
+
+Public pricing is a supporting discovery and qualification feature, not the brand's primary identity and not a binding offer.
+
+### 13.1 Ownership and publication
+
+- Odoo owns commercial price and pricelist data.
+- D1 stores the approved public read model and price-history snapshots.
+- The public site renders only prices explicitly marked for publication.
+- Every visible price requires currency, unit, effective/update time, and state.
+- A visible disclaimer must distinguish informational data from a formal quotation.
+- Stale, missing, unapproved, or invalid prices must fail safely and never be invented.
+- Publication must not expose cost, margin, supplier, customer-specific, or private pricelist information.
+
+### 13.2 SEO price pages
+
+An indexable price page must provide value beyond a number: current approved price, update time, unit, specification, related variants, explanation of price factors, buying guidance, relevant FAQs, internal links, and an RFQ path where applicable.
+
+Thin pages, empty variant combinations, and uncontrolled filter URLs must not be indexed.
+
+### 13.3 Bulk operations
+
+Bulk commercial price management belongs in Odoo. Website administration may show sync/freshness state and manage public publication rules; it must not create a separate price-maintenance system unless a later recorded decision changes the system of record.
+
+---
+
+## 14. RFQ System Requirements
+
+RFQ is the primary conversion and the bridge between public discovery and commercial operations.
+
+### 14.1 Submission modes
+
+The customer must be able to:
+
+1. enter items manually in a structured form;
+2. upload an existing Excel, PDF, or image list;
+3. combine structured items and attachments.
+
+### 14.2 Multi-item builder
+
+The customer may add or remove rows within documented safety limits. Each row supports:
+
+| Field | Requirement |
+|---|---|
+| Category | Catalog selection or permitted free-text fallback |
+| Product | Dependent catalog selection or free text |
+| Size / variant | Relevant size, grade, thickness, standard, or variant |
+| Unit | Controlled unit list where possible |
+| Quantity | Validated positive quantity with appropriate precision |
+| Description | Optional clarification |
+
+An RFQ contains one-to-many RFQ items. The database and Odoo mapping must preserve that relationship.
+
+### 14.3 Uncatalogued items
+
+The interface must provide a clear “product not found” path. The buyer may enter title, size/specification, unit, quantity, and description. Incomplete catalog coverage must never be a reason to lose a qualified lead.
+
+### 14.4 Request information
+
+The final form may collect only approved and operationally necessary information, including person/company, mobile/phone, optional email according to policy, role, project and delivery location, required delivery time, contact preference, notes, consent, and server-recorded attribution.
+
+### 14.5 Confirmation
+
+On durable acceptance, the system must display a unique reference such as `RFQ-AA-000123` or an approved non-sequential public-safe format. Success must prove server-side storage; a purely visual client-side success state is prohibited.
+
+A customer account or self-service status portal is outside Phase 1 unless separately approved. Authorized operators still require internal acceptance and synchronization visibility.
+
+### 14.6 Privacy
+
+RFQ data and attachments must never be placed in public caches, static build output, client persistent storage, page URLs, analytics payloads, public media buckets, or logs containing raw personal/commercial data.
+
+Detailed validation, upload, retention, abuse-prevention, and fallback rules belong in `RFQ_SYSTEM.md`, `FORM_ARCHITECTURE.md`, and `SECURITY_GUIDELINES.md`.
+
+---
+
+## 15. Website Administration Scope
+
+### 15.1 Required areas
+
+- Dashboard
+- Articles: create, edit, review, schedule, publish, unpublish
+- Website SEO: metadata, canonical/index state, social preview, internal-link support
+- Catalog presentation: website copy, slugs, media, publication, Odoo-link state
+- Prices: public snapshot, freshness, publication state, sync visibility
+- RFQs: acceptance state, sync state, retry/escalation visibility, controlled access
+- Media with separate public/private permissions
+- Users, roles, and permissions
+- Integration health and failed-job handling
+- Audit logs
+- Settings
+
+### 15.2 Boundaries
+
+The website admin must not independently own commercial product masters, variants, units, commercial pricelists, formal quotations, sale orders, suppliers, purchasing, inventory, or accounting. Where an operator needs to change these, the interface must identify Odoo as authoritative.
+
+### 15.3 Roles
+
+The permission model should support Administrator, Content Editor, SEO Editor, Catalog/Price Publisher, RFQ Viewer or Sales Operator, Integration Operator, and Read-only Auditor. Final combinations and approval workflows belong in `AUTHORIZATION_ROLES.md`.
+
+---
+
+## 16. Content and Page Scope
+
+### 16.1 Public page families
 
 - Homepage
 - About Ahan Asa
 - Procurement capabilities/services
-- Procurement process or methodology
-- Material/product category overview
-- Industries or customer applications
-- Projects, case studies, or procurement evidence
+- Procurement process/methodology
+- Steel category hubs
+- Product and approved variant pages
+- Approved price hubs and detail pages
+- Industries/customer applications
+- Verified projects, case studies, or procurement evidence
 - Insights/resources hub
-- Individual article/resource pages
-- Frequently asked questions
+- Article/resource pages
+- FAQ
 - Contact
-- Request for consultation / RFQ
-- Legal and privacy pages
-- Custom error and system-status pages as technically required
+- RFQ / submit material list
+- Legal, privacy, and upload terms
+- Required error and service-status pages
 
-The authoritative page hierarchy, page inventory, and route structure will be defined in `SITEMAP.md`, `INFORMATION_ARCHITECTURE.md`, and `ROUTES.md`.
+The authoritative route inventory belongs in `SITEMAP.md`, `INFORMATION_ARCHITECTURE.md`, `ROUTES.md`, and `SEO_PAGE_MAP.md`.
 
-### 12.2 Core functional requirements
+### 16.2 Voice and messaging
 
-- Fully responsive Persian RTL interface
-- Clear navigation and conversion paths
-- Qualified inquiry/RFQ form
-- Secure document upload if operationally approved
-- Approved direct-contact methods
-- SEO-ready page templates and metadata controls
-- Structured content suitable for static generation
-- Analytics and conversion-event readiness
-- Accessible keyboard, focus, contrast, and form behavior
-- Fast-loading, optimized media
-- Scalable architecture for future locales and content types
+Launch content must be natural professional Persian with correct RTL behavior, punctuation, mixed-direction handling, and the approved numeral policy.
 
-### 12.3 Evidence requirements
+The voice is expert but understandable, calm rather than aggressive, precise rather than promotional, protective without fear-based selling, and transparent about scope.
 
-The website may use only verified evidence. Acceptable evidence can include:
+- Lead with buyer risk, control, and value—not brand self-praise.
+- Distinguish advisory, sourcing, supply, inspection, logistics, and sales responsibilities.
+- Do not promise the lowest price, zero risk, guaranteed availability, or guaranteed delivery without contractual support.
+- Do not publish fabricated projects, testimonials, partners, statistics, inventory, prices, or urgency.
+- Use quantified outcomes only where evidence is approved.
+- Clearly distinguish public price information from a valid quotation.
 
-- Real completed or active procurement cases
-- Approved client names and logos
-- Real quantities, locations, timelines, and outcomes
-- Sample documentation with sensitive information removed
-- Approved process diagrams and checklists
-- Team credentials and verifiable experience
-- Genuine testimonials with permission
+### 16.3 Evidence
 
-If sufficient project evidence is unavailable at launch, the design must use honest process-based credibility instead of invented case studies, counters, awards, testimonials, or partner logos.
+Acceptable evidence includes approved real projects, customer permissions, verified quantities/outcomes, sanitized documents, genuine credentials, process artifacts, and permitted testimonials. When evidence is limited, use honest process-based credibility instead of invented proof.
 
-## 13. Content Direction
+---
 
-### 13.1 Primary content language
+## 17. Customer Journey and Conversion
 
-The Phase 1 public website will be written in natural, professional Persian. It must use correct Persian punctuation, numerals according to the approved content standard, and true RTL layout behavior.
+1. **Discover** — arrive through organic search, referral, campaign, or direct brand discovery.
+2. **Understand** — recognize Ahan Asa as a procurement manager, not merely a seller.
+3. **Explore** — review services, process, categories, products, guides, and approved prices.
+4. **Evaluate** — assess credibility, freshness, specifications, FAQs, and evidence.
+5. **Build request** — add structured lines, free-text items, attachments, or a combination.
+6. **Submit** — pass authoritative server validation and security controls.
+7. **Receive confirmation** — obtain a durable RFQ reference without waiting for Odoo.
+8. **ERP handoff** — synchronize customer and RFQ data asynchronously.
+9. **Commercial follow-up** — sales reviews, clarifies, quotes, negotiates, and proceeds in Odoo.
 
-### 13.2 Voice
+### 17.1 Primary CTA
 
-The voice should be:
+**Submit your material list / Request a procurement quotation**
 
-- Expert but understandable
-- Calm rather than aggressive
-- Precise rather than promotional
-- Protective without creating fear
-- Transparent about scope and limitations
-- Commercially intelligent and technically credible
+Final Persian wording belongs in `CTA_STRATEGY.md` and `COPY_GUIDELINES.md`.
 
-### 13.3 Messaging rules
+### 17.2 Secondary CTAs
 
-- Lead with client risk, control, and business value—not brand self-praise.
-- Explain complex procurement issues in plain language.
-- Distinguish advisory, management, supply, and logistics responsibilities precisely.
-- Avoid absolute promises such as “lowest price,” “zero risk,” or “guaranteed delivery” unless contractually and operationally valid.
-- Avoid generic phrases that could belong to any steel seller.
-- Do not publish unverified market prices or fabricated urgency.
-- Use real examples and quantified outcomes only when evidence exists.
+- Speak with a procurement advisor
+- Add items to an RFQ
+- Upload Excel, PDF, or image list
+- Review current approved prices
+- Explore product categories
+- Understand the procurement process
+- Read a technical or purchasing guide
 
-Detailed editorial rules will be defined in `CONTENT_STRATEGY.md` and `COPY_GUIDELINES.md`.
+---
 
-## 14. Experience and Design Direction
+## 18. Experience and Design Direction
 
-The visual experience should communicate engineered confidence, financial protection, and industrial sophistication.
+The visual system should communicate engineered confidence, financial protection, and industrial sophistication.
 
-### 14.1 Desired characteristics
+### 18.1 Desired characteristics
 
 - Premium and minimalist
-- Strong editorial hierarchy
-- Generous whitespace
-- Precise grid and alignment
-- Modern Persian typography
-- Restrained use of brand colors
-- High-quality industrial photography and technical imagery
-- Subtle, purposeful motion
-- Excellent mobile and desktop usability
+- Strong editorial hierarchy and generous whitespace
+- Precise grid and modern Persian typography
+- Restrained Steel Navy and Forge Copper use
+- Real industrial photography and technical imagery
+- Purposeful micro-interactions
+- Clear data tables and form states
+- Excellent mobile/desktop ergonomics
+- Accessible focus, contrast, labels, errors, and keyboard behavior
 
-### 14.2 What to avoid
+### 18.2 Avoid
 
 - Crowded commodity-market layouts
-- Excessive product cards or price tables on the homepage
+- Homepage price-table overload
 - Generic construction templates
-- Heavy gradients, decorative effects, or visual noise
-- Fake dashboards, market tickers, or unsupported live prices
-- Stock imagery that misrepresents Ahan Asa's facilities, inventory, or team
-- Motion that delays access to content or harms performance
-- Overuse of copper as a dominant background color
+- Decorative motion that delays content
+- Heavy client-side animation on SEO pages
+- Fake dashboards or market tickers
+- Unsupported live-price claims
+- Stock imagery implying facilities, inventory, fleet, or team assets Ahan Asa does not own
+- Excessive copper backgrounds or visual noise
 
-The detailed visual direction belongs in `DESIGN_DIRECTION.md`, while tokens and components belong in `DESIGN_SYSTEM.md`.
+The RFQ builder must remain understandable with many line items. On small screens, rows may adapt into accessible item cards without losing labels, relationships, validation, or edit/remove controls.
 
-## 15. SEO and Discoverability Intent
+---
 
-The website must be designed for sustainable organic visibility around commercial steel procurement topics, not merely the brand name.
+## 19. SEO Architecture Requirements
 
-Initial SEO themes may include:
+SEO pages must return meaningful HTML in the initial response. Indexable content, headings, links, metadata, and structured data must not depend on client-side JavaScript.
 
-- Steel procurement and purchasing management
-- Project-based steel purchasing
-- Steel supplier evaluation
-- Steel quotation and specification comparison
-- Procurement risk, documentation, logistics, and delivery planning
-- Relevant material/category-specific commercial searches
+### 19.1 Page requirements
 
-No final keyword, URL, or page-target decision should be made in this brief. Keyword research, search intent, page mapping, metadata, structured data, internal linking, canonical rules, and sitemap policy will be defined in the SEO documentation set.
+Every indexable template must support:
 
-## 16. Technical and Operational Constraints
+- unique title and meta description;
+- one clear H1 and semantic headings;
+- self-referencing canonical unless an approved exception applies;
+- correct HTTP status and robots directive;
+- server-rendered visible content;
+- crawlable internal links using real URLs;
+- breadcrumb navigation and `BreadcrumbList` where valid;
+- Open Graph/social metadata;
+- structured data matching visible content;
+- meaningful related products, categories, guides, or RFQ paths;
+- accurate `lastmod` based on substantive change.
 
-- Preferred application architecture: Next.js App Router with static-first rendering where practical.
-- Preferred deployment direction: Vercel behind Cloudflare for `ahanassa.com`, subject to the final technical architecture.
-- Persian is the default launch locale and must not depend on client-side JavaScript to expose indexable core content.
-- The implementation must remain compatible with future localization and RTL/LTR coexistence.
-- Core content, navigation, metadata, forms, and analytics must not rely on fabricated placeholder production data.
-- Secrets and environment-specific values must never be committed to the repository.
-- Performance, accessibility, security, SEO, and responsive behavior are release requirements, not optional cleanup tasks.
+### 19.2 Structured data
 
-All implementation decisions remain subordinate to `TECHNICAL_ARCHITECTURE.md`, `DEVELOPMENT_RULES.md`, and `CLAUDE.md` once those documents are approved.
+Eligible types may include `Organization`, `WebSite`, `BreadcrumbList`, `Article`, `Product`, and `Offer`. Eligibility is per-template and only when the required properties are accurate and visible. Markup must never imply stock, price, rating, review, or availability that the page does not show.
 
-## 17. Explicit Non-Goals for Phase 1
+### 19.3 Sitemaps and faceted navigation
 
-Unless separately approved, Phase 1 will not include:
+The sitemap index may separate pages, categories, products, articles, and approved price pages. Draft, private, admin, RFQ confirmation, filter-only, parameterized, duplicate, and unsupported locale URLs must not enter XML sitemaps.
 
-- A public e-commerce checkout
-- Online payment or consumer shopping-cart flows
-- A live steel-price engine or trading dashboard
-- Automated price promises based on unverified feeds
-- Customer accounts or a customer portal
-- Supplier accounts or a supplier marketplace
-- Inventory management or warehouse ERP functionality
-- Automated contract generation
-- Unapproved CRM, ERP, messaging, or marketing integrations
-- Unsupported multilingual content
-- Claims that Ahan Asa owns factories, warehouses, fleet, or inventory without verified evidence
+Filters such as size, grade, brand, standard, unit, and origin must not automatically create indexable URLs. Curated landing pages and filter-only states require explicit canonical, robots, crawl, and linking rules.
 
-These exclusions protect the initial product from scope inflation and misleading positioning. They may become later initiatives after business, legal, data, and operational validation.
+### 19.4 Localization
 
-## 18. Success Criteria
+Persian is the only launch locale. The architecture must remain ready for future RTL/LTR coexistence, but empty, machine-translated, or unsupported English/Arabic routes and hreflang declarations must not be published.
 
-### 18.1 Launch acceptance criteria
+---
 
-The Phase 1 launch is successful when:
+## 20. Performance Requirements
 
-- A new visitor can identify the brand's service, audience, and value within the first screen and initial navigation.
-- Every published capability and claim is supported by approved business information.
-- The primary inquiry path works on mobile and desktop and has a tested fallback.
-- All launch pages contain final or explicitly approved content—no lorem ipsum or misleading placeholders.
-- Persian RTL behavior is correct across navigation, forms, typography, icons, tables, and mixed-direction data.
-- Core pages are indexable, internally linked, and equipped with approved metadata.
-- Performance, accessibility, analytics, security, and responsive QA pass the agreed release thresholds.
-- The owner can identify where a lead came from and whether the primary conversion completed.
+Performance is a release gate measured on representative production-like pages, devices, and networks.
 
-### 18.2 Business KPIs after launch
+### 20.1 Internal targets
 
-KPIs should be measured only after analytics definitions and baselines are approved. Recommended categories:
+At the 75th percentile of eligible real-user data:
 
-- Qualified inquiry volume
-- Inquiry-to-opportunity rate
-- Form completion rate
-- Primary CTA engagement
-- Organic non-brand impressions and clicks
-- Rankings and landing-page performance for approved keyword clusters
-- Engagement with process, evidence, and resource content
-- Lead response time
-- Mobile performance and conversion quality
+| Metric | Internal target |
+|---|---:|
+| LCP | `< 2.0 s` |
+| INP | `< 150 ms` |
+| CLS | `< 0.05` |
+| TTFB for cacheable public pages | `< 500 ms` |
 
-No arbitrary numerical targets are established in this document.
+Representative Lighthouse CI targets:
 
-## 19. Project Governance
+| Category | Target |
+|---|---:|
+| Performance | `95+` |
+| SEO | `100` |
+| Accessibility | `95+` |
+| Best Practices | `95+` |
 
-### 19.1 Source-of-truth hierarchy
+These are internal engineering targets, not promises for every user, route, device, or network.
 
-When documents conflict, use this order unless `CLAUDE.md` establishes a stricter rule:
+### 20.2 Rendering strategy
+
+| Page type | Default strategy |
+|---|---|
+| Home, about, services, process | Static or edge-cached HTML |
+| Category and product SEO pages | Static/revalidated or edge-cached HTML |
+| Articles and resources | Static/revalidated HTML |
+| Public price pages | Cached dynamic or controlled revalidation |
+| RFQ builder | HTML-first shell with isolated interactivity |
+| Admin/authenticated operations | Dynamic, private, never publicly cached |
+
+Use server-rendered/server components by default. Client components should be limited to real interaction such as RFQ rows, product filters/search, calculators, mobile navigation, upload progress, and authenticated admin controls. Public content must remain available when nonessential JavaScript fails.
+
+### 20.3 Cache, media, and fonts
+
+- Public cacheable content should be served from the nearest Cloudflare edge where practical.
+- Odoo must never be in the synchronous public-render path.
+- Content and price updates require selective invalidation or revalidation.
+- RFQ, admin, authentication, attachments, and user-specific responses must never be publicly cached.
+- R2 public originals must be delivered as appropriately sized responsive derivatives, preferably AVIF/WebP with fallback.
+- Dimensions, aspect ratio, priority, and loading behavior must be explicit.
+- Fonts should be self-hosted WOFF2, subset where practical, limited to required weights, and preloaded only when critical.
+- Motion and media must respect reduced-motion preferences and never block primary content or conversion.
+
+Detailed budgets belong in `PERFORMANCE_BUDGET.md` and `PERFORMANCE_GUIDELINES.md`.
+
+---
+
+## 21. Cloudflare Platform Requirements
+
+The target production platform is Cloudflare, subject to technical compatibility validation.
+
+### 21.1 Intended services
+
+- Cloudflare DNS, TLS, edge delivery, redirects, and security controls
+- Next.js App Router deployed to Cloudflare Workers
+- D1 for relational website data, read models, RFQ durability, and integration state
+- R2 for public media originals and separately controlled private RFQ attachments
+- Queues for asynchronous Website/Odoo integration jobs
+- Turnstile and server-side abuse controls
+- Worker logs, metrics, traces, and alerts
+
+### 21.2 Data-model direction
+
+D1 is expected to include logical entities for website users/roles, articles/categories, synchronized steel categories/products/variants/attributes/units, public prices/history, RFQs/items/attachments, media, integration jobs, sync state, and audit logs.
+
+Synchronized entities should include identifiers and timestamps needed for reconciliation, such as `external_id`, `odoo_id`, `sync_status`, `last_synced_at`, and `sync_version` where relevant.
+
+Exact tables, keys, indexes, constraints, migrations, retention, and replication/session behavior belong in `DATABASE_SCHEMA.md` and `DATA_ARCHITECTURE.md`.
+
+---
+
+## 22. Security, Privacy, and Reliability
+
+### 22.1 Security baseline
+
+- All secrets remain server-side in protected environment secrets.
+- Odoo credentials must never enter browser bundles, public environment variables, source control, logs, or analytics.
+- Odoo integration uses a dedicated least-privilege bot user.
+- Admin and integration permissions follow least privilege and separation of duties.
+- Request bodies are validated authoritatively on the server.
+- Database queries are parameterized and constrained.
+- Authentication, sessions, CSRF protection, origin controls, rate limits, and security headers follow the final threat model.
+- Material administrative and synchronization actions are auditable.
+
+### 22.2 Upload controls
+
+Uploads require documented allowed formats, file size/count limits, extension/MIME/signature validation, randomized keys, private storage, malware/quarantine handling where required, authorized time-limited access, retention/deletion, and log redaction.
+
+Uploaded content must never be executed, rendered inline unsafely, or exposed by a predictable public URL.
+
+### 22.3 Failure behavior
+
+- An accepted RFQ must be recoverable when Odoo is unavailable.
+- Queue retries must be idempotent.
+- Dead-letter events require an operator workflow and alert.
+- Failed catalog/price sync must preserve the last valid snapshot and accurately mark freshness.
+- No error path may silently discard a lead.
+- Backups, recovery objectives, reconciliation jobs, and incident ownership must be documented and tested.
+
+---
+
+## 23. Analytics and Observability
+
+Analytics must measure the journey without collecting RFQ line content, attachment names, personal data, commercial documents, or sensitive free text.
+
+Approved events may include category/product/price page views, RFQ start, item added/removed without content, upload method selected without filename, validation error by safe code, successful submission by opaque event ID, CTA engagement, and resource engagement.
+
+Operational monitoring must cover Worker errors/latency, D1 errors, R2 failures, queue backlog/retries/dead letters, Odoo API failures, sync age, stale prices/catalog, RFQ acknowledgement failures, suspicious activity, 404/5xx trends, cache hit ratio, and Core Web Vitals.
+
+---
+
+## 24. Phase 1 Scope
+
+Phase 1 includes:
+
+- Persian-first premium public website;
+- Cloudflare-based deployment foundation;
+- brand, process, service, category, product, article, legal, contact, and RFQ page families;
+- website CMS for articles and approved public content;
+- Odoo-linked product/catalog read model;
+- approved public price snapshots and freshness states;
+- structured multi-item RFQ builder;
+- Excel, PDF, and image attachments;
+- uncatalogued-item fallback;
+- durable D1 capture and private R2 storage;
+- asynchronous Odoo customer, lead/opportunity, and RFQ handoff;
+- operator access to content, publication, RFQ, and integration states;
+- SEO, performance, accessibility, security, analytics, and observability release gates.
+
+Exact route count and launch catalog depth depend on approved content and data readiness.
+
+---
+
+## 25. Explicit Non-Goals for Phase 1
+
+Unless separately approved, Phase 1 does not include:
+
+- public consumer checkout, online payment, or shopping cart;
+- open supplier marketplace or supplier self-service accounts;
+- customer account or self-service RFQ portal;
+- customer-specific online pricing;
+- autonomous quotation without sales review;
+- website ownership of inventory, purchasing, suppliers, accounting, or sale orders;
+- unverified real-time market feeds;
+- automated price or delivery guarantees;
+- unsupported multilingual publication;
+- public exposure of Odoo, D1, R2, admin, or integration internals;
+- claims that Ahan Asa owns factories, warehouses, fleet, inventory, or certifications without evidence.
+
+These exclusions prevent scope inflation, duplicated ERP functionality, and misleading positioning.
+
+---
+
+## 26. Success Criteria
+
+### 26.1 Launch acceptance
+
+The release is ready only when:
+
+- A first-time visitor can identify the service, audience, and value in the first screen/navigation.
+- Every public claim, price, product, project, testimonial, and operational statement is approved.
+- Persian RTL is correct across navigation, forms, tables, filters, numerals, and mixed-direction text.
+- Core pages return indexable HTML with approved metadata, canonicals, links, statuses, and sitemap inclusion.
+- RFQ supports multiple rows, uncatalogued items, and approved files on mobile and desktop.
+- Successful submission proves durable storage and returns a unique reference.
+- Odoo unavailability does not lose or block an accepted RFQ.
+- Retries do not create duplicate Odoo records.
+- Public catalog/prices render without a live Odoo dependency.
+- Private data is absent from public caches, analytics, static output, and public object storage.
+- Performance, accessibility, SEO, security, responsive, integration, recovery, and rollback gates pass.
+- Operators can identify stale data, failed synchronization, and RFQ processing state.
+- No placeholder, fabricated, or unsupported production content remains.
+
+### 26.2 Business KPIs
+
+Numerical targets require approved baselines. KPI categories include qualified RFQ volume, completion rate, average items per RFQ, attachment-assisted rate, inquiry-to-opportunity, opportunity-to-quotation, quotation-to-sale, response time, Odoo sync success/delay, organic non-brand performance, page contribution to RFQs, and Core Web Vitals pass rate.
+
+---
+
+## 27. Governance and Source-of-Truth Hierarchy
+
+When documents conflict, use this order unless `CLAUDE.md` defines a stricter implementation rule:
 
 1. Explicit owner decision recorded in `DECISIONS.md`
 2. `PROJECT_BRIEF.md`
-3. Approved brand and strategy documents
-4. Approved page and content specifications
-5. Technical and development standards
-6. Task-specific implementation instructions
+3. `SYSTEM_OF_RECORD.md`
+4. Approved brand and strategy documents
+5. Approved page, content, catalog, pricing, RFQ, and integration specifications
+6. Technical architecture and development standards
+7. Task-specific implementation instructions
 
-Claude Code must not silently resolve material contradictions. It should identify the conflict, preserve approved work, and request a decision when the outcome affects brand, scope, architecture, SEO, content, or production data.
+Claude Code must not silently choose between material contradictions. It must identify the conflict, preserve unrelated approved work, and request a decision when the outcome affects brand, scope, data ownership, architecture, SEO, security, privacy, or production data.
 
-### 19.2 Change control
+Explicit recorded approval is required for changes to positioning/slogan, market/language, primary conversion, product/service scope, logo/colors, public prices/claims/evidence, canonical domain, Website/Odoo boundaries, RFQ retention, commercial data ownership, Cloudflare architecture, or e-commerce/portal/payment/marketplace scope.
 
-Changes to the following require an explicit recorded decision:
+---
 
-- Brand positioning or slogan
-- Target market or audience
-- Primary conversion model
-- Product/service scope
-- Master logo geometry or approved colors
-- Public claims, guarantees, or evidence
-- Launch languages
-- E-commerce, price-feed, portal, or marketplace scope
-- Canonical domain or primary locale strategy
-- Core technical architecture
+## 28. Required Documentation Alignment
 
-## 20. Dependencies
+This brief governs but does not replace the project documentation. At minimum, the following documents must be aligned before architecture is considered implementation-ready:
 
-This brief should guide—but not replace—the following documents:
+- `BRAND_GUIDELINES.md`, `DESIGN_DIRECTION.md`, `DESIGN_SYSTEM.md`
+- `SITEMAP.md`, `INFORMATION_ARCHITECTURE.md`, `ROUTES.md`, `PAGE_SPECIFICATIONS.md`
+- `CONTENT_STRATEGY.md`, `COPY_GUIDELINES.md`, `CTA_STRATEGY.md`
+- `PRODUCT_CATALOG_SPEC.md`, `PRICING_SYSTEM.md`, `RFQ_SYSTEM.md`
+- `ADMIN_PANEL_SPEC.md`, `AUTHORIZATION_ROLES.md`
+- `STACK.md`, `TECHNICAL_ARCHITECTURE.md`, `FOLDER_STRUCTURE.md`, `COMPONENT_ARCHITECTURE.md`
+- `DATA_ARCHITECTURE.md`, `DATABASE_SCHEMA.md`, `CMS_ARCHITECTURE.md`
+- `API_INTEGRATIONS.md`, `ODOO_INTEGRATION.md`, `SYSTEM_OF_RECORD.md`
+- `SYNC_STRATEGY.md`, `ERP_DATA_MAPPING.md`, `FAILURE_RECOVERY.md`, `FORM_ARCHITECTURE.md`
+- `PERFORMANCE_BUDGET.md`, `PERFORMANCE_GUIDELINES.md`, `CACHING_STRATEGY.md`
+- `IMAGE_OPTIMIZATION.md`, `FONT_STRATEGY.md`
+- `SEO_STRATEGY.md`, `SEO_PAGE_MAP.md`, `STRUCTURED_DATA.md`, `METADATA_SPEC.md`
+- `INTERNAL_LINKING.md`, `SITEMAP_ROBOTS_SPEC.md`, `HREFLANG_CANONICAL.md`
+- `SECURITY_GUIDELINES.md`, `DEPLOYMENT_ARCHITECTURE.md`, `ENVIRONMENT_VARIABLES.md`
+- `TESTING_STRATEGY.md`, `QA_CHECKLIST.md`, `SEO_QA_CHECKLIST.md`
+- `PRE_DEPLOY_CHECKLIST.md`, `POST_DEPLOY_CHECKLIST.md`
+- `DEVELOPMENT_RULES.md`, `CLAUDE.md`, `TASKS.md`, `DECISIONS.md`
 
-- `BRAND_GUIDELINES.md`
-- `DESIGN_DIRECTION.md`
-- `DESIGN_SYSTEM.md`
-- `SITEMAP.md`
-- `PAGE_SPECIFICATIONS.md`
-- `CONTENT_STRATEGY.md`
-- `SEO_STRATEGY.md`
-- `SEO_KEYWORD_MAP.md`
-- `TECHNICAL_ARCHITECTURE.md`
-- `FOLDER_STRUCTURE.md`
-- `DEVELOPMENT_RULES.md`
-- `QA_CHECKLIST.md`
-- `TASKS.md`
-- `CLAUDE.md`
-- `DECISIONS.md`
+---
 
-## 21. Open Decisions and Required Inputs
+## 29. Open Decisions and Required Inputs
 
-The following items are intentionally marked as unresolved and must not be guessed during implementation:
+The following must not be guessed during implementation:
 
-- **TBD — Legal entity:** Exact legal company name, registration information, and invoicing identity.
-- **TBD — Operational coverage:** Confirmed cities, provinces, countries, and delivery limitations.
-- **TBD — Material scope:** Exact steel products and categories offered or managed at launch.
-- **TBD — Service boundaries:** Advisory, sourcing, direct supply, inspection, logistics, financing, and after-sales responsibilities.
-- **TBD — Commercial model:** Fee, margin, commission, supply contract, or hybrid model; public disclosure policy.
-- **TBD — Minimum project criteria:** Minimum quantity, value, geography, or customer qualification rules.
-- **TBD — Evidence:** Approved projects, client names, metrics, photos, documents, and testimonials.
-- **TBD — Contact channels:** Official phone numbers, email addresses, WhatsApp, office address, and business hours.
-- **TBD — Lead destination:** Email, CRM/Odoo, messaging workflow, ownership, and response SLA.
-- **TBD — Privacy/legal:** Privacy notice, document retention, consent wording, and upload restrictions.
-- **TBD — Languages after Persian:** Priority and launch criteria for English, Arabic, or other locales.
-- **TBD — Content ownership:** Who approves commercial, technical, legal, and editorial content.
-- **TBD — Analytics:** GA4/GTM properties, consent requirements, conversion definitions, and reporting owner.
-- **TBD — CMS:** Whether insights, projects, and resources require a CMS in Phase 1.
+- **Legal entity:** registered name, tax/invoicing identity, legal notices, contracting party.
+- **Operational coverage:** cities, provinces, countries, delivery restrictions, logistics scope.
+- **Launch catalog:** categories, products, grades, standards, variants, sizes, brands, units.
+- **Service boundaries:** advisory, sourcing, supply, inspection, logistics, financing, after-sales.
+- **Commercial model:** fee, margin, commission, direct supply, or hybrid and public disclosure.
+- **Qualification rules:** minimum quantity/value/geography/customer eligibility.
+- **Price policy:** eligibility, currency, tax, cadence, stale threshold, rounding, disclaimer, owner.
+- **Odoo environment:** version, edition, modules, customizations, staging, API, limits, backup owner.
+- **ERP mapping:** dedicated RFQ module/model versus approved CRM/Sales representation.
+- **Data conflicts:** field-level reconciliation rules for Odoo and website edits.
+- **Evidence:** clients, projects, metrics, images, documents, testimonials, permissions.
+- **Contact channels:** phone/country code, email, WhatsApp, address, business hours.
+- **Response workflow:** lead owner, routing, SLA, escalation, notifications.
+- **Privacy:** consent, retention, deletion, data requests, attachment handling.
+- **Upload policy:** formats, size/count, scanning, retention, permissions.
+- **Admin authentication:** identity provider, MFA, sessions, recovery, privileged access.
+- **Content ownership:** commercial, technical, legal, editorial, SEO, publication approvers.
+- **Analytics:** GA4/GTM, consent, event taxonomy, dashboards, reporting owner.
+- **Future languages:** priority and launch criteria for English, Arabic, or others.
+- **Customer status access:** whether tracking or a portal is required after Phase 1.
 
-## 22. Definition of Done for This Brief
+Each open decision must receive an owner, target date, and explicit status in `DECISIONS.md` and `TASKS.md` before dependent implementation begins.
+
+---
+
+## 30. Definition of Done for This Brief
 
 This document becomes **Approved** when the project owner confirms:
 
-- The brand category and positioning are accurate.
-- The target audiences and initial market are correct.
-- The primary conversion and Phase 1 boundaries are accepted.
-- The approved slogan, master logo rule, and color foundation are correct.
-- Every open decision has either an owner, a deadline, or an explicit deferral.
+- the brand category, promise, positioning, audience, and launch market;
+- the shift from brochure website to digital procurement platform;
+- the Website/Cloudflare/Odoo responsibility boundaries;
+- Odoo as the commercial system of record;
+- catalog, pricing, CMS, RFQ, attachment, and administration scope;
+- Cloudflare deployment and asynchronous integration direction;
+- primary conversion and Phase 1 non-goals;
+- internal SEO, performance, accessibility, security, and reliability targets;
+- an owner and disposition for every unresolved decision.
 
-Until then, this document is an authoritative working draft. Claude Code may use confirmed sections for planning but must not turn unresolved `TBD` items into production claims or functionality.
+Until approval, this is an authoritative working draft. Confirmed sections may guide planning and dependent documentation, but unresolved items must not become production claims, schemas, credentials, integrations, or public functionality.
 
 ---
 
@@ -507,4 +920,5 @@ Until then, this document is an authoritative working draft. Claude Code may use
 | Brand Approval | TBD | Pending | — |
 | Commercial Approval | TBD | Pending | — |
 | Technical Approval | TBD | Pending | — |
-
+| ERP/Odoo Approval | TBD | Pending | — |
+| Legal/Privacy Approval | TBD | Pending | — |

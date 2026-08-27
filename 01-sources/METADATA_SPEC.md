@@ -1,724 +1,814 @@
 # Ahan Asa Website — Metadata Specification
 
 > **Brand:** Ahan Asa | آهن آسا  
-> **Domain:** `ahanassa.com`  
+> **Canonical origin:** `https://www.ahanassa.com`  
+> **ERP:** `https://odoo.ahanassa.com`  
 > **Document:** `METADATA_SPEC.md`  
-> **Status:** Draft v1.0 — implementation contract for approval  
-> **Last updated:** 2026-08-25  
-> **Launch locale:** Persian (`fa-IR`), fully RTL  
-> **Primary scope:** HTML title, meta description, canonical, robots, Open Graph, and social-share metadata
+> **Status:** Approved architecture baseline — v2.0  
+> **Last updated:** 2026-08-26  
+> **Launch locale:** Persian (`fa-IR`), fully RTL, unprefixed URLs  
+> **Future locale reservations:** English (`/en`), Arabic (`/ar`)  
+> **Primary scope:** HTML and social metadata for public, catalog, price, article, RFQ, account, admin, and system routes
 
 ---
 
 ## 1. Purpose
 
-This document defines how metadata must be authored, stored, generated, rendered, validated, and maintained across the Ahan Asa website.
+This document is the implementation contract for creating, storing, generating, rendering, caching, validating, and maintaining metadata across the Ahan Asa website.
 
-It is an implementation contract for Claude Code, developers, SEO specialists, content editors, designers, and QA reviewers. It covers:
+It covers:
 
-- HTML `<title>`;
-- meta description;
-- canonical URL;
+- HTML title and meta description;
+- canonical URLs;
 - robots directives;
 - Open Graph metadata;
 - X/Twitter card metadata;
-- locale metadata;
-- dynamic metadata templates;
-- social-share images;
-- fallback and inheritance behavior;
-- page-family rules;
+- locale and hreflang metadata;
+- product, variant, category, price, and article templates;
+- fallback and inheritance rules;
+- metadata ownership across Website CMS, D1, R2, and Odoo;
 - Next.js App Router implementation;
-- quality assurance and change control.
+- cache invalidation after CMS or ERP synchronization;
+- build, deployment, and production QA.
 
-This file does not replace:
+It does not replace:
 
-- `SEO_KEYWORD_MAP.md` for keyword ownership;
-- `SEO_PAGE_MAP.md` for search intent and page mapping;
-- `ROUTES.md` for canonical paths and indexation states;
-- `HREFLANG_CANONICAL.md` for multilingual equivalence;
+- `HREFLANG_CANONICAL.md` for locale equivalence and canonical policy;
+- `SITEMAP_ROBOTS_SPEC.md` for crawl discovery and sitemap membership;
 - `STRUCTURED_DATA.md` for JSON-LD;
-- `MEDIA_GUIDELINES.md` for the full media system;
-- `COPY_GUIDELINES.md` for site-wide copy rules.
+- `PRODUCT_CATALOG_SPEC.md` for catalog entities and route eligibility;
+- `PRICING_SYSTEM.md` for public price eligibility and freshness;
+- `SYSTEM_OF_RECORD.md` for field ownership;
+- `SYNC_STRATEGY.md` for Odoo synchronization;
+- `SEO_KEYWORD_MAP.md` and `SEO_PAGE_MAP.md` for intent ownership;
+- `ROUTES.md` for the final route manifest.
+
+When two documents conflict, metadata must follow the approved route manifest and system-of-record decision. A conflict must be fixed in the documentation set before release; it must not be silently resolved in code.
 
 ---
 
-## 2. Brand and Search Positioning
+## 2. Non-Negotiable Decisions
 
-All metadata must reinforce the approved position:
-
-> Ahan Asa is a professional steel procurement-management partner that protects the client's commercial and project interests. It is not an online steel shop, price board, supplier marketplace, or commodity trading platform.
-
-### 2.1 Approved identity
-
-| Field | Approved value |
+| Decision | Required implementation |
 |---|---|
-| Persian brand name | `آهن آسا` |
-| Latin brand name | `Ahan Asa` |
-| Domain | `ahanassa.com` |
+| Canonical origin | `https://www.ahanassa.com` |
+| Apex behavior | `https://ahanassa.com/**` permanently redirects to the matching `www` URL |
+| Persian locale | Unprefixed, e.g. `/steel`, not `/fa/steel` |
+| English and Arabic | No public metadata or hreflang until each locale is complete and approved |
+| Commercial source of truth | Odoo owns product, variant, UOM, public-price source, and commercial availability |
+| SEO source of truth | Website CMS owns slug, title, description, H1, editorial copy, robots, OG fields, and index eligibility |
+| Public read path | Metadata reads D1/cache; it never waits for Odoo during a visitor request |
+| Rendering | Critical metadata is present in the initial server-rendered HTML |
+| Product positioning | B2B procurement-management service, not an online shop or marketplace |
+| Price language | Never claim “live”, guaranteed, lowest, or in-stock unless the approved visible data supports it |
+| Facets | Filter/sort/search states are not indexable landing pages by default |
+| Missing entity | Return a genuine `404`; do not canonicalize it to a parent or homepage |
+
+---
+
+## 3. Brand and Search Positioning
+
+All metadata must present Ahan Asa as a professional B2B steel procurement-management partner that protects the customer's commercial and project interests.
+
+Approved identity:
+
+| Field | Value |
+|---|---|
+| Persian brand | `آهن آسا` |
+| Latin brand | `Ahan Asa` |
 | Brand promise | `ما مراقب سرمایه شما هستیم.` |
-| Brand essence | `آسایش از خرید درست` |
-| Primary service category | Steel procurement management and project purchasing support |
-| Primary market | Iran |
-| Launch language | Persian |
-| Launch direction | RTL |
-| Primary conversion | Sending an invoice, BOM, material list, or procurement request |
+| Primary action | Submit a steel requirement, BOM, invoice, or material list for review |
+| Primary audience | Project owners, purchasing teams, contractors, factories, and professional buyers |
 
-### 2.2 Metadata tone
+Metadata tone must be precise, calm, commercially intelligent, technically credible, and restrained.
 
-Metadata must feel:
+Do not use unsupported equivalents of:
 
-- precise;
-- calm;
-- protective;
-- commercially intelligent;
-- technically credible;
-- premium but restrained;
-- clear to non-expert buyers.
-
-Metadata must not use:
-
-- clickbait;
-- artificial urgency;
-- keyword stuffing;
-- vague corporate superlatives;
-- exaggerated certainty;
-- unsupported market, geographic, inventory, price, or delivery claims.
-
-### 2.3 Prohibited claims
-
-Do not use any equivalent of the following unless a separately approved evidence record explicitly authorizes it:
-
-- `کمترین قیمت` / lowest price;
-- `بهترین قیمت بازار`;
-- `تضمین قیمت`;
-- `تضمین تحویل`;
-- `بدون ریسک`;
-- `موجودی قطعی`;
-- `ارسال فوری`;
-- `بهترین تأمین‌کننده آهن`;
-- `قیمت لحظه‌ای آهن`;
-- `فروش مستقیم کارخانه`;
-- active coverage in Iraq, Oman, or GCC markets;
-- unverified supplier, factory, certification, project, client, or inventory claims.
+- lowest or best market price;
+- guaranteed price or delivery;
+- risk-free purchase;
+- confirmed stock or immediate dispatch;
+- live or moment-by-moment price;
+- direct factory sales;
+- authorized agency or exclusive supplier;
+- active geographic coverage not yet approved;
+- unverified standards, origin, manufacturer, inventory, customer, or project claims.
 
 ---
 
-## 3. Source of Truth and Conflict Resolution
+## 4. Metadata Data Flow and Ownership
 
-Metadata decisions follow this priority:
+### 4.1 Runtime flow
 
-1. Explicit owner decisions in `DECISIONS.md`
-2. `PROJECT_BRIEF.md`
-3. `BRAND_GUIDELINES.md`
-4. Approved `SITEMAP.md` and `ROUTES.md`
-5. `SEO_STRATEGY.md`
-6. `SEO_KEYWORD_MAP.md`
-7. `SEO_PAGE_MAP.md`
-8. `COPY_GUIDELINES.md`
-9. `METADATA_SPEC.md`
-10. Page-level content records and implementation
+```text
+Odoo commercial data
+        ↓ asynchronous sync
+Cloudflare Queue / Integration Worker
+        ↓ validated public projection
+D1 SEO read model
+        +
+Website CMS editorial metadata
+        ↓
+Next.js generateMetadata / page render
+        ↓
+Cloudflare edge cache
+        ↓
+Crawler or visitor
+```
 
-The canonical route, page identity, primary intent, metadata, H1, visible introduction, and internal-link anchors must describe the same subject.
+`generateMetadata()` must not call `odoo.ahanassa.com` directly. Odoo outages, upgrades, authentication failures, or slow responses must not delay public HTML or remove existing valid metadata.
 
-If the approved route inventory conflicts across project documents, Claude Code must not publish duplicate variants. It must:
+### 4.2 Field ownership
 
-1. use a stable internal `pageKey`;
-2. flag the conflicting routes;
-3. obtain or apply the recorded route decision;
-4. update `ROUTES.md`, `SITEMAP.md`, `SEO_PAGE_MAP.md`, redirects, and this file together.
+| Field group | Authoritative system | Public rendering source |
+|---|---|---|
+| Product name, internal commercial identity | Odoo | Validated D1 projection |
+| Variant, attributes, UOM | Odoo | Validated D1 projection |
+| Public price source and commercial availability | Odoo | D1 public-price snapshot |
+| Slug and redirect history | Website | D1 route/SEO record |
+| SEO title and description | Website CMS | D1/CMS read model |
+| H1, intro, buying guide, FAQ | Website CMS | D1/CMS read model |
+| Canonical and robots state | Website route/SEO manifest | Application metadata resolver |
+| Article metadata and dates | Website CMS | D1/CMS read model |
+| Social images and media | Website media registry / R2 | Cloudflare image delivery |
+| RFQ/customer/quotation status | Website receipt + Odoo workflow | Never exposed in public metadata |
 
----
+### 4.3 Conflict rules
 
-## 4. Core Principles
-
-### 4.1 One page, one metadata identity
-
-Every canonical, indexable page requires a unique:
-
-- title;
-- description;
-- canonical URL;
-- primary search intent;
-- social-share identity.
-
-Do not reuse the homepage title or description as a site-wide fallback on published pages.
-
-### 4.2 Human meaning before keyword coverage
-
-The title and description must help a real visitor understand:
-
-- what the page contains;
-- whether it matches their need;
-- why opening it is useful.
-
-Use the mapped primary phrase naturally. Do not enumerate keyword variants.
-
-### 4.3 Important meaning first
-
-Place the decisive page subject toward the beginning of the title and description. Do not spend the beginning on generic brand language.
-
-Homepage exception: the brand may appear first because the homepage owns brand/entity discovery.
-
-### 4.4 Metadata must match visible content
-
-Metadata must not promise information, inventory, prices, services, files, evidence, or geographic coverage that the page does not visibly provide.
-
-### 4.5 No false control over search snippets
-
-Search engines may rewrite title links and snippets. Character counts in this document are editorial targets, not guaranteed display limits.
+- Odoo wins for commercial values.
+- Website CMS wins for editorial and SEO values.
+- An ERP sync must not overwrite `seo_title`, `meta_description`, `slug`, `robots`, `canonical`, or OG overrides.
+- A content edit must not overwrite commercial price, UOM, stock, or Odoo identifiers.
+- A failed or partial sync must retain the last complete public snapshot and must not publish mixed-entity metadata.
+- Mapping conflicts require operator review.
 
 ---
 
-## 5. Required Metadata Matrix
+## 5. Metadata Output Contract
 
-| Field | Indexable page | Noindex utility | Dynamic detail | Required rule |
-|---|---:|---:|---:|---|
-| HTML title | Yes | Yes | Yes | Unique and descriptive |
-| Meta description | Yes | Yes | Yes | Accurate page summary |
-| Canonical | Yes | Yes | Yes | Absolute approved HTTPS URL |
-| Robots | Explicit | Explicit | Explicit | Derived from route manifest |
-| `og:title` | Yes | Yes | Yes | May be slightly more editorial than HTML title |
-| `og:description` | Yes | Yes | Yes | Share-focused, accurate summary |
-| `og:url` | Yes | Yes | Yes | Must equal canonical |
-| `og:type` | Yes | Yes | Yes | Determined by page family |
-| `og:site_name` | Yes | Yes | Yes | `آهن آسا` |
-| `og:locale` | Yes | Yes | Yes | `fa_IR` |
-| `og:image` | Yes | Recommended | Yes | Absolute HTTPS URL |
-| `og:image:alt` | Yes | Recommended | Yes | Describe image purpose/content |
-| X/Twitter card | Yes | Recommended | Yes | `summary_large_image` by default |
-| Hreflang | Only approved locales | No | Only approved locales | Never publish incomplete alternates |
+Every rendered HTML route must resolve one explicit metadata state.
+
+| Field | Indexable public page | Noindex utility | Dynamic catalog/price page |
+|---|---:|---:|---:|
+| `<title>` | Required | Required | Required |
+| Meta description | Required | Required | Required |
+| Absolute canonical | Required | Normally required | Required |
+| Robots decision | Required in content model | Required in HTML | Required |
+| `og:title` | Required | Optional | Required |
+| `og:description` | Required | Optional | Required |
+| `og:url` | Required; equals canonical | Optional | Required; equals canonical |
+| `og:type` | Required | Optional | Required |
+| `og:site_name` | Required | Optional | Required |
+| `og:locale` | Required | Optional | Required |
+| `og:image` + dimensions + alt | Required or approved fallback | Optional | Required or approved fallback |
+| X/Twitter large card | Required or inherited | Optional | Required or inherited |
+| Hreflang | Only for complete approved equivalents | No | Only for complete approved equivalents |
+
+Global technical metadata must also include:
+
+- UTF-8 charset;
+- responsive viewport;
+- approved icons and web manifest where applicable;
+- search-engine verification tokens only from secure deployment configuration;
+- no deprecated `meta keywords` field.
 
 ---
 
-## 6. HTML Title Specification
+## 6. Title Rules
 
-### 6.1 Format
-
-Preferred formats:
+### 6.1 Standard formats
 
 ```text
 Homepage: آهن آسا | [primary positioning]
 Inner page: [page subject] | آهن آسا
-Detail page: [specific topic] | آهن آسا
+Article: [article title] | آهن آسا
+Category: [category subject] | آهن آسا
+Product: [product subject] | آهن آسا
+Variant: [product + differentiating attributes] | آهن آسا
+Price: قیمت [entity] | تاریخ و مشخصات به‌روزرسانی | آهن آسا
 ```
 
-Use the vertical bar `|` as the standard separator. Do not mix `-`, `–`, `—`, `•`, and `|` across templates.
+Use `|` as the standard separator. A title passed into the root title template must not already contain the brand suffix.
 
 ### 6.2 Editorial budget
 
-- Preferred working range: approximately 35–65 Persian characters including spaces.
-- A shorter title is acceptable when it is complete and distinctive.
-- A longer title is acceptable when removing text would materially reduce clarity.
-- The linter must warn, not automatically rewrite, titles outside the working range.
-- Never truncate source text with `...` inside the HTML title.
+- Working range: approximately 35–65 Persian characters including spaces.
+- This is an editorial warning threshold, not a search-engine guarantee.
+- Never cut a stored title with ellipsis.
+- Prefer the decisive subject near the beginning.
+- The homepage may place the brand first.
 
-### 6.3 Title requirements
+### 6.3 Requirements
 
-Every title must:
+Every indexable title must:
 
 - uniquely identify the page;
-- express the page's primary intent;
-- use natural Persian;
+- match the page's primary search intent and visible H1;
+- use natural Persian rather than a keyword list;
+- distinguish a category, product, variant, and price page from one another;
 - use the approved brand spelling `آهن آسا`;
-- avoid repeating the same word unnecessarily;
-- avoid all-caps Latin text;
-- remain understandable outside the site's navigation context.
+- remain meaningful outside navigation context;
+- avoid volatile values unless that value is central, visible, valid, and intentionally included.
 
-### 6.4 Title anti-patterns
-
-Reject:
+### 6.4 Rejected patterns
 
 ```text
 خانه | آهن آسا
 محصولات | آهن آسا
-خدمات آهن آهن خرید آهن قیمت آهن | آهن آسا
-بهترین و ارزان‌ترین خرید آهن با تضمین قیمت
+قیمت لحظه‌ای آهن با تضمین کمترین قیمت
+خرید آهن قیمت آهن فروش آهن بازار آهن | آهن آسا
+میلگرد ۱۶ | آهن آسا                 # insufficient when several grades/standards exist
 آهن آسا | آهن آسا | مدیریت خرید آهن
 ```
 
-### 6.5 Relationship to H1
+---
 
-The title and H1 may differ, but must share the same page intent.
+## 7. Meta Description Rules
 
-- Title: concise search-result label.
-- H1: primary on-page promise or question.
-- They must not target different subjects.
-- Exact duplication is allowed but not required.
+### 7.1 Working range
 
-Homepage example:
+- Preferred: approximately 110–170 Persian characters including spaces.
+- A shorter or longer description is acceptable when it is clearer.
+- Search engines may generate another snippet from visible page content.
+- CI warns on unusual length; it does not rewrite approved Persian copy.
+
+### 7.2 Required structure
+
+A description should state:
+
+1. what the page contains;
+2. what practical decision it helps the visitor make;
+3. an optional low-pressure next step.
+
+### 7.3 Prohibitions
+
+Do not:
+
+- copy the title word for word;
+- repeat a site-wide generic description;
+- inject a raw price table, phone number, or temporary campaign;
+- claim a current price without a visible timestamp and eligible snapshot;
+- promise availability, delivery, supplier status, or geography not shown on the page;
+- concatenate optional dynamic fields into broken Persian;
+- expose internal codes, Odoo IDs, RFQ IDs, or customer data.
+
+Example pattern:
+
+```text
+[نام محصول] را از نظر مشخصات، واحدهای رایج، گزینه‌های موجود و ملاحظات خرید پروژه‌ای بررسی کنید و درخواست تأمین خود را برای ارزیابی ارسال کنید.
+```
+
+---
+
+## 8. Canonical URL Specification
+
+### 8.1 Fixed origin
+
+```text
+https://www.ahanassa.com
+```
+
+Production code must derive all absolute metadata URLs from a server-side validated configuration value:
+
+```text
+SITE_URL=https://www.ahanassa.com
+```
+
+The client-exposed environment is not the authority for security-sensitive routing decisions.
+
+### 8.2 Canonical normalization
+
+Canonical URLs must use:
+
+- HTTPS;
+- `www.ahanassa.com`;
+- lowercase ASCII slugs;
+- hyphen-separated words;
+- no trailing slash except `/`;
+- no fragments;
+- no tracking, sort, filter, search, preview, session, or campaign parameters;
+- no database IDs, Odoo IDs, or mutable prices in the path.
+
+### 8.3 Required consistency
+
+For an indexable page, these must identify the same URL:
+
+- server-side redirect destination;
+- `<link rel="canonical">`;
+- `og:url`;
+- hreflang self-reference;
+- internal links;
+- XML sitemap entry;
+- breadcrumb URLs;
+- structured-data `url`/`@id` where defined.
+
+### 8.4 Duplicate and missing states
+
+- Apex, HTTP, uppercase, and trailing-slash variants permanently redirect to the normalized URL.
+- `/fa/...` must permanently redirect to its unprefixed Persian equivalent; it must not be a second canonical site.
+- Tracking parameters self-canonicalize to the clean route when the underlying content is identical.
+- A missing product, variant, price record, or article returns `404`.
+- Never canonicalize a missing page to the homepage, category, or search page.
+- Canonical is not a substitute for a redirect when one URL has been replaced.
+
+---
+
+## 9. Robots and Indexation Rules
+
+Robots state is owned by the route/SEO manifest, not inferred from URL strings at runtime.
+
+| Page or state | Directive | Sitemap |
+|---|---|---:|
+| Complete canonical public page | `index, follow` | Yes |
+| Curated category/product/price landing page | `index, follow` | Yes |
+| Variant with explicit SEO approval | `index, follow` | Yes |
+| Variant without standalone value | `noindex, follow` or no route | No |
+| Filter, sort, comparison, or internal search state | `noindex, follow` | No |
+| RFQ builder/request form | `noindex, follow` | No |
+| RFQ confirmation/failure | `noindex, nofollow` | No |
+| Login/account/admin | `noindex, nofollow, noarchive` | No |
+| Preview/draft | `noindex, nofollow, noarchive` | No |
+| Error or maintenance UI | `noindex, nofollow` | No |
+| Missing/unpublished slug | HTTP `404`/`410` as applicable | No |
+
+Rules:
+
+- Do not use `robots.txt` to implement `noindex`; crawlers must be able to fetch the page to see the directive.
+- Authenticated and administrative routes require access control in addition to `noindex`.
+- Non-HTML resources such as private or non-indexable PDFs use an appropriate `X-Robots-Tag` response header.
+- `index, follow` may be omitted from markup, but the decision must remain explicit in the application model and QA output.
+- Do not output `<meta name="keywords">`.
+
+---
+
+## 10. Page-Family Metadata Rules
+
+### 10.1 Homepage
 
 ```text
 Title: آهن آسا | مدیریت تأمین و خرید پروژه‌ای فولاد
-H1: خرید آهن را به یک تصمیم مطمئن تبدیل کنید.
+Description: آهن آسا نیاز فنی و تجاری پروژه را بررسی و مسیر تأمین و خرید فولاد را هماهنگ می‌کند تا تصمیم خرید با کنترل بیشتری انجام شود.
+Canonical: https://www.ahanassa.com/
+Robots: index, follow
+OG type: website
 ```
 
----
+The homepage owns brand/entity discovery. It must not act as the canonical target for unrelated pages.
 
-## 7. Meta Description Specification
-
-### 7.1 Purpose
-
-The description is a concise, accurate preview of the page. It should communicate the page's value without reading like an advertisement or a list of keywords.
-
-### 7.2 Editorial budget
-
-- Preferred working range: approximately 110–170 Persian characters including spaces.
-- The range is not a search-engine limit.
-- Descriptions may be truncated or replaced according to the query and device.
-- The linter should warn on very short, very long, duplicate, or missing descriptions.
-
-### 7.3 Recommended structure
-
-Use one or two natural sentences containing:
-
-1. the page subject;
-2. the practical value or scope;
-3. an optional low-pressure next step.
-
-Example:
+### 10.2 Static service and trust pages
 
 ```text
-آهن آسا نیاز فنی و تجاری پروژه، گزینه‌های تأمین و مسیر خرید فولاد را بررسی و هماهنگ می‌کند تا تصمیم خرید با کنترل بیشتری انجام شود.
+Title: [موضوع مشخص صفحه] | آهن آسا
+Description: [خلاصه منحصربه‌فرد از محتوای واقعی و ارزش همان صفحه]
+Robots: route manifest
+OG type: website
 ```
 
-### 7.4 Description rules
+Generic navigation labels such as `درباره ما`, `تماس`, or `خدمات` are not sufficient on their own when a more descriptive title is available.
 
-- Describe the actual page, not the whole company.
-- Use the primary phrase naturally when it improves clarity.
-- Avoid opening every description with the same sentence.
-- Do not repeat the title word for word.
-- Do not list material names unless the page genuinely covers them.
-- Do not include phone numbers, temporary campaigns, volatile prices, or unverified response times.
-- Do not use quotation marks merely to attract attention.
-- Do not end with fake urgency such as `همین حالا بخرید`.
+### 10.3 Catalog hub
 
-### 7.5 Dynamic descriptions
-
-A dynamic page may be published only when a human-readable description can be produced from approved fields. Do not concatenate optional fields into broken or repetitive Persian.
-
-Bad:
+Current catalog route contract:
 
 ```text
-خرید ورق ورق فولادی قیمت ورق مشخصات ورق تأمین ورق از آهن آسا
+/steel
+/steel/{category-slug}
+/steel/{category-slug}/{product-slug}
+/steel/{category-slug}/{product-slug}/{variant-slug}   # only when approved
 ```
 
-Good pattern:
+Hub example:
 
 ```text
-[categoryName] را از نظر مشخصات، مدارک موردنیاز و ریسک‌های خرید پروژه‌ای بررسی کنید و اطلاعات لازم برای ثبت درخواست را بشناسید.
+Title: آهن و فولاد موردنیاز پروژه‌ها | راهنمای انتخاب و تأمین | آهن آسا
+Description: گروه‌های کالایی فولاد، مشخصات انتخاب و مسیر ثبت درخواست خرید پروژه‌ای را بررسی کنید؛ قیمت و موجودی فقط با وضعیت و زمان به‌روزرسانی معتبر نمایش داده می‌شود.
 ```
 
----
-
-## 8. Canonical URL Rules
-
-### 8.1 Canonical origin
-
-All absolute URLs must derive from one validated configuration value:
+### 10.4 Category page
 
 ```text
-NEXT_PUBLIC_SITE_URL=https://<approved-canonical-host>
+Title: [نام گروه کالا]؛ مشخصات و راهنمای خرید | آهن آسا
+Description: انواع [نام گروه کالا]، مشخصات انتخاب، واحدهای رایج و ملاحظات خرید پروژه‌ای را بررسی کنید و درخواست تأمین خود را ثبت کنید.
+OG title: راهنمای انتخاب و خرید پروژه‌ای [نام گروه کالا]
+OG type: website
 ```
 
-The final choice between apex and `www` remains a deployment decision. Do not hardcode both forms.
+Index eligibility requires:
 
-### 8.2 Canonical requirements
+- approved category and stable slug;
+- unique introduction and buying guidance;
+- real child products or useful category content;
+- unique title and description;
+- no unsupported stock, price, manufacturer, or delivery claims.
 
-- HTTPS only.
-- Exactly one canonical per HTML page.
-- Self-referencing canonical on every canonical page.
-- Canonical must use the approved route and trailing-slash policy.
-- `og:url` must equal the canonical.
-- Internal links and XML sitemap entries must use the same URL.
-- `/fa/...` must not canonicalize as a second Persian copy; it must redirect to the unprefixed Persian route if introduced as a legacy alias.
+### 10.5 Product page
 
-### 8.3 Query parameters
+```text
+Title: [نام کامل محصول]؛ مشخصات و راهنمای خرید | آهن آسا
+Description: مشخصات، سایزها، واحدها و نکات خرید پروژه‌ای [نام کامل محصول] را بررسی کنید و در صورت نیاز، لیست خرید خود را برای ارزیابی ارسال کنید.
+OG title: مشخصات و خرید پروژه‌ای [نام کامل محصول]
+OG type: website
+```
 
-- Tracking parameters must not create new canonical identities.
-- Filter, sort, search, pagination, preview, and campaign states follow `ROUTES.md` and `SITEMAP_ROBOTS_SPEC.md`.
-- Never use canonical tags to conceal materially different pages.
-- Never canonicalize an unpublished dynamic route to a parent page; return a true `404` instead.
+The metadata identity must be based on the approved public product name, not a raw Odoo display name. Internal SKU, database ID, supplier reference, and customer-specific name must never appear.
+
+### 10.6 Variant page
+
+A standalone variant page is permitted only after explicit SEO approval.
+
+```text
+Title: [محصول] [ویژگی‌های متمایزکننده]؛ مشخصات و خرید | آهن آسا
+Description: مشخصات فنی، واحد قابل سفارش و اطلاعات خرید پروژه‌ای [نام و ویژگی دقیق Variant] را بررسی کنید و درخواست خود را ثبت کنید.
+```
+
+The title must include only attributes needed to distinguish the variant. If the page is merely substituted values with no unique content, it remains selectable on the product page and is not independently indexable.
+
+### 10.7 Price hub and price pages
+
+Current price route contract:
+
+```text
+/price
+/price/{category-slug}
+/price/{product-slug}
+/price/{product-slug}/{variant-slug}   # only when approved
+```
+
+Templates:
+
+```text
+Price hub title:
+قیمت آهن و فولاد | تاریخ به‌روزرسانی و راهنمای خرید | آهن آسا
+
+Category price title:
+قیمت [نام گروه کالا] | آخرین به‌روزرسانی و مشخصات | آهن آسا
+
+Product price title:
+قیمت [نام محصول] | مشخصات، واحد و زمان به‌روزرسانی | آهن آسا
+
+Variant price title:
+قیمت [محصول + ویژگی متمایز] | آخرین به‌روزرسانی | آهن آسا
+```
+
+Descriptions may state that a price is displayed only when the page visibly contains:
+
+- eligible public price;
+- currency;
+- UOM;
+- tax mode where relevant;
+- source update timestamp;
+- freshness status or approved disclaimer.
+
+Do not insert a volatile numeric price into title or description by default. It creates stale snippets, cache churn, and misleading search results. A numeric price in metadata requires a separately approved experiment and strict freshness controls.
+
+### 10.8 Article page
+
+```text
+Title: [عنوان مقاله] | آهن آسا
+Description: [خلاصه مستقل و دقیق از پرسش، دامنه پاسخ و فایده عملی مقاله]
+OG type: article
+```
+
+Required fields:
+
+- approved title and description;
+- stable canonical;
+- publication date;
+- substantive modification date when changed;
+- real public author or organization attribution;
+- approved image and alt text;
+- visible page content consistent with every claim.
+
+### 10.9 Resource/download page
+
+```text
+Title: [نام منبع یا چک‌لیست] | منابع آهن آسا
+Description: [نوع منبع] برای [مخاطب یا کاربرد]؛ شامل [محتوای واقعی] و اطلاعات نسخه یا تاریخ به‌روزرسانی.
+```
+
+Do not promise a download unless the file exists, is authorized for public access, and the download flow works.
+
+### 10.10 RFQ and operational pages
+
+| State | Title | Robots |
+|---|---|---|
+| RFQ builder | `ارسال لیست خرید آهن و فولاد | آهن آسا` | `noindex, follow` |
+| Confirmation | `درخواست شما دریافت شد | آهن آسا` | `noindex, nofollow` |
+| Submission failure | `ارسال درخواست کامل نشد | آهن آسا` | `noindex, nofollow` |
+| Customer account | Context-specific, no private detail | `noindex, nofollow, noarchive` |
+| Admin | `مدیریت آهن آسا` | `noindex, nofollow, noarchive` |
+| 404 | `صفحه پیدا نشد | آهن آسا` | `noindex, nofollow` |
+| 500 | `خطایی رخ داد | آهن آسا` | `noindex, nofollow` |
+
+No customer name, company, phone, file name, material list, quantity, RFQ number, quotation value, or workflow status may appear in metadata.
 
 ---
 
-## 9. Robots Metadata
+## 11. Price Freshness and Metadata Safety
 
-### 9.1 Route-manifest ownership
+Metadata must use a price-state classifier from the D1 public read model:
 
-Robots behavior must be derived from a controlled route manifest, not inferred from URL text at runtime.
+```ts
+type PublicPriceState =
+  | 'current'
+  | 'stale-allowed'
+  | 'request-quote'
+  | 'restricted'
+  | 'unavailable';
+```
 
-Recommended states:
+| State | Visible page behavior | Metadata behavior |
+|---|---|---|
+| `current` | Show eligible price and timestamp | May use “price” wording; do not claim “live” |
+| `stale-allowed` | Show last verified value with clear timestamp/status | Describe last update; do not imply current validity |
+| `request-quote` | Show RFQ action | Use “استعلام” or “درخواست بررسی”, not a numeric price claim |
+| `restricted` | Hide non-public commercial data | Do not expose price, stock, or restriction reason |
+| `unavailable` | Show approved fallback | Do not generate price claims from older cache or Odoo errors |
 
-| Page state | Robots |
-|---|---|
-| Complete canonical content page | `index, follow` |
-| Primary request form | `noindex, follow` |
-| Confirmation/success page | `noindex, nofollow` |
-| Preview/draft | `noindex, nofollow, noarchive` |
-| Internal search/filter state | `noindex, follow` unless stricter rule approved |
-| Error, maintenance, or secure utility | `noindex, nofollow` |
-| Unpublished dynamic slug | Return `404`; do not render a noindex placeholder |
+Rules:
 
-Default `index, follow` may be implicit in HTML, but the application content model should still store the intended indexation state for QA.
-
-### 9.2 Critical rule
-
-Do not block a URL in `robots.txt` when crawlers must see a `noindex` directive on that URL.
-
-### 9.3 Meta keywords
-
-Do not output `<meta name="keywords">`. Google does not use it for ranking or indexation.
+- Last valid public metadata remains stable during a temporary Odoo outage.
+- A sync failure does not change an indexable page to `noindex` automatically.
+- A withdrawn or invalid entity follows an explicit unpublish/redirect decision.
+- Customer-specific pricing, discounts, supplier quotations, cost, margin, and internal pricelists are prohibited in metadata.
+- Price changes invalidate only affected page/cache tags; they must not purge the whole site.
 
 ---
 
-## 10. Open Graph Specification
+## 12. Facets, Search, Pagination, and Thin Pages
 
-### 10.1 Required base properties
+### 12.1 Faceted navigation
 
-Every published shareable page must provide:
+Parameters such as these are application state by default:
 
-```html
-<meta property="og:title" content="...">
-<meta property="og:type" content="website">
-<meta property="og:image" content="https://...">
-<meta property="og:url" content="https://...">
+```text
+?size=16
+?grade=a3
+?brand=...
+?unit=ton
+?origin=...
+?sort=price
+?availability=...
 ```
 
-The Ahan Asa implementation must also provide:
+They must:
 
-```html
-<meta property="og:description" content="...">
-<meta property="og:site_name" content="آهن آسا">
-<meta property="og:locale" content="fa_IR">
-<meta property="og:image:alt" content="...">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-```
+- remain out of XML sitemaps;
+- use `noindex, follow` where a fetchable route exists;
+- canonicalize to the clean approved landing page when content is not materially distinct;
+- not generate hreflang sets;
+- not create unique OG images;
+- not become indexable merely because results exist.
 
-### 10.2 Open Graph title
+A filter combination becomes indexable only through a curated landing-page record with unique content, stable route, mapped intent, internal links, and explicit approval.
 
-- May omit the brand suffix when `og:site_name` already identifies the brand.
-- Should remain clear when displayed without surrounding page context.
-- Preferred working range: 40–80 Persian characters.
-- Must not introduce claims absent from the page.
+### 12.2 Internal search
 
-### 10.3 Open Graph description
+Internal search result pages are `noindex, follow`, excluded from sitemaps, and must not appear as canonical category/product substitutes.
 
-- May be slightly more editorial than the search description.
-- Must accurately summarize the visible page.
-- Preferred working range: 100–200 Persian characters.
-- Avoid repeating the Open Graph title.
+### 12.3 Pagination
 
-### 10.4 Open Graph types
-
-| Page family | `og:type` |
-|---|---|
-| Homepage, hub, capability, about, contact, legal, request | `website` |
-| Insight article | `article` |
-| Resource detail with substantive editorial landing page | `article` |
-| Verified project/case study | `article` when editorial metadata exists; otherwise `website` |
-| Material or industry detail | `website` |
-
-When `article` is used, add approved values where available:
-
-- `article:published_time`;
-- `article:modified_time`;
-- `article:author` only for a real public author URL;
-- `article:section`;
-- restrained `article:tag` values from the controlled taxonomy.
-
-Do not fabricate dates, authors, or categories.
-
-### 10.5 Locale
-
-- HTML locale: `fa-IR`.
-- Open Graph locale: `fa_IR`.
-- Do not add `og:locale:alternate` for English or Arabic until those locales are fully approved and public.
+Each indexable paginated page is self-canonical. Page 2+ must not canonicalize to page 1 when its item set differs. Pagination titles may use a concise page indicator, but every page must preserve the same subject and avoid duplicate metadata ambiguity.
 
 ---
 
-## 11. X/Twitter Card Specification
+## 13. Open Graph Specification
 
-Default card:
+Required properties for each public shareable page:
+
+```text
+og:title
+og:description
+og:type
+og:url
+og:site_name = آهن آسا
+og:locale = fa_IR
+og:image
+og:image:secure_url
+og:image:width = 1200
+og:image:height = 630
+og:image:alt
+```
+
+Rules:
+
+- `og:url` equals the canonical URL.
+- `og:title` may omit the brand suffix because `og:site_name` supplies the entity.
+- `og:description` may be slightly more editorial than the search description but cannot add new claims.
+- Use `website` for homepage, hubs, catalog, product, price, service, legal, and utility pages.
+- Use `article` for substantive editorial articles and approved case studies.
+- When `article` is used, publish only real `published_time`, `modified_time`, `section`, and author values.
+- Do not use commerce-specific OG fields as a substitute for valid visible price information.
+
+---
+
+## 14. X/Twitter Card Specification
+
+Default:
 
 ```text
 twitter:card = summary_large_image
 ```
 
-Required fields:
+Required for public shareable pages:
 
 - `twitter:title`;
 - `twitter:description`;
 - `twitter:image`;
 - `twitter:image:alt`.
 
-Rules:
-
-- Reuse Open Graph title, description, and image unless a verified platform-specific reason requires an override.
-- Add `twitter:site` only after an official account is approved.
-- Do not publish placeholder handles.
-- Do not use `summary` for pages whose main share asset is designed for the 1.91:1 format.
+Reuse the approved Open Graph values unless a platform-specific override is justified. Do not publish a placeholder `twitter:site` handle.
 
 ---
 
-## 12. Social-Share Image System
-
-### 12.1 Standard asset
+## 15. Social Image System
 
 | Property | Standard |
 |---|---|
 | Canvas | `1200 × 630 px` |
-| Aspect ratio | `1.91:1` |
-| Format | JPEG or PNG |
+| Ratio | `1.91:1` |
 | Color space | sRGB |
-| URL | Absolute HTTPS |
-| Minimum variants | One verified site default plus approved page-family variants |
+| Delivery | Absolute HTTPS URL through approved image delivery |
+| Primary colors | Steel Navy `#0B2545`, Forge Copper `#B04A2F`, White `#FFFFFF` |
 
-### 12.2 Default image direction
+Asset order:
 
-The default Ahan Asa image should use:
+1. approved page-specific image;
+2. approved page-family generated card;
+3. default Ahan Asa card.
 
-- Steel Navy `#0B2545`;
-- Forge Copper `#B04A2F`;
-- White `#FFFFFF`;
-- the approved master icon or lockup;
-- restrained steel/document-control visual language;
-- generous negative space;
-- no fake facility, supplier, inventory, truck, or project imagery.
+The image must:
 
-### 12.3 Text and safe area
+- keep critical content inside a conservative central safe area;
+- use approved Persian typography/assets;
+- preserve Persian joining and RTL layout;
+- use no confidential BOM, invoice, supplier, price, or customer data;
+- use no unlicensed or misleading factory, inventory, truck, or project image;
+- have descriptive image alt text that is not a mechanical title duplicate.
 
-- Keep important content at least 72 px from every canvas edge.
-- Keep the logo and core title inside a conservative central safe zone.
-- Limit text to one concise title plus optional category label.
-- Do not place meta descriptions, paragraphs, URLs, or CTAs in the image.
-- Use the official Persian logo artwork; do not reconstruct its lettering with a web font.
-- Ensure Persian joining, glyph shaping, punctuation, and direction render correctly.
-
-### 12.4 Image hierarchy
-
-Use the first available approved asset in this order:
-
-1. page-specific verified project, guide, or category image;
-2. approved page-family generated image;
-3. default Ahan Asa brand image.
-
-Never use:
-
-- low-resolution images;
-- a client logo without permission;
-- confidential invoice/BOM text;
-- supplier quotations or personal data;
-- unlicensed stock media;
-- an image that implies a capability or asset Ahan Asa does not own.
-
-### 12.5 Alt text
-
-`og:image:alt` must describe the image rather than repeat the page title mechanically.
-
-Examples:
-
-```text
-هویت بصری آهن آسا در کنار نمایی انتزاعی از کنترل اسناد خرید فولاد
-چک‌لیست مقایسه فنی و تجاری پیشنهادهای خرید فولاد
-```
+Generated cards must be deterministic for the same content version. A price value must not be rendered into a share image.
 
 ---
 
-## 13. Page-Level Metadata Registry
+## 16. Locale and Hreflang Rules
 
-The following is the working Persian metadata set for the current route contract. The final route path must be taken from the approved `ROUTES.md`; where project documents conflict, the metadata remains attached to the stable `pageKey` until the path is resolved.
+### 16.1 Launch state
 
-### 13.1 Core pages
+```text
+HTML lang: fa-IR
+HTML direction: rtl
+Public Persian prefix: none
+Open Graph locale: fa_IR
+Canonical language route: unprefixed Persian URL
+```
 
-| `pageKey` | Current route | HTML title | Meta description | Robots | OG type |
-|---|---|---|---|---|---|
-| `home` | `/` | `آهن آسا | مدیریت تأمین و خرید پروژه‌ای فولاد` | `آهن آسا نیاز فنی و تجاری پروژه، گزینه‌های تأمین و مسیر خرید فولاد را بررسی و هماهنگ می‌کند تا تصمیم خرید با کنترل بیشتری انجام شود.` | Index, follow | website |
-| `about` | `/about` | `درباره آهن آسا | مدیریت خرید پروژه‌ای فولاد` | `با رویکرد، اصول و نقش آهن آسا در مدیریت خرید پروژه‌ای فولاد آشنا شوید؛ روشی مبتنی بر بررسی فنی، مقایسه تجاری و کنترل فرآیند.` | Index, follow | website |
-| `procurement` | `/procurement` | `مدیریت خرید آهن و فولاد پروژه‌ای | آهن آسا` | `مدیریت خرید آهن در آهن آسا از تعریف نیاز و ارزیابی گزینه‌های تأمین تا مقایسه پیشنهادها، کنترل مدارک و هماهنگی تحویل را پوشش می‌دهد.` | Index, follow | website |
-| `procurementProcess` | `/procurement-process` | `فرآیند مدیریت خرید آهن؛ از نیاز تا تحویل | آهن آسا` | `مراحل همکاری با آهن آسا را از ارسال فاکتور یا لیست خرید تا بررسی نیاز، انتخاب مسیر تأمین، هماهنگی خرید و پیگیری تحویل ببینید.` | Index, follow | website |
-| `steelProductsHub` | `/steel-products` | `گروه‌های کالایی فولاد برای خرید پروژه‌ای | آهن آسا` | `گروه‌های کالایی مورد تأیید برای خرید پروژه‌ای فولاد را همراه با اطلاعات موردنیاز، ملاحظات فنی و مسیر ثبت درخواست بررسی کنید.` | Index, follow | website |
-| `industriesHub` | `/industries` | `مدیریت خرید فولاد برای پروژه‌ها و صنایع | آهن آسا` | `نیازهای متفاوت خرید فولاد در پروژه‌های ساختمانی، صنعتی و اجرایی را بشناسید و ببینید چه اطلاعاتی برای بررسی درخواست لازم است.` | Index, follow | website |
-| `projectsHub` | `/projects` | `تجربه‌ها و شواهد خرید پروژه‌ای فولاد | آهن آسا` | `نمونه‌های تأییدشده از مسئله خرید، دامنه همکاری و روش کنترل فنی و تجاری آهن آسا را در پروژه‌های قابل انتشار بررسی کنید.` | Index only with substantive verified evidence | website |
-| `insightsHub` | `/insights` | `راهنمای خرید و تأمین آهن و فولاد | آهن آسا` | `راهنماهای کاربردی آهن آسا درباره تعریف نیاز، مقایسه پیشنهادها، ارزیابی تأمین‌کننده، کنترل مدارک و برنامه‌ریزی تحویل فولاد.` | Index, follow | website |
-| `resourcesHub` | `/resources` | `منابع و چک‌لیست‌های خرید فولاد | آهن آسا` | `به منابع تأییدشده، چک‌لیست‌ها و ابزارهای کاربردی برای آماده‌سازی درخواست و کنترل بهتر فرآیند خرید پروژه‌ای فولاد دسترسی پیدا کنید.` | Index, follow | website |
-| `faq` | `/faq` | `پرسش‌های متداول مدیریت خرید آهن | آهن آسا` | `پاسخ پرسش‌های رایج درباره ثبت درخواست، مدارک لازم، مقایسه پیشنهادها، کنترل مشخصات، هماهنگی خرید و تحویل فولاد را بخوانید.` | Index, follow | website |
-| `contact` | `/contact` | `تماس با آهن آسا | مشاوره خرید فولاد` | `برای پرسش‌های عمومی یا گفت‌وگو درباره مدیریت خرید پروژه‌ای فولاد با آهن آسا تماس بگیرید؛ برای درخواست خرید، فاکتور یا لیست خود را ارسال کنید.` | Index, follow | website |
-| `request` | `/request` | `ارسال فاکتور یا لیست خرید | آهن آسا` | `فاکتور، BOM یا لیست خرید فولاد پروژه را ارسال کنید تا نیاز فنی و تجاری، اطلاعات لازم و مسیر مناسب بررسی درخواست مشخص شود.` | Noindex, follow | website |
-| `privacy` | `/privacy` | `حریم خصوصی و اطلاعات درخواست‌ها | آهن آسا` | `نحوه جمع‌آوری، استفاده، نگهداری و حفاظت از اطلاعات تماس و مدارک ارسالی در وب‌سایت آهن آسا را بررسی کنید.` | Index, follow after legal approval | website |
-| `terms` | `/terms` | `شرایط استفاده از وب‌سایت | آهن آسا` | `شرایط استفاده از وب‌سایت، ثبت درخواست خرید، ارسال مدارک و حدود مسئولیت‌های مرتبط با خدمات آنلاین آهن آسا را مطالعه کنید.` | Index only when substantive and legally approved | website |
+### 16.2 Future locales
 
-### 13.2 Operational and system pages
+Reserved URL spaces:
 
-| Page/state | HTML title | Description | Robots | Canonical/OG rule |
-|---|---|---|---|---|
-| Request confirmation | `درخواست شما دریافت شد | آهن آسا` | `درخواست شما ثبت شد. ادامه پیگیری فقط از مسیرهای تأییدشده آهن آسا انجام می‌شود.` | Noindex, nofollow | May omit canonical or self-canonical according to technical policy; never enter sitemap |
-| Request failure | `ارسال درخواست کامل نشد | آهن آسا` | `ارسال درخواست کامل نشد. اطلاعات را بررسی کنید یا از مسیر تماس تأییدشده کمک بگیرید.` | Noindex, nofollow | No social indexing |
-| 404 | `صفحه پیدا نشد | آهن آسا` | `نشانی واردشده معتبر نیست یا صفحه موردنظر در دسترس نیست.` | Noindex, nofollow | No canonical to homepage |
-| 500/error | `خطایی رخ داد | آهن آسا` | `نمایش این بخش با خطا روبه‌رو شد. دوباره تلاش کنید یا به صفحه اصلی بازگردید.` | Noindex, nofollow | No canonical to homepage |
-| Maintenance | `وب‌سایت موقتاً در دسترس نیست | آهن آسا` | `وب‌سایت آهن آسا موقتاً در دسترس نیست. لطفاً کمی بعد دوباره تلاش کنید.` | Noindex, nofollow | Return correct maintenance status; do not index |
-| Draft/preview | Content title plus `پیش‌نمایش` | Internal only | Noindex, nofollow, noarchive | Must not share production canonical as an indexable duplicate |
+```text
+/en/...
+/ar/...
+```
 
-The final public Persian labels remain governed by `COPY_GUIDELINES.md` and `CTA_STRATEGY.md`.
+Do not publish `hreflang="en"`, `hreflang="ar"`, `og:locale:alternate`, or localized sitemap entries until the relevant page is fully translated, reviewed, indexable, and canonically available.
+
+After activation:
+
+- each locale self-canonicalizes;
+- alternates are reciprocal;
+- titles and descriptions are human-authored for local search intent;
+- missing translations are omitted from the hreflang cluster;
+- Persian content is never placed under `/en` or `/ar` as a fallback;
+- `x-default` follows `HREFLANG_CANONICAL.md`.
 
 ---
 
-## 14. Dynamic Page Templates
-
-### 14.1 Material category
-
-```text
-Title: [نام گروه کالا]؛ راهنمای خرید پروژه‌ای | آهن آسا
-Description: [نام گروه کالا] را از نظر مشخصات، مدارک موردنیاز و ریسک‌های خرید پروژه‌ای بررسی کنید و اطلاعات لازم برای ثبت درخواست را بشناسید.
-OG title: راهنمای خرید پروژه‌ای [نام گروه کالا]
-OG type: website
-```
-
-Publication requirements:
-
-- approved category name and slug;
-- unique intent and substantive content;
-- verified scope;
-- no implied inventory, price, agency, brand authorization, or guaranteed supply;
-- unique title and description after Persian rendering.
-
-### 14.2 Industry/application page
-
-```text
-Title: مدیریت خرید فولاد برای [نام صنعت/کاربرد] | آهن آسا
-Description: ملاحظات فنی، تجاری و اجرایی خرید فولاد برای [نام صنعت/کاربرد] را بشناسید و اطلاعات لازم برای بررسی یک درخواست پروژه‌ای را آماده کنید.
-OG title: خرید پروژه‌ای فولاد برای [نام صنعت/کاربرد]
-OG type: website
-```
-
-Do not generate city, region, or industry pages without unique content and approved operational relevance.
-
-### 14.3 Project/case study
-
-```text
-Title: [عنوان تأییدشده پروژه یا مسئله] | تجربه آهن آسا
-Description: [مسئله خرید]، دامنه همکاری آهن آسا و روش تأییدشده کنترل فنی و تجاری در [عنوان عمومی پروژه] را بررسی کنید.
-OG title: [عنوان کوتاه و تأییدشده مطالعه موردی]
-OG type: article
-```
-
-Required source fields:
-
-- approved public title;
-- approved anonymization when needed;
-- verified scope and result;
-- publication permission;
-- approved image;
-- publication and update dates when `article` is used.
-
-Do not expose confidential project identifiers, clients, prices, quantities, documents, locations, or outcomes in metadata.
-
-### 14.4 Insight article
-
-```text
-Title: [عنوان مقاله] | آهن آسا
-Description: [خلاصه مستقل و دقیق مقاله که پرسش اصلی، دامنه پاسخ و فایده عملی آن را توضیح می‌دهد.]
-OG title: [عنوان اشتراک‌گذاری؛ در صورت نیاز کوتاه‌تر از عنوان مقاله]
-OG type: article
-```
-
-Requirements:
-
-- approved title and search intent;
-- original description, not the first paragraph copied blindly;
-- publication and modification dates;
-- real reviewed author or organization attribution;
-- no unsupported forecasts or standards claims.
-
-### 14.5 Resource detail
-
-```text
-Title: [نام منبع یا چک‌لیست] | منابع آهن آسا
-Description: [نوع منبع] برای [مخاطب/کاربرد]؛ شامل [محتوای واقعی و تأییدشده] و اطلاعات نسخه یا تاریخ به‌روزرسانی.
-OG title: [نام منبع]
-OG type: article
-```
-
-The metadata must not promise a download unless the file exists and its access flow works.
-
----
-
-## 15. Data Model
-
-Recommended content contract:
+## 17. Metadata Content Model
 
 ```ts
-type Indexation = 'index-follow' | 'noindex-follow' | 'noindex-nofollow';
+type Locale = 'fa-IR' | 'en' | 'ar';
 
-type OpenGraphType = 'website' | 'article';
+type Indexation =
+  | 'index-follow'
+  | 'noindex-follow'
+  | 'noindex-nofollow';
 
-type SeoMetadata = {
+type PageFamily =
+  | 'home'
+  | 'static'
+  | 'category'
+  | 'product'
+  | 'variant'
+  | 'price-hub'
+  | 'price-category'
+  | 'price-product'
+  | 'price-variant'
+  | 'article'
+  | 'resource'
+  | 'rfq'
+  | 'account'
+  | 'admin'
+  | 'system';
+
+type SeoRecord = {
   pageKey: string;
-  locale: 'fa-IR';
+  entityType: PageFamily;
+  entityId?: string;
+  locale: Locale;
+  canonicalPath: '/' | `/${string}`;
+  slug: string | null;
   title: string;
   description: string;
-  canonicalPath: `/${string}` | '/';
+  h1: string;
   indexation: Indexation;
+  contentStatus: 'draft' | 'review' | 'published' | 'withdrawn';
+  seoApprovedAt: string | null;
   openGraph: {
     title?: string;
     description?: string;
-    type: OpenGraphType;
-    image?: {
-      src: string;
-      width: 1200;
-      height: 630;
-      alt: string;
-    };
+    type: 'website' | 'article';
+    imageId?: string;
+    imageAlt?: string;
     publishedTime?: string;
     modifiedTime?: string;
     section?: string;
     tags?: string[];
   };
-  twitter?: {
-    title?: string;
-    description?: string;
-    image?: string;
-    imageAlt?: string;
-  };
   alternates?: Array<{
-    locale: string;
-    path: string;
+    locale: Locale;
+    canonicalPath: string;
   }>;
+  sourceVersion: number;
+  updatedAt: string;
 };
 ```
 
-### 15.1 Validation schema
+Dynamic catalog resolution also needs a public projection:
 
-At build time, validate:
+```ts
+type CatalogSeoProjection = {
+  entityId: string;
+  entityType: 'category' | 'product' | 'variant';
+  publicNameFa: string;
+  differentiatingAttributes: string[];
+  unitLabels: string[];
+  publicPriceState: PublicPriceState;
+  publicPriceUpdatedAt: string | null;
+  isActiveInOdoo: boolean;
+  syncStatus: 'synced' | 'pending' | 'failed' | 'disabled';
+  lastCompleteSyncAt: string | null;
+};
+```
 
-- non-empty strings after trimming;
-- unique `pageKey`;
-- unique canonical path per locale;
-- unique title and description among indexable pages;
-- title/description editorial-budget warnings;
-- no unresolved template tokens such as `[نام گروه کالا]`;
-- valid absolute resolved canonical and image URLs;
-- indexation state matching route policy;
-- image dimensions and alt text;
-- article fields only with valid ISO dates;
-- no unpublished alternates;
-- no confidential data patterns.
+Metadata publication requires a valid `SeoRecord` and a complete compatible catalog projection. Raw Odoo fields are not safe metadata fallbacks.
 
 ---
 
-## 16. Next.js App Router Implementation
+## 18. Fallback and Inheritance
 
-### 16.1 Root layout
+### 18.1 Allowed inheritance
 
-Use a single metadata base and site-wide defaults. Page metadata must override the default title and description.
+- `metadataBase`;
+- application/site name;
+- default OG locale;
+- default OG image;
+- X/Twitter card type;
+- icons and manifest;
+- approved verification fields.
+
+### 18.2 Forbidden inheritance
+
+Published pages must not silently inherit:
+
+- homepage title or description;
+- homepage canonical;
+- an indexable robots state for a utility route;
+- product metadata from a category;
+- a product title for a distinct approved variant;
+- article dates or author from another record;
+- locale alternates that do not exist;
+- a page image that makes a false product, price, inventory, or project claim.
+
+If required metadata is missing:
+
+- a draft stays unpublished;
+- an invalid dynamic record returns `404` or an approved service-unavailable state;
+- production must not publish placeholder copy such as `Untitled`, `Coming Soon`, or unresolved template tokens.
+
+---
+
+## 19. Next.js App Router Implementation
+
+### 19.1 Root metadata
 
 ```ts
 import type { Metadata } from 'next';
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+const siteUrl = process.env.SITE_URL;
 
-if (!siteUrl) {
-  throw new Error('NEXT_PUBLIC_SITE_URL is required');
+if (siteUrl !== 'https://www.ahanassa.com') {
+  throw new Error('Invalid production SITE_URL');
 }
 
 export const metadata: Metadata = {
@@ -728,20 +818,18 @@ export const metadata: Metadata = {
     template: '%s | آهن آسا',
   },
   description:
-    'آهن آسا نیاز فنی و تجاری پروژه، گزینه‌های تأمین و مسیر خرید فولاد را بررسی و هماهنگ می‌کند.',
+    'آهن آسا نیاز فنی و تجاری پروژه را بررسی و مسیر تأمین و خرید فولاد را هماهنگ می‌کند.',
   applicationName: 'آهن آسا',
   openGraph: {
     siteName: 'آهن آسا',
     locale: 'fa_IR',
     type: 'website',
-    images: [
-      {
-        url: '/og/default-1200x630.jpg',
-        width: 1200,
-        height: 630,
-        alt: 'هویت بصری آهن آسا و مدیریت خرید پروژه‌ای فولاد',
-      },
-    ],
+    images: [{
+      url: '/og/default-1200x630.jpg',
+      width: 1200,
+      height: 630,
+      alt: 'هویت آهن آسا و مدیریت خرید پروژه‌ای فولاد',
+    }],
   },
   twitter: {
     card: 'summary_large_image',
@@ -749,364 +837,335 @@ export const metadata: Metadata = {
 };
 ```
 
-Do not pass a title already containing `| آهن آسا` into a template that appends it again. The homepage should use an absolute title override when the brand-first format is required.
+The homepage uses an absolute title override if needed so the root template does not append the brand twice.
 
-### 16.2 Static page example
+### 19.2 Central resolver
+
+All routes must use one typed metadata resolver:
 
 ```ts
-export const metadata: Metadata = {
-  title: 'مدیریت خرید آهن و فولاد پروژه‌ای',
-  description:
-    'مدیریت خرید آهن در آهن آسا از تعریف نیاز و ارزیابی گزینه‌های تأمین تا مقایسه پیشنهادها، کنترل مدارک و هماهنگی تحویل را پوشش می‌دهد.',
-  alternates: {
-    canonical: '/procurement',
-  },
-  robots: {
-    index: true,
-    follow: true,
-  },
-  openGraph: {
-    title: 'مدیریت خرید پروژه‌ای آهن و فولاد',
-    description:
-      'از تعریف نیاز تا ارزیابی تأمین، کنترل مدارک و هماهنگی تحویل؛ رویکرد آهن آسا به مدیریت خرید پروژه‌ای فولاد.',
-    url: '/procurement',
-    type: 'website',
-  },
+type ResolveMetadataInput = {
+  pageKey: string;
+  locale: Locale;
+  params?: Record<string, string>;
+  searchParams?: Record<string, string | string[] | undefined>;
 };
-```
 
-### 16.3 Dynamic page example
+export async function resolveMetadata(
+  input: ResolveMetadataInput,
+): Promise<Metadata> {
+  const record = await getPublishedSeoReadModel(input);
 
-```ts
-import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+  if (!record) notFound();
 
-export async function generateMetadata({ params }): Promise<Metadata> {
-  const { slug } = await params;
-  const category = await getPublishedCategory(slug);
-
-  if (!category) notFound();
-
-  const path = `/steel-products/${category.slug}`;
-
-  return {
-    title: `${category.nameFa}؛ راهنمای خرید پروژه‌ای`,
-    description: category.seoDescription,
-    alternates: { canonical: path },
-    robots: { index: true, follow: true },
-    openGraph: {
-      title: `راهنمای خرید پروژه‌ای ${category.nameFa}`,
-      description: category.ogDescription ?? category.seoDescription,
-      url: path,
-      type: 'website',
-      images: [category.ogImage],
-    },
-  };
+  return toNextMetadata(record);
 }
 ```
 
-Dynamic metadata and page rendering must load the same approved content record. Do not let metadata resolve for a page that later renders `not found` or unpublished content.
+The resolver must:
 
-### 16.4 File-based image generation
+- read D1/cache and website-owned content only;
+- validate publication, locale, and route state;
+- normalize the canonical path;
+- derive robots from the route manifest;
+- apply safe page-family templates;
+- exclude raw Odoo/internal fields;
+- return metadata that matches the page record used for rendering;
+- emit no incomplete alternate locale.
 
-Next.js file conventions such as `opengraph-image` and `twitter-image` may be used for static or generated assets. Generated images must:
+### 19.3 Dynamic catalog example
 
-- use the approved brand system;
-- load approved Persian font files locally;
-- render correct Persian shaping;
-- be deterministic for the same content version;
-- fail the build or fall back safely when required assets are absent;
-- never include confidential source fields.
+```ts
+export async function generateMetadata({ params }): Promise<Metadata> {
+  const { categorySlug, productSlug } = await params;
 
-### 16.5 Server rendering
+  return resolveMetadata({
+    pageKey: 'steel-product',
+    locale: 'fa-IR',
+    params: { categorySlug, productSlug },
+  });
+}
+```
 
-Critical metadata must be present in server-rendered HTML. Do not inject or replace it only after client-side hydration.
+Do not perform one query for metadata and another unrelated query that can resolve a different data version for the visible page. Cache or memoize the content read within the request where supported.
+
+### 19.4 HTML-first requirement
+
+Title, description, canonical, robots, Open Graph, X/Twitter, and hreflang must be available in the initial HTML response. Do not depend on browser hydration or a client-side fetch to create or correct critical metadata.
+
+### 19.5 File-based metadata
+
+Next.js metadata file conventions may be used for:
+
+- favicon and icons;
+- manifest;
+- static default Open Graph and X/Twitter images;
+- generated route images;
+- `robots.txt` and sitemap endpoints where delegated by their own specifications.
+
+Generated images must use approved local font assets, correct RTL rendering, deterministic inputs, and safe fallbacks.
 
 ---
 
-## 17. Inheritance and Fallback Rules
+## 20. Cache and Invalidation Contract
 
-### 17.1 Allowed inheritance
+Metadata and page content for the same canonical entity must share compatible cache tags.
 
-These values may inherit from the root:
+Recommended tags:
 
-- metadata base;
-- site name;
+```text
+page:{pageKey}
+locale:{locale}
+category:{categoryId}
+product:{productId}
+variant:{variantId}
+price:{priceEntityId}
+article:{articleId}
+seo:{seoRecordId}
+```
+
+Invalidation events:
+
+| Event | Purge/revalidate |
+|---|---|
+| SEO title/description edit | Exact page + SEO record tag |
+| Slug change | Old redirect + new canonical + affected sitemap entry |
+| Product public name change | Product, eligible variants, related price pages |
+| Category name change | Category, breadcrumbs, child page references |
+| Public price change | Affected price/product/category tags only |
+| Article publish/update | Article, article hub, sitemap partition |
+| Locale activation | Exact locale pages, alternates, hreflang, locale sitemap |
+| Entity withdrawal | Route, redirect/410 policy, sitemap, related links |
+
+Do not purge the whole public site for a single price or product update. Metadata cache lifetime must not exceed the freshness policy of the data it claims.
+
+---
+
+## 21. CMS and Admin Requirements
+
+Each indexable record must expose:
+
+- page key and page family;
 - locale;
-- default OG image;
-- X/Twitter card type;
-- favicon and app icons;
-- generic verification tags.
-
-### 17.2 Forbidden fallback behavior
-
-Published pages must not silently inherit:
-
-- homepage title;
-- homepage description;
-- homepage canonical;
-- `index, follow` when the route is a utility page;
-- article dates from another record;
-- localized alternates that do not exist;
-- a misleading category or project image.
-
-Missing required page metadata must fail content validation for production.
-
----
-
-## 18. Localization and Direction
-
-### 18.1 Persian launch
-
-- Document language: `<html lang="fa" dir="rtl">` or the approved BCP 47 variant used consistently by the application.
-- Content locale: `fa-IR`.
-- Open Graph locale: `fa_IR`.
-- Persian routes are unprefixed.
-- Persian punctuation and joining must be preserved.
-- Avoid mixing Persian and Latin words unless the term is necessary and familiar.
-
-### 18.2 Future locales
-
-When English or Arabic is approved:
-
-- every locale gets human-authored title, description, and OG copy;
-- do not translate keywords literally without localized search research;
-- canonical points to the current-language page;
-- hreflang points only to real, indexable equivalents;
-- missing translations are omitted, not filled with Persian content;
-- `x-default` behavior follows `HREFLANG_CANONICAL.md`;
-- Open Graph alternates use the correct underscore locale syntax.
-
----
-
-## 19. Sensitive Data and Privacy
-
-Metadata, URLs, social images, analytics payloads, and structured data must never contain:
-
-- customer names without permission;
-- personal phone numbers or emails;
-- invoice numbers;
-- request identifiers;
-- uploaded file names;
-- material quantities tied to a confidential request;
-- quotation values, supplier prices, or commercial terms;
-- internal project codes;
-- authentication tokens;
-- unpublished client, supplier, or project details.
-
-This rule applies to confirmation pages and preview deployments as well as indexable pages.
-
----
-
-## 20. CMS and Editorial Workflow
-
-### 20.1 Required editor fields
-
-For every indexable content record:
-
-- page title/H1;
+- canonical slug/path;
 - SEO title;
 - meta description;
-- canonical slug/path;
-- primary intent or mapped page key;
-- indexation state;
-- OG title override, optional;
-- OG description override, optional;
-- OG image and alt text;
-- publication state;
-- publication date and modified date for articles;
-- reviewer/approval state.
+- H1;
+- primary intent/keyword owner;
+- robots/index eligibility;
+- OG title and description overrides;
+- OG image selection and alt text;
+- publication and modification dates when relevant;
+- approval status and reviewer;
+- preview URL;
+- last editor and audit timestamp.
 
-### 20.2 Preview
+Editor preview must show:
 
-The editor preview must show:
-
-- search-result-style title and description;
-- mobile and desktop truncation risk as an approximation, not a guarantee;
-- social card preview;
+- approximate desktop/mobile search-result preview;
+- explicit warning that Google may rewrite titles/snippets;
 - canonical URL;
 - robots state;
-- unresolved validation warnings.
+- social card preview;
+- source/freshness state for dynamic catalog and price pages;
+- unresolved validation errors;
+- active locale alternates.
 
-### 20.3 Approval
-
-Metadata may reach production only when:
-
-1. page copy is approved;
-2. route and indexation state are approved;
-3. SEO intent is mapped;
-4. claims are verified;
-5. image rights and privacy are cleared;
-6. QA passes.
+Operators may edit website-owned SEO fields. They must not directly edit Odoo-owned commercial fields through the website CMS.
 
 ---
 
-## 21. Automated Validation
+## 22. Automated Validation
 
-The build or CI pipeline should fail on:
+### 22.1 Build failures
 
-- missing title or description on a publishable page;
+Production build or content publication must fail for:
+
+- missing title or description on an indexable page;
 - duplicate canonical URL;
-- non-HTTPS production canonical;
-- canonical host mismatch;
-- unresolved template placeholder;
-- missing dynamic record;
-- `index` on a draft, confirmation, preview, secure, or error route;
-- unpublished locale alternate;
-- missing OG image on an indexable detail page with no valid fallback;
-- invalid article date;
-- a production route with placeholder copy;
-- sensitive-data patterns in metadata fields.
+- canonical host other than `www.ahanassa.com`;
+- non-HTTPS canonical or OG URL;
+- canonical with fragment, unapproved query, uppercase slug, or invalid trailing slash;
+- unresolved template token;
+- duplicate `pageKey` or locale/canonical pair;
+- indexable draft, preview, account, admin, confirmation, or filter state;
+- published alternate locale that does not exist or is not reciprocal;
+- raw Odoo ID, database ID, internal SKU, or confidential pattern in metadata;
+- missing or invalid article dates when `og:type=article`;
+- page metadata and route manifest disagreement;
+- missing dynamic record or incomplete commercial/SEO projection;
+- title or description containing a prohibited claim;
+- numeric public-price claim without an eligible visible price state.
 
-The pipeline should warn on:
+### 22.2 Warnings
 
+CI should warn for:
+
+- title outside the working range;
+- description outside the working range;
 - duplicate or near-duplicate titles/descriptions;
-- titles or descriptions outside the editorial budget;
 - title/H1 intent mismatch;
-- missing image alt text;
-- default OG image used on a high-value detail page;
-- stale `modifiedTime` after a substantive update;
-- Open Graph copy identical to an unsuitable search snippet;
-- unapproved claims or geographic terms.
+- default OG image on a high-value product/article page;
+- missing social-image alt text;
+- stale article modification date after substantive edit;
+- price-page copy that does not mention update context;
+- selected variant page with weak differentiation;
+- homepage description inherited by an inner page;
+- newly active route absent from the metadata registry.
 
-Do not auto-rewrite approved Persian metadata in CI.
+CI must never auto-rewrite approved Persian metadata.
 
 ---
 
-## 22. Manual QA Checklist
+## 23. Security and Privacy
 
-For every representative page family, verify:
+Metadata, head markup, URLs, social cards, structured data, analytics labels, and response headers must never expose:
 
-- [ ] One HTML title exists.
-- [ ] Title is unique, natural, and intent-aligned.
-- [ ] Description is unique and accurately summarizes visible content.
-- [ ] Canonical is absolute, HTTPS, and resolves to the approved URL.
-- [ ] Canonical, `og:url`, sitemap URL, and internal links agree.
+- customer identity or contact details;
+- company tax data;
+- RFQ, quotation, invoice, lead, or sale-order identifiers;
+- uploaded file names or object keys;
+- requested quantities tied to a customer;
+- supplier quotations, cost, margin, discount, or customer-specific price;
+- Odoo IDs, API endpoints beyond public origin, API keys, or sync diagnostics;
+- internal project, supplier, or product codes;
+- preview tokens or authenticated state.
+
+`noindex` is not a security control. Private pages must require authentication and authorization.
+
+---
+
+## 24. Manual QA Checklist
+
+For representative pages in every family, verify:
+
+- [ ] Initial HTML contains one correct title.
+- [ ] Description is unique and matches visible content.
+- [ ] Canonical is absolute, HTTPS, normalized, and on `www.ahanassa.com`.
+- [ ] Apex, HTTP, `/fa`, case, and trailing-slash aliases redirect correctly.
+- [ ] Canonical, `og:url`, sitemap, breadcrumb, hreflang, and internal links agree.
 - [ ] Robots state matches the route manifest.
-- [ ] Indexable pages return `200` and are not blocked from crawling.
-- [ ] Unpublished slugs return a genuine `404`.
-- [ ] `/fa` does not expose a duplicate Persian site.
-- [ ] `og:title`, `og:description`, `og:image`, and `og:image:alt` exist.
-- [ ] OG image is 1200 × 630, readable, and correctly branded.
-- [ ] Persian text in generated images is correctly shaped and ordered.
-- [ ] X/Twitter card metadata resolves to the intended large image.
-- [ ] Article dates and authors are real and visible where required.
-- [ ] No unsupported alternate locale is emitted.
-- [ ] No confidential data appears in head markup or social images.
-- [ ] Search and social previews are checked using current validation tools.
-- [ ] Page source, not only the hydrated DOM, contains critical metadata.
+- [ ] Indexable pages return `200` and are crawlable.
+- [ ] Missing dynamic slugs return a genuine `404`.
+- [ ] Filter/search/RFQ/account/admin/preview states are not indexable.
+- [ ] Product metadata uses approved public names, not raw Odoo labels.
+- [ ] Variant metadata is unique only when the page is approved for indexation.
+- [ ] Price wording matches visible price state and timestamp.
+- [ ] Odoo downtime does not break or delay page metadata.
+- [ ] OG title, description, URL, image, dimensions, and alt are valid.
+- [ ] Persian social-image text is correctly shaped and ordered.
+- [ ] X/Twitter card uses the intended large image.
+- [ ] Article dates and attribution are real and visible.
+- [ ] No incomplete locale alternate is emitted.
+- [ ] No confidential or customer-specific information appears in head markup.
+- [ ] A CMS edit invalidates only the intended cached pages.
+- [ ] A price sync invalidates the affected product/category/price pages.
+- [ ] Google Rich Results Test is used only for schemas eligible under `STRUCTURED_DATA.md`.
+- [ ] URL Inspection confirms the rendered metadata after release.
 
 ---
 
-## 23. Monitoring and Maintenance
+## 25. Monitoring and Change Control
 
-After launch:
+Monitor:
 
-- monitor Google Search Console for duplicate titles, canonical discrepancies, indexing exclusions, and unexpected snippet behavior;
-- inspect representative URLs after route, CMS, or deployment changes;
-- review click-through performance by query and page before rewriting metadata;
-- change one meaningful variable at a time when testing title or description improvements;
-- retain a change record with date, page, old value, new value, reason, and observed outcome;
-- refresh metadata when page scope changes materially;
-- do not change canonical slugs solely to improve wording;
-- ensure removed or merged pages follow `REDIRECTS.md`.
+- missing and duplicate titles/descriptions;
+- Google-selected canonical disagreements;
+- unexpected `noindex` or crawl exclusions;
+- metadata rendering errors;
+- 404/5xx rates for dynamic pages;
+- D1 read failures and stale projections;
+- Odoo sync failures and queue backlog;
+- cache invalidation failures;
+- price freshness states;
+- social image failures;
+- Search Console query/page CTR after meaningful metadata changes.
 
-Search-engine rewrites are not automatically defects. Investigate alignment among title, H1, visible introduction, anchors, and page intent before changing copy.
+Every material metadata change should record:
+
+```text
+date
+pageKey
+locale
+old value
+new value
+reason
+approver
+expected effect
+observed result
+```
+
+Search-engine title or snippet rewrites are not automatically defects. First inspect consistency among title, H1, visible introduction, anchors, page subject, and structured data.
 
 ---
 
-## 24. Claude Code Rules
+## 26. Implementation Rules for Coding Agents
 
-Claude Code must:
+The coding agent must:
 
-1. Read the approved route and SEO maps before implementing metadata.
-2. Generate metadata from a typed, centralized content source.
-3. Use one canonical-origin configuration value.
-4. Preserve Persian as the unprefixed Phase 1 locale.
-5. Keep titles, descriptions, canonicals, robots, OG, and social cards aligned.
-6. Return `404` for unpublished dynamic records.
-7. Exclude drafts, filters, confirmations, utilities, and previews from indexation.
-8. Validate unique metadata during build or CI.
-9. Use only approved claims, images, authors, dates, and evidence.
-10. Record material metadata changes in `CHANGELOG.md`.
-11. Update the SEO page map when a page's primary intent changes.
-12. Preserve sensitive-data boundaries in every metadata surface.
+1. Read the approved route, canonical, SEO, catalog, pricing, and system-of-record documents before implementation.
+2. Use a typed centralized metadata resolver.
+3. Use the single fixed canonical origin.
+4. Preserve Persian as the unprefixed launch locale.
+5. Read public metadata from D1/cache, never synchronously from Odoo.
+6. Keep page content and metadata on the same entity/version.
+7. Return `404` for missing or unpublished dynamic records.
+8. Apply explicit indexation rules to variants, prices, filters, RFQ, account, admin, and previews.
+9. Invalidate only affected cache tags after CMS or ERP changes.
+10. Validate unique metadata during build and publication.
+11. Use only approved claims, images, authors, dates, and public data.
+12. Update route, redirect, sitemap, hreflang, and metadata records together after a slug change.
 
-Claude Code must not:
+The coding agent must not:
 
-- generate pages or metadata from keyword lists alone;
-- invent service, inventory, price, supplier, market, or delivery claims;
-- publish `meta keywords`;
+- generate indexable pages from every Odoo record or filter combination;
+- call Odoo from `generateMetadata()`;
+- invent price, stock, delivery, supplier, standard, or geographic claims;
+- include a numeric price in metadata by default;
+- use raw ERP names or IDs as public SEO copy;
 - duplicate homepage metadata across routes;
-- use a canonical tag as a substitute for redirects or correct routing;
-- canonicalize missing pages to the homepage;
+- canonicalize missing pages to a parent or homepage;
 - create `/fa` duplicates;
 - emit hreflang for incomplete locales;
-- place customer or request data in the document head;
-- reconstruct the approved Persian logo as ordinary type inside OG images;
-- publish placeholder titles such as `Page`, `Home`, `Coming Soon`, or `Untitled`;
-- silently resolve route conflicts that affect SEO.
+- use `meta keywords`;
+- expose RFQ/customer data;
+- silently publish placeholder metadata;
+- use canonical tags as a substitute for redirects or correct HTTP status codes.
 
 ---
 
-## 25. Acceptance Criteria
+## 27. Acceptance Criteria
 
-This specification is ready for implementation when:
+This document is satisfied when:
 
-- [ ] The canonical host is approved.
-- [ ] The route conflict, if any, between sitemap and route documents is resolved.
-- [ ] Every launch page has an approved `pageKey`, route, title, description, robots state, and OG type.
-- [ ] Homepage metadata is approved against the homepage copy.
-- [ ] Dynamic metadata fields exist in the content model.
-- [ ] The default OG image is approved and exported.
-- [ ] Page-family OG templates are designed or a valid default fallback is accepted.
-- [ ] Indexation rules match `ROUTES.md` and `SITEMAP_ROBOTS_SPEC.md`.
-- [ ] Future locales remain disabled until complete.
-- [ ] CI validation and representative QA tests pass.
+- [ ] `https://www.ahanassa.com` is used consistently as the only canonical origin.
+- [ ] Apex and all normalization redirects are deployed and tested.
+- [ ] Every launch route has a page key, page family, locale, title, description, canonical, robots state, and social metadata source.
+- [ ] Catalog and price routes follow the approved `/steel` and `/price` contracts or a documented superseding route decision.
+- [ ] Dynamic metadata uses the D1 public read model and is independent of live Odoo response.
+- [ ] Product, variant, UOM, and price fields respect system-of-record ownership.
+- [ ] Variant and faceted pages require explicit index approval.
+- [ ] Price metadata follows the freshness-state policy and contains no default numeric prices.
+- [ ] Persian is unprefixed and future locales remain disabled until complete.
+- [ ] CMS validation, CI gates, cache invalidation, and manual QA pass.
 - [ ] No metadata contains unsupported claims or sensitive data.
+- [ ] External validators and Search Console inspection pass on representative production URLs.
 
 ---
 
-## 26. Open Decisions
+## 28. Official Reference Basis
 
-| Decision | Current state | Owner/document |
-|---|---|---|
-| Canonical apex vs `www` host | `TBD` | Technical/deployment decision |
-| Final route set where `SITEMAP.md` and `ROUTES.md` differ | `TBD` | Project owner + SEO + technical |
-| Final homepage primary keyword | Pending SEO-map approval | `SEO_KEYWORD_MAP.md` / `SEO_PAGE_MAP.md` |
-| Final launch material categories | `TBD` | Business owner + content model |
-| Public Projects launch and project claims | Conditional | Business/legal/content approval |
-| Default OG image artwork | Pending design approval | Brand + media owner |
-| Page-family OG image templates | Pending design decision | Design system + media guidelines |
-| Official social account handle | Not approved | Brand owner |
-| English and Arabic launch | Reserved | Localization decision |
-| Legal page wording and indexation readiness | Pending legal approval | Legal owner |
-| Resource gating and download behavior | Pending | Content/form architecture |
-
-Unresolved items must remain explicit. They must not be filled with assumptions in production.
-
----
-
-## 27. Reference Basis
-
-This specification follows these external implementation principles:
-
-- Google may create title links from several page signals; titles should be descriptive and concise.
-- Google may create snippets from page content and may use the meta description when it better represents the page.
-- Search display has no guaranteed character limit; truncation varies by device and context.
-- Canonical signals should be consistent across redirects, `rel="canonical"`, internal links, and XML sitemap URLs.
-- Open Graph requires `og:title`, `og:type`, `og:image`, and `og:url` as its core properties.
-- Next.js App Router metadata should use the Metadata API, `generateMetadata`, or supported metadata file conventions.
-
-Official references:
-
-- Google Search Central — Title links: `https://developers.google.com/search/docs/appearance/title-link`
-- Google Search Central — Snippets and meta descriptions: `https://developers.google.com/search/docs/appearance/snippet`
-- Google Search Central — Canonical URLs: `https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls`
-- Google Search Central — Robots meta tags: `https://developers.google.com/search/docs/crawling-indexing/robots-meta-tag`
-- Open Graph protocol: `https://ogp.me/`
-- Next.js — `generateMetadata`: `https://nextjs.org/docs/app/api-reference/functions/generate-metadata`
-- Next.js — Metadata and OG images: `https://nextjs.org/docs/app/getting-started/metadata-and-og-images`
+- [Next.js `generateMetadata`](https://nextjs.org/docs/app/api-reference/functions/generate-metadata)
+- [Next.js metadata and Open Graph images](https://nextjs.org/docs/app/getting-started/metadata-and-og-images)
+- [Next.js metadata file conventions](https://nextjs.org/docs/app/api-reference/file-conventions/metadata)
+- [Google title-link guidance](https://developers.google.com/search/docs/appearance/title-link)
+- [Google snippets and meta descriptions](https://developers.google.com/search/docs/appearance/snippet)
+- [Google canonical URL guidance](https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls)
+- [Google robots meta rules](https://developers.google.com/search/docs/crawling-indexing/robots-meta-tag)
+- [Google localized-version guidance](https://developers.google.com/search/docs/specialty/international/localized-versions)
+- [Google JavaScript SEO basics](https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics)
+- [Google Product structured-data overview](https://developers.google.com/search/docs/appearance/structured-data/product)
+- [Open Graph protocol](https://ogp.me/)
 
 ---
 
@@ -1115,9 +1174,9 @@ Official references:
 | Role | Name | Status | Date |
 |---|---|---|---|
 | Project Owner | A.M. Taleghani | Pending | — |
-| Brand Approval | TBD | Pending | — |
 | Content/SEO Approval | TBD | Pending | — |
 | Technical Approval | TBD | Pending | — |
+| Odoo/ERP Approval | TBD | Pending | — |
 | Legal/Privacy Approval | TBD | Pending | — |
 
 ---
