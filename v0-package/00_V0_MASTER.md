@@ -49,7 +49,7 @@ Ahan Asa is a **premium B2B steel procurement and sourcing partner** — a profe
 | Forge Copper | `#B04A2F` |
 | White | `#FFFFFF` |
 | Warm Cream | `#FBF5EB` |
-| Owner | Cyan Sanat Iranian Co. LTD |
+| Legal entity name | paya tejarat foolad iranian |
 
 Master logo geometry, the four brand colors above, the Persian-first RTL launch direction, and the primary conversion model are protected — do not alter without an explicit, target-specific owner decision. Full design-token and brand-asset rules: `01_UX_UI_DESIGN.md` §3–§4.
 
@@ -153,7 +153,7 @@ Every item below is genuinely unresolved in the underlying source corpus. **Do n
 | 5 | Localized-slug policy: whether en/ar reuse the Persian Latin slug segment or get market-specific slugs | `03` §2.2/§9 |
 | 6 | Language-switcher fallback when a locale-equivalent page doesn't exist (disable vs. omit vs. link elsewhere) | `03` §7.6 |
 | 7 | Precise Arabic market/BCP-47 tag (neutral `ar` vs. `ar-IQ`/`ar-OM`), Persian calendar usage scope for dated content | `03` §9 |
-| 8 | Company phone number, email, WhatsApp, business hours, legal entity name (address alone is confirmed — see §7.6) | `03` §9, `02` §9 |
+| 8 | Company phone number, email, WhatsApp, business hours (address and legal entity name are confirmed — see §7.6) | `03` §9, `02` §9 |
 | 9 | Final Persian/English/Arabic legal copy (Privacy, Terms) — requires legal review | `03` §9 |
 | 10 | Preferred production Persian commercial font family, Arabic type family, and the multi-locale (fa+en+ar concurrent) font byte budget redesign | `04` §6.5/§9, `01` §5/§16 |
 | 11 | GTM container ID / GA4 Measurement ID / GSC verification value (the *requirement* to support them is confirmed — only the literal values are open) | `04` §7.1/§9 |

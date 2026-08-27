@@ -305,7 +305,8 @@ Genuinely unresolved in the source corpus — do not invent a resolution; each b
 - **`OPEN DECISION — DO NOT INVENT`** — Localized-slug policy: shared Latin segment vs. market-specific slugs per locale (`LOCALIZATION.md` §24).
 - **`OPEN DECISION — DO NOT INVENT`** — Precise Arabic market/BCP-47 tag (`ar` vs. `ar-IQ`/`ar-OM`), Persian calendar usage scope, per-market currency/unit display rules (`LOCALE_CONTENT_STRUCTURE.md` §30).
 - **Content-production dependency, not a documentation gap:** approved, professionally reviewed English and Arabic copy for every launch-required page. Do not machine-translate and publish as final — build and gate the architecture per §7, populate it when real copy is approved.
-- **Business facts** (phone number, legal entity name, working hours, team/leadership bios) remain unconfirmed per `PROJECT_OVERRIDES.md` §7.2 and §10 — do not invent them in routes, content records, or structured data.
+- **Confirmed business facts:** company/legal entity name is `paya tejarat foolad iranian`; confirmed company address is `اصفهان، خیابان هزارجریب، کوی آزادگان`. Do not invent a legal suffix, Persian translation/transliteration, registration number, tax ID, national/company ID, or other legal identity detail.
+- **Unconfirmed business facts:** phone number, email, WhatsApp, business hours, and team/leadership bios remain open per `PROJECT_OVERRIDES.md` §7.2 and §10 — do not invent them in routes, content records, or structured data.
 
 ---
 

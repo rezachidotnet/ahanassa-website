@@ -70,6 +70,8 @@ These four are the **locked brand palette** — never changed without explicit a
 
 Normal text ≥ 4.5:1, large text/essential non-text UI ≥ 3:1. Color is never the sole indicator of status, selection, or validity. Gradients are not part of the default system — any exception requires approval and must not reduce readability.
 
+**Copper conversion controls on Navy:** when a Forge Copper primary conversion button is rendered directly against Steel Navy, preserve the Copper fill and White label, and add a restrained high-contrast component boundary where necessary using only the approved palette (for example, a subtle White or Warm Cream border/keyline). This normal-state boundary is separate from the distinct `focus-visible` state and must make the control reliably perceivable without becoming a heavy outline, glow, double border, or urgent promotional treatment. The homepage reference continues to control the Navy pre-footer band and CTA placement; accessibility governs this actual interactive treatment. Do not introduce a new brand color, recolor informational Copper icons, or change the final CTA section background for this guardrail.
+
 ---
 
 ## 5. Typography
@@ -210,7 +212,7 @@ Top-level navigation: normally ≤6 links + 1 CTA; a link appears only when its 
 
 ## 14. Footer specification (summary)
 
-Two regions: **`FooterCTA`** (pre-footer conversion — heading/body/primary+secondary action, on Warm Cream or White, must not imply instant quotation/guaranteed availability/lowest price) and **`SiteFooter`** (Steel Navy surface with the reversed logo lockup, a concise role statement, 3 curated navigation groups of 3–5 links each, verified contact methods only, legal/copyright row, optional locale control once ≥2 locales are complete).
+Two regions: **`FooterCTA`** (pre-footer conversion — heading/body/primary+secondary action, on Warm Cream or White in the general component pattern, must not imply instant quotation/guaranteed availability/lowest price) and **`SiteFooter`** (Steel Navy surface with the reversed logo lockup, a concise role statement, 3 curated navigation groups of 3–5 links each, verified contact methods only, legal/copyright row, optional locale control once ≥2 locales are complete). On the approved homepage, the visual reference may place the pre-footer conversion band on Steel Navy; that visual authority is preserved, provided a Forge Copper primary button on Navy uses the accessible boundary treatment in §4.
 
 Non-negotiable: the primary footer conversion is sending an invoice/material list, never a daily-price feed; no fabricated metrics/supplier counts/client logos/awards; no `href="#"` or dead links; legal/copyright information remains visible on mobile; footer functions fully without JavaScript; one page-level `<footer>` landmark; reversed logo only on approved Navy surface, never recolored/animated.
 

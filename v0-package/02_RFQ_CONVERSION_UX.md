@@ -18,6 +18,8 @@ This is the short canonical form used consistently across this v0 package. It de
 
 This is **not** "buy now." The CTA does not promise the lowest price, immediate supply, a guaranteed savings, or an instant quotation — it promises a professional first review and a clear next step. Submission never implies: a purchase order has been created, a price is final, stock has been reserved, supply/delivery is guaranteed, a contract has been formed, or payment is due.
 
+**Canonical reassurance near meaningful high-commitment conversion moments:** «ارسال لیست خرید برای شما تعهدی ایجاد نمی‌کند؛ ابتدا نیاز شما بررسی می‌شود.» This is reassurance copy, not a legal or commercial promise.
+
 ### 1.2 Conversion journey
 
 ```text
@@ -84,12 +86,18 @@ Supply and delivery coordination proceed within the agreed scope
 | Add / add another / replace / remove file | `افزودن فایل` / `افزودن فایل دیگر` / `جایگزینی فایل` / `حذف فایل` |
 | Retry after failure | `تلاش دوباره` |
 | Written-inquiry fallback | `ثبت درخواست بدون فایل` |
+| No-obligation reassurance | **ارسال لیست خرید برای شما تعهدی ایجاد نمی‌کند؛ ابتدا نیاز شما بررسی می‌شود.** |
+| What happens next | **پس از ارسال: بررسی درخواست ← تکمیل اطلاعات در صورت نیاز ← ارائه مسیر پیشنهادی تأمین** |
+| List-less escape hatch | **لیست کامل آماده ندارید؟ درخواست مشاوره خرید** |
 
 **Final CTA block (page-ending pattern):**
 
 > **فاکتور یا لیست خرید دارید؟**
 > آن را برای آهن آسا بفرستید تا نیاز شما بررسی و مسیر مناسب تأمین مشخص شود.
-> Primary: **ارسال لیست خرید** · Secondary: `درخواست مشاوره خرید`
+> **ارسال لیست خرید برای شما تعهدی ایجاد نمی‌کند؛ ابتدا نیاز شما بررسی می‌شود.**
+> **پس از ارسال: بررسی درخواست ← تکمیل اطلاعات در صورت نیاز ← ارائه مسیر پیشنهادی تأمین**
+> Primary: **ارسال لیست خرید**
+> Helper: **لیست کامل آماده ندارید؟ درخواست مشاوره خرید** — a subordinate text/helper action that uses the existing consultation intent in the same RFQ flow.
 
 **Prohibited CTA/label language** (unless a claim is formally approved with evidence): `دریافت ارزان‌ترین قیمت`, `تضمین بهترین قیمت`, `خرید بدون ریسک`, `تحویل فوری`, `قیمت قطعی آنلاین`, `استعلام لحظه‌ای`, `همین حالا`, `فقط امروز`, `آخرین فرصت`. Never use `خرید`, `پرداخت`, or `ثبت سفارش` for the submit action — it does not create a transaction.
 
@@ -112,11 +120,21 @@ All acquisition CTAs across the site resolve to **one** canonical request route 
 | Step | Persian title | Purpose | Required to continue |
 |---|---|---|---|
 | 1 | نوع درخواست | Establish starting point | One intent selected |
-| 2 | اطلاعات و مدارک خرید | Collect files, manual purchase-list lines, or a written requirement | One clean upload **or** at least one entered line **or** a meaningful description |
+| 2 | اطلاعات و مدارک خرید | Collect an uploaded document/image when enabled, pasted list text, manual purchase-list lines, or a written requirement | One clean upload **or** at least one entered line **or** a meaningful pasted/written requirement |
 | 3 | اطلاعات تماس | Identify the responsible contact | Full name + valid phone |
 | 4 | بازبینی و ارسال | Confirm details and consent | Privacy acknowledgement |
 
 A single-page presentation is a permitted UI variant if usability testing favors it — the underlying required data, validation, accessibility, and API contract stay identical; this is a presentation change, not a schema change.
+
+**Step 2 first-class input paths:** present three user-facing ways to provide the purchase requirement within the same canonical RFQ flow:
+
+1. **File/document** — upload an existing purchase-list document or image, only when the approved production upload-security pipeline is enabled.
+2. **Paste your list** — provide a comfortable multiline field labeled **«لیست خود را اینجا کپی کنید»** for existing textual purchase-list content copied from spreadsheet cells/rows, messaging, email, notes, or a textual BOM/material list. Preserve pasted line breaks and treat this as the existing meaningful written/freeform requirement path; do not imply automatic parsing, OCR, AI extraction, `document_review`, structured-row generation, or automatic `rfq_items` creation.
+3. **Enter items manually** — provide structured lines supporting, as applicable, product/category, size / variant, grade / standard where relevant, unit, and quantity. Do not invent additional mandatory line fields.
+
+When production upload is disabled, make **Paste your list** and **Enter items manually** the prominent available paths. Explain calmly that file upload becomes available only when the secure document-processing path is enabled; do not show a fake upload control, make a permanently disabled upload box the dominant experience, or imply that uploading is currently possible. When upload is enabled, all three paths may be visible and the visitor may choose whichever is easiest.
+
+**Preparation guidance, not a precondition:** product/category, size or variant, grade/standard where relevant, unit, quantity, delivery detail, and other technical context are helpful information that improves review; the visitor does not need a complete purchase list or full specifications before submitting. If a grade, standard, size detail, final quantity, or other technical value is unknown, allow it to remain unspecified where the schema permits and explain that it can be clarified during review. Never pressure the visitor to guess a technical value or imply that Ahan Asa is making an engineering/design decision where professional technical approval is required.
 
 **Step 1 — intent options** (semantic radio controls, contextual CTA may pre-select but the visitor must be able to change it):
 
@@ -130,19 +148,21 @@ A single-page presentation is a permitted UI variant if usability testing favors
 
 **Step 4 — review and consent:** readable summary (request type, filenames/sizes — never file contents, written description, contact info, optional context, privacy acknowledgement); the visitor can return to any prior step without losing data.
 
+**Review reassurance:** **ارسال لیست خرید برای شما تعهدی ایجاد نمی‌کند؛ ابتدا نیاز شما بررسی می‌شود.** After submission, communicate the process without a time promise: **پس از ارسال: بررسی درخواست ← تکمیل اطلاعات در صورت نیاز ← ارائه مسیر پیشنهادی تأمین**. A visitor may submit a rough or partial need; missing technical detail can be clarified during review.
+
 ### 4.4 Conditional completeness rule
 
 Every valid submission requires, at the API boundary:
 
 ```text
-fullName + valid phone + privacyAcknowledged + (one clean uploaded document OR at least one manual purchase-list line OR a meaningful written description)
+fullName + valid phone + privacyAcknowledged + (one clean uploaded document OR at least one manual purchase-list line OR a meaningful pasted/written requirement)
 ```
 
 All other fields (email, company, project name, delivery location, material categories beyond the line itself, estimated quantity outside a line, role, preferred contact method) stay optional end-to-end — UI, API, and downstream mapping. A file that is merely *selected* or still *uploading* does not satisfy the "one clean document" branch.
 
 **Manual purchase-list line entry:** the user-facing manual-entry path must support, as applicable, product/category, size / variant, grade / standard where relevant, unit, and quantity. Do not invent additional mandatory line fields. The UI may keep a freeform description path for needs that do not fit structured catalog selection.
 
-**Meaningful description:** ≥ 20 non-whitespace characters after normalization, ≤ 3,000 characters, not merely a repeated character/phone number/URL. Accepts Persian, Arabic, Latin, and mixed-direction technical content; line breaks preserved.
+**Meaningful pasted/written requirement:** ≥ 20 non-whitespace characters after normalization, ≤ 3,000 characters, not merely a repeated character/phone number/URL. Accepts Persian, Arabic, Latin, and mixed-direction technical content; line breaks preserved. The maximum permitted pasted-list length and its relationship to the current 3,000-character description limit remain **OPEN DECISION — DO NOT INVENT**; design the multiline experience to accommodate longer pasted lists once the final limit is approved.
 
 ---
 
@@ -167,7 +187,7 @@ Never expose malware signatures, storage keys, vendor names, or internal securit
 
 **Launch file policy** (provisional, pending final security/ops/legal approval — see §9): customers may submit an existing purchase-list document or image. The production accepted file-type allowlist is not owner-approved yet; do not present any PDF/spreadsheet/document/image list as final. Final server-side allowlist, MIME/signature validation, file-count and size limits, scanning policy, retention, and production enablement are security gates. Rejected by default unless explicitly approved: executables, scripts, HTML, SVG, macro-enabled Office files, password-protected archives, any archive format (ZIP/RAR/7z), disk images, and active content.
 
-**Production gating (hard rule, cross-referenced from `06_PRODUCTS_CMS_ODOO_RFQ.md`):** the upload UI described here must remain disabled in production until secure private storage, malware/content scanning, and consented data handling are approved and implemented end-to-end — see §9 for the open scanning-provider decision. When upload is unavailable, present an honest alternative submission path (written description), never a fake control.
+**Production gating (hard rule, cross-referenced from `06_PRODUCTS_CMS_ODOO_RFQ.md`):** the upload UI described here must remain disabled in production until secure private storage, malware/content scanning, and consented data handling are approved and implemented end-to-end — see §9 for the open scanning-provider decision. When upload is unavailable, prominently offer the first-class **Paste your list** and **Enter items manually** paths, explain that secure file upload is pending its approved document-processing path, and never show a fake control or imply that uploading is currently possible.
 
 ---
 
@@ -181,6 +201,7 @@ Never expose malware signatures, storage keys, vendor names, or internal securit
 - The sticky CTA must be hidden on `/request`, `/en/request`, and `/ar/request`, because the form's own step/action controls are primary there.
 - **While the Request form route is active, the global/sticky site-wide CTA must be suppressed** — the form's own step actions are the only primary call to action on that route; do not show a second competing button.
 - Mobile file actions remain reachable without horizontal scrolling; the virtual keyboard must never hide the active field, an inline error, or the submit action.
+- The Paste your list path is especially important on mobile: use a large, comfortable multiline input that accepts Persian, Arabic, Latin, and mixed-direction technical text; preserves line breaks; requires no horizontal scrolling; works with pasted multiline content; preserves pasted data on validation or network errors; remains usable with the virtual keyboard; and provides a clear way to switch to manual item entry. WhatsApp is not a production submission channel unless independently approved.
 
 ---
 
@@ -208,7 +229,7 @@ Never show `خطا!`, an unnamed "invalid input," or blaming language ("اطلا
 
 ## 8. Confirmation state
 
-Success is shown **only after the server confirms durable receipt** (see the durable-persist-before-acknowledgement contract in `06_PRODUCTS_CMS_ODOO_RFQ.md`) — a client-side "upload complete" indicator is never sufficient. The confirmation must state: that the request was received, a reference number **only if the backend genuinely generates one**, what the team will review, the expected next step, and how to add missing information; `پیگیری درخواست` appears only if a real follow-up mechanism exists. Never display: fake progress, fake assignment, a generated/invented response-time promise, internal lead status, or the visitor's name/phone in the URL. A refresh of the confirmation page must never resubmit or create a duplicate lead.
+Success is shown **only after the server confirms durable receipt** (see the durable-persist-before-acknowledgement contract in `06_PRODUCTS_CMS_ODOO_RFQ.md`) — a client-side "upload complete" indicator is never sufficient. The confirmation must state: that the request was received, a reference number **only if the backend genuinely generates one**, what the team will review, the expected next step, and how to add missing information; `پیگیری درخواست` appears only if a real follow-up mechanism exists. The compatible user-facing sequence is: **پس از ارسال: بررسی درخواست ← تکمیل اطلاعات در صورت نیاز ← ارائه مسیر پیشنهادی تأمین**. The confirmation may also reinforce: **ارسال لیست خرید برای شما تعهدی ایجاد نمی‌کند؛ ابتدا نیاز شما بررسی می‌شود.** Never display: fake progress, fake assignment, a generated/invented response-time promise, internal lead status, or the visitor's name/phone in the URL. A refresh of the confirmation page must never resubmit or create a duplicate lead.
 
 ### 8.1 RFQ analytics taxonomy
 
@@ -246,6 +267,7 @@ The following are explicitly unresolved in the source corpus; do not fabricate v
 - **Public response-time promise** — none exists; never state or imply a turnaround time.
 - **CAPTCHA/bot-challenge provider** — none selected by default; risk-based only if introduced.
 - **Public request-tracking mechanism** — reserved/deferred; do not build a fake or mocked tracking UI.
+- **Maximum permitted pasted-list length and its relationship to the current 3,000-character meaningful-requirement limit** — OPEN DECISION — DO NOT INVENT; this does not block the v0 UX design.
 
 ## 10. Consistency notes for this package
 

@@ -202,7 +202,7 @@ Feature flags: FEATURE_RFQ_SUBMISSION, FEATURE_RFQ_ATTACHMENTS, FEATURE_ODOO_RFQ
 
 **Logging/analytics prohibitions:** never log or send to analytics — full request bodies, RFQ text, names/phone/email/address, filenames, signed URLs, private object keys, Odoo database name or raw response bodies, cookies, authorization headers, Turnstile tokens, or webhook secrets. Analytics may receive only stable event names and non-sensitive parameters.
 
-**Legal/business facts:** `OPEN DECISION — DO NOT INVENT` — company legal entity name, registration/tax ID, invoicing identity, retention-period specifics, and privacy/consent legal wording are not confirmed. Do not invent them for security headers, `security.txt`, terms/privacy pages, or incident-communication templates; treat them as pending owner/legal input.
+**Legal/business facts:** the confirmed company/legal entity name is `paya tejarat foolad iranian`. Registration number, tax ID, national/company ID, invoicing identity details beyond the confirmed company name, retention-period specifics, and privacy/consent legal wording remain `OPEN DECISION — DO NOT INVENT`. Do not invent unresolved details for security headers, `security.txt`, terms/privacy pages, or incident-communication templates; treat them as pending owner/legal input.
 
 ---
 
