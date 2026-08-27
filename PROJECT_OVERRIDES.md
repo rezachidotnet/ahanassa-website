@@ -224,6 +224,38 @@ VISUAL_REFERENCE_SCOPE            = Desktop homepage visual implementation only
 
 **Immutability:** `/design-reference/` is immutable, same as `01-sources/` and `/logo/` — never modify, replace, or regenerate `homepage-desktop-v1.png` itself. A new approved version would arrive as a new versioned file with a new owner decision, not an edit to this one.
 
+**Superseded 2026-08-28 — see §8b below.** This section is kept as the historical record of the 2026-08-26 decision; it no longer states the active visual authority.
+
+---
+
+## 8b. Visual source of truth — SUPERSEDED to the approved v0 implementation — OWNER-CONFIRMED
+
+```text
+VISUAL_AUTHORITY                  = /Users/reza/Developer/ahanassa-v0  (local reference project, not deployed)
+VISUAL_AUTHORITY_STATUS           = ACTIVE, OWNER APPROVED, 2026-08-28
+VISUAL_AUTHORITY_SCOPE            = Whole public site — homepage, header, footer, interior pages, product pages, CTA visual treatment, responsive behavior
+SUPERSEDES                        = §8a (design-reference/homepage-desktop-v1.png)
+homepage-desktop-v1.png STATUS    = HISTORICAL / REFERENCE ONLY — not the active visual target, not deleted
+```
+
+**Status:** OWNER-CONFIRMED 2026-08-28. The owner has explicitly approved the current implementation at `/Users/reza/Developer/ahanassa-v0` as the authoritative visual/UI reference for the Ahan Asa website, superseding §8a. Full audit trail: `DOCUMENT_AUDIT_REPORT.md` DAR-021 (and DAR-020 for the prior fabricated-content findings that still apply unchanged).
+
+**The approved v0 implementation governs:** overall visual language, homepage composition, header appearance, footer appearance, section layout, spacing, card style, border treatment, typography hierarchy, color application, imagery treatment, buttons, interaction patterns, responsive visual behavior, interior-page visual patterns, product-page visual patterns, and CTA visual treatment — for the whole site, not homepage-only.
+
+**v0 is explicitly NOT authoritative for:** company facts, legal entity details, phone numbers, email addresses, business statistics, product catalog data, prices, markets served, years of experience, tonnage, customer counts, certifications, service claims, RFQ behavior, or commercial promises. Those remain governed by canonical documentation exactly as before (§10 below, `CLAUDE.md` §7). `ahanassa-v0`'s own content layer (`lib/site.ts`) was already found to fabricate exactly these categories of fact — see `DOCUMENT_AUDIT_REPORT.md` DAR-020 — and that finding is unchanged by this visual-authority decision. Never reintroduce content DAR-020 removed merely to match v0's appearance more closely; adapt the presentation of canonical content into the v0 visual block instead.
+
+**Precedence, restated for this scope:**
+
+- Visual/UI/layout/styling conflict → the approved v0 implementation wins.
+- Business/functional/content/architecture/localization/SEO/RFQ/security/backend/Odoo conflict → canonical documentation wins, unchanged.
+- Cloudflare/vinext/Workers/Vite/wrangler, `app/[locale]/` localized routing, and SEO infrastructure (metadata, robots, sitemap, structured data, server-rendered HTML) remain governed by the canonical repository regardless of v0's own Vercel/Next.js/flat-routing setup — only v0's *visual output* is authoritative, never its stack.
+
+**Allowed adaptations (do not require further owner approval):** responsive/RTL/LTR adaptation, accessibility, Core Web Vitals, semantic markup, SEO, browser-compatibility, and fa/en/ar content-length adaptations that preserve — not replace — the approved v0 visual direction; adapting canonical content into a v0 visual block when the fit isn't exact.
+
+**Not allowed without further owner approval:** reintroducing the pre-2026-08-28 (PNG-based) homepage composition where it conflicts with v0, inventing a visual concept not present in v0, or reproducing any of v0's fabricated business content.
+
+**Immutability unchanged:** `/design-reference/homepage-desktop-v1.png` is still never modified, replaced, regenerated, or deleted — it is simply no longer the active visual target.
+
 ---
 
 ## 9. Governance and reading order

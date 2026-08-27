@@ -4,13 +4,11 @@ import { buildPageMetadata } from "@/lib/metadata/resolve";
 import { organizationSchema, websiteSchema, jsonLdGraph } from "@/lib/seo/schema";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { Hero } from "@/components/home/hero";
-import { ProblemRecognition } from "@/components/home/problem-recognition";
-import { RoleClarification } from "@/components/home/role-clarification";
-import { Process } from "@/components/home/process";
-import { Pillars } from "@/components/home/pillars";
-import { Method } from "@/components/home/method";
+import { ProductShowcase } from "@/components/home/product-showcase";
 import { Capabilities } from "@/components/home/capabilities";
-import { Faq } from "@/components/home/faq";
+import { Assurance } from "@/components/home/assurance";
+import { Process } from "@/components/home/process";
+import { Reach } from "@/components/home/reach";
 import { CtaBand } from "@/components/ui/cta-band";
 
 interface PageProps {
@@ -33,10 +31,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     path: "/",
     title: text.title,
     description: text.description,
-    // Content is adapted from HOMEPAGE_SPEC.md's "working copy direction" —
-    // classified `draft` per §20.5 until the content owner reviews it.
-    // Keep unindexed until that review; see DOCUMENT_AUDIT_REPORT.md
-    // "v0 integration".
+    // Content is adapted from HOMEPAGE_SPEC.md's "working copy direction";
+    // section composition follows the approved v0 implementation
+    // (PROJECT_OVERRIDES.md §8b). Classified `draft` per HOMEPAGE_SPEC.md
+    // §20.5 until the content owner reviews it — keep unindexed until then.
+    // See DOCUMENT_AUDIT_REPORT.md DAR-020/DAR-021.
     indexable: false,
   });
 }
@@ -48,13 +47,11 @@ export default async function HomePage({ params }: PageProps) {
   return (
     <>
       <Hero locale={locale} />
-      <ProblemRecognition locale={locale} />
-      <RoleClarification locale={locale} />
-      <Process locale={locale} />
-      <Pillars locale={locale} />
-      <Method locale={locale} />
+      <ProductShowcase locale={locale} />
       <Capabilities locale={locale} />
-      <Faq locale={locale} />
+      <Assurance locale={locale} />
+      <Process locale={locale} />
+      <Reach locale={locale} />
       <CtaBand locale={locale} />
 
       <JsonLd data={jsonLdGraph([organizationSchema(), websiteSchema()])} />

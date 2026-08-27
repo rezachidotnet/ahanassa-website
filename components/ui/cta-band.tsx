@@ -7,8 +7,10 @@ import { buttonVariants } from "@/components/ui/button";
 /**
  * Final CTA block. Copy defaults to the approved library
  * (CTA_STRATEGY.md §5.7); callers may override for a page-specific variant.
- * Visual treatment follows HOMEPAGE_SPEC.md §19.3: Navy surface, white
- * primary control on Navy, Copper restrained accent only.
+ * Visual treatment matches ahanassa-v0/components/cta-band.tsx (Navy-800
+ * surface, Copper primary button, outlined secondary) — the approved v0
+ * implementation is now the visual authority (PROJECT_OVERRIDES.md §8b);
+ * CTA destination/business meaning still follows the canonical RFQ flow.
  */
 const defaults: Record<Locale, { eyebrow: string; title: string; body: string; primary: string; secondary: string }> = {
   fa: {
@@ -68,7 +70,7 @@ export function CtaBand({
         <div className="flex flex-col gap-3 lg:col-span-5 lg:items-end">
           <Link
             href={localizedPath(locale, "/contact")}
-            className={buttonVariants({ variant: "inverse", size: "lg", className: "group" })}
+            className={buttonVariants({ variant: "default", size: "lg", className: "group" })}
           >
             {copy.primary}
             <ArrowRight className="size-4 rtl:-scale-x-100 transition-transform group-hover:translate-x-1 rtl:group-hover:-translate-x-1" />

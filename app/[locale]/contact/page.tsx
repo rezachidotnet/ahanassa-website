@@ -6,6 +6,7 @@ import { homepageCopy } from "@/lib/content/homepage";
 import { PageHero } from "@/components/ui/page-hero";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { EnquiryForm } from "@/components/contact/enquiry-form";
+import { FaqSection } from "@/components/contact/faq-section";
 
 interface PageProps {
   params: Promise<{ locale: string }>;
@@ -100,6 +101,8 @@ export default async function ContactPage({ params }: PageProps) {
           </aside>
         </div>
       </section>
+
+      <FaqSection locale={locale} />
     </>
   );
 }

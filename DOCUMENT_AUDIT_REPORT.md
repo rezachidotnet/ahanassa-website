@@ -191,7 +191,7 @@ Per the project owner's instruction: an issue is **not** left `OPEN` merely beca
 ### DAR-020 — v0 visual/UI implementation integrated; fabricated business content stripped (new, 2026-08-28)
 
 **Severity:** P1 — informational for future maintainers, but records a content-integrity decision that must not be silently reversed
-**Status:** RESOLVED FOR THIS PASS — follow-up content work remains open
+**Status:** RESOLVED FOR THIS PASS — follow-up content work remains open. **Point 1 below (homepage visual authority) is superseded by DAR-021 (2026-08-28, same day): the owner subsequently approved the current v0 implementation itself as the site's visual authority, overriding the PNG this finding relied on. The fabricated-content findings in point 2 and below are unaffected and remain fully in force.**
 **Finding:** the `ahanassa-v0` project supplied a complete visual/frontend implementation (components, page structure, Tailwind theme) that was integrated into this repository's canonical `app/[locale]/` architecture on `feat/integrate-v0-design`. Two governing conflicts were found and resolved:
 
 1. **v0's homepage did not match the approved visual reference.** `ahanassa-v0/app/page.tsx` implemented a steel-export marketing homepage (hero stat rail, 13-product showcase, quality-assurance badges) that is a materially different visual concept from the owner-approved `/design-reference/homepage-desktop-v1.png` (a risk/control-focused procurement-manager page — risk grid, buyer-vs-manager comparison, numbered process cards, FAQ accordion). Per `CLAUDE.md` §5a / `PROJECT_OVERRIDES.md` §8a, the PNG governs regardless of what v0 built. The homepage (`app/[locale]/page.tsx` and `components/home/*`) was rebuilt from the PNG's actual section composition plus the approved copy directions in `01-sources/HOMEPAGE_SPEC.md` §9–§20 and the approved library in `01-sources/CTA_STRATEGY.md` §5. v0's original homepage sections were not reused. v0's *interior*-page structural patterns (hero, section grid, card layout, hairline borders, reveal-on-scroll) were not homepage-gated and were reused for `/about`, `/services`, `/markets`, `/products`, `/contact`.
@@ -205,6 +205,23 @@ Per the project owner's instruction: an issue is **not** left `OPEN` merely beca
 - All new/rebuilt pages remain `indexable: false`, matching the existing convention for `app/[locale]/page.tsx` — the homepage and interior-page copy is adapted/translated by Claude Code from approved-direction source material, not owner-reviewed final copy, and per `HOMEPAGE_SPEC.md` §20.5 counts as `draft` content until reviewed.
 
 **Follow-up (not done in this pass, listed so it isn't silently dropped):** owner-supplied phone/email/hours; final English/Arabic copy review (current en/ar text is Claude Code's direct translation of the approved Persian source, not independently authored or reviewed); real product catalog wired to D1; durable RFQ capture backend; route-naming decision (DAR-016).
+
+### DAR-021 — Visual authority superseded: approved v0 implementation replaces homepage-desktop-v1.png (new, 2026-08-28)
+
+**Severity:** N/A — informational, records an explicit owner decision that changes future visual-implementation behavior
+**Status:** RESOLVED BY OWNER DECISION
+**Finding:** the owner explicitly approved the current implementation at `/Users/reza/Developer/ahanassa-v0` as the authoritative visual/UI reference for the entire public Ahan Asa website — homepage included — superseding `/design-reference/homepage-desktop-v1.png` as the homepage's visual authority (previously established in `CLAUDE.md` §5a / `PROJECT_OVERRIDES.md` §8a, applied in DAR-020). This is a pure visual-authority change, not a reversal of DAR-020's content findings.
+
+**What changed:**
+
+- `CLAUDE.md` §5a rewritten: the approved v0 implementation now governs visual composition/layout/typography/color/CTA-placement for the whole site; the PNG is now historical/reference-only, kept but not deleted.
+- `CLAUDE.md` §6 task-map row "Homepage (visual implementation)" updated to point at the v0 implementation instead of the PNG.
+- `PROJECT_OVERRIDES.md` new §8b records the supersession explicitly (§8a kept intact as the historical record of the 2026-08-26 decision, annotated as superseded rather than rewritten).
+- The homepage (`app/[locale]/page.tsx`, `components/home/*`) was rebuilt again to follow v0's actual homepage section composition (hero, product showcase, capabilities, quality/assurance, process, reach, final CTA) instead of the PNG's risk/control-page composition. Interior pages were reviewed for visual drift introduced by the old PNG-first pass and brought back toward the v0 visual language where they had diverged.
+
+**What did not change:** every fabricated-content finding in DAR-020 remains fully in force. v0's `lib/site.ts` business content (phone/email/hours, a conflicting legal name, invented statistics, an invented product catalog) is still not authoritative and was not reintroduced — only v0's visual/structural patterns were adopted, filled with canonical or clearly-labeled-sample content exactly as before. Cloudflare/vinext/Workers/Vite/wrangler, `app/[locale]/` localized routing, and the canonical SEO infrastructure are unaffected by this decision and remain governed by the canonical repository, not by v0's own Vercel/Next.js/flat-routing setup.
+
+**Do not silently revert this decision.** A future task that wants to move the visual direction away from the approved v0 implementation again requires a new explicit owner decision, recorded the same way.
 
 ---
 
@@ -250,7 +267,7 @@ None of these gaps block the documentation-reconciliation pass itself. They do b
 
 ## 7. Maintenance rule
 
-When a finding above is resolved: update the finding's status, cite the resolving evidence, and update `PROJECT_OVERRIDES.md`/`DOCS_INDEX.md` accordingly. Do not delete resolved findings — keep them as an audit trail. New conflicts discovered during future work should be added here following the same DAR-### numbering, continuing from DAR-020.
+When a finding above is resolved: update the finding's status, cite the resolving evidence, and update `PROJECT_OVERRIDES.md`/`DOCS_INDEX.md` accordingly. Do not delete resolved findings — keep them as an audit trail. New conflicts discovered during future work should be added here following the same DAR-### numbering, continuing from DAR-021.
 
 ---
 

@@ -3,42 +3,57 @@ import Link from "next/link";
 import { localizedPath, type Locale } from "@/config/locales";
 import { siteConfig } from "@/lib/metadata/site";
 import { navLinks } from "@/lib/content/nav";
+import { categories } from "@/lib/content/catalog-sample";
 
 /**
- * Global footer — HOMEPAGE_SPEC.md §8.5: brand role statement, essential
- * navigation, approved contact channels only, approved company identity.
- * Phone/email/hours are deliberately omitted — unconfirmed per
- * PROJECT_OVERRIDES.md §10; only the confirmed office address is shown.
+ * Global footer — four-column composition matches
+ * ahanassa-v0/components/site-footer.tsx (brand, product categories,
+ * company nav, office/Incoterms). v0's contact column showed fabricated
+ * phone/email/hours; those are omitted here — only the confirmed office
+ * address is shown (PROJECT_OVERRIDES.md §10, DOCUMENT_AUDIT_REPORT.md
+ * DAR-020). Incoterms are standard published trade terms, not a
+ * company-specific claim, so the tag row is kept.
  */
 const copy: Record<
   Locale,
-  { role: string; nav: string; office: string; addressLines: string[]; siteLang: string; rights: string }
+  {
+    role: string; productsNav: string; catalogueCta: string; companyNav: string; office: string; addressLines: string[];
+    incoterms: string; rights: string;
+  }
 > = {
   fa: {
     role: "مدیریت خرید حرفه‌ای فولاد — بررسی، تأمین و هماهنگی خرید شما.",
-    nav: "دسترسی سریع",
+    productsNav: "محصولات",
+    catalogueCta: "کاتالوگ کامل",
+    companyNav: "شرکت",
     office: "دفتر مرکزی",
     addressLines: ["اصفهان، خیابان هزارجریب", "کوی آزادگان"],
-    siteLang: "زبان سایت",
+    incoterms: "اینکوترمز",
     rights: "کلیه حقوق این وب‌سایت متعلق به",
   },
   en: {
     role: "Professional steel procurement management — reviewing, sourcing, and coordinating your purchase.",
-    nav: "Quick links",
+    productsNav: "Products",
+    catalogueCta: "Full catalog",
+    companyNav: "Company",
     office: "Head office",
     addressLines: ["Hezar Jarib Street, Kooy Azadegan", "Isfahan, Iran"],
-    siteLang: "Site language",
+    incoterms: "Incoterms",
     rights: "All rights reserved,",
   },
   ar: {
     role: "إدارة احترافية لشراء الصلب — مراجعة وتوريد وتنسيق عملية الشراء الخاصة بك.",
-    nav: "روابط سريعة",
+    productsNav: "المنتجات",
+    catalogueCta: "الكتالوج الكامل",
+    companyNav: "الشركة",
     office: "المكتب الرئيسي",
     addressLines: ["شارع هزار جريب، حي آزادگان", "أصفهان، إيران"],
-    siteLang: "لغة الموقع",
+    incoterms: "شروط التجارة الدولية",
     rights: "جميع الحقوق محفوظة لـ",
   },
 };
+
+const incotermCodes = ["FOB", "CFR", "CIF", "FCA", "DAP", "EXW"];
 
 export function SiteFooter({ locale }: { locale: Locale }) {
   const t = copy[locale];
@@ -47,7 +62,7 @@ export function SiteFooter({ locale }: { locale: Locale }) {
   return (
     <footer className="bg-navy text-white">
       <div className="container-x grid gap-12 py-16 md:grid-cols-2 lg:grid-cols-12 lg:py-20">
-        <div className="lg:col-span-5">
+        <div className="lg:col-span-4">
           <div className="flex items-center gap-2.5">
             <Image src="/brand/ahan-asa-mark.jpg" alt="" aria-hidden="true" width={32} height={32} className="rounded-[var(--aa-radius-xs)]" />
             <span className="text-[15px] font-extrabold tracking-[0.06em] text-white">{siteConfig.name}</span>
@@ -56,8 +71,26 @@ export function SiteFooter({ locale }: { locale: Locale }) {
           <p className="text-copper-400 mt-4 text-sm font-medium">{siteConfig.tagline}</p>
         </div>
 
-        <nav className="lg:col-span-3" aria-label={t.nav}>
-          <h2 className="eyebrow text-copper-400">{t.nav}</h2>
+        <nav className="lg:col-span-3" aria-label={t.productsNav}>
+          <h2 className="eyebrow text-copper-400">{t.productsNav}</h2>
+          <ul className="mt-5 space-y-3 text-sm">
+            {categories.map((c) => (
+              <li key={c.id}>
+                <Link href={`${localizedPath(locale, "/products")}?category=${c.id}`} className="text-white/65 transition-colors hover:text-white">
+                  {c.label}
+                </Link>
+              </li>
+            ))}
+            <li>
+              <Link href={localizedPath(locale, "/products")} className="text-white/65 transition-colors hover:text-white">
+                {t.catalogueCta}
+              </Link>
+            </li>
+          </ul>
+        </nav>
+
+        <nav className="lg:col-span-2" aria-label={t.companyNav}>
+          <h2 className="eyebrow text-copper-400">{t.companyNav}</h2>
           <ul className="mt-5 space-y-3 text-sm">
             {links.map((l) => (
               <li key={l.path}>
@@ -69,13 +102,22 @@ export function SiteFooter({ locale }: { locale: Locale }) {
           </ul>
         </nav>
 
-        <div className="lg:col-span-4">
+        <div className="lg:col-span-3">
           <h2 className="eyebrow text-copper-400">{t.office}</h2>
           <address className="mt-5 space-y-1 text-sm not-italic text-white/65">
             {t.addressLines.map((line) => (
               <p key={line}>{line}</p>
             ))}
           </address>
+
+          <h2 className="eyebrow text-copper-400 mt-8">{t.incoterms}</h2>
+          <ul className="mt-4 flex flex-wrap gap-1.5">
+            {incotermCodes.map((code) => (
+              <li key={code} className="border border-white/15 px-2.5 py-1 text-[11px] font-semibold tracking-wider text-white/70">
+                {code}
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
 

@@ -166,3 +166,57 @@ export const marketsCopy: Record<Locale, MarketsCopy> = {
     industries: ["البناء والبنية التحتية", "مصانع إعادة الدرفلة", "المسابك وورش الصهر", "التصنيع الفولاذي والمعدني", "صناعة السيارات والآلات"],
   },
 };
+
+export interface FaqCopy {
+  eyebrow: string;
+  title: string;
+  items: { q: string; a: string }[];
+}
+
+/**
+ * Contact-page FAQ — moved here from the homepage (DAR-021: homepage
+ * section composition now follows the approved v0 implementation, which
+ * has no FAQ section; this content is still valuable and fits naturally
+ * before an RFQ submission, so it was relocated rather than discarded).
+ */
+export const contactFaq: Record<Locale, FaqCopy> = {
+  fa: {
+    eyebrow: "سوالات متداول",
+    title: "پرسش‌های رایج پیش از ارسال درخواست.",
+    items: [
+      { q: "برای بررسی اولیه چه اطلاعاتی لازم است؟", a: "فاکتور یا لیست خرید موجود، یا شرح مکتوب نیاز پروژه شامل نوع محصول، مشخصات، مقدار و زمان‌بندی مورد نظر کافی است." },
+      { q: "آیا می‌توانم فاکتور یک تأمین‌کننده دیگر را ارسال کنم؟", a: "بله. ارسال فاکتور یا لیست خرید موجود، از مسیرهای پذیرفته‌شده برای شروع بررسی است." },
+      { q: "آیا آهن آسا مستقیماً فولاد می‌فروشد یا خرید را مدیریت می‌کند؟", a: "آهن آسا نقش مدیر خرید را ایفا می‌کند: نیاز شما را بررسی، گزینه‌های تأمین را مقایسه و مسیر خرید را هماهنگ می‌کند." },
+      { q: "گزینه‌های تأمین و پیشنهادها چگونه ارزیابی می‌شوند؟", a: "بر اساس مشخصات فنی، مستندات، زمان‌بندی، لجستیک و شرایط تجاری مرتبط با نیاز پروژه — نه فقط قیمت واحد." },
+      { q: "آیا هماهنگی مستندات و تحویل هم بر عهده آهن آساست؟", a: "بله، در چارچوب توافق‌شده هر درخواست، هماهنگی مستندات و مراحل تحویل پیگیری می‌شود." },
+      { q: "این خدمت برای چه نوع پروژه‌هایی مناسب است؟", a: "برای تیم‌های خرید، پیمانکاران و پروژه‌هایی که نیاز به بررسی دقیق‌تر از یک استعلام ساده قیمت دارند." },
+      { q: "پس از ارسال درخواست چه اتفاقی می‌افتد؟", a: "درخواست شما توسط واحد بررسی مطالعه می‌شود و مراحل بعدی — روند شش‌مرحله‌ای بالا — آغاز می‌گردد." },
+    ],
+  },
+  en: {
+    eyebrow: "FAQ",
+    title: "Common questions before you send a request.",
+    items: [
+      { q: "What information do you need for an initial review?", a: "An existing invoice or purchase list, or a written description of the project requirement — product type, specification, quantity, and desired timing — is enough." },
+      { q: "Can I send an invoice from another supplier?", a: "Yes. Sending an existing invoice or purchase list is an accepted way to start a review." },
+      { q: "Does Ahan Asa sell steel directly, or manage the purchase?", a: "Ahan Asa acts as a purchasing manager: reviewing your requirement, comparing sourcing options, and coordinating the purchasing path." },
+      { q: "How are sourcing options and proposals evaluated?", a: "Based on specification, documentation, timing, logistics, and commercial terms relevant to the project requirement — not unit price alone." },
+      { q: "Does Ahan Asa also coordinate documentation and delivery?", a: "Yes, within the agreed scope of each request, documentation and delivery milestones are tracked." },
+      { q: "What kind of projects is this suited for?", a: "Purchasing teams, contractors, and projects that need a more thorough review than a simple price quote." },
+      { q: "What happens after I submit a request?", a: "Your request is reviewed by the review team, and the six-stage process above begins." },
+    ],
+  },
+  ar: {
+    eyebrow: "الأسئلة الشائعة",
+    title: "أسئلة شائعة قبل إرسال الطلب.",
+    items: [
+      { q: "ما المعلومات اللازمة للمراجعة الأولية؟", a: "تكفي فاتورة أو قائمة شراء موجودة، أو وصف كتابي لاحتياج المشروع يشمل نوع المنتج والمواصفات والكمية والتوقيت المطلوب." },
+      { q: "هل يمكنني إرسال فاتورة من مورد آخر؟", a: "نعم. إرسال فاتورة أو قائمة شراء موجودة هو أحد المسارات المقبولة لبدء المراجعة." },
+      { q: "هل يبيع آهن آسا الصلب مباشرة أم يدير عملية الشراء؟", a: "يقوم آهن آسا بدور مدير الشراء: مراجعة احتياجك، ومقارنة خيارات التوريد، وتنسيق مسار الشراء." },
+      { q: "كيف تُقيَّم خيارات التوريد والعروض؟", a: "بناءً على المواصفات والمستندات والتوقيت واللوجستيات والشروط التجارية ذات الصلة باحتياج المشروع — وليس سعر الوحدة فقط." },
+      { q: "هل يتولى آهن آسا أيضًا تنسيق المستندات والتسليم؟", a: "نعم، ضمن النطاق المتفق عليه لكل طلب، تُتابَع المستندات ومحطات التسليم." },
+      { q: "لأي نوع من المشاريع تناسب هذه الخدمة؟", a: "لفرق الشراء والمقاولين والمشاريع التي تحتاج مراجعة أدق من مجرد طلب سعر بسيط." },
+      { q: "ماذا يحدث بعد إرسال الطلب؟", a: "تتم مراجعة طلبك من قبل فريق المراجعة، وتبدأ المراحل الست الموضحة أعلاه." },
+    ],
+  },
+};
