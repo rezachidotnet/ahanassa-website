@@ -35,8 +35,10 @@ Immutable reference assets:
 ```text
 01-sources/
 logo/
-design-reference/
+design-reference/homepage-desktop-v1.png   ← strictly immutable, historical only (§5a)
 ```
+
+`design-reference/v0-approved/` is a **maintained visual baseline**, not a strictly immutable historical asset — see §5a. It may only be updated by recapturing screenshots after an owner-approved visual change, per `design-reference/v0-approved/README.md`; it must not be edited or deleted during unrelated implementation work.
 
 The active reading order is:
 
@@ -52,7 +54,7 @@ verified implementation facts
 
 When a statement inside `01-sources/` conflicts with `PROJECT_OVERRIDES.md` or this file, the root control layer wins. When a statement inside `01-sources/` conflicts with verified implementation facts about the confirmed Cloudflare Workers + vinext + Vite + TypeScript runtime, treat the stale statement as superseded and record the documentation drift rather than implementing obsolete architecture.
 
-**These directories are immutable for implementation work.** Do not edit, move, or delete anything inside `01-sources/`, `logo/`, or `design-reference/` unless the task is explicitly a controlled documentation cleanup. For normal implementation tasks, when a document in `01-sources/` is stale, apply the root override and record the conflict in `DOCUMENT_AUDIT_REPORT.md`.
+**`01-sources/`, `logo/`, and `design-reference/homepage-desktop-v1.png` are immutable for implementation work.** Do not edit, move, or delete anything inside `01-sources/` or `logo/`, or the historical PNG itself, unless the task is explicitly a controlled documentation cleanup. `design-reference/v0-approved/` follows the maintained-baseline rule above instead. For normal implementation tasks, when a document in `01-sources/` is stale, apply the root override and record the conflict in `DOCUMENT_AUDIT_REPORT.md`.
 
 **The four root files are the compact control layer.** They exist so Claude Code does not have to re-read and re-reconcile ~87 historical documents on every task. `DOCS_INDEX.md` tells you which specialist document actually governs a given task and what layer/status it has; go read that document directly. Do not treat the existence of this control layer as permission to skip reading the specialist source document a task actually needs.
 
@@ -117,22 +119,27 @@ Next.js App Router via vinext, on Cloudflare Workers + Static Assets
 
 ## 5a. Homepage/Site Visual Reference — mandatory before visual work
 
-**Status update, 2026-08-28 (owner decision — see `PROJECT_OVERRIDES.md` §8a and `DOCUMENT_AUDIT_REPORT.md` DAR-021): the approved v0 implementation at `/Users/reza/Developer/ahanassa-v0` is now the authoritative visual/UI reference for the whole public site, homepage included. This supersedes `/design-reference/homepage-desktop-v1.png` as the homepage's visual authority.**
+**Status update, 2026-08-28 (owner decision — see `PROJECT_OVERRIDES.md` §8b and `DOCUMENT_AUDIT_REPORT.md` DAR-021/DAR-022): the v0-derived visual direction is approved and now frozen inside this repository. The authoritative visual/UI reference is the current canonical implementation in this repository (`app/`, `components/`), together with the version-controlled screenshot baseline at `design-reference/v0-approved/`. This supersedes `/design-reference/homepage-desktop-v1.png` as the homepage's visual authority.**
 
-**Before implementing or materially modifying any public-facing page, Claude Code must inspect the current approved v0 implementation** (`ahanassa-v0/app/`, `ahanassa-v0/components/`) for the governing visual language: composition, section order/hierarchy, layout proportions, spacing rhythm, card/border treatment, typography scale, color application, imagery treatment, buttons, and interaction patterns. Where a page has a v0 counterpart, that counterpart governs its visual appearance — not the old PNG, not an independently invented design.
+**The external directory `ahanassa-v0` (historically at `/Users/reza/Developer/ahanassa-v0`) is no longer required to exist and must not be treated as a dependency by any future task.** It was the original design-input project the approved visual direction was migrated from (migration commits `0d07d0b` and `b1d0841`), then frozen as a portable baseline inside this repository — see `design-reference/v0-approved/README.md` for the exact freeze commit. Do not instruct a future Claude/Codex session to go read that external path; it may not exist in that environment. If a task needs to see what the approved direction looks like, read the current implementation in this repository and/or the screenshots in `design-reference/v0-approved/`.
 
-`/design-reference/homepage-desktop-v1.png` is now **historical/reference material only**. Do not use it as a visual target, do not force the site back toward its composition when it conflicts with the approved v0 UI, and do not delete it — it stays as project history (immutability rule below still applies to the file itself).
+**Before implementing or materially modifying any public-facing page, Claude Code must inspect:**
+
+1. the current canonical implementation of the closest equivalent existing page (`app/[locale]/**/page.tsx` and the components it composes) — this is the live, authoritative visual source; and
+2. `design-reference/v0-approved/` for the intended reference appearance when building something genuinely new that has no close existing equivalent, or when checking for visual regression.
+
+`/design-reference/homepage-desktop-v1.png` is **historical/reference material only**. Do not use it as a visual target, do not force the site back toward its composition when it conflicts with the current implementation, and do not delete it — it stays as project history (immutability rule in §2 above still applies to that file).
 
 Visual implementation must be governed by **both**:
 
-1. the approved v0 implementation (`/Users/reza/Developer/ahanassa-v0`) — for visual appearance; and
+1. the current canonical implementation / `design-reference/v0-approved/` — for visual appearance; and
 2. the canonical functional/content specifications (`01-sources/HOMEPAGE_SPEC.md`, `01-sources/CONTENT_STRATEGY.md`, `01-sources/CTA_STRATEGY.md`, SEO/localization/accessibility/performance/data specs per `DOCS_INDEX.md`) — for content, routing, SEO, accessibility, semantics, localization, performance, functionality, data architecture, RFQ behavior, and Odoo integration.
 
-v0 never overrides the functional specifications, and the functional specifications never override the approved visual direction, within their respective domains. Concretely: v0's layout, spacing, section rhythm, card/border/typography/color/button/interaction treatment is authoritative; v0's *content* (company facts, statistics, contact details, product/catalog data, business claims) is **not** authoritative and must never be reproduced — see `PROJECT_OVERRIDES.md` §10 and `DOCUMENT_AUDIT_REPORT.md` DAR-020/DAR-021 for what was already found fabricated and stripped once. Where canonical content does not cleanly fit a v0 visual block, adapt the presentation, never the underlying facts.
+Visual appearance never overrides the functional specifications, and the functional specifications never override the approved visual direction, within their respective domains. Concretely: the current implementation's layout, spacing, section rhythm, card/border/typography/color/button/interaction treatment is authoritative; company facts, statistics, contact details, product/catalog data, and business claims remain governed exclusively by canonical documentation — see `PROJECT_OVERRIDES.md` §10 and `DOCUMENT_AUDIT_REPORT.md` DAR-020 for what was already found fabricated in the original v0 source and must never be reintroduced regardless of what any future screenshot or external reference shows.
 
-Responsive adaptation, and technical adaptations required for accessibility, Core Web Vitals, semantic markup, SEO, browser compatibility, or fa/en/ar content-length/RTL differences, are expected and must preserve — not replace — the approved v0 visual direction. `ahanassa-v0` is a local reference project, not itself deployed — do not turn this repository into a copy of its Vercel/Next.js/non-localized routing; only its visual output is authoritative, per §2/§4/§7 of this file.
+A screenshot in `design-reference/v0-approved/` differing from the live site because of a legitimate, approved content/data change (copy edits, real catalog data replacing sample data, translation updates) is **not** a visual regression by itself — see that directory's `README.md` for what does and does not count as one. Do not hardcode CSS to match screenshot pixel dimensions; the production implementation remains responsive.
 
-`/design-reference/` is immutable, same as `01-sources/` and `/logo/` — never modify the reference image itself, even though it is no longer the active visual target.
+Responsive adaptation, and technical adaptations required for accessibility, Core Web Vitals, semantic markup, SEO, browser compatibility, or fa/en/ar content-length/RTL differences, are expected and must preserve — not replace — the approved visual direction.
 
 ---
 
@@ -148,7 +155,7 @@ Use `DOCS_INDEX.md` for the authoritative, per-document version of this table (i
 | Public catalog / pricing | **Owner-confirmed in scope**, `PROJECT_OVERRIDES.md` §4 — `01-sources/TECHNICAL_ARCHITECTURE.md` §11, `01-sources/DATABASE_SCHEMA.md` catalog/price tables, `01-sources/METADATA_SPEC.md`/`STRUCTURED_DATA.md` (catalog/price metadata). Route-naming (`/steel-products` vs `/steel`) still open — `DOCUMENT_AUDIT_REPORT.md` DAR-016. Never fetch price data synchronously from Odoo for public rendering. |
 | Brand / visual design | `01-sources/BRAND_GUIDELINES.md`, `01-sources/DESIGN_DIRECTION.md`, `01-sources/DESIGN_SYSTEM.md`, `01-sources/UI_COMPONENTS.md`, `01-sources/MOTION_GUIDELINES.md` — all uncontested, still active |
 | Pages / navigation / IA | `01-sources/SITEMAP.md`, `01-sources/INFORMATION_ARCHITECTURE.md`, `01-sources/ROUTES.md`, `01-sources/PAGE_SPECIFICATIONS.md`, `01-sources/HOMEPAGE_SPEC.md`, `01-sources/HEADER_NAVIGATION_SPEC.md`, `01-sources/FOOTER_SPEC.md` — active, but locale scope must be read through `PROJECT_OVERRIDES.md` §1 |
-| Homepage/site (visual implementation) | **Mandatory:** the approved v0 implementation at `/Users/reza/Developer/ahanassa-v0` (visual composition/layout/typography/color/CTA placement — owner-approved authority as of 2026-08-28) **plus** `01-sources/HOMEPAGE_SPEC.md` (content/functional contract). See `CLAUDE.md` §5a and `PROJECT_OVERRIDES.md` §8a. `/design-reference/homepage-desktop-v1.png` is historical only — do not implement from it or from the textual spec's visual description where either conflicts with the approved v0 UI. |
+| Homepage/site (visual implementation) | **Mandatory:** the current canonical implementation (`app/`, `components/`) plus `design-reference/v0-approved/` (visual composition/layout/typography/color/CTA placement — owner-approved authority, frozen 2026-08-28) **plus** `01-sources/HOMEPAGE_SPEC.md` (content/functional contract). See `CLAUDE.md` §5a and `PROJECT_OVERRIDES.md` §8b. The external `ahanassa-v0` project is no longer required. `/design-reference/homepage-desktop-v1.png` is historical only — do not implement from it or from the textual spec's visual description where either conflicts with the approved implementation. |
 | Content / copy / media | `01-sources/CONTENT_STRATEGY.md`, `01-sources/CONTENT_MODEL.md`, `01-sources/COPY_GUIDELINES.md`, `01-sources/CTA_STRATEGY.md`, `01-sources/MEDIA_GUIDELINES.md` — active |
 | SEO / metadata / structured data | `01-sources/METADATA_SPEC.md`, `01-sources/STRUCTURED_DATA.md`, `01-sources/INTERNAL_LINKING.md`, `01-sources/SITEMAP_ROBOTS_SPEC.md`, `01-sources/SEO_STRATEGY.md`, `01-sources/SEO_KEYWORD_MAP.md`, `01-sources/SEO_PAGE_MAP.md`, `01-sources/REDIRECTS.md`, `01-sources/HREFLANG_CANONICAL.md` |
 | Localization | `01-sources/LOCALIZATION.md`, `01-sources/LOCALE_CONTENT_STRUCTURE.md` read through `PROJECT_OVERRIDES.md` §1 — these predate the fa/en/ar override and describe Persian-only |

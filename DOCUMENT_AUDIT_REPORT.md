@@ -223,6 +223,22 @@ Per the project owner's instruction: an issue is **not** left `OPEN` merely beca
 
 **Do not silently revert this decision.** A future task that wants to move the visual direction away from the approved v0 implementation again requires a new explicit owner decision, recorded the same way.
 
+### DAR-022 — Approved v0 visual baseline frozen into the repository; external `ahanassa-v0` dependency removed (new, 2026-08-28)
+
+**Severity:** N/A — informational, records a portability decision that changes what future tasks may depend on
+**Status:** RESOLVED
+**Finding:** DAR-021 established that the approved v0 implementation (external directory `/Users/reza/Developer/ahanassa-v0`) governs visual authority. That directory is local-only and not guaranteed to exist in every future environment (a fresh clone, CI, a different machine, a different agent session). This finding records that the approved visual direction — now fully integrated and validated in this repository across commits `0d07d0b` and `b1d0841` — has been frozen as a **portable, version-controlled baseline** so no future task depends on that external path.
+
+**What was added:**
+
+- `design-reference/v0-approved/` — six browser screenshots captured from the canonical repository's own running implementation (not from the external `ahanassa-v0` folder, not from the historical PNG): Persian homepage desktop (1440×1200, full-page), Persian homepage mobile (390×844, full-page), Persian mobile-nav-open state (390×844, viewport), Persian products/services/contact desktop (1440×1200, full-page each). Full capture methodology, viewport documentation, and — critically — what counts vs. does not count as a visual regression is documented in `design-reference/v0-approved/README.md`.
+- `PROJECT_OVERRIDES.md` §8c records the same decision at the overrides layer, explicitly stating §8b's rules are unchanged in substance — only *where the visual authority lives* changed (external folder → this repository + the new baseline directory).
+- `CLAUDE.md` §5a and §2 (immutable-assets list) rewritten to point at the current implementation and `design-reference/v0-approved/` instead of the external path, and to classify `design-reference/v0-approved/` as a *maintained baseline* (updatable only by recapturing after an approved visual change) rather than a strictly immutable historical asset like `homepage-desktop-v1.png`.
+
+**What did not change:** the visual direction itself, its scope, or its precedence relative to business/content/technical/SEO/localization/RFQ/Odoo documentation (all unchanged from DAR-021/§8b). The fabricated-content findings in DAR-020 remain fully in force — nothing about this freeze reintroduces or re-authorizes any of that content, and a screenshot in the new baseline showing sample/placeholder content is explicitly documented (in its `README.md`) as not a license to treat that content as real.
+
+**Practical effect:** a future Claude/Codex/CI session with no access to `/Users/reza/Developer/ahanassa-v0` can now fully understand and verify the approved visual direction from this repository alone. `ahanassa-v0` remains named throughout the audit trail as the historical origin of the design — that history is preserved, not erased — but is no longer a live dependency for any task.
+
 ---
 
 ## 5. Missing referenced documents
@@ -267,7 +283,7 @@ None of these gaps block the documentation-reconciliation pass itself. They do b
 
 ## 7. Maintenance rule
 
-When a finding above is resolved: update the finding's status, cite the resolving evidence, and update `PROJECT_OVERRIDES.md`/`DOCS_INDEX.md` accordingly. Do not delete resolved findings — keep them as an audit trail. New conflicts discovered during future work should be added here following the same DAR-### numbering, continuing from DAR-021.
+When a finding above is resolved: update the finding's status, cite the resolving evidence, and update `PROJECT_OVERRIDES.md`/`DOCS_INDEX.md` accordingly. Do not delete resolved findings — keep them as an audit trail. New conflicts discovered during future work should be added here following the same DAR-### numbering, continuing from DAR-022.
 
 ---
 

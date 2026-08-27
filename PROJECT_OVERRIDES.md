@@ -256,6 +256,32 @@ homepage-desktop-v1.png STATUS    = HISTORICAL / REFERENCE ONLY — not the acti
 
 **Immutability unchanged:** `/design-reference/homepage-desktop-v1.png` is still never modified, replaced, regenerated, or deleted — it is simply no longer the active visual target.
 
+**Superseded (portability only) 2026-08-28 — see §8c below.** §8c does not change anything stated above; it removes this section's dependency on the external `ahanassa-v0` path existing. Every rule above still applies, read with "the approved v0 implementation" now meaning "the current canonical implementation, frozen from that source."
+
+---
+
+## 8c. Visual baseline frozen into the repository — external `ahanassa-v0` no longer required — OWNER-CONFIRMED
+
+```text
+VISUAL_AUTHORITY                  = this repository's current implementation (app/, components/) + design-reference/v0-approved/
+VISUAL_AUTHORITY_STATUS           = ACTIVE, OWNER APPROVED, 2026-08-28
+FROZEN_FROM                       = ahanassa-v0 (external, historical source input — path no longer required to exist)
+FROZEN_FROM_MIGRATION_COMMITS     = 0d07d0b, b1d0841
+PORTABLE_BASELINE_LOCATION        = design-reference/v0-approved/ (screenshots + README.md)
+```
+
+**Status:** OWNER-CONFIRMED 2026-08-28, same day as §8b. §8b established that the *approved v0 implementation* governs visual authority. This section confirms the same visual direction, now that it is fully integrated and validated in this repository (commits `0d07d0b`, `b1d0841`), is **frozen as a portable, version-controlled baseline** so no future task, agent, or CI environment needs the external `/Users/reza/Developer/ahanassa-v0` directory to exist.
+
+**What changed:** nothing about the approved visual direction itself, its scope, or its precedence relative to business/functional/technical/SEO/localization/RFQ/Odoo documentation — all of §8b's rules stand unchanged. What changed is *where the authority lives*: previously "the approved v0 implementation" meant an external, local-only folder; it now means this repository's own `app/`/`components/` implementation, backed by the screenshot baseline in `design-reference/v0-approved/` (see that directory's `README.md` for capture methodology, viewport sizes, and what does/doesn't count as a regression).
+
+**Practical effect for future work:**
+
+- Do not require, reference as a dependency, or instruct an agent to read `/Users/reza/Developer/ahanassa-v0` — it may not exist in a given environment (a fresh clone, a CI runner, a different machine).
+- To see the approved visual direction, read this repository's current implementation and/or `design-reference/v0-approved/`.
+- `ahanassa-v0` remains documented as the historical origin of the design direction (§8b, `DOCUMENT_AUDIT_REPORT.md` DAR-020/DAR-021/DAR-022) — that history is not erased, only no longer a live dependency.
+
+**Full audit trail:** `DOCUMENT_AUDIT_REPORT.md` DAR-022.
+
 ---
 
 ## 9. Governance and reading order
