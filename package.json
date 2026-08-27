@@ -5,9 +5,13 @@
   "packageManager": "npm@11.14.1",
   "dependencies": {
     "@vinext/cloudflare": "latest",
+    "class-variance-authority": "latest",
+    "clsx": "latest",
+    "lucide-react": "latest",
     "react": "latest",
     "react-dom": "latest",
     "react-server-dom-webpack": "latest",
+    "tailwind-merge": "latest",
     "vinext": "latest"
   },
   "devDependencies": {

@@ -26,6 +26,14 @@ export function organizationSchema() {
     alternateName: siteConfig.alternateName,
     url: siteConfig.baseUrl,
     logo: `${siteConfig.baseUrl}/icon.jpg`,
+    // Confirmed address (PROJECT_OVERRIDES.md §7 item 6), now rendered in
+    // the footer and contact page — safe to add per this file's own rule.
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: "خیابان هزارجریب، کوی آزادگان",
+      addressLocality: "اصفهان",
+      addressCountry: "IR",
+    },
   };
 }
 

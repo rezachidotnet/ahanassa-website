@@ -1,0 +1,90 @@
+/**
+ * Tailwind v4 theme aliases + layout/motion utilities for the integrated
+ * v0 component set (Phase 2 UI implementation — see DOCUMENT_AUDIT_REPORT.md
+ * "v0 integration" entry).
+ *
+ * This file does not define new brand colors. Every alias below resolves to
+ * an existing token in styles/tokens.css (DESIGN_SYSTEM.md §5.1, confirmed
+ * Steel Navy #0B2545 / Forge Copper #B04A2F). Interaction-state tints
+ * (hover/lighter variants) are derived with color-mix() rather than
+ * hand-picked hex values, except where tokens.css already defines a
+ * hand-tuned hover/active shade — those are reused as-is instead of
+ * recomputed.
+ */
+
+@theme inline {
+  --color-navy: var(--aa-color-brand-navy-900);
+  --color-navy-800: var(--aa-color-action-primary-bg-active);
+  --color-navy-700: var(--aa-color-action-primary-bg-hover);
+  --color-navy-600: var(--navy-600-tint);
+  --color-copper: var(--aa-color-brand-copper-600);
+  --color-copper-400: var(--copper-400-tint);
+  --color-surface: var(--aa-color-bg-subtle);
+  --color-surface-2: var(--aa-color-bg-muted);
+
+  --color-background: var(--aa-color-bg-canvas);
+  --color-foreground: var(--aa-color-text-primary);
+  --color-muted: var(--aa-color-bg-muted);
+  --color-muted-foreground: var(--aa-color-text-secondary);
+  --color-border: var(--aa-color-border-subtle);
+  --color-ring: var(--aa-color-focus-ring);
+}
+
+:root {
+  /* Interaction-state tints derived from the approved brand colors —
+     design-system mechanics, not new brand decisions. */
+  --navy-600-tint: color-mix(in srgb, var(--aa-color-brand-navy-900) 55%, white 45%);
+  --copper-400-tint: color-mix(in srgb, var(--aa-color-brand-copper-600) 72%, white 28%);
+}
+
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
+  }
+}
+
+@utility container-x {
+  width: 100%;
+  margin-inline: auto;
+  max-width: var(--aa-container-max);
+  padding-inline: var(--aa-page-gutter);
+}
+
+/* uppercase technical metadata label, matches the reference's spec-sheet voice */
+@utility eyebrow {
+  font-size: var(--aa-text-caption);
+  line-height: 1;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: var(--aa-font-weight-semibold);
+}
+
+@layer utilities {
+  .reveal {
+    opacity: 0;
+    transform: translateY(14px);
+    transition:
+      opacity var(--aa-motion-reveal) var(--aa-ease-enter),
+      transform var(--aa-motion-reveal) var(--aa-ease-enter);
+  }
+  .reveal[data-visible="true"] {
+    opacity: 1;
+    transform: none;
+  }
+  .hairline-grid {
+    background-image: linear-gradient(to right, rgb(255 255 255 / 0.06) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(255 255 255 / 0.06) 1px, transparent 1px);
+    background-size: 72px 72px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

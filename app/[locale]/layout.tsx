@@ -50,7 +50,7 @@ export default async function LocaleLayout({
         <SkipLink label={skipLinkLabel[locale]} />
         <SiteHeader locale={locale} />
         <main id="main-content">{children}</main>
-        <SiteFooter />
+        <SiteFooter locale={locale} />
       </body>
     </html>
   );

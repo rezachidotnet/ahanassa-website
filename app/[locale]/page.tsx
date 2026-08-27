@@ -3,42 +3,40 @@ import { isLocale, type Locale } from "@/config/locales";
 import { buildPageMetadata } from "@/lib/metadata/resolve";
 import { organizationSchema, websiteSchema, jsonLdGraph } from "@/lib/seo/schema";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { Hero } from "@/components/home/hero";
+import { ProblemRecognition } from "@/components/home/problem-recognition";
+import { RoleClarification } from "@/components/home/role-clarification";
+import { Process } from "@/components/home/process";
+import { Pillars } from "@/components/home/pillars";
+import { Method } from "@/components/home/method";
+import { Capabilities } from "@/components/home/capabilities";
+import { Faq } from "@/components/home/faq";
+import { CtaBand } from "@/components/ui/cta-band";
 
 interface PageProps {
   params: Promise<{ locale: string }>;
 }
 
-const copy: Record<Locale, { title: string; description: string; body: string }> = {
-  fa: {
-    title: "آهن آسا",
-    description: "شریک تخصصی تأمین و خرید فولاد.",
-    body: "زیرساخت فنی وب‌سایت آهن آسا در حال آماده‌سازی است. طراحی نهایی صفحه اصلی در فاز بعدی پیاده‌سازی می‌شود.",
-  },
-  en: {
-    title: "Ahan Asa",
-    description: "Steel procurement and sourcing partner.",
-    body: "The Ahan Asa website foundation is under construction. The final homepage design ships in a later phase.",
-  },
-  ar: {
-    title: "آهن آسا",
-    description: "شريك متخصص في توريد وشراء الصلب.",
-    body: "أساس موقع آهن آسا الإلكتروني قيد الإعداد. سيتم تنفيذ التصميم النهائي للصفحة الرئيسية في مرحلة لاحقة.",
-  },
+const metaCopy: Record<Locale, { title: string; description: string }> = {
+  fa: { title: "آهن آسا — مدیریت خرید فولاد", description: "فاکتور یا لیست خریدتان را بفرستید؛ آهن آسا نیاز پروژه، گزینه‌های تأمین و مسیر خرید را بررسی و هماهنگ می‌کند." },
+  en: { title: "Ahan Asa — Steel purchasing management", description: "Send your invoice or purchase list — Ahan Asa reviews the requirement, sourcing options, and purchasing path." },
+  ar: { title: "آهن آسا — إدارة شراء الصلب", description: "أرسل فاتورتك أو قائمة الشراء؛ يراجع آهن آسا الاحتياج وخيارات التوريد ومسار الشراء." },
 };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { locale: rawLocale } = await params;
   const locale = isLocale(rawLocale) ? rawLocale : "fa";
-  const text = copy[locale];
+  const text = metaCopy[locale];
 
   return buildPageMetadata({
     locale,
     path: "/",
     title: text.title,
     description: text.description,
-    // Structural placeholder, not the approved homepage — keep unindexed
-    // until the Phase 2 homepage (design-reference/homepage-desktop-v1.png)
-    // replaces this page.
+    // Content is adapted from HOMEPAGE_SPEC.md's "working copy direction" —
+    // classified `draft` per §20.5 until the content owner reviews it.
+    // Keep unindexed until that review; see DOCUMENT_AUDIT_REPORT.md
+    // "v0 integration".
     indexable: false,
   });
 }
@@ -46,20 +44,20 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function HomePage({ params }: PageProps) {
   const { locale: rawLocale } = await params;
   const locale = isLocale(rawLocale) ? rawLocale : "fa";
-  const text = copy[locale];
 
   return (
-    <div className="mx-auto max-w-[var(--aa-container-max)] px-[var(--aa-page-gutter)] py-16">
-      <h1
-        className="text-[length:var(--aa-text-display-md)] leading-[var(--aa-leading-display-md)] font-[var(--aa-font-weight-bold)] text-[var(--aa-color-text-brand)]"
-      >
-        {text.title}
-      </h1>
-      <p className="mt-4 max-w-[var(--aa-reading-max)] text-[length:var(--aa-text-body-lg)] leading-[var(--aa-leading-body-lg)] text-[var(--aa-color-text-secondary)]">
-        {text.body}
-      </p>
+    <>
+      <Hero locale={locale} />
+      <ProblemRecognition locale={locale} />
+      <RoleClarification locale={locale} />
+      <Process locale={locale} />
+      <Pillars locale={locale} />
+      <Method locale={locale} />
+      <Capabilities locale={locale} />
+      <Faq locale={locale} />
+      <CtaBand locale={locale} />
 
       <JsonLd data={jsonLdGraph([organizationSchema(), websiteSchema()])} />
-    </div>
+    </>
   );
 }

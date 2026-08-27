@@ -188,6 +188,26 @@ Per the project owner's instruction: an issue is **not** left `OPEN` merely beca
 
 ---
 
+### DAR-020 — v0 visual/UI implementation integrated; fabricated business content stripped (new, 2026-08-28)
+
+**Severity:** P1 — informational for future maintainers, but records a content-integrity decision that must not be silently reversed
+**Status:** RESOLVED FOR THIS PASS — follow-up content work remains open
+**Finding:** the `ahanassa-v0` project supplied a complete visual/frontend implementation (components, page structure, Tailwind theme) that was integrated into this repository's canonical `app/[locale]/` architecture on `feat/integrate-v0-design`. Two governing conflicts were found and resolved:
+
+1. **v0's homepage did not match the approved visual reference.** `ahanassa-v0/app/page.tsx` implemented a steel-export marketing homepage (hero stat rail, 13-product showcase, quality-assurance badges) that is a materially different visual concept from the owner-approved `/design-reference/homepage-desktop-v1.png` (a risk/control-focused procurement-manager page — risk grid, buyer-vs-manager comparison, numbered process cards, FAQ accordion). Per `CLAUDE.md` §5a / `PROJECT_OVERRIDES.md` §8a, the PNG governs regardless of what v0 built. The homepage (`app/[locale]/page.tsx` and `components/home/*`) was rebuilt from the PNG's actual section composition plus the approved copy directions in `01-sources/HOMEPAGE_SPEC.md` §9–§20 and the approved library in `01-sources/CTA_STRATEGY.md` §5. v0's original homepage sections were not reused. v0's *interior*-page structural patterns (hero, section grid, card layout, hairline borders, reveal-on-scroll) were not homepage-gated and were reused for `/about`, `/services`, `/markets`, `/products`, `/contact`.
+2. **v0's content layer (`ahanassa-v0/lib/site.ts`) fabricated business facts** the project's own control layer marks `OPEN DECISION — DO NOT INVENT` (`PROJECT_OVERRIDES.md` §10, `v0-package/00_V0_MASTER.md` §8): a phone number, two email addresses, business hours, and a legal-entity name that conflicted with the one already wired into `lib/metadata/site.ts` (`Cyan Sanat Iranian Co. LTD`). It also presented invented statistics as fact ("1.2M tons/year," "38 countries," "16 years," "99.4% delivery-to-spec") and a 14-item product catalog with specific technical specs, none of which are sourced from any approved system. None of this was carried into the integration. Only already-confirmed facts were used (company name, brand promise, primary CTA copy, the confirmed office address from `PROJECT_OVERRIDES.md` §7 item 6). The product catalog was kept as clearly-labeled **sample data** (`components/products/sample-data-notice.tsx`, visible on every catalog route) rather than removed outright, since it demonstrates the catalog page's intended layout; every catalog route is `indexable: false` for this reason. Real catalog content must come from the synchronized D1 layer per `CLAUDE.md` §11, not this sample set.
+
+**Additional decisions made in the same pass, recorded here rather than left implicit:**
+
+- The RFQ intake form (`components/contact/enquiry-form.tsx`) has no file upload, consistent with DAR-019 (scanning pipeline not yet selected), and does **not** show a fake "request received" success state on submit — no D1-backed durable capture pipeline exists yet (`CLAUDE.md` §10), so v0's `setTimeout`-simulated success screen was replaced with an honest "not yet connected to the production backend" message. Wiring the actual durable RFQ pipeline is a separate, not-yet-scoped task.
+- Route slugs `/products`, `/services`, `/markets`, `/about`, `/contact` were carried over from v0/this task's explicit scope as a working set; DAR-016's route-naming question remains open and unresolved by this pass.
+- New dependencies added to support the integrated UI: `lucide-react` (icons), `class-variance-authority` + `clsx` + `tailwind-merge` (variant/class utilities). v0's `@base-ui/react` (Button primitive), `shadcn` CLI, `tw-animate-css`, and `@vercel/analytics` were deliberately **not** added — the first two were replaced with a lighter first-party `Button`, the third had no actual usage in the migrated components, and the fourth is a Vercel-specific package incompatible with this project's Cloudflare/GTM analytics architecture (`PROJECT_OVERRIDES.md` §5).
+- All new/rebuilt pages remain `indexable: false`, matching the existing convention for `app/[locale]/page.tsx` — the homepage and interior-page copy is adapted/translated by Claude Code from approved-direction source material, not owner-reviewed final copy, and per `HOMEPAGE_SPEC.md` §20.5 counts as `draft` content until reviewed.
+
+**Follow-up (not done in this pass, listed so it isn't silently dropped):** owner-supplied phone/email/hours; final English/Arabic copy review (current en/ar text is Claude Code's direct translation of the approved Persian source, not independently authored or reviewed); real product catalog wired to D1; durable RFQ capture backend; route-naming decision (DAR-016).
+
+---
+
 ## 5. Missing referenced documents
 
 The following are named repeatedly across `02-sources` "related documents" lists but do not exist as physical files in any of the three source layers. Each entry notes whether its intended content is substantially covered elsewhere.
