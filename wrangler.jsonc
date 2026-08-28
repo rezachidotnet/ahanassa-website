@@ -6,7 +6,16 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "ahanassa-bootstrap",
 	"compatibility_date": "2026-08-26",
-	"main": "vinext/server/fetch-handler",
+	// Custom entry (delegates to vinext/server/fetch-handler for all HTTP
+	// traffic) so this Worker can also export `queue` and `scheduled` for the
+	// RFQ -> Odoo sync path. See workers/entry.ts.
+	"main": "workers/entry.ts",
+	"triggers": {
+		// Outbox reconciliation sweep (01-sources/TECHNICAL_ARCHITECTURE.md
+		// §12.3/§14.5) — republishes any RFQ whose immediate Queue publish
+		// failed. Every 5 minutes is a starting point, not a tuned SLA.
+		"crons": ["*/5 * * * *"]
+	},
 	"assets": {
 		"directory": "dist/client",
 		"not_found_handling": "none",
@@ -21,7 +30,7 @@
 	"observability": {
 		"enabled": true
 	},
-	"upload_source_maps": true
+	"upload_source_maps": true,
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
@@ -33,26 +42,43 @@
 	 * databases, object storage, AI inference, real-time communication and more.
 	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
 	 *
-	 * Phase 1 foundation note: the names below match ENVIRONMENT_VARIABLES.md
-	 * (02-sources), the authoritative binding registry for this project —
-	 * see DOCS_INDEX.md §8. These are commented out because no D1 database,
-	 * R2 bucket, or Queue has actually been provisioned yet, and Phase 1
-	 * explicitly excludes implementing the commercial schema / Odoo sync.
-	 * Uncomment and fill in real resource IDs only once those resources are
-	 * created — never fabricate a database_id/bucket_name/queue id here.
+	 * RFQ backend foundation (feat/rfq-backend branch): DB_OPS and the
+	 * ODOO_SYNC_QUEUE producer/consumer/DLQ are now configured — RFQ
+	 * intake/persistence/sync-handoff is in scope for this branch. DB_PUBLIC,
+	 * PUBLIC_MEDIA, and RFQ_ATTACHMENTS remain commented out: catalog/pricing
+	 * and RFQ attachment upload are explicitly out of scope here (attachment
+	 * upload also stays blocked on the unresolved scanning-pipeline decision
+	 * — PROJECT_OVERRIDES.md §8).
 	 *
-	 * // "d1_databases": [
-	 * //   { "binding": "DB_PUBLIC", "database_name": "ahanassa-public", "database_id": "<provision-and-fill-in>" },
-	 * //   { "binding": "DB_OPS", "database_name": "ahanassa-ops", "database_id": "<provision-and-fill-in>" }
-	 * // ],
-	 * // "r2_buckets": [
-	 * //   { "binding": "PUBLIC_MEDIA", "bucket_name": "ahanassa-public-media" },
-	 * //   { "binding": "RFQ_ATTACHMENTS", "bucket_name": "ahanassa-rfq-attachments" }
-	 * // ],
-	 * // "queues": {
-	 * //   "producers": [{ "binding": "ODOO_SYNC_QUEUE", "queue": "ahanassa-odoo-sync" }]
-	 * // }
+	 * "database_id" below is a clearly-marked placeholder, NOT a real
+	 * provisioned resource — no `wrangler d1 create` has been run. Local
+	 * dev (`vinext dev` / `wrangler dev --local`) works against this
+	 * placeholder because local D1 simulation only uses it as a storage
+	 * key. Before any remote/staging/production deploy, run
+	 * `wrangler d1 create ahanassa-ops` and replace this value with the
+	 * real UUID it returns — do not deploy with the placeholder.
 	 */
+	"d1_databases": [
+		// { "binding": "DB_PUBLIC", "database_name": "ahanassa-public", "database_id": "<provision-and-fill-in>" },
+		{ "binding": "DB_OPS", "database_name": "ahanassa-ops", "database_id": "REPLACE_WITH_REAL_D1_DATABASE_ID", "migrations_dir": "migrations" }
+	],
+	// "r2_buckets": [
+	//   { "binding": "PUBLIC_MEDIA", "bucket_name": "ahanassa-public-media" },
+	//   { "binding": "RFQ_ATTACHMENTS", "bucket_name": "ahanassa-rfq-attachments" }
+	// ],
+	/**
+	 * Queue names below are also placeholders in the sense that no remote
+	 * queue has been created (`wrangler queues create ...`) — local dev
+	 * simulates them without that step. Create the real queues before any
+	 * remote deploy.
+	 */
+	"queues": {
+		"producers": [{ "binding": "ODOO_SYNC_QUEUE", "queue": "ahanassa-odoo-sync" }],
+		"consumers": [
+			{ "queue": "ahanassa-odoo-sync", "dead_letter_queue": "ahanassa-odoo-sync-dlq", "max_retries": 5 },
+			{ "queue": "ahanassa-odoo-sync-dlq" }
+		]
+	},
 	/**
 	 * Environment Variables
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables

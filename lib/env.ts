@@ -27,3 +27,28 @@ export function getAppEnv(): "local" | "preview" | "staging" | "production" {
 export function getGtmId(): string | undefined {
   return process.env.NEXT_PUBLIC_GTM_ID || undefined;
 }
+
+export interface OdooConfig {
+  baseUrl: string;
+  database: string;
+  apiKey: string;
+}
+
+/**
+ * Returns Odoo credentials only when ALL are present; never a partial
+ * config. Real values are never fabricated — see lib/odoo/adapter.ts for
+ * why credential presence alone still isn't sufficient to perform a real
+ * sync call (DAR-013, model mapping unresolved).
+ */
+export function getOdooConfig(): OdooConfig | null {
+  const baseUrl = process.env.ODOO_BASE_URL;
+  const database = process.env.ODOO_DATABASE;
+  const apiKey = process.env.ODOO_API_KEY;
+  if (!baseUrl || !database || !apiKey) return null;
+  return { baseUrl, database, apiKey };
+}
+
+/** Server-side Turnstile verification secret. Undefined until provisioned — see PROJECT_OVERRIDES.md §10. */
+export function getTurnstileSecret(): string | undefined {
+  return process.env.TURNSTILE_SECRET_KEY || undefined;
+}

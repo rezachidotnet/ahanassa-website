@@ -239,6 +239,21 @@ Per the project owner's instruction: an issue is **not** left `OPEN` merely beca
 
 **Practical effect:** a future Claude/Codex/CI session with no access to `/Users/reza/Developer/ahanassa-v0` can now fully understand and verify the approved visual direction from this repository alone. `ahanassa-v0` remains named throughout the audit trail as the historical origin of the design — that history is preserved, not erased — but is no longer a live dependency for any task.
 
+### DAR-023 — RFQ intake backend implemented; DATABASE_SCHEMA.md vs DATA_ARCHITECTURE(1).md naming/format conflicts resolved by treating the former as authoritative (new, 2026-08-28)
+
+**Severity:** P2 — informational; documents concrete implementation decisions and one genuine cross-document naming conflict
+**Status:** RESOLVED FOR THIS PASS
+**Finding:** implementing the durable RFQ intake backend (`feat/rfq-backend`, D1 + transactional outbox + Cloudflare Queue + Odoo adapter boundary, per `01-sources/TECHNICAL_ARCHITECTURE.md` §12/§14 and `01-sources/DATABASE_SCHEMA.md` §6) surfaced a genuine naming/format conflict between two documents DOCS_INDEX.md marks equally ACTIVE:
+
+1. **Table/column naming.** `01-sources/DATABASE_SCHEMA.md` §6.1/§6.3 (the designated physical-schema document) specifies `rfqs.reference_number`, `rfqs.idempotency_key_hash`, a separate `rfq_contacts` table, and `integration_outbox`/`integration_attempts`/`integration_mappings`/`dead_letter_records`. `01-sources/DATA_ARCHITECTURE(1).md` §15/§28 independently describes the same concepts with different names (`public_reference`, `idempotency_key` stored raw, contact fields inline on `rfqs`, `integration_jobs`/`integration_events`). **Resolution:** `DATABASE_SCHEMA.md` was treated as authoritative for the literal physical schema — it is the document DOCS_INDEX.md explicitly designates "D1 physical schema," is more implementation-grade (explicit constraints, relationship rules, delete behavior), and its own stated rule ("Public IDs must not reveal RFQ counts or business volume," §3.3) is directly consistent with the non-sequential reference format implemented, whereas `DATA_ARCHITECTURE(1).md`'s own example reference (`AA-RFQ-2026-000123`) is sequential-looking and would violate that rule. `DATA_ARCHITECTURE(1).md`'s complementary behavioral guidance (idempotency mechanics, queue message model, failure-recovery flow, sync conflict strategy) was still used — only its literal table/column names were superseded.
+2. **`rfq_items.quantity_value`/`quantity_scale` required-ness.** `DATABASE_SCHEMA.md` marks these `Yes` (required). The currently approved, frozen RFQ UI (`components/contact/enquiry-form.tsx`, `design-reference/v0-approved/`) collects quantity as a single freeform string (e.g. "200 تن"), not a structured number+unit pair, and redesigning that field was out of scope for the backend task. **Resolution:** added `rfq_items.quantity_text` (always populated, full fidelity) and made `quantity_value`/`quantity_scale` nullable, populated only via best-effort parsing (`lib/rfq/quantity.ts`) and left `NULL` — never guessed — when the leading value can't be unambiguously extracted. See `migrations/0001_rfq_ops_schema.sql` for the inline rationale.
+
+**What was implemented:** `rfqs`/`rfq_contacts`/`rfq_items`/`rfq_status_history`/`integration_outbox`/`integration_attempts`/`integration_mappings`/`dead_letter_records` (DB_OPS, `migrations/0001_rfq_ops_schema.sql`); `POST /api/rfqs` with server-side validation, idempotent creation, and an atomic D1 batch write; a Cloudflare Queue producer/consumer/DLQ wired through a custom Worker entry (`workers/entry.ts`, delegating to `vinext/server/fetch-handler` per that module's own documented extension pattern, since vinext's binding-access convenience (`cloudflare:workers`) covers producer sends but not a top-level `queue()` consumer export); a scheduled outbox-reconciliation sweep; and an `OdooGateway` adapter boundary (`lib/odoo/`) that is real and exercised end-to-end but always returns `not_configured` — consistent with DAR-013, Odoo version/modules/field mapping remain a genuine, non-blocking discovery gate, and guessing a model to write to would risk corrupting a real Odoo instance once credentials are eventually supplied.
+
+**Deliberately out of scope, per the task's own boundaries:** `rfq_attachments`/upload endpoint (attachment scanning pipeline still unresolved, PROJECT_OVERRIDES.md §8), `consent_records` (no consent UI exists on the approved form), staff/RBAC/`audit_logs`/`integration_inbox`/`data_erasure_requests` (admin surfaces, no admin UI in this task), real Turnstile/rate-limiting (no site key/KV/DO provisioned — passive controls only: honeypot field + minimum-completion-timing signal, per `01-sources/FORM_ARCHITECTURE.md` §18.3 "use passive controls first").
+
+**Do not silently guess Odoo model names to close this out.** Resolving DAR-013 (the actual Odoo version/module inspection) is a prerequisite for `lib/odoo/adapter.ts` to do real work — this finding does not change that gate.
+
 ---
 
 ## 5. Missing referenced documents
@@ -283,7 +298,7 @@ None of these gaps block the documentation-reconciliation pass itself. They do b
 
 ## 7. Maintenance rule
 
-When a finding above is resolved: update the finding's status, cite the resolving evidence, and update `PROJECT_OVERRIDES.md`/`DOCS_INDEX.md` accordingly. Do not delete resolved findings — keep them as an audit trail. New conflicts discovered during future work should be added here following the same DAR-### numbering, continuing from DAR-022.
+When a finding above is resolved: update the finding's status, cite the resolving evidence, and update `PROJECT_OVERRIDES.md`/`DOCS_INDEX.md` accordingly. Do not delete resolved findings — keep them as an audit trail. New conflicts discovered during future work should be added here following the same DAR-### numbering, continuing from DAR-023.
 
 ---
 
