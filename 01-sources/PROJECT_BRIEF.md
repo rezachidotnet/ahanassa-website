@@ -783,7 +783,7 @@ Unless separately approved, Phase 1 does not include:
 
 - public consumer checkout, online payment, or shopping cart;
 - open supplier marketplace or supplier self-service accounts;
-- customer account or self-service RFQ portal;
+- customer account or self-service RFQ portal (approved *future-phase* architecture now exists — `CUSTOMER_ACCOUNT_ARCHITECTURE.md`, `CUSTOMER_PORTAL.md`, `DECISIONS.md` ADR-017 — but it remains excluded from the current Phase 1 implementation; building it still requires its own future implementation approval);
 - customer-specific online pricing;
 - autonomous quotation without sales review;
 - website ownership of inventory, purchasing, suppliers, accounting, or sale orders;

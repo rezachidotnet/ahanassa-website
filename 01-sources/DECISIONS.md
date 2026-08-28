@@ -141,6 +141,7 @@ Every new record must include:
 | `DDR-008` | Use quiet, purposeful motion with reduced-motion support | Accepted |
 | `DDR-009` | Treat mobile, RTL, and bidirectional content as structural design requirements | Accepted |
 | `DDR-010` | Build trust through evidence, process, scope, and transparent next steps | Accepted |
+| `ADR-017` | Approve future-phase customer account, portal, and pricing/domain-separation architecture | Accepted (future-phase architecture; does not change Phase 1 scope) |
 
 ---
 
@@ -624,6 +625,66 @@ Minimum launch direction includes:
 - Security patches take priority and must be validated promptly.
 - Do not install overlapping state, form, SEO, animation, data-fetching, or component libraries.
 - Dependabot or Renovate may be selected, but not both, and the selection must be documented.
+
+---
+
+### ADR-017 — Future-Phase Customer Account, Portal, and Pricing/Domain-Separation Architecture
+
+**Status:** Accepted — defines approved future-phase architecture; does not authorize implementation and does not change Phase 1 scope
+**Date:** 2026-08-28
+**Owner/approver:** Project owner
+**Scope:** Customer identity/account model, guest-RFQ-to-account linking, Odoo customer mapping, Customer Portal boundary, authentication requirements, public pricing read-model/caching, and logical data-domain separation
+
+### Context
+
+`ADR-002` excludes "customer or supplier accounts" from Phase 1 unless separately approved, and requires that "a future commerce or portal initiative requires its own architecture decision and threat, data, legal, and operational review." The RFQ intake backend (`DOCUMENT_AUDIT_REPORT.md` DAR-023/DAR-024) is now implemented and was explicitly reviewed for forward-compatibility with a future account link. The project owner has now provided that separate architecture decision ahead of implementation, so that the eventual account/portal phase does not require a disruptive redesign of the RFQ, catalog, or pricing systems already built.
+
+### Decision
+
+Approve, as future-phase architecture only:
+
+1. Guest RFQ submission remains permanently unauthenticated and frictionless; registration is never a prerequisite (`CUSTOMER_ACCOUNT_ARCHITECTURE.md` §2).
+2. A guest may later link historical RFQs to an account, but only through verified ownership of the RFQ's submitted contact channel — never by RFQ reference alone (`CUSTOMER_ACCOUNT_ARCHITECTURE.md` §4).
+3. Identity is modeled as four distinct concepts — Auth Identity, Website Account, Customer, Odoo Partner — not collapsed into one row (`CUSTOMER_ACCOUNT_ARCHITECTURE.md` §3).
+4. The current RFQ schema is confirmed account-ready via a future additive migration; no schema change is made now (`CUSTOMER_ACCOUNT_ARCHITECTURE.md` §6, `DOCUMENT_AUDIT_REPORT.md` DAR-024).
+5. A Customer Portal MVP (profile, RFQ history, RFQ detail/status) is scoped separately from future capabilities (quotations, orders, invoices, documents, repeat RFQ, saved details) (`CUSTOMER_PORTAL.md` §2).
+6. The portal must never depend on live/synchronous Odoo reads; it follows the same D1-read-model-plus-async-sync pattern already used for RFQ intake and public pricing (`CUSTOMER_PORTAL.md` §3).
+7. Website Customer maps to Odoo `res.partner` via the existing `integration_mappings` mechanism; duplicate partner creation is prevented by the existing deduplication rule (`CUSTOMER_ACCOUNT_ARCHITECTURE.md` §5).
+8. No authentication provider is selected by this decision (`CUSTOMER_ACCOUNT_ARCHITECTURE.md` §7); provider selection is a separate future decision.
+9. Odoo remains the single pricing source of truth; the public price read-model, edge-caching, and granular cache-invalidation architecture already defined in `TECHNICAL_ARCHITECTURE.md` §11/§18 and `CACHING_STRATEGY.md` is reaffirmed as binding for portal-visible commercial data too (`CUSTOMER_PORTAL.md` §5–§7).
+10. Logical data-domain separation (RFQ/ops, catalog, pricing, content) is reaffirmed; no physical database split is authorized now (`CUSTOMER_PORTAL.md` §8).
+11. Staging D1's default `WEUR` placement is reaffirmed as not a production jurisdiction decision (`CUSTOMER_PORTAL.md` §11, `DOCUMENT_AUDIT_REPORT.md` DAR-024).
+
+### Rationale
+
+Approving the conceptual model now — without authorizing implementation — lets the currently-shipping RFQ/catalog/pricing foundation be built in a way that will not require a breaking migration when accounts and the portal are eventually scoped, while keeping Phase 1 focused per `ADR-002`.
+
+### Consequences
+
+- `ADR-002`'s Phase 1 exclusion of customer/supplier accounts is unchanged for the current implementation phase; this decision does not move account/portal work into Phase 1.
+- `PROJECT_BRIEF.md` §25, `TECHNICAL_ARCHITECTURE.md` §1/§17, and `DATABASE_SCHEMA.md` §6.2/§18 are annotated (not rewritten) to point to this decision and the new specialist documents.
+- Future account-phase implementation must follow `CUSTOMER_ACCOUNT_ARCHITECTURE.md` and `CUSTOMER_PORTAL.md` rather than being designed from scratch.
+- No new tables, migrations, authentication packages, login routes, or portal UI exist as a result of this decision.
+
+### Implementation constraints
+
+- No account_id/customer_id column is added to `rfqs` by this decision.
+- No authentication provider, library, or SDK is selected or installed by this decision.
+- No Cloudflare resources are provisioned by this decision.
+
+### Alternatives rejected or deferred
+
+- Selecting an authentication provider now — deferred to a future decision (`CUSTOMER_ACCOUNT_ARCHITECTURE.md` §7).
+- Designing multi-contact company accounts now — deferred; the model must not structurally prevent it later (`CUSTOMER_ACCOUNT_ARCHITECTURE.md` §3.1).
+- Splitting `DB_PUBLIC`/`DB_OPS` into physical `DB_CATALOG`/`DB_PRICING`/`DB_CONTENT` now — deferred pending measured operational justification (`CUSTOMER_PORTAL.md` §8).
+
+### Review or supersession trigger
+
+An authentication provider is selected; the account-implementation phase is formally scoped; Odoo modules are inspected and the Customer↔`res.partner` mapping is finalized; or multi-contact company accounts are approved as in-scope. See `CUSTOMER_ACCOUNT_ARCHITECTURE.md` §9.
+
+### Affected documents
+
+`CUSTOMER_ACCOUNT_ARCHITECTURE.md` (new), `CUSTOMER_PORTAL.md` (new), `TECHNICAL_ARCHITECTURE.md` §1/§5/§11.2/§12.4a/§14.3/§17, `DATABASE_SCHEMA.md` §6.2/§18, `PROJECT_BRIEF.md` §25, `PROJECT_OVERRIDES.md` new §13, `DOCS_INDEX.md`, `DOCUMENT_AUDIT_REPORT.md` new entry.
 
 ---
 

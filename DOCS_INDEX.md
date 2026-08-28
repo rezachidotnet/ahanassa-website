@@ -3,10 +3,10 @@
 ## Ahan Asa Website — Complete Source Document Inventory
 
 **Document role:** Maps the active `01-sources/` specialist corpus, plus registered root-level reference assets, to subject, status, overriding document, and implementation relevance.
-**Status:** Active — full-inventory pass complete; owner sign-off applied 2026-08-26 (see `PROJECT_OVERRIDES.md` v2.1.0 and `DOCUMENT_AUDIT_REPORT.md` §0); homepage visual reference registered 2026-08-26 (§3a)
-**Version:** 1.2.0
-**Last updated:** 2026-08-26
-**Files inventoried:** active consolidated `01-sources/` corpus + 1 registered visual control reference (`design-reference/homepage-desktop-v1.png`)
+**Status:** Active — full-inventory pass complete; owner sign-off applied 2026-08-26 (see `PROJECT_OVERRIDES.md` v2.1.0 and `DOCUMENT_AUDIT_REPORT.md` §0); homepage visual reference registered 2026-08-26 (§3a); customer account/portal future-phase architecture registered 2026-08-28 (§6, `DECISIONS.md` ADR-017)
+**Version:** 1.3.0
+**Last updated:** 2026-08-28
+**Files inventoried:** active consolidated `01-sources/` corpus (now including `CUSTOMER_ACCOUNT_ARCHITECTURE.md` and `CUSTOMER_PORTAL.md`) + 1 registered visual control reference (`design-reference/homepage-desktop-v1.png`)
 
 Read `PROJECT_OVERRIDES.md` and `CLAUDE.md` before using this index. As of 2026-08-26, the owner has confirmed the multilingual (fa/en/ar), public catalog/pricing, Cloudflare Workers + vinext runtime, and several other decisions that this index's caveats refer to. `02-sources/` and `03-sources/` are not active source layers anymore; any remaining mention of them here is **HISTORICAL / SUPERSEDED** audit context only.
 
@@ -126,6 +126,8 @@ Read `PROJECT_OVERRIDES.md` and `CLAUDE.md` before using this index. As of 2026-
 | *(referenced but absent: `PRODUCT_CATALOG_SPEC.md`)* | — | MISSING | Substantially covered by `01-sources/TECHNICAL_ARCHITECTURE.md` §11 and `01-sources/DATA_ARCHITECTURE(1).md` §10–§13 |
 | *(referenced but absent: `ADMIN_PANEL_SPEC.md`)* | — | MISSING | Scope outline exists in `01-sources/PROJECT_BRIEF.md` §15 and `01-sources/TECHNICAL_ARCHITECTURE.md` §17; no detailed UI spec exists |
 | *(referenced but absent: `AUTHORIZATION_ROLES.md`)* | — | MISSING | Role list exists in `01-sources/PROJECT_BRIEF.md` §15.3, `01-sources/TECHNICAL_ARCHITECTURE.md` §17, `01-sources/DATABASE_SCHEMA.md` §6.2; permission matrix not fully specified |
+| `01-sources/CUSTOMER_ACCOUNT_ARCHITECTURE.md` | 01 | ACTIVE — future-phase architecture, registered 2026-08-28 | Identity/account/customer/Odoo-partner conceptual model, guest-RFQ-to-account linking, authentication requirements, IDOR-prevention authorization rule. Not an implementation authorization — see `DECISIONS.md` ADR-017. |
+| `01-sources/CUSTOMER_PORTAL.md` | 01 | ACTIVE — future-phase architecture, registered 2026-08-28 | Customer Portal MVP vs. future-capability boundary, no-live-Odoo-read requirement, public price read-model/edge-caching/invalidation, logical data-domain separation, production-jurisdiction gate. Not an implementation authorization — see `DECISIONS.md` ADR-017. |
 
 ---
 

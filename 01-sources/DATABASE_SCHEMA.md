@@ -594,7 +594,7 @@ Consent is append-only. Revocation adds a new event; it does not rewrite history
 
 #### `staff_users`
 
-Staff accounts only; no customer accounts are created in this phase.
+Staff accounts only; no customer accounts are created in this phase. A future website *customer* account (a distinct principal type from staff — see `CUSTOMER_ACCOUNT_ARCHITECTURE.md` §3) is not added to `staff_users` or the RBAC tables below when that phase is scoped; it is a conceptually separate domain and MUST NOT reuse staff roles/permissions.
 
 Authentication should be delegated to an approved identity provider or Cloudflare Access where practical. D1 stores authorization profile and status, not reusable plaintext credentials.
 
@@ -1701,6 +1701,7 @@ The schema is ready as a baseline, but these decisions must be finalized before 
 | Retention | Approved RFQ, attachment, audit, and integration durations |
 | Data location | Required D1/R2 jurisdiction/location policy |
 | Read replication | Traffic-based decision and Sessions API consistency design |
+| Customer account/auth model | Auth provider (not yet selected), physical account/customer schema, and RFQ-account linking mechanism — see `CUSTOMER_ACCOUNT_ARCHITECTURE.md` |
 
 Unknown values remain disabled or explicit configuration. Claude Code must not invent them.
 

@@ -4,8 +4,8 @@
 
 **Audit role:** Records conflicts discovered while building and maintaining the root canonical control layer, including historical source-layer conflicts, genuine unresolved ambiguities, missing referenced documents, and blockers.
 **Status:** OPEN, narrowed — owner sign-off received 2026-08-26 on the P0/P1 findings that were blocking Phase 1 foundation work; remaining open items are either non-blocking integration/production gates or content-authoring gaps
-**Version:** 2.1.0
-**Audit date:** 2026-08-26 (v1.0.0), owner sign-off applied 2026-08-26 (v2.0.0)
+**Version:** 2.2.0
+**Audit date:** 2026-08-26 (v1.0.0), owner sign-off applied 2026-08-26 (v2.0.0), customer account/portal future-phase architecture registered 2026-08-28 (v2.2.0, DAR-025)
 **Scope:** Historical reconciliation of an earlier three-layer source export; current active documentation cleanup scope is the root control layer plus the consolidated `01-sources/` corpus.
 
 **AUD-034 update, 2026-08-27:** the active authority model is now `PROJECT_OVERRIDES.md` → `CLAUDE.md` → `01-sources/` → verified implementation facts. `02-sources/` and `03-sources/` are no longer active source layers. Remaining mentions of the old three-layer model in this report are **HISTORICAL / SUPERSEDED** audit trail only.
@@ -268,6 +268,30 @@ Per the project owner's instruction: an issue is **not** left `OPEN` merely beca
 
 **What remains before production:** the D1/R2 jurisdiction decision (above); the Odoo model mapping (DAR-013, unchanged); real Turnstile/rate-limiting (DAR-023, unchanged); a separate `env.production` Cloudflare resource set (never reuse staging).
 
+### DAR-025 — Customer account, portal, and pricing/domain-separation architecture formalized as future-phase; documentation consistency audit found no genuine conflicts (new, 2026-08-28)
+
+**Severity:** N/A — informational; records a new approved future-phase architecture and the results of a targeted conflict search
+**Status:** RESOLVED
+**Finding:** the project owner approved future-phase architecture for customer identity/accounts, guest-RFQ-to-account linking, Odoo customer mapping, a Customer Portal, public pricing read-model/edge-caching, and logical data-domain separation — recorded in two new specialist documents (`01-sources/CUSTOMER_ACCOUNT_ARCHITECTURE.md`, `01-sources/CUSTOMER_PORTAL.md`) and `01-sources/DECISIONS.md` ADR-017, cross-referenced from `PROJECT_OVERRIDES.md` §13. This is architecture only — it does not move customer accounts/portal into Phase 1 (`01-sources/PROJECT_BRIEF.md` §25, `01-sources/DECISIONS.md` ADR-002 unchanged), and no code, schema migration, dependency, or Cloudflare resource was added or changed.
+
+**Documentation consistency audit performed (per the task's own instruction to search for specific conflict patterns):**
+
+1. **"Every RFQ requires a registered account."** No document states this. `01-sources/FORM_ARCHITECTURE.md` §18.1 ("The website must not require a visitor to create an account... before submitting"), `01-sources/INFORMATION_ARCHITECTURE.md` ("Do not require: ... creating an account"), and `01-sources/API_INTEGRATIONS.md` already require guest submission. No conflict; `CUSTOMER_ACCOUNT_ARCHITECTURE.md` §2 reaffirms this as a permanent rule, not a temporary Phase 1 accommodation.
+2. **"Browser reads Odoo directly."** No document states this as the actual architecture. Multiple documents already explicitly prohibit it (`CLAUDE.md` §9/§33, `TECHNICAL_ARCHITECTURE.md` §3.2/§8, `DATABASE_SCHEMA.md` line 99, `DEPLOYMENT_ARCHITECTURE.md`). No conflict; `CUSTOMER_PORTAL.md` §3 extends the same prohibition explicitly to the future authenticated portal surface, which no prior document had stated.
+3. **"Odoo required synchronously for portal rendering."** No prior document addressed portal rendering directly (the portal itself was out of scope). `CUSTOMER_PORTAL.md` §3 closes this gap proactively, applying the existing "public rendering never synchronously depends on Odoo" principle (`PROJECT_OVERRIDES.md` §3) to the portal before any portal code exists.
+4. **"Website admin owns pricing."** No document states this. `TECHNICAL_ARCHITECTURE.md` §11.2 and `CLAUDE.md` §11 already require Odoo-only price editing. No conflict; `CUSTOMER_PORTAL.md` §5 reaffirms this and extends it explicitly to future portal-visible quotations/orders.
+5. **"DB_OPS contains all future application data."** No document states this. `DATABASE_SCHEMA.md` §4.1/§4.2 already separates `DB_PUBLIC` (catalog/pricing/content) from `DB_OPS` (RFQ/integration/authorization). No conflict; `CUSTOMER_PORTAL.md` §8 restates the existing boundary explicitly as a durable rule so a future portal implementation does not default everything into `DB_OPS` merely because RFQs already live there.
+
+**Statements annotated (not reversed) because they could otherwise be misread as prohibiting this new future-phase architecture:**
+
+- `01-sources/TECHNICAL_ARCHITECTURE.md` §1 and §17 ("customer self-service portal remain[s] out of scope" / "does not imply a customer portal; that remains out of initial scope") — both correctly describe the *current* implementation phase and are unchanged in substance; both now point to the new specialist documents so a future reader does not conclude a portal is permanently prohibited.
+- `01-sources/PROJECT_BRIEF.md` §25 ("customer account or self-service RFQ portal" as a Phase 1 non-goal) and `01-sources/DECISIONS.md` ADR-002 — both remain accurate for Phase 1 scope; both now note that approved future-phase architecture exists without reversing the Phase 1 exclusion.
+- `01-sources/DATABASE_SCHEMA.md` §6.2 (`staff_users`: "no customer accounts are created in this phase") — remains accurate; annotated to clarify a future customer account is a conceptually distinct principal type from staff, not a `staff_users` extension.
+
+**No disruptive RFQ redesign performed**, consistent with the task's explicit boundary: `migrations/0001_rfq_ops_schema.sql` is unchanged; no `account_id`/`customer_id` column was added; no migration was created. `DOCUMENT_AUDIT_REPORT.md` DAR-024's prior forward-compatibility review is reaffirmed, not repeated with new work.
+
+**What remains open, unaffected by this entry:** DAR-013 (Odoo version/modules/protocol/mapping, now also covering the future Customer↔`res.partner` mapping specifically — `CUSTOMER_ACCOUNT_ARCHITECTURE.md` §5); authentication provider selection (`CUSTOMER_ACCOUNT_ARCHITECTURE.md` §7); production D1/R2 jurisdiction (`DOCUMENT_AUDIT_REPORT.md` DAR-024, reaffirmed by `CUSTOMER_PORTAL.md` §11); the account-implementation phase itself, which requires its own future approval before any code is written.
+
 ---
 
 ## 5. Missing referenced documents
@@ -312,7 +336,7 @@ None of these gaps block the documentation-reconciliation pass itself. They do b
 
 ## 7. Maintenance rule
 
-When a finding above is resolved: update the finding's status, cite the resolving evidence, and update `PROJECT_OVERRIDES.md`/`DOCS_INDEX.md` accordingly. Do not delete resolved findings — keep them as an audit trail. New conflicts discovered during future work should be added here following the same DAR-### numbering, continuing from DAR-024.
+When a finding above is resolved: update the finding's status, cite the resolving evidence, and update `PROJECT_OVERRIDES.md`/`DOCS_INDEX.md` accordingly. Do not delete resolved findings — keep them as an audit trail. New conflicts discovered during future work should be added here following the same DAR-### numbering, continuing from DAR-025.
 
 ---
 

@@ -6,9 +6,9 @@
 **Domain:** `https://www.ahanassa.com`
 **ERP:** `https://odoo.ahanassa.com`
 **Document role:** Highest-authority record of confirmed decisions that supersede conflicting statements anywhere in the active `01-sources/` corpus or older historical source-layer references
-**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered
-**Version:** 2.1.0
-**Last updated:** 2026-08-26
+**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered; customer account/portal future-phase architecture registered 2026-08-28
+**Version:** 2.2.0
+**Last updated:** 2026-08-28
 
 ---
 
@@ -337,6 +337,42 @@ The following remain genuinely unresolved after the 2026-08-26 owner sign-off ro
 ## 12. Maintenance rule
 
 Update this file only when a new cross-project decision is explicitly confirmed by the project owner, or when a conflict between the root control layer, `01-sources/`, and verified implementation facts is newly discovered and resolved. Do not duplicate specialist-document detail here — this file holds only the decisions that must be visible before any specialist document is read.
+
+---
+
+## 13. Customer account, portal, and pricing/domain-separation architecture — OWNER-CONFIRMED, future-phase
+
+```text
+CUSTOMER_ACCOUNT_ARCHITECTURE_STATUS = ACCEPTED, future-phase — not a Phase 1 implementation authorization
+CUSTOMER_PORTAL_STATUS               = ACCEPTED, future-phase — not a Phase 1 implementation authorization
+GUEST_RFQ_REGISTRATION_REQUIRED      = false, permanently (not only until account phase ships)
+RFQ_SCHEMA_CHANGE_MADE_BY_THIS_ENTRY = false — additive `account_id`/`customer_id` migration deferred to account phase
+AUTHENTICATION_PROVIDER_SELECTED     = false — remains an open future decision
+ODOO_IS_PRICING_SOURCE_OF_TRUTH      = true (reaffirms §4, unchanged)
+PORTAL_LIVE_ODOO_READ_DEPENDENCY     = false, by architecture
+PHYSICAL_DATABASE_SPLIT_AUTHORIZED   = false — logical domain separation only (DB_PUBLIC/DB_OPS unchanged)
+```
+
+**Status:** OWNER-CONFIRMED 2026-08-28. The project owner approved the future-phase conceptual architecture for customer identity/accounts, guest-RFQ-to-account linking, Odoo customer mapping, a Customer Portal, public-pricing read-model/edge-caching, and logical data-domain separation. Full detail lives in two new specialist documents: `01-sources/CUSTOMER_ACCOUNT_ARCHITECTURE.md` and `01-sources/CUSTOMER_PORTAL.md`. Formal decision record: `01-sources/DECISIONS.md` ADR-017.
+
+**This is architecture, not an implementation authorization.** It does not move customer accounts or a portal into Phase 1 — `01-sources/PROJECT_BRIEF.md` §25 and `01-sources/DECISIONS.md` ADR-002 continue to exclude them from the current implementation phase. No authentication provider is selected, no schema migration is made, no Cloudflare resources are provisioned, and no UI is built by this entry. Its purpose is to let the already-implemented RFQ/catalog/pricing foundation (see §3–§4 above, `DOCUMENT_AUDIT_REPORT.md` DAR-023/DAR-024) avoid a disruptive redesign once the account/portal phase is eventually scoped.
+
+**Binding highlights (full detail in the two specialist documents):**
+
+- Guest RFQ submission requires no account and must never require one, permanently — not a temporary Phase 1 accommodation.
+- Historical RFQ-to-account linking requires verified ownership of the RFQ's submitted contact channel; the RFQ reference number alone is never sufficient authorization (IDOR prevention).
+- Identity is modeled as four distinct concepts (Auth Identity → Website Account → Customer → Odoo Partner mapping), not collapsed into one row, without prescribing physical table names now.
+- The current RFQ schema (`migrations/0001_rfq_ops_schema.sql`) is confirmed compatible with a future nullable account link via a plain additive migration; that migration is not performed by this entry.
+- A future Website Customer maps to Odoo `res.partner` through the existing `integration_mappings` mechanism and existing deduplication rule (§3 above) — a new Odoo partner must never be created on every RFQ.
+- Customer Portal MVP scope (profile, RFQ history, RFQ detail/status) is explicitly separated from future capabilities (quotations, orders, invoices, documents, repeat RFQ, saved details); only the MVP list is even eligible for a first implementation milestone once approved.
+- The portal must never depend on live/synchronous Odoo reads — it follows the same D1-read-model-plus-async-sync pattern already used for RFQ intake and public pricing.
+- Odoo remains the single pricing source of truth (reaffirms §4); public price pages continue to render from the D1 read model behind Cloudflare edge cache, with granular (`price:<variant-id>`/`product:<product-id>`/category) invalidation preferred over global purge.
+- Logical data-domain separation (RFQ/ops, catalog, pricing, content) is reaffirmed; `DB_PUBLIC`/`DB_OPS` remain two physical databases — no further physical split is authorized now.
+- The staging D1 database's default `WEUR` placement remains explicitly **not** a production jurisdiction decision (reaffirms `DOCUMENT_AUDIT_REPORT.md` DAR-024); production D1/R2 jurisdiction remains an open gate, and the staging database must never be promoted to production.
+
+**Not confirmed by this entry — do not invent:** the authentication provider; the exact account/customer physical schema; the exact Odoo `res.partner` mapping mechanics (still gated on Odoo module inspection, §3/DAR-013); the production D1/R2 jurisdiction policy; any multi-contact/company-account UI.
+
+**Source:** `01-sources/CUSTOMER_ACCOUNT_ARCHITECTURE.md`, `01-sources/CUSTOMER_PORTAL.md`, `01-sources/DECISIONS.md` ADR-017. Full audit trail: `DOCUMENT_AUDIT_REPORT.md` DAR-025.
 
 ---
 

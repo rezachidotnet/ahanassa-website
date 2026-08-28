@@ -11,9 +11,9 @@
 - **ERP origin:** `https://odoo.ahanassa.com`
 - **Owner:** Cyan Sanat Iranian Co. LTD
 - **Document role:** Root-level implementation entry point
-- **Status:** Active — canonical control layer, project pre-implementation; homepage visual reference registered
-- **Version:** 1.1.0
-- **Last updated:** 2026-08-26
+- **Status:** Active — canonical control layer, project pre-implementation; homepage visual reference registered; customer account/portal future-phase architecture registered
+- **Version:** 1.2.0
+- **Last updated:** 2026-08-28
 
 ---
 
@@ -153,6 +153,7 @@ Use `DOCS_INDEX.md` for the authoritative, per-document version of this table (i
 | Database / schema | `01-sources/DATABASE_SCHEMA.md`, `01-sources/DATA_ARCHITECTURE(1).md` |
 | Odoo / RFQ / commercial | `01-sources/TECHNICAL_ARCHITECTURE.md` §12–§14, `01-sources/DATABASE_SCHEMA.md` §6.1, `01-sources/PROJECT_BRIEF.md` §11–§14 (dedicated `ODOO_INTEGRATION.md`/`RFQ_SYSTEM.md`/`SYSTEM_OF_RECORD.md` are referenced but do not exist yet — treat as a discovery/authoring gap, see `DOCUMENT_AUDIT_REPORT.md`). Odoo's role is owner-confirmed; version/modules/protocol/mapping are not — `PROJECT_OVERRIDES.md` §3. |
 | Public catalog / pricing | **Owner-confirmed in scope**, `PROJECT_OVERRIDES.md` §4 — `01-sources/TECHNICAL_ARCHITECTURE.md` §11, `01-sources/DATABASE_SCHEMA.md` catalog/price tables, `01-sources/METADATA_SPEC.md`/`STRUCTURED_DATA.md` (catalog/price metadata). Route-naming (`/steel-products` vs `/steel`) still open — `DOCUMENT_AUDIT_REPORT.md` DAR-016. Never fetch price data synchronously from Odoo for public rendering. |
+| Customer account / portal / auth (future-phase, not yet authorized to implement) | **Owner-confirmed future architecture only**, `PROJECT_OVERRIDES.md` §13 — `01-sources/CUSTOMER_ACCOUNT_ARCHITECTURE.md`, `01-sources/CUSTOMER_PORTAL.md`, `01-sources/DECISIONS.md` ADR-017. Guest RFQ requires no account, permanently. No authentication provider is selected. Building the portal or account UI/API still requires a separate future implementation approval — `01-sources/PROJECT_BRIEF.md` §25, ADR-002 remain the active Phase 1 scope. |
 | Brand / visual design | `01-sources/BRAND_GUIDELINES.md`, `01-sources/DESIGN_DIRECTION.md`, `01-sources/DESIGN_SYSTEM.md`, `01-sources/UI_COMPONENTS.md`, `01-sources/MOTION_GUIDELINES.md` — all uncontested, still active |
 | Pages / navigation / IA | `01-sources/SITEMAP.md`, `01-sources/INFORMATION_ARCHITECTURE.md`, `01-sources/ROUTES.md`, `01-sources/PAGE_SPECIFICATIONS.md`, `01-sources/HOMEPAGE_SPEC.md`, `01-sources/HEADER_NAVIGATION_SPEC.md`, `01-sources/FOOTER_SPEC.md` — active, but locale scope must be read through `PROJECT_OVERRIDES.md` §1 |
 | Homepage/site (visual implementation) | **Mandatory:** the current canonical implementation (`app/`, `components/`) plus `design-reference/v0-approved/` (visual composition/layout/typography/color/CTA placement — owner-approved authority, frozen 2026-08-28) **plus** `01-sources/HOMEPAGE_SPEC.md` (content/functional contract). See `CLAUDE.md` §5a and `PROJECT_OVERRIDES.md` §8b. The external `ahanassa-v0` project is no longer required. `/design-reference/homepage-desktop-v1.png` is historical only — do not implement from it or from the textual spec's visual description where either conflicts with the approved implementation. |
