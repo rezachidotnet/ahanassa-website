@@ -6,8 +6,8 @@
 **Domain:** `https://www.ahanassa.com`
 **ERP:** `https://odoo.ahanassa.com`
 **Document role:** Highest-authority record of confirmed decisions that supersede conflicting statements anywhere in the active `01-sources/` corpus or older historical source-layer references
-**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered; customer account/portal future-phase architecture registered 2026-08-28
-**Version:** 2.2.0
+**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered; customer account/portal future-phase architecture registered 2026-08-28; Odoo RFQ-path version/mapping verified against the live environment 2026-08-28
+**Version:** 2.3.0
 **Last updated:** 2026-08-28
 
 ---
@@ -73,7 +73,7 @@ Not part of this sign-off round; unchanged from v1.0.0.
 
 ```text
 ODOO_IS_INTENDED_COMMERCIAL_SOURCE_OF_TRUTH  = true   (where appropriate — see scope note below)
-ODOO_VERSION_CONFIRMED                       = false  (integration-phase gate, not a foundation blocker)
+ODOO_VERSION_CONFIRMED                       = true   (19.0-20260528 — verified 2026-08-28, RFQ sync path only; see below)
 PUBLIC_RENDERING_SYNCHRONOUS_ODOO_DEPENDENCY = false
 RFQ_DURABLE_FIRST_CAPTURE                    = true   (D1 + transactional outbox, before Odoo sync)
 DATABASE                                     = Cloudflare D1 (two production databases: DB_PUBLIC, DB_OPS)
@@ -82,18 +82,22 @@ ASYNC_INTEGRATION                            = Cloudflare Queues + Dead Letter Q
 NO_PUBLIC_DATABASE_AT_LAUNCH (ADR-011)       = SUPERSEDED
 ```
 
-**Status:** OWNER-CONFIRMED 2026-08-26 (Odoo's role and scope boundary; version/module/protocol details remain explicitly open — see below). Closes `DOCUMENT_AUDIT_REPORT.md` DAR-013 as "confirmed non-blocking gate," not resolved-in-full.
+**Status:** OWNER-CONFIRMED 2026-08-26 (Odoo's role and scope boundary). RFQ-path version/module/protocol/mapping details verified 2026-08-28 by read-only audit of the live `odoo.ahanassa.com` environment. Closes `DOCUMENT_AUDIT_REPORT.md` DAR-013 for the RFQ sync path (DAR-026); catalog/pricing sync mapping remains a separate, still-open future gate.
 
 **Odoo's role, as confirmed by the owner:** `odoo.ahanassa.com` is the project's ERP integration endpoint. Odoo is intended to own the appropriate business-domain data — customers, CRM, quotations, sales, and commercial product/price data — where appropriate. The website owns presentation, SEO, and RFQ intake. Public rendering must never synchronously depend on Odoo; an accepted RFQ must be durably persisted in D1 before Odoo sync.
 
-**Explicitly still unconfirmed — do not assume, do not guess:**
+**Verified 2026-08-28 (`DOCUMENT_AUDIT_REPORT.md` DAR-026, read-only live-environment audit — full evidence in `lib/odoo/mapping.ts`):**
 
-- Odoo deployed version
-- Installed Odoo modules
-- Exact API/integration protocol
-- Exact Odoo model/field mapping
+- Odoo deployed version: **19.0-20260528**, database `ahanassa` (container `odoo-ahantorob`, confirmed the actual target of `odoo.ahanassa.com` via the reverse-proxy chain — the container's own name is not indicative).
+- Installed modules relevant to RFQ sync: `base`, `contacts`, `crm`, `sale`, `sale_management`, `sale_crm`, `product`, `uom`, `mail`, `portal`, `website`, `website_crm`, `rpc`, `api_doc`, plus custom `cyan_crm_reference`/`cyan_crm_reference_account`/`cyan_crm_reference_sale` — verified against the live database's `ir_module_module`, not assumed from addon files present on the shared host disk (several present-but-not-installed modules were found, confirming the two can genuinely diverge on this host).
+- API/integration protocol: `POST /json/2/<model>/<method>`, `auth='bearer'` — the real Odoo 19 "JSON-2" external API (module `rpc`, installed). This corrects, not merely confirms, the prior documentation's guessed `/api/v2/call` envelope.
+- Odoo model/field mapping for the RFQ sync path (customer, RFQ header, RFQ lines, public reference, idempotency): verified — see `lib/odoo/mapping.ts` for the complete evidence-annotated matrix and `DOCUMENT_AUDIT_REPORT.md` DAR-026 for the summary table.
 
-These remain a genuine **integration-phase gate** to be resolved by verification against the live `odoo.ahanassa.com` instance — the owner has explicitly confirmed this is *not* a blocker for Phase 1 foundation work (routing, design system, content architecture, D1/R2/Queues scaffolding, catalog/pricing UI against placeholder or synchronized-but-unmapped data). It only blocks the specific work of wiring the real Odoo adapter/protocol/field mapping. Do not convert any Odoo 19 JSON-2 API preference in the documentation into an assumption that the deployed server is actually Odoo 19.
+**Still genuinely unconfirmed — do not assume, do not guess:**
+
+- Catalog/product/price sync model/field mapping (`pullCatalog`/`pullPublicPrices`) — out of the RFQ-only scope of the 2026-08-28 audit; `product`/`uom` modules are confirmed installed but their field-level mapping was not investigated.
+- Whether/when a dedicated Odoo integration user and API key will be provisioned — none exists today (verified: `res_users_apikeys` is empty); creating one is an infrastructure step for the owner/Odoo admin, not something this project's code can or should do itself.
+- Which `crm.team` should own website RFQs — the only team named "Website" is verified **inactive**; only "Sales" is active. `ODOO_CRM_TEAM_ID` is left unconfigured pending that decision (`lib/odoo/mapping.ts` `RFQ_HEADER_MAPPING.openDecisions`).
 
 **Source:** `01-sources/PROJECT_BRIEF.md`, `01-sources/TECHNICAL_ARCHITECTURE.md`, `01-sources/DATA_ARCHITECTURE(1).md`, `01-sources/DATABASE_SCHEMA.md`. Older static, database-free, Odoo-free brochure/lead-gen statements (`ADR-011`; `ADR-007`: CMS deferred) are superseded per §4 below and `DOCUMENT_AUDIT_REPORT.md` DAR-003/DAR-004.
 
