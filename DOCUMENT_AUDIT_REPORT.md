@@ -254,6 +254,20 @@ Per the project owner's instruction: an issue is **not** left `OPEN` merely beca
 
 **Do not silently guess Odoo model names to close this out.** Resolving DAR-013 (the actual Odoo version/module inspection) is a prerequisite for `lib/odoo/adapter.ts` to do real work — this finding does not change that gate.
 
+### DAR-024 — RFQ backend provisioned and validated against real Cloudflare staging infrastructure; D1 jurisdiction remains an explicit open gate (new, 2026-08-28)
+
+**Severity:** P2 — informational; records real infrastructure now exists and one deliberately-not-resolved policy gate
+**Status:** RESOLVED FOR THIS PASS (staging); production provisioning remains blocked on the items below
+**Finding:** the RFQ backend from DAR-023 was provisioned against real (not local-simulated) Cloudflare resources and validated end to end. See `README.md` "Staging environment" for resource names/commands.
+
+**D1 jurisdiction — deliberately not decided here.** `01-sources/DATABASE_SCHEMA.md` §18 lists "Data location: Required D1/R2 jurisdiction/location policy" as an explicit, unresolved Implementation Gate ("Unknown values remain disabled or explicit configuration. Claude Code must not invent them."). No jurisdiction/data-residency policy has been formally decided by the owner. Consistent with that instruction, the staging D1 database (`ahanassa-ops-staging`) was created **without** a `--location` flag — Cloudflare placed it in its automatic default region (`WEUR`) based on request origin, which is a platform default, not a chosen compliance jurisdiction. This is appropriate for staging (synthetic test data only) but is explicitly **not** a stand-in for a real decision: a production D1 database must be provisioned separately, under an owner-approved jurisdiction policy, before go-live — D1 jurisdiction cannot be changed on an existing database after creation, so production cannot simply reuse or relocate the staging one.
+
+**Customer-account forward-compatibility (owner directive reviewed, no migration made).** The task instructions introduced future customer-account/portal architecture decisions and asked the RFQ schema to be checked for compatibility before staging provisioning. Reviewed `migrations/0001_rfq_ops_schema.sql`: `rfqs.id` (ULID primary key) is the only real key, there is no `NOT NULL` guest-identity constraint anywhere, and SQLite/D1 supports adding a nullable `account_id TEXT` column later via a plain additive migration at zero cost to existing rows. **Conclusion: the schema is already safely extensible for a future optional customer-account link — no migration was made in this pass**, per the instruction to leave implementation for the Customer Account phase when nothing is structurally blocking. Guest RFQ submission remains fully supported and unauthenticated, as required.
+
+**Real validation performed (not inferred from local behavior):** RFQ + contact + items persisted on real remote D1 (`wrangler d1 execute --env staging --remote`); idempotent duplicate-key resubmission confirmed (same reference, still 1 row) against real D1; the real deployed Queue producer/consumer processed a real message end to end, with `lib/odoo/adapter.ts`'s honest `not_configured` result correctly leaving `rfqs.sync_status = 'pending'` (never falsely `synced`); the real deployed `scheduled()` cron (`*/5 * * * *`) recovered a deliberately-simulated "stuck" outbox row and republished it without creating a duplicate RFQ, and the consumer safely reprocessed the redelivered event; a temporary, reverted-immediately-after test hook in `lib/odoo/adapter.ts` (never committed — confirmed via `git diff`/`git status` before the dedicated commit) forced one marked test submission to fail, which correctly retried 5 times (Cloudflare's configured `max_retries`) and then landed in the real DLQ (`ahanassa-odoo-sync-staging-dlq`), which has its own consumer that recorded it into `dead_letter_records` — confirming the DLQ is not left unconsumed. Live `wrangler tail --env staging` output was inspected directly and contains no PII (names/emails/phones never appear in logs, only method/URL/status/timestamp and queue-batch summaries).
+
+**What remains before production:** the D1/R2 jurisdiction decision (above); the Odoo model mapping (DAR-013, unchanged); real Turnstile/rate-limiting (DAR-023, unchanged); a separate `env.production` Cloudflare resource set (never reuse staging).
+
 ---
 
 ## 5. Missing referenced documents
@@ -298,7 +312,7 @@ None of these gaps block the documentation-reconciliation pass itself. They do b
 
 ## 7. Maintenance rule
 
-When a finding above is resolved: update the finding's status, cite the resolving evidence, and update `PROJECT_OVERRIDES.md`/`DOCS_INDEX.md` accordingly. Do not delete resolved findings — keep them as an audit trail. New conflicts discovered during future work should be added here following the same DAR-### numbering, continuing from DAR-023.
+When a finding above is resolved: update the finding's status, cite the resolving evidence, and update `PROJECT_OVERRIDES.md`/`DOCS_INDEX.md` accordingly. Do not delete resolved findings — keep them as an audit trail. New conflicts discovered during future work should be added here following the same DAR-### numbering, continuing from DAR-024.
 
 ---
 

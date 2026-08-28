@@ -95,5 +95,43 @@
 	 * Service Bindings (communicate between multiple Workers)
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
 	 */
-	// "services": [  {   "binding": "MY_SERVICE",   "service": "my-service"  } ]
+	// "services": [  {   "binding": "MY_SERVICE",   "service": "my-service"  } ],
+	/**
+	 * Named environments (`wrangler deploy --env <name>` / `wrangler d1
+	 * migrations apply DB_OPS --env <name> --remote`). Bindings arrays
+	 * (d1_databases/queues/etc.) do NOT inherit from the top level in
+	 * Wrangler's environment model — each named environment repeats its own
+	 * in full. `main`/`triggers`/`assets`/`compatibility_date` do inherit
+	 * and are intentionally not repeated here.
+	 *
+	 * "staging" holds the REAL resource IDs for actual Cloudflare staging
+	 * infrastructure (README.md documents how these were created and how to
+	 * recreate them). The top-level (default/local) config above keeps its
+	 * placeholder `database_id` — local dev is unaffected by this block.
+	 *
+	 * No jurisdiction/data-location policy has been formally decided
+	 * (01-sources/DATABASE_SCHEMA.md §18 "Data location" gate) — the
+	 * staging D1 database below was created with Cloudflare's automatic
+	 * default placement (no --location flag), appropriate for
+	 * infrastructure validation with synthetic test data only. A formal
+	 * jurisdiction decision is required before a production database is
+	 * provisioned — see DOCUMENT_AUDIT_REPORT.md DAR-024.
+	 */
+	"env": {
+		"staging": {
+			"name": "ahanassa-bootstrap-staging",
+			"images": { "binding": "IMAGES" },
+			"d1_databases": [
+				{ "binding": "DB_OPS", "database_name": "ahanassa-ops-staging", "database_id": "49bd0aff-e289-4fff-b7b9-0f4b517e6b14", "migrations_dir": "migrations" }
+			],
+			"queues": {
+				"producers": [{ "binding": "ODOO_SYNC_QUEUE", "queue": "ahanassa-odoo-sync-staging" }],
+				"consumers": [
+					{ "queue": "ahanassa-odoo-sync-staging", "dead_letter_queue": "ahanassa-odoo-sync-staging-dlq", "max_retries": 5 },
+					{ "queue": "ahanassa-odoo-sync-staging-dlq" }
+				]
+			},
+			"vars": { "APP_ENV": "staging" }
+		}
+	}
 }
