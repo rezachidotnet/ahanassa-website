@@ -208,9 +208,107 @@ export const RFQ_REFERENCE_MAPPING = {
   staffVisibleFallback: "Reference also embedded in crm.lead.name and crm.lead.description as readable (non-constrained) text, same as before.",
 } as const;
 
-/** Products/variants/UOM — verified installed (product, uom) but out of scope: this task is RFQ-only, not catalog sync. Recorded for completeness only, not used by the adapter. */
-export const CATALOG_MAPPING_OUT_OF_SCOPE = {
-  product: { model: "product.template", verified: "module installed" },
-  variant: { model: "product.product", verified: "module installed" },
-  unit: { model: "uom.uom", verified: "module installed" },
+/**
+ * Catalog mapping — verified 2026-08-29 (DOCUMENT_AUDIT_REPORT.md DAR-033),
+ * supersedes the earlier `CATALOG_MAPPING_OUT_OF_SCOPE` stub now that
+ * catalog sync is in scope. Read-only discovery against the live `ahanassa`
+ * database via direct Postgres inspection (`ir_model_fields`, `\d
+ * <table>`, row counts) — no write was made.
+ *
+ * HEADLINE FINDING: the live database has ZERO product.template and ZERO
+ * product.product rows. product.category has only Odoo's 3 default rows
+ * (Goods/Expenses/Services — no steel taxonomy). product.attribute,
+ * product.attribute.value, and product.tag are all empty (0 rows) — no
+ * variant/attribute structure has ever been defined. No custom field was
+ * ever added to product.template/product.product/product.category/uom.uom
+ * (every field is `ir_model_fields.state = 'base'`). No manufacturer/brand
+ * concept exists (no installed module, no res.partner with
+ * `supplier_rank > 0`, no product.supplierinfo rows). This is a genuine,
+ * complete data-quality gap, not a "materially incomplete" one — see
+ * DAR-033 for the full inventory and the resulting implementation-gate
+ * decision (schema/mapping/sync code built; zero synthetic catalog data
+ * populated anywhere).
+ */
+export const CATALOG_CATEGORY_MAPPING = {
+  model: "product.category",
+  verified: "0 custom fields; only 3 default rows exist (Goods/Expenses/Services) — no steel taxonomy configured yet",
+  fields: {
+    name: "name", // character varying (plain, NOT translated jsonb) in this install — verified via `\d product_category`
+    parentId: "parent_id",
+    completeName: "complete_name",
+  },
+} as const;
+
+export const CATALOG_PRODUCT_MAPPING = {
+  model: "product.template",
+  verified: "0 rows exist; field list confirmed via ir_model_fields (0 custom fields)",
+  fields: {
+    name: "name", // ttype='char' (ORM-level); physical column type (plain vs translated jsonb) not re-confirmed empirically since the table is empty — verify against a real row before trusting either assumption
+    internalCode: "default_code",
+    category: "categ_id",
+    saleOk: "sale_ok", // pull-time eligibility signal only; never stored as a D1 column — publication remains an explicit editorial decision (see lib/catalog/sync.ts)
+    defaultUom: "uom_id",
+    writeDate: "write_date",
+  },
+  /** NEVER read or synced — pricing is an explicitly separate, out-of-scope concern (CLAUDE.md, DAR-033). */
+  neverRead: ["list_price", "standard_price"],
+} as const;
+
+export const PRODUCT_VARIANT_MAPPING = {
+  model: "product.product",
+  verified: "0 rows exist",
+  fields: {
+    template: "product_tmpl_id",
+    internalCode: "default_code",
+    writeDate: "write_date",
+  },
+  neverRead: ["lst_price", "standard_price"],
+} as const;
+
+export const UOM_MAPPING = {
+  model: "uom.uom",
+  verified: "30 rows exist — all Odoo's own default seed units (Units, kg, Ton, m, mm, cm, ...); none are steel-specific custom units",
+  fields: {
+    name: "name", // JSON-translated in this install: {"en_US": "...", "fa_IR": "...", "ar_001": "..."} — verified via `\d uom_uom` (jsonb column)
+  },
+  /**
+   * UNRESOLVED vs. classic Odoo docs: this install's `uom.uom` table has NO
+   * `category_id` column at all (verified via `\d uom_uom`) and the
+   * `uom_category` table does not exist (`relation "uom_category" does not
+   * exist`). Units instead relate via `relative_uom_id`/`relative_factor` —
+   * a different UOM-grouping mechanism than the classic `uom.category`
+   * model most Odoo documentation describes. `units.unit_group` in the D1
+   * schema is therefore left as free-form TEXT with no verified enum to
+   * constrain against; do not invent a category taxonomy here.
+   */
+  categoryModel: "UNRESOLVED — no uom.category table in this Odoo version; grouping likely via relative_uom_id/relative_factor, not re-derived from source in this pass",
+} as const;
+
+/**
+ * Attribute/variant structure — genuinely UNRESOLVED, not merely unused.
+ * product.attribute, product.attribute.value, and
+ * product.template.attribute.line all exist as installed models (the
+ * `product` module's own standard schema) but contain zero rows. There is
+ * no evidence of how this business intends to model grade/standard/size/
+ * diameter as Odoo attributes — the D1 `attribute_definitions`/
+ * `attribute_values` tables exist as extensibility infrastructure only;
+ * do not invent example attribute codes/values here to "fill in" the gap.
+ */
+export const ATTRIBUTE_MAPPING = {
+  status: "UNRESOLVED — models exist (product.attribute, product.attribute.value), zero rows in any of them",
+} as const;
+
+/**
+ * Manufacturer/factory — genuinely UNRESOLVED, not a Website-only decision
+ * deferred by choice. No `product_brand`/manufacturer-concept module is
+ * installed (verified: `ir_module_module` has no module matching
+ * `%brand%`/`%manufactur%`). `res_partner` has zero contacts with
+ * `supplier_rank > 0`, and `product_supplierinfo` has 0 rows — so even the
+ * generic Odoo pattern of a supplier-linked `res.partner` acting as a
+ * de facto manufacturer/vendor has no data to build on yet. Do NOT
+ * create an Odoo field/module for this without a separate, explicit,
+ * evidence-based decision — this task's own boundary.
+ */
+export const MANUFACTURER_MAPPING = {
+  status: "UNRESOLVED — no Odoo manufacturer/brand concept exists (module, field, or data) in this install",
 } as const;

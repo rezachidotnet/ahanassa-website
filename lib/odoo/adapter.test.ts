@@ -219,3 +219,71 @@ test("getHealth reports configured:false with a safe reason code on failure", as
   assert.equal(health.configured, false);
   assert.equal(health.reasonCode, "ODOO_AUTH_FAILED");
 });
+
+test("pullCatalog returns not_configured with empty arrays when Odoo credentials are absent, without calling fetch", async () => {
+  delete process.env.ODOO_BASE_URL;
+  delete process.env.ODOO_DATABASE;
+  delete process.env.ODOO_API_KEY;
+  let called = false;
+  globalThis.fetch = (async () => {
+    called = true;
+    return new Response("{}", { status: 200 });
+  }) as typeof fetch;
+
+  const adapter = createOdooAdapter();
+  const result = await adapter.pullCatalog();
+  assert.equal(called, false);
+  assert.deepEqual(result, { status: "not_configured", reasonCode: "ODOO_CREDENTIALS_NOT_SET", categories: [], products: [], variants: [], units: [] });
+});
+
+test("pullCatalog returns status:pulled with the mapped rows on success, never requesting price fields", async () => {
+  const categoryRows = [{ id: 42, name: "Rebar", parent_id: false, complete_name: "Rebar", active: true }];
+  const productRows = [{ id: 100, name: "Rebar 16", default_code: "REBAR-16", categ_id: [42, "Rebar"], sale_ok: true, active: true, uom_id: false, write_date: "2026-08-01T00:00:00Z" }];
+  const variantRows = [{ id: 500, product_tmpl_id: [100, "Rebar 16"], default_code: "REBAR-16-A3", active: true, write_date: "2026-08-01T00:00:00Z" }];
+  const unitRows = [{ id: 16, name: { en_US: "kg", fa_IR: "کیلوگرم" }, active: true, relative_uom_id: false }];
+
+  const calls = installMockFetch([
+    { status: 200, body: categoryRows },
+    { status: 200, body: productRows },
+    { status: 200, body: variantRows },
+    { status: 200, body: unitRows },
+  ]);
+
+  const adapter = createOdooAdapter();
+  const result = await adapter.pullCatalog();
+
+  assert.equal(result.status, "pulled");
+  assert.deepEqual(result.categories, categoryRows);
+  assert.deepEqual(result.products, productRows);
+  assert.deepEqual(result.variants, variantRows);
+  assert.deepEqual(result.units, unitRows);
+
+  assert.match(calls[0].url, /\/json\/2\/product\.category\/search_read$/);
+  assert.match(calls[1].url, /\/json\/2\/product\.template\/search_read$/);
+  assert.match(calls[2].url, /\/json\/2\/product\.product\/search_read$/);
+  assert.match(calls[3].url, /\/json\/2\/uom\.uom\/search_read$/);
+
+  for (const call of calls) {
+    const fields: string[] = (call.body.fields as string[] | undefined) ?? [];
+    assert.equal(fields.includes("list_price"), false);
+    assert.equal(fields.includes("standard_price"), false);
+    assert.equal(fields.includes("lst_price"), false);
+  }
+});
+
+test("pullCatalog returns status:failed with empty arrays (never a partial catalog) when one call fails", async () => {
+  installMockFetch([
+    { status: 200, body: [] },
+    { status: 200, body: [] },
+    { status: 500, body: { error: "boom" } },
+    { status: 200, body: [] },
+  ]);
+
+  const adapter = createOdooAdapter();
+  const result = await adapter.pullCatalog();
+  assert.equal(result.status, "failed");
+  assert.equal(result.categories.length, 0);
+  assert.equal(result.products.length, 0);
+  assert.equal(result.variants.length, 0);
+  assert.equal(result.units.length, 0);
+});
