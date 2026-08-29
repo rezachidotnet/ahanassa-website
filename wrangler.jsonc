@@ -133,6 +133,56 @@
 	 * provisioned — see DOCUMENT_AUDIT_REPORT.md DAR-024.
 	 */
 	"env": {
+		"production": {
+			// EU jurisdiction — owner-approved 2026-08-29 (PROJECT_OVERRIDES.md
+			// §14, DOCUMENT_AUDIT_REPORT.md DAR-032). D1/Queue/DLQ below are real,
+			// newly-created Cloudflare resources — D1 via
+			// `wrangler d1 create ahanassa-ops-production --jurisdiction eu`
+			// (verified `jurisdiction: eu`, `running_in_region: EEUR`), Queue/DLQ
+			// via `wrangler queues create`. None of these are a promotion/copy of
+			// the staging resources above (staging's automatic WEUR D1 placement
+			// was never production policy — DAR-024/DAR-031). Migrations have been
+			// applied (0 rows in every operational table, verified read-only).
+			//
+			// This config block does NOT deploy anything by itself. No production
+			// Worker has been deployed, no producer/consumer is attached to these
+			// queues yet (0/0 in `wrangler queues list`), no secret has been set
+			// for this environment, and `ahanassa.com`/`www.ahanassa.com` remain
+			// unchanged, still served by the legacy Vercel deployment. Deploying
+			// this environment (`wrangler deploy --env production`), provisioning
+			// its secrets, and any DNS/custom-domain cutover are separate,
+			// explicitly-approved future phases — see DOCUMENT_AUDIT_REPORT.md
+			// DAR-032 for the full provisioning runbook.
+			"name": "ahanassa-production",
+			"images": { "binding": "IMAGES" },
+			"d1_databases": [
+				{ "binding": "DB_OPS", "database_name": "ahanassa-ops-production", "database_id": "7240a6a7-c293-4e6e-baf3-95838a3c2944", "migrations_dir": "migrations" }
+			],
+			"queues": {
+				"producers": [{ "binding": "ODOO_SYNC_QUEUE", "queue": "ahanassa-odoo-sync-production" }],
+				"consumers": [
+					{ "queue": "ahanassa-odoo-sync-production", "dead_letter_queue": "ahanassa-odoo-sync-production-dlq", "max_retries": 5 },
+					{ "queue": "ahanassa-odoo-sync-production-dlq" }
+				]
+			},
+			// Same binding name/limit as staging; a distinct namespace_id (not
+			// 1001/local or 1002/staging) so production counts separately.
+			"ratelimits": [{ "name": "RFQ_RATE_LIMITER", "namespace_id": "2001", "simple": { "limit": 5, "period": 60 } }],
+			// ODOO_API_KEY and TURNSTILE_SECRET_KEY are NOT set here and have NOT
+			// been provisioned as Cloudflare Secrets for this environment yet —
+			// that is a separate, later, explicit Deployment-phase step (never
+			// copied from staging's values; a distinct production Odoo API key
+			// under the same dedicated integration identity, per DAR-032). The
+			// values below are non-secret configuration only (same real Odoo
+			// instance staging already points at) and setting them here does not
+			// provision or deploy anything.
+			"vars": {
+				"APP_ENV": "production",
+				"ODOO_BASE_URL": "https://odoo.ahanassa.com",
+				"ODOO_DATABASE": "ahanassa",
+				"ODOO_CRM_TEAM_ID": "1"
+			}
+		},
 		"staging": {
 			"name": "ahanassa-bootstrap-staging",
 			"images": { "binding": "IMAGES" },

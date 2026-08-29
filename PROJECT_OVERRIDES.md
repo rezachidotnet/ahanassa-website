@@ -6,9 +6,9 @@
 **Domain:** `https://www.ahanassa.com`
 **ERP:** `https://odoo.ahanassa.com`
 **Document role:** Highest-authority record of confirmed decisions that supersede conflicting statements anywhere in the active `01-sources/` corpus or older historical source-layer references
-**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered; customer account/portal future-phase architecture registered 2026-08-28; Odoo RFQ-path version/mapping verified against the live environment 2026-08-28
-**Version:** 2.3.0
-**Last updated:** 2026-08-28
+**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered; customer account/portal future-phase architecture registered 2026-08-28; Odoo RFQ-path version/mapping verified against the live environment 2026-08-28; production D1 jurisdiction (EU) confirmed and production D1 provisioned 2026-08-29
+**Version:** 2.4.0
+**Last updated:** 2026-08-29
 
 ---
 
@@ -372,11 +372,29 @@ PHYSICAL_DATABASE_SPLIT_AUTHORIZED   = false — logical domain separation only 
 - The portal must never depend on live/synchronous Odoo reads — it follows the same D1-read-model-plus-async-sync pattern already used for RFQ intake and public pricing.
 - Odoo remains the single pricing source of truth (reaffirms §4); public price pages continue to render from the D1 read model behind Cloudflare edge cache, with granular (`price:<variant-id>`/`product:<product-id>`/category) invalidation preferred over global purge.
 - Logical data-domain separation (RFQ/ops, catalog, pricing, content) is reaffirmed; `DB_PUBLIC`/`DB_OPS` remain two physical databases — no further physical split is authorized now.
-- The staging D1 database's default `WEUR` placement remains explicitly **not** a production jurisdiction decision (reaffirms `DOCUMENT_AUDIT_REPORT.md` DAR-024); production D1/R2 jurisdiction remains an open gate, and the staging database must never be promoted to production.
+- The staging D1 database's default `WEUR` placement remains explicitly **not** a production jurisdiction decision (reaffirms `DOCUMENT_AUDIT_REPORT.md` DAR-024); production D1/R2 jurisdiction remains an open gate, and the staging database must never be promoted to production. **Superseded 2026-08-29 — see §14 below: the owner has now confirmed the production jurisdiction.** This bullet is kept as the historical record of the gate that was open at the time this section (§13) was written.
 
 **Not confirmed by this entry — do not invent:** the authentication provider; the exact account/customer physical schema; the exact Odoo `res.partner` mapping mechanics (still gated on Odoo module inspection, §3/DAR-013); the production D1/R2 jurisdiction policy; any multi-contact/company-account UI.
 
 **Source:** `01-sources/CUSTOMER_ACCOUNT_ARCHITECTURE.md`, `01-sources/CUSTOMER_PORTAL.md`, `01-sources/DECISIONS.md` ADR-017. Full audit trail: `DOCUMENT_AUDIT_REPORT.md` DAR-025.
+
+---
+
+## 14. Production data jurisdiction — OWNER-CONFIRMED
+
+```text
+PRODUCTION_D1_JURISDICTION                    = eu
+FUTURE_CUSTOMER_ATTACHMENT_R2_JURISDICTION    = eu   (policy only — bucket not yet created)
+STAGING_WEUR_PLACEMENT_IS_PRODUCTION_POLICY   = false, was never true (reaffirmed, not reversed)
+```
+
+**Status:** OWNER-CONFIRMED 2026-08-29. The project owner has approved `eu` as the production D1 jurisdiction, closing the gate that `DATABASE_SCHEMA.md` §18 ("Data location") and `DOCUMENT_AUDIT_REPORT.md` DAR-024/DAR-031 left explicitly open. The same `eu` policy is approved in advance for the future customer-upload R2 bucket (`RFQ_ATTACHMENTS`) — but that bucket is **not** created by this decision; attachment upload remains gated on the separate, still-unresolved scanning-pipeline decision (`PROJECT_OVERRIDES.md` §8, unchanged).
+
+**What this closes:** production `DB_OPS` may now be provisioned under `eu` jurisdiction — and has been: `ahanassa-ops-production` (UUID `7240a6a7-c293-4e6e-baf3-95838a3c2944`, `running_in_region: EEUR`, verified `jurisdiction: eu` via `wrangler d1 info`) was created and migrated per `DOCUMENT_AUDIT_REPORT.md` DAR-032. This is a **new, empty database** — never a promotion, rename, or data copy of the staging D1 (`ahanassa-ops-staging`, no jurisdiction set, automatic `WEUR` placement). Cloudflare D1 jurisdiction is immutable after creation; this decision cannot be silently revised later without recreating the database.
+
+**What this does not close:** the future R2 bucket itself (not created — attachment scanning remains unapproved, §8); production Queue/DLQ producer-consumer wiring to a deployed Worker (no production Worker has been deployed); production secrets (`ODOO_API_KEY`, `TURNSTILE_SECRET_KEY` — not provisioned for `env.production`); the unrelated `ahanassa-odoo-backups` R2 bucket (Odoo-server-side backup infrastructure, outside this website-storage decision, not affected by or relevant to this jurisdiction policy).
+
+**Source:** owner decision recorded via this task's instructions, 2026-08-29. Full audit trail and provisioning evidence: `DOCUMENT_AUDIT_REPORT.md` DAR-032 (supersedes DAR-031's "returned to owner" jurisdiction gate with the approved decision, without rewriting DAR-031's own historical record).
 
 ---
 

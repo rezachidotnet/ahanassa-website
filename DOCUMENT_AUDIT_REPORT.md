@@ -4,8 +4,8 @@
 
 **Audit role:** Records conflicts discovered while building and maintaining the root canonical control layer, including historical source-layer conflicts, genuine unresolved ambiguities, missing referenced documents, and blockers.
 **Status:** OPEN, narrowed — owner sign-off received 2026-08-26 on the P0/P1 findings that were blocking Phase 1 foundation work; DAR-013 (Odoo mapping) closed for the RFQ sync path 2026-08-28 by live-environment audit; remaining open items are either non-blocking integration/production gates or content-authoring gaps
-**Version:** 2.5.0
-**Audit date:** 2026-08-26 (v1.0.0), owner sign-off applied 2026-08-26 (v2.0.0), customer account/portal future-phase architecture registered 2026-08-28 (v2.2.0, DAR-025), Odoo RFQ mapping verified against the live environment 2026-08-28 (v2.3.0, DAR-026), RFQ Turnstile/rate-limiting abuse protection implemented 2026-08-29 (v2.4.0, DAR-030), production infrastructure readiness audited and D1/R2 jurisdiction decision returned to owner 2026-08-29 (v2.5.0, DAR-031)
+**Version:** 2.6.0
+**Audit date:** 2026-08-26 (v1.0.0), owner sign-off applied 2026-08-26 (v2.0.0), customer account/portal future-phase architecture registered 2026-08-28 (v2.2.0, DAR-025), Odoo RFQ mapping verified against the live environment 2026-08-28 (v2.3.0, DAR-026), RFQ Turnstile/rate-limiting abuse protection implemented 2026-08-29 (v2.4.0, DAR-030), production infrastructure readiness audited and D1/R2 jurisdiction decision returned to owner 2026-08-29 (v2.5.0, DAR-031), owner approved EU jurisdiction and production D1/Queue/DLQ provisioned 2026-08-29 (v2.6.0, DAR-032)
 **Scope:** Historical reconciliation of an earlier three-layer source export; current active documentation cleanup scope is the root control layer plus the consolidated `01-sources/` corpus.
 
 **AUD-034 update, 2026-08-27:** the active authority model is now `PROJECT_OVERRIDES.md` → `CLAUDE.md` → `01-sources/` → verified implementation facts. `02-sources/` and `03-sources/` are no longer active source layers. Remaining mentions of the old three-layer model in this report are **HISTORICAL / SUPERSEDED** audit trail only.
@@ -587,6 +587,53 @@ Current logging is almost entirely **D1-table-based, not `console.log`-based** �
 - **Explicit separation from Odoo:** a D1 restore does **not** restore or roll back Odoo data, Queue state, or R2 objects — `01-sources/DATABASE_SCHEMA.md` §15's existing reconciliation rules (re-run Odoo delta reconciliation after a `DB_PUBLIC` restore; compare RFQ event IDs/Odoo mappings before replaying outbox events after a `DB_OPS` restore) apply unchanged. The `ahanassa-odoo-backups` R2 bucket found in §A is **Odoo's own backup mechanism, not this website's**, and this entry does not treat it as satisfying any D1/website backup requirement — the two systems' backups are and must remain independent, per `CLAUDE.md`'s system-of-record boundary.
 
 **Deliberately out of scope, per this task's own explicit boundaries:** Customer Authentication, Customer Portal, Pricing, Product Sync, any production Cloudflare resource creation, any DNS/Vercel/routing change, any Odoo write, any secret creation/rotation, any staging resource deletion/rename, and the pre-existing gates this entry does not touch or re-decide (attachment scanning provider, phone number publication, font-family licensing, `/steel-products` vs `/steel` route naming).
+
+### DAR-032 — Owner approved EU jurisdiction; production D1/Queue/DLQ provisioned (real, non-public backend resources only — no Worker deployed) (new, 2026-08-29)
+
+**Severity:** P1 — provisioning entry; closes DAR-031's jurisdiction gate with a real decision and real resources
+**Status:** RESOLVED FOR THIS PASS. Production backend data infrastructure exists; production Worker deployment/secrets/Turnstile/DNS remain separate, later, explicitly-approved phases.
+**Owner decision (recorded in `PROJECT_OVERRIDES.md` §14):** `PRODUCTION_D1_JURISDICTION = eu`; `FUTURE_CUSTOMER_ATTACHMENT_R2_JURISDICTION = eu` (policy only — bucket not created, still gated on the unresolved attachment-scanning decision, `PROJECT_OVERRIDES.md` §8).
+
+**What was created (real Cloudflare resources, verified read-only after each step, not assumed):**
+
+| Resource | Name | Verified value |
+|---|---|---|
+| D1 database | `ahanassa-ops-production` | UUID `7240a6a7-c293-4e6e-baf3-95838a3c2944`; `jurisdiction: eu` (confirmed via `wrangler d1 info`, not just the create command's own echo); `running_in_region: EEUR`; `served_by_colo: FRA` on every subsequent query — consistent with an EU-jurisdiction placement |
+| Queue (DLQ, created first per this task's explicit ordering) | `ahanassa-odoo-sync-production-dlq` | id `931f61c3e0114b81a2697dd76e66893d`; 0 producers, 0 consumers (no Worker attached) |
+| Queue (main) | `ahanassa-odoo-sync-production` | id `06d0c0c6aab04bc094d024bb0163cce8`; 0 producers, 0 consumers |
+
+None of these reuse a staging name, ID, or namespace. `ahanassa-ops-staging` (no jurisdiction, automatic `WEUR`) was not touched, renamed, promoted, or copied from.
+
+**Migration applied (Stage C):** `migrations/0001_rfq_ops_schema.sql` re-inventoried before applying — pure DDL (25 `CREATE TABLE`/`CREATE INDEX` statements), zero `INSERT`s, zero staging identifiers, zero synthetic RFQ data, zero Odoo test IDs (same finding as DAR-031, re-confirmed rather than assumed stale). Applied via `wrangler d1 migrations apply DB_OPS --env production --remote` → `25 commands` executed, `0001_rfq_ops_schema.sql` marked `✅`. Schema verified read-only afterward:
+
+- **Tables** (`sqlite_master`, type=table): `rfqs`, `rfq_contacts`, `rfq_items`, `rfq_status_history`, `integration_outbox`, `integration_attempts`, `integration_mappings`, `dead_letter_records` — all 8 expected operational tables present, plus Cloudflare's own `_cf_KV`/`d1_migrations`/`sqlite_sequence` system tables.
+- **Indexes**: all expected unique constraints confirmed present — `uq_rfqs_reference_number`, `uq_rfqs_idempotency_key_hash` (the idempotency guard), `uq_rfq_items_rfq_id_line_number`, `uq_integration_mappings_local`, `uq_integration_mappings_remote` (the Odoo-sync dedup guard) — plus every documented non-unique index (`idx_rfqs_status`, `idx_rfqs_sync_status`, `idx_rfqs_created_at`, `idx_rfq_items_rfq_id`, `idx_rfq_status_history_rfq_id`, `idx_integration_outbox_status_available_at`, `idx_integration_outbox_aggregate`, `idx_integration_attempts_event_id`, `idx_dead_letter_records_resolution_status`, `idx_dead_letter_records_event_id`).
+- **Row counts**: a single aggregate read-only query confirmed `rfqs=0, rfq_contacts=0, rfq_items=0, rfq_status_history=0, integration_outbox=0, integration_attempts=0, integration_mappings=0, dead_letter_records=0` — production D1 is schema-only, exactly as required. No test RFQ was ever submitted; no Queue message was ever published.
+
+**`wrangler.jsonc` changes (Stage E — environment/resource separation lives in config, not business logic, per this task's own instruction):** added `env.production`, structurally mirroring `env.staging` (same binding names — `DB_OPS`, `ODOO_SYNC_QUEUE`, `RFQ_RATE_LIMITER`, `IMAGES` — so zero application/TypeScript code needed to change; only resource identifiers differ):
+
+- `d1_databases`: `DB_OPS` → `ahanassa-ops-production` / `7240a6a7-c293-4e6e-baf3-95838a3c2944`.
+- `queues`: producer `ODOO_SYNC_QUEUE` → `ahanassa-odoo-sync-production`; consumer with `dead_letter_queue: ahanassa-odoo-sync-production-dlq`, `max_retries: 5` (identical retry policy to staging — DAR-024's proven architecture, not reinvented); a second consumer entry for the DLQ itself (never left unconsumed, matching staging's own pattern).
+- `ratelimits`: `RFQ_RATE_LIMITER` binding, namespace `2001` — distinct from local's `1001` and staging's `1002`, so production counters can never share a bucket with either.
+- `vars`: `APP_ENV=production`, `ODOO_BASE_URL=https://odoo.ahanassa.com`, `ODOO_DATABASE=ahanassa`, `ODOO_CRM_TEAM_ID=1` — non-secret configuration only (the same real Odoo instance staging already targets); no secret var, no `ODOO_API_KEY`, no `TURNSTILE_SECRET_KEY` was added anywhere in this block.
+- `name: "ahanassa-production"` — the proposed identity from DAR-031's naming plan, distinct from `ahanassa-bootstrap`/`ahanassa-bootstrap-staging`.
+
+`npm run cf-typegen` regenerated `worker-configuration.d.ts`: a new `Cloudflare.ProductionEnv` interface now exists with exactly the 9 expected bindings (`DB_OPS`, `ODOO_SYNC_QUEUE`, `RFQ_RATE_LIMITER`, `IMAGES`, `ASSETS`, `APP_ENV`, `ODOO_BASE_URL`, `ODOO_DATABASE`, `ODOO_CRM_TEAM_ID`), verified by direct inspection of the generated file, not assumed from the command's exit code alone.
+
+**Deploy-safety verification, and an honest limitation of it:** confirmed via `wrangler deployments list --name ahanassa-production` (Cloudflare API `10007: This Worker does not exist`) that no production Worker was created — the config-only changes above do not by themselves deploy anything. A binding-table dry-run equivalent to DAR-031's default-environment check was **attempted but not completed for `--env production`**: this project's `main` entry (`workers/entry.ts`) imports a `virtual:vinext-worker-entry` module that only resolves through vinext's own Vite build pipeline, so a raw `wrangler deploy --env production --dry-run` either silently redirects to a stale, non-environment-aware `dist/server/wrangler.json` build artifact (via a `.wrangler/deploy/config.json` pointer vinext itself writes) or fails outright when forced against the root config directly (`Could not resolve "virtual:vinext-worker-entry"`) — neither is a meaningful verification of `env.production`'s actual bindings, and this project's own supported deploy path (`vinext-cloudflare deploy --env production`) does not expose a binding-table-printing dry-run (`--dry-run` there explicitly does not build). Rather than force an ambiguous path that could risk partially exercising the real deploy pipeline against production — a firm boundary this task set — this was deliberately left unverified by dry-run and covered instead by: (1) `cf-typegen`'s successful, correctly-shaped `ProductionEnv` resolution (proves Wrangler's own config parser accepts and correctly resolves the block), and (2) direct structural mirroring of `env.staging`, which is proven to deploy correctly today. **Recorded here as a known verification gap for the future Worker-deployment phase to close** (that phase's own dry-run, immediately before the real `--env production` deploy, will be the actual proof) — not treated as a defect of this entry, since no deployment was attempted or claimed.
+
+**Deliberately out of scope, per this task's own explicit boundaries (all unchanged, all correctly still not done):** no production Worker deployed; no `wrangler secret put` run for any environment; no `ODOO_API_KEY`/`TURNSTILE_SECRET_KEY` set for production; no production Turnstile widget created; no R2 bucket created (`ahanassa-odoo-backups` untouched, still unrelated to this website); no DNS/Vercel/custom-domain change (`ahanassa.com`/`www.ahanassa.com` still live on Vercel, confirmed unchanged); no Odoo write of any kind (no user, no API key, no lead, no ACL change, no module install/restart); no synthetic/test RFQ submitted anywhere; no staging resource deleted, renamed, or modified (staging D1 row count reconfirmed unchanged at 6, staging queue producer/consumer counts reconfirmed unchanged at 1/1 and 0/1).
+
+**Full inventory after this pass:**
+
+| | Resource | Status |
+|---|---|---|
+| STAGING | Worker `ahanassa-bootstrap-staging`, D1 `ahanassa-ops-staging`, Queue `ahanassa-odoo-sync-staging` (+DLQ) | Unchanged, verified unchanged |
+| PRODUCTION | D1 `ahanassa-ops-production` (eu), Queue `ahanassa-odoo-sync-production` (+DLQ) | **New this pass** — schema-only, zero producers/consumers, no Worker |
+| PRODUCTION (not yet created) | Worker `ahanassa-production`, R2, Turnstile widget, any secret | Explicitly deferred to later phases |
+| UNRELATED | D1 `nova-51dafe-db`, R2 `ahanassa-odoo-backups` | Unchanged, not touched |
+
+**Remaining gates before any production traffic:** a distinct production Odoo API key (same dedicated integration identity as staging, per DAR-031's recommendation — not minted here); production Turnstile widget + site/secret key pair; `wrangler secret put ODOO_API_KEY`/`TURNSTILE_SECRET_KEY --env production`; `wrangler deploy --env production` to a `*.workers.dev` target first (never straight to a custom domain); a temporary smoke test against that target; the controlled `ahanassa.com`/`www.ahanassa.com` DNS/custom-domain cutover (a separate, explicit, owner-approved Deployment phase); post-cutover validation. None of these were performed or attempted by this entry.
 
 ---
 
