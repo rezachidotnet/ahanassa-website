@@ -35,6 +35,8 @@ export interface RfqSubmissionInput {
   website?: string;
   /** Client timestamp (ms) when the form was first rendered/focused — used only for a soft minimum-completion-time signal. */
   formRenderedAt?: number;
+  /** Cloudflare Turnstile response token — verified server-side (lib/security/turnstile.ts), never trusted by presence alone. Not persisted. */
+  turnstileToken?: string;
 }
 
 export type RfqErrorCode =

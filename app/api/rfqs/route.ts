@@ -2,6 +2,7 @@ import { ulid } from "@/lib/rfq/ulid";
 import { MAX_BODY_BYTES } from "@/lib/rfq/validation";
 import { submitRfq } from "@/lib/rfq/service";
 import type { RfqResponse } from "@/lib/rfq/types";
+import { checkRfqRateLimit, getClientIp } from "@/lib/security/rate-limit-binding";
 
 /**
  * POST /api/rfqs — canonical RFQ submission endpoint
@@ -12,12 +13,19 @@ import type { RfqResponse } from "@/lib/rfq/types";
  * minimal response — never a D1 ID, Odoo ID, stack trace, or Queue detail
  * (§12.4). Other HTTP methods on this route 405 automatically (only POST is
  * exported).
+ *
+ * Request execution order (CLAUDE.md "Rate Limit Execution Order"), cheapest
+ * checks first, no expensive work (body read/parse, Siteverify, D1) before a
+ * request is rejected: same-origin -> content-type -> content-length ->
+ * rate limit -> body read/size -> JSON parse -> [in submitRfq: schema
+ * validation -> honeypot/timing -> Turnstile Siteverify ->
+ * idempotency/D1 persistence -> async outbox publish].
  */
 
-function jsonResponse(status: number, body: RfqResponse): Response {
+function jsonResponse(status: number, body: RfqResponse, extraHeaders?: Record<string, string>): Response {
   return Response.json(body, {
     status,
-    headers: { "Cache-Control": "no-store" },
+    headers: { "Cache-Control": "no-store", ...extraHeaders },
   });
 }
 
@@ -52,6 +60,15 @@ export async function POST(request: Request): Promise<Response> {
     return jsonResponse(413, { ok: false, code: "PAYLOAD_TOO_LARGE" });
   }
 
+  const clientIp = getClientIp(request);
+  const rateLimit = await checkRfqRateLimit(request);
+  if (!rateLimit.allowed) {
+    // 429 before any body is read/parsed and before Siteverify is ever
+    // called for this request (CLAUDE.md "Rate Limiting Tests"). Retry-After
+    // is a safe, generic hint — never the limiter's internal window/counter.
+    return jsonResponse(429, { ok: false, code: "RATE_LIMITED" }, { "Retry-After": "60" });
+  }
+
   let rawText: string;
   try {
     rawText = await request.text();
@@ -71,7 +88,12 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const { status, body: responseBody } = await submitRfq(body, { correlationId });
+    // "unknown" is the local-dev/no-CF-header fallback (getClientIp) — never
+    // forwarded to Siteverify as a fabricated remoteip value.
+    const { status, body: responseBody } = await submitRfq(body, {
+      correlationId,
+      clientIp: clientIp === "unknown" ? undefined : clientIp,
+    });
     return jsonResponse(status, responseBody);
   } catch (err) {
     // Safe structured log only — no request body, no PII, no stack trace in

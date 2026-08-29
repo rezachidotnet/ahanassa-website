@@ -7,6 +7,7 @@ import { PageHero } from "@/components/ui/page-hero";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { EnquiryForm } from "@/components/contact/enquiry-form";
 import { FaqSection } from "@/components/contact/faq-section";
+import { getTurnstileSiteKey } from "@/lib/env";
 
 interface PageProps {
   params: Promise<{ locale: string }>;
@@ -73,7 +74,7 @@ export default async function ContactPage({ params }: PageProps) {
           <div className="lg:col-span-7">
             <SectionHeading eyebrow={t.formEyebrow} title={t.formTitle} body={t.formBody} />
             <div className="mt-12">
-              <EnquiryForm locale={locale} />
+              <EnquiryForm locale={locale} turnstileSiteKey={getTurnstileSiteKey()} />
             </div>
           </div>
 

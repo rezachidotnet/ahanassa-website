@@ -52,3 +52,8 @@ export function getOdooConfig(): OdooConfig | null {
 export function getTurnstileSecret(): string | undefined {
   return process.env.TURNSTILE_SECRET_KEY || undefined;
 }
+
+/** Public Turnstile site key — safe to reach browser code. Undefined until provisioned. */
+export function getTurnstileSiteKey(): string | undefined {
+  return process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || undefined;
+}

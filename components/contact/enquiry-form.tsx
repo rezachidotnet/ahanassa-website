@@ -1,10 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Script from "next/script";
 import { Button } from "@/components/ui/button";
 import { categories, sampleProducts } from "@/lib/content/catalog-sample";
 import type { Locale } from "@/config/locales";
 import type { RfqResponse } from "@/lib/rfq/types";
+import { TURNSTILE_RFQ_ACTION } from "@/lib/security/turnstile-action";
 
 /**
  * RFQ intake form. Deliberately has no file upload — attachment handling
@@ -13,7 +15,38 @@ import type { RfqResponse } from "@/lib/rfq/types";
  * backend (feat/rfq-backend) — the success state only renders after a real
  * D1-durable RFQ is created and a real reference is returned; there is no
  * simulated delay or hardcoded success. See DOCUMENT_AUDIT_REPORT.md.
+ *
+ * Cloudflare Turnstile is wired in as an additional, mandatory layer on top
+ * of the existing honeypot/timing signals (never a replacement — CLAUDE.md
+ * "Preserve Existing Honeypot / Timing Defense"). When `turnstileSiteKey` is
+ * absent (not yet provisioned for this environment/hostname —
+ * PROJECT_OVERRIDES.md §10), the widget simply isn't rendered; submission
+ * still goes through the real API, which fails closed with a "temporary
+ * service" error rather than silently skipping verification server-side.
  */
+
+interface TurnstileRenderOptions {
+  sitekey: string;
+  action: string;
+  language?: string;
+  callback: (token: string) => void;
+  "error-callback": () => void;
+  "expired-callback": () => void;
+}
+
+interface TurnstileApi {
+  render(container: HTMLElement, options: TurnstileRenderOptions): string;
+  reset(widgetId?: string): void;
+  remove(widgetId?: string): void;
+}
+
+declare global {
+  interface Window {
+    turnstile?: TurnstileApi;
+  }
+}
+
+const turnstileLanguage: Record<Locale, string> = { fa: "fa", en: "en", ar: "ar" };
 const copy: Record<
   Locale,
   {
@@ -22,6 +55,7 @@ const copy: Record<
     message: string; messagePlaceholder: string; submit: string; submitting: string;
     successTitle: string; successBody: (reference: string) => string; again: string;
     validationError: string; networkError: string; rateLimited: string;
+    verificationError: string; serviceUnavailable: string;
   }
 > = {
   fa: {
@@ -38,6 +72,8 @@ const copy: Record<
     validationError: "لطفاً اطلاعات فرم را بررسی کنید و دوباره تلاش کنید.",
     networkError: "ارسال درخواست ناموفق بود. لطفاً دوباره تلاش کنید.",
     rateLimited: "درخواست‌های زیادی ارسال شده است. کمی بعد دوباره تلاش کنید.",
+    verificationError: "تأیید ناموفق بود. لطفاً دوباره تلاش کنید.",
+    serviceUnavailable: "امکان تأیید درخواست در حال حاضر وجود ندارد. لطفاً کمی بعد دوباره تلاش کنید.",
   },
   en: {
     name: "Full name", company: "Company", email: "Work email", phone: "Phone",
@@ -53,6 +89,8 @@ const copy: Record<
     validationError: "Please check the form fields and try again.",
     networkError: "Sending your request failed. Please try again.",
     rateLimited: "Too many requests. Please try again shortly.",
+    verificationError: "Verification failed. Please try again.",
+    serviceUnavailable: "Verification is temporarily unavailable. Please try again shortly.",
   },
   ar: {
     name: "الاسم الكامل", company: "الشركة", email: "البريد الإلكتروني للعمل", phone: "الهاتف",
@@ -68,6 +106,8 @@ const copy: Record<
     validationError: "يرجى مراجعة حقول النموذج والمحاولة مرة أخرى.",
     networkError: "فشل إرسال طلبك. يرجى المحاولة مرة أخرى.",
     rateLimited: "عدد كبير جدًا من الطلبات. يرجى المحاولة لاحقًا.",
+    verificationError: "فشل التحقق. يرجى المحاولة مرة أخرى.",
+    serviceUnavailable: "التحقق غير متاح مؤقتًا. يرجى المحاولة لاحقًا.",
   },
 };
 
@@ -82,13 +122,48 @@ function generateIdempotencyKey(): string {
   return `key-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export function EnquiryForm({ locale }: { locale: Locale }) {
+export function EnquiryForm({ locale, turnstileSiteKey }: { locale: Locale; turnstileSiteKey?: string }) {
   const [status, setStatus] = useState<Status>("idle");
   const [reference, setReference] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileScriptLoaded, setTurnstileScriptLoaded] = useState(false);
   const idempotencyKeyRef = useRef(generateIdempotencyKey());
   const formRenderedAtRef = useRef(Date.now());
+  const turnstileContainerRef = useRef<HTMLDivElement>(null);
+  const turnstileWidgetIdRef = useRef<string | null>(null);
   const t = copy[locale];
+
+  const resetTurnstile = useCallback(() => {
+    setTurnstileToken(null);
+    if (turnstileWidgetIdRef.current) {
+      window.turnstile?.reset(turnstileWidgetIdRef.current);
+    }
+  }, []);
+
+  // Render the Turnstile widget once its script has loaded. A single-use
+  // token must never be silently reused across attempts (CLAUDE.md "Token
+  // Lifecycle") — each render/reset call fetches a fresh one via `callback`.
+  useEffect(() => {
+    if (!turnstileSiteKey || !turnstileScriptLoaded || !turnstileContainerRef.current) return;
+    if (!window.turnstile) return;
+
+    const widgetId = window.turnstile.render(turnstileContainerRef.current, {
+      sitekey: turnstileSiteKey,
+      action: TURNSTILE_RFQ_ACTION,
+      language: turnstileLanguage[locale],
+      callback: (token) => setTurnstileToken(token),
+      "error-callback": () => setTurnstileToken(null),
+      "expired-callback": () => setTurnstileToken(null),
+    });
+    turnstileWidgetIdRef.current = widgetId;
+
+    return () => {
+      window.turnstile?.remove(widgetId);
+      turnstileWidgetIdRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turnstileSiteKey, turnstileScriptLoaded, locale]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -117,6 +192,7 @@ export function EnquiryForm({ locale }: { locale: Locale }) {
       ],
       website: String(data.get("website") ?? ""),
       formRenderedAt: formRenderedAtRef.current,
+      turnstileToken: turnstileToken ?? undefined,
     };
 
     setStatus("submitting");
@@ -138,15 +214,23 @@ export function EnquiryForm({ locale }: { locale: Locale }) {
 
       if (body.code === "RATE_LIMITED") {
         setErrorMessage(t.rateLimited);
-      } else if (body.code === "VALIDATION_ERROR" || body.code === "VERIFICATION_FAILED") {
+      } else if (body.code === "VERIFICATION_FAILED") {
+        setErrorMessage(t.verificationError);
+      } else if (body.code === "SERVICE_UNAVAILABLE") {
+        setErrorMessage(t.serviceUnavailable);
+      } else if (body.code === "VALIDATION_ERROR") {
         setErrorMessage(t.validationError);
       } else {
         setErrorMessage(t.networkError);
       }
       setStatus("error");
+      // A consumed/rejected token must never silently remain "valid" in UI
+      // state for a retry (CLAUDE.md "Token Lifecycle") — fetch a fresh one.
+      resetTurnstile();
     } catch {
       setErrorMessage(t.networkError);
       setStatus("error");
+      resetTurnstile();
     }
   }
 
@@ -156,6 +240,7 @@ export function EnquiryForm({ locale }: { locale: Locale }) {
     setStatus("idle");
     setReference(null);
     setErrorMessage(null);
+    resetTurnstile();
   }
 
   if (status === "success" && reference) {
@@ -171,9 +256,17 @@ export function EnquiryForm({ locale }: { locale: Locale }) {
   }
 
   const submitting = status === "submitting";
+  const turnstileBlocking = Boolean(turnstileSiteKey) && !turnstileToken;
 
   return (
     <form onSubmit={handleSubmit} className="grid gap-6" noValidate={false}>
+      {turnstileSiteKey && (
+        <Script
+          src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+          strategy="afterInteractive"
+          onLoad={() => setTurnstileScriptLoaded(true)}
+        />
+      )}
       {/*
        * Honeypot — invisible to real users, catches automated submissions
        * (FORM_ARCHITECTURE.md §18.3 "passive controls first"). Uses the
@@ -242,6 +335,8 @@ export function EnquiryForm({ locale }: { locale: Locale }) {
         <textarea id="message" name="message" rows={5} placeholder={t.messagePlaceholder} disabled={submitting} className={`${field} resize-y`} />
       </div>
 
+      {turnstileSiteKey && <div ref={turnstileContainerRef} />}
+
       {status === "error" && errorMessage && (
         <p role="alert" className="text-sm font-medium text-[var(--aa-color-danger-700)]">
           {errorMessage}
@@ -249,7 +344,7 @@ export function EnquiryForm({ locale }: { locale: Locale }) {
       )}
 
       <div className="flex flex-wrap items-center gap-5 pt-2">
-        <Button type="submit" size="lg" disabled={submitting} aria-busy={submitting}>
+        <Button type="submit" size="lg" disabled={submitting || turnstileBlocking} aria-busy={submitting}>
           {submitting ? t.submitting : t.submit}
         </Button>
       </div>
