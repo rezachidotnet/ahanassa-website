@@ -27,7 +27,7 @@ Inspect local state directly with `npx wrangler d1 execute DB_OPS --local --comm
 
 **Limitation:** local Queue simulation is close to but not identical to deployed Cloudflare Queues behavior (e.g. exact retry backoff timing and DLQ delivery timing may differ) — treat local testing as a strong functional signal, not a substitute for staging verification before production use.
 
-The Odoo sync path is intentionally inert in every environment right now — see `lib/odoo/adapter.ts` and `DOCUMENT_AUDIT_REPORT.md` DAR-013/DAR-023 for why.
+The Odoo sync path is intentionally inert locally (`npm run dev`, no `--env`) — no local Odoo credentials exist. The **staging** environment now has real, minimum-permission Odoo credentials configured (see below) but has not yet performed a real RFQ write — see `lib/odoo/adapter.ts` and `DOCUMENT_AUDIT_REPORT.md` DAR-013/DAR-023/DAR-027.
 
 ## Staging environment (real Cloudflare infrastructure)
 
@@ -51,9 +51,25 @@ npx wrangler tail --env staging                                  # live logs fro
 
 Staging vs. local:
 
-- Local (`npm run dev`, no `--env`) uses `wrangler.jsonc`'s top-level config, whose `database_id`/queue names are still **placeholders** — local D1/Queue simulation only uses them as storage keys, no real resource required.
-- Staging (`--env staging`) uses the `env.staging` block in `wrangler.jsonc`, which holds the real resource names/IDs above and deploys to real Cloudflare Workers/D1/Queues.
-- Neither environment has real Odoo credentials — `lib/odoo/adapter.ts` always returns `not_configured` regardless of environment (DAR-013).
+- Local (`npm run dev`, no `--env`) uses `wrangler.jsonc`'s top-level config, whose `database_id`/queue names are still **placeholders** — local D1/Queue simulation only uses them as storage keys, no real resource required. No Odoo credentials — `getOdooConfig()` returns `null`, `lib/odoo/adapter.ts` always returns `not_configured`.
+- Staging (`--env staging`) uses the `env.staging` block in `wrangler.jsonc`, which holds the real resource names/IDs above and deploys to real Cloudflare Workers/D1/Queues. **Real, minimum-permission Odoo credentials are now configured** (below) — the adapter will attempt real Odoo calls for any RFQ that reaches the queue in this environment.
 
-**Before production:** provision a separate production D1/Queue/DLQ/Worker under the `env.production` pattern once (a) an owner-approved data-location/jurisdiction policy exists and (b) the Odoo model mapping is resolved enough to matter. Do not reuse the staging resources for production.
+### Odoo staging connectivity (DAR-027, 2026-08-29)
+
+A dedicated, non-human Odoo integration user exists on the live `ahanassa` database (`odoo.ahanassa.com`) — login `website-rfq-integration@ahanassa.com`, no password set (cannot log in interactively), groups: `base.group_user` + `sales_team.group_sale_salesman` ("Sales / User: Own Documents Only") only. No `base.group_erp_manager`, no `base.group_system` — see `odoo-modules/ahanassa_website_rfq/README.md` and `lib/odoo/mapping.ts` `RFQ_REFERENCE_MAPPING` for why the RFQ-path idempotency design was changed specifically to avoid needing that broader group.
+
+Cloudflare staging configuration (`ahanassa-bootstrap-staging`):
+
+| Variable | Kind | Value |
+|---|---|---|
+| `ODOO_BASE_URL` | `vars` (`wrangler.jsonc`) | `https://odoo.ahanassa.com` |
+| `ODOO_DATABASE` | `vars` (`wrangler.jsonc`) | `ahanassa` |
+| `ODOO_CRM_TEAM_ID` | `vars` (`wrangler.jsonc`) | `1` (verified active `crm.team` "Sales"; "Website" team, id 2, is inactive and was not reactivated) |
+| `ODOO_API_KEY` | Cloudflare **secret** (`wrangler secret put ODOO_API_KEY --env staging`) | never in git, never logged |
+
+Read-only JSON-2 connectivity was verified end-to-end (real HTTPS, real bearer auth, real database) using a separate short-lived key for the same user, immediately revoked after the test — see the provisioning session transcript for the full log. Confirmed: `res.partner`/`crm.lead` reads succeed; `ir.model.data` access correctly returns `403` (proves the narrower group is actually enforced, not just configured).
+
+**No RFQ write test has been performed against Odoo.** All 5 pre-existing synthetic staging RFQs (created while the adapter was `not_configured`) were confirmed to have no automatic replay path (their outbox events are all `published`, not `pending`/`retry`, so the reconciliation cron cannot resend them) and were additionally marked `sync_status = 'manual_review'` as a durable extra safeguard. The next phase is one controlled, idempotent RFQ write test through the real pipeline (website → D1 → Queue → Odoo).
+
+**Before production:** provision a separate production D1/Queue/DLQ/Worker under the `env.production` pattern once (a) an owner-approved data-location/jurisdiction policy exists and (b) production Odoo credentials/permissions are provisioned the same way as staging. Do not reuse the staging resources, credentials, or Odoo integration user for production.
 

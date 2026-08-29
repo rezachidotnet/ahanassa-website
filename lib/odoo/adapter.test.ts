@@ -65,43 +65,43 @@ test("upsertRfq returns not_configured when credentials are absent", async () =>
   assert.equal(result.reasonCode, "ODOO_CREDENTIALS_NOT_SET");
 });
 
-test("upsertRfq is idempotent: an existing ir.model.data external ID is reused, nothing is created", async () => {
-  const calls = installMockFetch([{ status: 200, body: [{ res_id: 4242 }] }]);
+test("upsertRfq is idempotent: an existing lead matched by x_website_rfq_reference is reused, nothing is created", async () => {
+  const calls = installMockFetch([{ status: 200, body: [{ id: 4242 }] }]);
   const adapter = createOdooAdapter();
   const result = await adapter.upsertRfq(baseInput);
   assert.equal(result.status, "synced");
   assert.deepEqual(result.lead, { id: 4242, model: "crm.lead" });
   assert.equal(calls.length, 1, "only the idempotency lookup should run; no create calls");
-  assert.match(calls[0].url, /\/json\/2\/ir\.model\.data\/search_read$/);
+  assert.match(calls[0].url, /\/json\/2\/crm\.lead\/search_read$/);
+  assert.deepEqual(calls[0].body.domain, [["x_website_rfq_reference", "=", baseInput.referenceNumber]]);
 });
 
 test("upsertRfq reuses an existing partner matched by normalized email instead of creating a duplicate", async () => {
   const calls = installMockFetch([
-    { status: 200, body: [] }, // ir.model.data lookup: no existing sync
+    { status: 200, body: [] }, // crm.lead lookup by x_website_rfq_reference: no existing sync
     { status: 200, body: [{ id: 777 }] }, // res.partner search_read: one match
     { status: 200, body: [9001] }, // crm.lead create
-    { status: 200, body: [1] }, // ir.model.data create
   ]);
   const adapter = createOdooAdapter();
   const result = await adapter.upsertRfq(baseInput);
   assert.equal(result.status, "synced");
   assert.deepEqual(result.partner, { id: 777, model: "res.partner" });
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 3, "no separate registration call is needed — the reference is set directly on create");
   assert.match(calls[1].url, /\/json\/2\/res\.partner\/search_read$/);
   assert.match(calls[2].url, /\/json\/2\/crm\.lead\/create$/);
   const leadCreateVals = (calls[2].body.vals_list as Array<Record<string, unknown>>)[0];
   assert.equal(leadCreateVals.partner_id, 777);
   assert.equal(leadCreateVals.type, "opportunity");
+  assert.equal(leadCreateVals.x_website_rfq_reference, baseInput.referenceNumber);
   assert.ok(!("opportunity_no" in leadCreateVals), "must never attempt to write Odoo's own permanent opportunity_no");
 });
 
 test("upsertRfq creates a new partner when no email match exists", async () => {
   const calls = installMockFetch([
-    { status: 200, body: [] }, // ir.model.data lookup
+    { status: 200, body: [] }, // crm.lead lookup by x_website_rfq_reference
     { status: 200, body: [] }, // res.partner search_read: no match
     { status: 200, body: [555] }, // res.partner create
     { status: 200, body: [9002] }, // crm.lead create
-    { status: 200, body: [1] }, // ir.model.data create
   ]);
   const adapter = createOdooAdapter();
   const result = await adapter.upsertRfq(baseInput);
@@ -112,10 +112,9 @@ test("upsertRfq creates a new partner when no email match exists", async () => {
 
 test("upsertRfq never auto-merges an ambiguous (>1) partner match", async () => {
   const calls = installMockFetch([
-    { status: 200, body: [] }, // ir.model.data lookup
+    { status: 200, body: [] }, // crm.lead lookup by x_website_rfq_reference
     { status: 200, body: [{ id: 1 }, { id: 2 }] }, // ambiguous match
     { status: 200, body: [9003] }, // crm.lead create (no partner_id)
-    { status: 200, body: [1] }, // ir.model.data create
   ]);
   const adapter = createOdooAdapter();
   const result = await adapter.upsertRfq(baseInput);
@@ -125,23 +124,20 @@ test("upsertRfq never auto-merges an ambiguous (>1) partner match", async () => 
   assert.ok(!("partner_id" in leadCreateVals));
 });
 
-test("upsertRfq registers an ir.model.data external ID after a successful lead create", async () => {
+test("upsertRfq sets x_website_rfq_reference on the crm.lead create call itself, in the same write", async () => {
   const calls = installMockFetch([
     { status: 200, body: [] },
     { status: 200, body: [] },
-    { status: 200, body: [42] },
+    { status: 200, body: [555] },
     { status: 200, body: [9004] },
-    { status: 200, body: [1] },
   ]);
   const adapter = createOdooAdapter();
-  await adapter.upsertRfq(baseInput);
-  const externalIdCall = calls.at(-1)!;
-  assert.match(externalIdCall.url, /\/json\/2\/ir\.model\.data\/create$/);
-  const vals = (externalIdCall.body.vals_list as Array<Record<string, unknown>>)[0];
-  assert.equal(vals.module, "ahanassa_website");
-  assert.equal(vals.name, `rfq_${baseInput.localRfqId}`);
-  assert.equal(vals.model, "crm.lead");
-  assert.equal(vals.res_id, 9004);
+  const result = await adapter.upsertRfq(baseInput);
+  assert.equal(result.status, "synced");
+  const createCall = calls.at(-1)!;
+  assert.match(createCall.url, /\/json\/2\/crm\.lead\/create$/);
+  const vals = (createCall.body.vals_list as Array<Record<string, unknown>>)[0];
+  assert.equal(vals.x_website_rfq_reference, baseInput.referenceNumber);
 });
 
 test("upsertRfq classifies a 5xx Odoo response as a transient failure", async () => {

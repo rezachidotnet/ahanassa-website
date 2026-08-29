@@ -131,7 +131,19 @@
 					{ "queue": "ahanassa-odoo-sync-staging-dlq" }
 				]
 			},
-			"vars": { "APP_ENV": "staging" }
+			// ODOO_API_KEY is a Cloudflare Secret (wrangler secret put --env staging),
+			// never a plain var. ODOO_BASE_URL/ODOO_DATABASE/ODOO_CRM_TEAM_ID are
+			// non-secret configuration values per lib/env.ts#getOdooConfig and
+			// lib/odoo/adapter.ts#getOdooCrmTeamId -- see README.md "Odoo staging
+			// connectivity" for provisioning details (dedicated integration user,
+			// minimum-permission groups, no ir.model.data/group_erp_manager
+			// dependency -- DOCUMENT_AUDIT_REPORT.md DAR-027).
+			"vars": {
+				"APP_ENV": "staging",
+				"ODOO_BASE_URL": "https://odoo.ahanassa.com",
+				"ODOO_DATABASE": "ahanassa",
+				"ODOO_CRM_TEAM_ID": "1"
+			}
 		}
 	}
 }

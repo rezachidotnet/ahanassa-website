@@ -13,15 +13,26 @@ import type { OdooContactInput, OdooGateway, OdooRef, OdooRfqInput, OdooRfqResul
  * mapping this file uses — see lib/odoo/mapping.ts for the verified
  * evidence behind every model/field name below.
  *
- * This adapter is real, not a stub — but it still cannot perform a real
- * write today: no Odoo API key exists for this integration (verified —
- * `res_users_apikeys` has 0 rows in `ahanassa`) and this task's own
- * safety rules prohibit minting one or writing test CRM/customer records
- * into the only Odoo database Ahan Asa has. `getOdooConfig()` therefore
- * still returns `null` in every real deployment until the owner
- * provisions `ODOO_BASE_URL`/`ODOO_DATABASE`/`ODOO_API_KEY` as Cloudflare
- * Secrets — at which point this code executes for real with no further
- * changes required. This is an honest boundary, not a fake success path.
+ * DAR-027 (2026-08-29): the RFQ-level idempotency guard originally used
+ * `ir.model.data` (Odoo's XML-data external-ID table). That mechanism was
+ * abandoned before any credential was ever issued: in this install, only
+ * `base.group_erp_manager` ("Access Rights" — a 29-model technical/admin
+ * group covering `res.groups`, `ir.model.access`, `ir.model.fields`,
+ * `res.users`, etc.) grants any access to `ir.model.data`, and handing a
+ * website integration API key that group was rejected as a disproportionate
+ * blast radius for a narrow idempotency check. The RFQ-path idempotency
+ * guard is now `crm.lead.x_website_rfq_reference` (Char, unique, readonly),
+ * added by the small dedicated `odoo-modules/ahanassa_website_rfq` module —
+ * a real Postgres UNIQUE constraint, same guarantee strength as the
+ * `ir.model.data` approach, but the integration user only ever needs
+ * ordinary `sales_team.group_sale_salesman`-level `crm.lead`/`res.partner`
+ * access to use it (no elevated technical group). See RFQ_REFERENCE_MAPPING
+ * below and that module's README for the full rationale.
+ *
+ * This adapter is real, not a stub, and (as of DAR-027's staging
+ * provisioning) a real Cloudflare-staging-scoped API key exists for a
+ * dedicated, minimum-permission Odoo user — but no RFQ write test has been
+ * run against it yet; that is a deliberately separate, still-pending phase.
  */
 export function createOdooAdapter(): OdooGateway {
   return {
@@ -51,10 +62,10 @@ export function createOdooAdapter(): OdooGateway {
         //    adapter (the primary guard); this is defense-in-depth against
         //    the narrow window where a lead was created but the D1 mapping
         //    write never landed (e.g. a crash between the two). Verified
-        //    mechanism: ir_model_data has a real UNIQUE index on
-        //    (module, name) — see RFQ_REFERENCE_MAPPING.
-        const externalName = RFQ_REFERENCE_MAPPING.externalIdName(input.localRfqId);
-        const existing = await findExternalId(config, externalName);
+        //    mechanism: crm.lead.x_website_rfq_reference has a real Postgres
+        //    UNIQUE constraint (odoo-modules/ahanassa_website_rfq) — see
+        //    RFQ_REFERENCE_MAPPING.
+        const existing = await findLeadByWebsiteReference(config, input.referenceNumber);
         if (existing) {
           return { status: "synced", lead: { id: existing, model: RFQ_HEADER_MAPPING.model } };
         }
@@ -67,13 +78,18 @@ export function createOdooAdapter(): OdooGateway {
         const partner = await resolveOrCreatePartner(config, input.contact);
 
         // 3. Create the crm.lead. Never write opportunity_no (see
-        //    mapping.ts) — Odoo assigns it automatically on create.
+        //    mapping.ts) — Odoo assigns it automatically on create. Setting
+        //    x_website_rfq_reference here is both the staff-visible
+        //    reference and the idempotency guard (step 1) in one write — no
+        //    separate registration call is needed (contrast the old
+        //    ir.model.data design, which needed a second create()).
         const summary = buildRfqSummary(input);
         const createVals: Record<string, unknown> = {
           name: `[${input.referenceNumber}] ${input.contact.companyName || input.contact.fullName} — Website RFQ`,
           type: RFQ_HEADER_MAPPING.type,
           description: summary,
           contact_name: input.contact.fullName,
+          [RFQ_REFERENCE_MAPPING.field]: input.referenceNumber,
         };
         if (partner) createVals.partner_id = partner.id;
         if (input.contact.email) createVals.email_from = input.contact.email;
@@ -91,29 +107,19 @@ export function createOdooAdapter(): OdooGateway {
           return { status: "failed", reasonCode: "ODOO_CREATE_RETURNED_NO_ID" };
         }
 
-        // 4. Register the idempotency guard for future redeliveries.
-        await callOdoo(config, {
-          model: "ir.model.data",
-          method: "create",
-          kwargs: {
-            vals_list: [
-              {
-                module: RFQ_REFERENCE_MAPPING.externalIdModule,
-                name: externalName,
-                model: RFQ_HEADER_MAPPING.model,
-                res_id: leadId,
-                noupdate: true,
-              },
-            ],
-          },
-        });
-
         return {
           status: "synced",
           lead: { id: leadId, model: RFQ_HEADER_MAPPING.model },
           ...(partner ? { partner } : {}),
         };
       } catch (err) {
+        // A concurrent redelivery losing the race against the UNIQUE
+        // constraint above lands here as a 4xx ODOO_REQUEST_REJECTED
+        // "failed" result — never a false "synced". lib/queue/consumer.ts
+        // marks the RFQ `retry`; the next delivery's step-1 lookup finds
+        // the winning side's row and returns `synced` correctly. No special
+        // constraint-violation handling is needed for correctness, same as
+        // the ir.model.data design this replaces.
         return { status: "failed", reasonCode: classifyOdooError(err) };
       }
     },
@@ -176,19 +182,16 @@ async function resolveOrCreatePartner(config: OdooClientConfig, contact: OdooCon
   return { id, model: PARTNER_MAPPING.model };
 }
 
-async function findExternalId(config: OdooClientConfig, name: string): Promise<number | null> {
+async function findLeadByWebsiteReference(config: OdooClientConfig, referenceNumber: string): Promise<number | null> {
   const matches = (await callOdoo(config, {
-    model: "ir.model.data",
+    model: RFQ_HEADER_MAPPING.model,
     method: "search_read",
     kwargs: {
-      domain: [
-        ["module", "=", RFQ_REFERENCE_MAPPING.externalIdModule],
-        ["name", "=", name],
-      ],
-      fields: ["res_id"],
+      domain: [[RFQ_REFERENCE_MAPPING.field, "=", referenceNumber]],
+      fields: ["id"],
     },
-  })) as Array<{ res_id: number }>;
-  return matches[0]?.res_id ?? null;
+  })) as Array<{ id: number }>;
+  return matches[0]?.id ?? null;
 }
 
 function buildRfqSummary(input: OdooRfqInput): string {

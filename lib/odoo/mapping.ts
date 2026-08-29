@@ -7,6 +7,14 @@
  * search for any existing RFQ/request/inquiry model). Nothing here is
  * carried over unverified from the pre-audit provisional table.
  *
+ * Updated 2026-08-29 (DAR-027, staging connectivity provisioning):
+ * RFQ_REFERENCE_MAPPING was redesigned from the ir.model.data mechanism
+ * DAR-026 verified to a dedicated crm.lead field + real Postgres UNIQUE
+ * constraint, specifically to avoid granting the integration user
+ * `base.group_erp_manager`. See RFQ_REFERENCE_MAPPING below and
+ * odoo-modules/ahanassa_website_rfq/ for the full rationale and live
+ * verification trail.
+ *
  * Centralized per 01-sources/DATA_ARCHITECTURE(1).md §21 ("Do not
  * hardcode these mappings across the application") — lib/odoo/adapter.ts
  * is the only file that should import from here.
@@ -32,6 +40,7 @@ export const VERIFIED_INSTALLED_MODULES = [
   "cyan_crm_reference_account",
   "cyan_crm_reference_sale",
   "ahanassa_weekly_backup", // custom: unrelated to this integration (backup tooling)
+  "ahanassa_website_rfq", // custom: this project's own module (odoo-modules/ahanassa_website_rfq); installed 2026-08-29, DAR-027 — see RFQ_REFERENCE_MAPPING
 ] as const;
 
 /**
@@ -119,11 +128,11 @@ export const RFQ_HEADER_MAPPING = {
     email: "email_from",
     phone: "phone",
     description: "description", // HTML; human-readable RFQ summary only, see RFQ_LINE_MAPPING
-    teamId: "team_id", // OPEN — see below
+    teamId: "team_id", // RESOLVED for staging — see below
   },
   openDecisions: {
     teamId:
-      'crm.team "Website" (id verified to exist) is INACTIVE in the live database; crm.team "Sales" is the only currently-active team. Reactivating "Website" or explicitly choosing "Sales" is an Odoo configuration decision, not something Stage A read-only discovery or this adapter may decide silently. ODOO_CRM_TEAM_ID is left unset by default — when unset, team_id is omitted from the create call and Odoo applies its own default assignment for the integration user. Set it only after the owner/Odoo admin confirms which team should own website RFQs.',
+      'RESOLVED for staging, 2026-08-29 (DAR-027): crm.team "Website" (id 2) remains INACTIVE and was not reactivated per this task\'s explicit instruction; crm.team "Sales" (id 1, verified active) was configured as ODOO_CRM_TEAM_ID for the staging Cloudflare Worker (wrangler.jsonc env.staging.vars). getOdooCrmTeamId() (adapter.ts) still treats this as optional config — when unset, team_id is omitted and Odoo applies its own default. Revisit only if the owner later wants a dedicated "Website" pipeline reactivated.',
     leadVsOpportunity:
       'This database has never used crm.lead.type="lead" (only "opportunity", and only 1 record total) — it is unclear whether this business intentionally skips the Leads pipeline stage or whether Leads simply are not yet enabled as a feature. Defaulting to "opportunity" matches observed usage; revisit if the owner enables a Leads-first qualification workflow.',
   },
@@ -154,52 +163,49 @@ export const RFQ_LINE_MAPPING = {
 } as const;
 
 /**
- * Public RFQ reference + idempotency — RESOLVED via a native mechanism
- * plus a documented custom-field follow-up.
+ * Public RFQ reference + idempotency — RESOLVED via a dedicated custom
+ * field, deployed 2026-08-29 (DAR-027, supersedes the earlier
+ * ir.model.data-based design below).
  *
- * Verified: crm.lead and res.partner have ZERO `x_...` custom fields (a
- * direct `ir_model_fields` query for `name LIKE 'x_%'` on both models
- * returned 0 rows) — there is no existing field to hold the website's
- * AA-RFQ-... reference or a raw idempotency key. `opportunity_no` cannot
- * be (ab)used — see RFQ_HEADER_MAPPING above.
+ * History: the first verified design (DAR-026, 2026-08-28) used Odoo's
+ * native `ir_model_data` external-ID table (a real UNIQUE index on
+ * (module, name)) since crm.lead/res.partner had zero `x_...` custom
+ * fields at the time. That design was abandoned before any credential was
+ * issued: in this install, only `base.group_erp_manager` ("Access
+ * Rights") grants any access to `ir.model.data`, and that group also
+ * grants full CRUD (including unlink) on 28 other technical/admin models
+ * (res.groups, ir.model.access, ir.model.fields, res.users, res.company,
+ * ...) — a disproportionate blast radius for a website-integration API
+ * key whose only real need was one narrow idempotency check.
  *
- * Verified native mechanism: `ir_model_data` has a real UNIQUE index on
- * (module, name) — `ir_model_data_module_name_uniq_index` — confirmed via
- * `pg_indexes`. This is Odoo's own external-ID system (the same
- * mechanism XML data files and import tooling use for idempotent
- * upsert). Using module="ahanassa_website", name=`rfq_<localRfqId>` gives
- * a genuinely idempotent, uniquely-constrained, zero-schema-change
- * lookup: "does a lead already exist for this RFQ?" — safe under
- * Cloudflare Queues' at-least-once redelivery even if the D1-side
- * `integration_mappings` check (the primary guard, already implemented in
- * lib/queue/consumer.ts) were ever bypassed by a partial failure.
+ * Current design: `odoo-modules/ahanassa_website_rfq` (deployed and
+ * installed live, verified via `pg_constraint`) adds
+ * `crm.lead.x_website_rfq_reference` (Char, readonly, indexed) with a
+ * real Postgres UNIQUE constraint (`crm_lead_uniq_x_website_rfq_reference`
+ * — Odoo 19 uses `models.Constraint`, not the deprecated
+ * `_sql_constraints` list; see that module's README for the live
+ * confirmation trail). The adapter sets this field to the website's public
+ * `AA-RFQ-...` reference at create time and searches on it first — same
+ * idempotency guarantee strength as the old ir_model_data design (a real
+ * DB-level UNIQUE constraint, safe under Cloudflare Queues' at-least-once
+ * redelivery even if the D1-side `integration_mappings` check, the
+ * primary guard in lib/queue/consumer.ts, were ever bypassed by a partial
+ * failure) — but the integration user only needs ordinary
+ * `sales_team.group_sale_salesman`-level crm.lead access to use it, no
+ * elevated technical group.
  *
- * Limitation, documented rather than hidden: ir_model_data is not
- * surfaced in the normal CRM UI (only visible via Settings → Technical →
- * External Identifiers, developer mode). It satisfies "searchable" and
- * "suitable for idempotent lookup" but NOT "visible to sales staff" on
- * its own — the adapter also embeds the reference in the human-visible
- * `name` (title) and `description` fields as a readable, though not
- * uniquely-constrained, staff-visible copy.
- *
- * Recommended follow-up (not built in this pass — do not build without
- * separate approval, per the task's Custom Odoo Module Decision
- * section): a tiny module (concept name `ahanassa_website_rfq`) adding a
- * single field `crm.lead.x_website_rfq_reference` (Char, unique,
- * indexed, readonly-after-set) purely for staff-facing search — the
- * ir_model_data mechanism below remains sufficient for correctness
- * without it.
+ * Improvement over the old design: this field IS staff-visible/searchable
+ * in the normal CRM UI (a real crm.lead field, not a Developer-Mode-only
+ * technical table), not just embedded as unstructured text in `name`/
+ * `description` as the old design's documented fallback required.
  */
 export const RFQ_REFERENCE_MAPPING = {
-  status: "RESOLVED — native ir.model.data external-ID mechanism, verified",
-  externalIdModule: "ahanassa_website",
-  externalIdName: (localRfqId: string) => `rfq_${localRfqId}`,
-  staffVisibleFallback: "Reference embedded in crm.lead.name and crm.lead.description (readable, not uniquely constrained).",
-  futureCustomField: {
-    proposedModule: "ahanassa_website_rfq",
-    proposedField: "x_website_rfq_reference (crm.lead, Char, unique, indexed, readonly-after-set)",
-    justification: "Staff-facing exact search/filter by the website's AA-RFQ-... reference without Developer Mode.",
-  },
+  status: "RESOLVED — dedicated crm.lead field + Postgres UNIQUE constraint, verified live 2026-08-29 (DAR-027)",
+  model: RFQ_HEADER_MAPPING.model,
+  field: "x_website_rfq_reference",
+  module: "ahanassa_website_rfq",
+  constraintName: "crm_lead_uniq_x_website_rfq_reference",
+  staffVisibleFallback: "Reference also embedded in crm.lead.name and crm.lead.description as readable (non-constrained) text, same as before.",
 } as const;
 
 /** Products/variants/UOM — verified installed (product, uom) but out of scope: this task is RFQ-only, not catalog sync. Recorded for completeness only, not used by the adapter. */
