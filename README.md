@@ -85,3 +85,15 @@ Read-only JSON-2 connectivity was verified end-to-end (real HTTPS, real bearer a
 
 For local manual testing of the full widget flow, put Cloudflare's official always-passing Turnstile test site key in your own untracked `.env.local` (`NEXT_PUBLIC_TURNSTILE_SITE_KEY`) and the matching test secret (`TURNSTILE_SECRET_KEY`) — see [Cloudflare's Turnstile testing docs](https://developers.cloudflare.com/turnstile/troubleshooting/testing/). Never commit either value.
 
+## Production infrastructure readiness (DAR-031, 2026-08-29)
+
+**Production is not provisioned.** Only `local` (unnamed/default `wrangler.jsonc` config, non-functional placeholders) and `staging` (`env.staging`, real Cloudflare resources) exist today. No `env.production` block, no production D1/Queue/DLQ/Worker/R2/Turnstile widget exists in this Cloudflare account — verified via read-only `wrangler d1 list` / `queues list` / `r2 bucket list` / `deployments list` / `turnstile widget list`, not assumed.
+
+**The most important open item is data jurisdiction.** Staging's D1 database landed in `WEUR` only because that's Cloudflare's automatic default placement at creation time — it is explicitly **not** a chosen production residency policy (reaffirmed from DAR-024/`CUSTOMER_PORTAL.md` §11). D1/R2 jurisdiction (`eu` vs automatic — Cloudflare's jurisdiction feature, distinct from a location hint) can only be set at creation and cannot change afterward, so this must be decided *before* the production database is created, not after. `DOCUMENT_AUDIT_REPORT.md` DAR-031 lays out both options with a technical recommendation (EU jurisdiction) and explicitly returns the actual decision to the project owner — no production D1/R2 resource has been created.
+
+**The legacy site is still live and unaffected.** `ahanassa.com`/`www.ahanassa.com` currently resolve through Cloudflare DNS (DNS-only, not proxied) to a live, actively-served Vercel/Next.js deployment (verified via `dig`/`curl -I`, both read-only). This repository's Cloudflare Worker has no route/custom domain attached to that zone. Cutover is a separate, explicit, future Deployment phase — not performed or scheduled by this entry.
+
+**Proposed production naming** (nothing created yet): Worker `ahanassa-production`, D1 `ahanassa-ops-production` (binding `DB_OPS`, brand-new database — never a promoted/renamed staging database), Queue `ahanassa-odoo-sync-production` + DLQ `ahanassa-odoo-sync-production-dlq`, `RFQ_RATE_LIMITER` binding with its own distinct namespace. Full naming table, provisioning runbook, secrets inventory, and Odoo-key/Turnstile/rate-limiter production gates: `DOCUMENT_AUDIT_REPORT.md` DAR-031.
+
+An unrelated R2 bucket, `ahanassa-odoo-backups`, exists in this Cloudflare account but is not referenced anywhere in this repository — it appears to be Odoo-server-side backup infrastructure provisioned independently of this codebase. Not touched, not adopted as a website bucket.
+
