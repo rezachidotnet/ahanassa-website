@@ -182,10 +182,23 @@ async function resolveOrCreatePartner(config: OdooClientConfig, contact: OdooCon
   return { id, model: PARTNER_MAPPING.model };
 }
 
+/**
+ * `active_test: false` is required here: Odoo's ORM implicitly adds
+ * `active = True` to every search domain on a model with an `active` field
+ * (`odoo/orm/models.py` `_search`, verified live in the container, DAR-028)
+ * unless the caller's context says otherwise. Without this, archiving a
+ * synced crm.lead (e.g. Odoo's own "Mark Lost" CRM action, which sets
+ * `active = False`) would make this idempotency lookup silently stop
+ * finding it — a later redelivery would then attempt `create()` again,
+ * which the real Postgres UNIQUE constraint would still reject (so no
+ * duplicate row can ever exist), but the RFQ would incorrectly land in
+ * `failed`/retry/DLQ instead of correctly resolving to `synced`.
+ */
 async function findLeadByWebsiteReference(config: OdooClientConfig, referenceNumber: string): Promise<number | null> {
   const matches = (await callOdoo(config, {
     model: RFQ_HEADER_MAPPING.model,
     method: "search_read",
+    context: { active_test: false },
     kwargs: {
       domain: [[RFQ_REFERENCE_MAPPING.field, "=", referenceNumber]],
       fields: ["id"],

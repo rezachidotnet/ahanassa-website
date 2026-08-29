@@ -57,6 +57,13 @@ export interface OdooCallParams {
   ids?: number[];
   /** Keyword arguments matching the target Python method's own parameter names — see file header. */
   kwargs?: Record<string, unknown>;
+  /**
+   * Odoo environment context (e.g. `{ active_test: false }` to include
+   * archived/inactive records in a search) — a top-level protocol field
+   * per the file header, distinct from `kwargs`. Omitted entirely when not
+   * needed, matching every existing call site's prior behavior exactly.
+   */
+  context?: Record<string, unknown>;
 }
 
 export class OdooRequestError extends Error {
@@ -84,6 +91,7 @@ export async function callOdoo(config: OdooClientConfig, params: OdooCallParams,
       },
       body: JSON.stringify({
         ids: params.ids ?? [],
+        ...(params.context ? { context: params.context } : {}),
         ...(params.kwargs ?? {}),
       }),
       signal: controller.signal,

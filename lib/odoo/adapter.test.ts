@@ -76,6 +76,19 @@ test("upsertRfq is idempotent: an existing lead matched by x_website_rfq_referen
   assert.deepEqual(calls[0].body.domain, [["x_website_rfq_reference", "=", baseInput.referenceNumber]]);
 });
 
+test("upsertRfq's idempotency lookup includes archived leads (active_test: false), so archiving a synced lead never breaks redelivery reuse", async () => {
+  // DAR-028: Odoo's ORM implicitly filters to active=True on any model with
+  // an `active` field unless context.active_test is explicitly false —
+  // verified live against odoo/orm/models.py `_search`. Without this, a
+  // "Mark Lost" archive action on the crm.lead would make this lookup miss
+  // it, and a later redelivery would incorrectly retry/fail instead of
+  // reusing the existing (archived) lead.
+  const calls = installMockFetch([{ status: 200, body: [{ id: 4242 }] }]);
+  const adapter = createOdooAdapter();
+  await adapter.upsertRfq(baseInput);
+  assert.deepEqual(calls[0].body.context, { active_test: false });
+});
+
 test("upsertRfq reuses an existing partner matched by normalized email instead of creating a duplicate", async () => {
   const calls = installMockFetch([
     { status: 200, body: [] }, // crm.lead lookup by x_website_rfq_reference: no existing sync
