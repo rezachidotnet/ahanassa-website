@@ -383,6 +383,39 @@ Per the project owner's instruction: an issue is **not** left `OPEN` merely beca
 
 **Remaining gaps, unaffected by this entry:** production D1/R2/Queue/Worker environment (DAR-024, still not provisioned — this test used staging only); attachment scanning (PROJECT_OVERRIDES.md §8); real Turnstile/rate-limiting (DAR-023); phone number publication (§7.2); `rfqs.odoo_partner_id` is never populated by the consumer (only `odoo_lead_id` is — `integration_mappings` likewise only records a `rfq` → `crm.lead` mapping, never a separate `contact` → `res.partner` mapping) — this is the implementation's existing, deliberate scope (RFQ-only mapping, per DAR-023's own "do not invent mappings" instruction) and does not affect the idempotency/duplicate-prevention guarantees proven above, since partner dedup is re-derived from Odoo's own `email_normalized` on every call rather than from a D1-side mapping; noted here for a future task, not treated as a defect of this one.
 
+### DAR-029 — Follow-up: the technical RFQ integration user was silently becoming each opportunity's Salesperson; fixed by explicitly clearing `user_id` on create (new, 2026-08-29)
+
+**Severity:** P2 — real business-architecture defect (wrong CRM ownership), not a data-integrity or duplicate-prevention defect
+**Status:** RESOLVED
+**Finding:** after DAR-028's live E2E test, live inspection of the created `crm.lead` (id 7) showed `user_id = 10` — the dedicated, non-human Odoo integration user (`website-rfq-integration@ahanassa.com`, DAR-027) — meaning that account had become the opportunity's own "Salesperson" (CRM owner), not merely its creator/API caller. This is not the intended business architecture: the integration identity is meant to create Website RFQs on Odoo's behalf, never to own them commercially.
+
+**Root cause, verified against live Odoo 19 source (read-only, `docker exec odoo-ahantorob`, `/usr/lib/python3/dist-packages/addons/crm/models/crm_lead.py:104-107`):**
+
+```python
+user_id = fields.Many2one(
+    'res.users', string='Salesperson', default=lambda self: self.env.user, ...)
+```
+
+`crm.lead.user_id`'s field-level default is `self.env.user` — i.e. **whichever account's API key made the `create()` call**. `lib/odoo/adapter.ts`'s `createVals` never set `user_id`, so this default silently applied every time, regardless of `team_id`. This is a base-Odoo ORM default, **not** a CRM team assignment rule and **not** something the adapter deliberately wrote. Ruled out explicitly: `crm_team` (id 1, "Sales") has no lead-assignment automation in this install (no `assignment_enabled` column exists on `crm_team` in this schema, no lead-scoring/assignment module is in `VERIFIED_INSTALLED_MODULES` — `lib/odoo/mapping.ts`); the integration user (id 10) is not even a `crm_team_member` of team 1 (only a real human, id 2, is). The only mechanism in play was the field default.
+
+**Fix (`lib/odoo/adapter.ts`, one line + comment):** `createVals.user_id = false` is now set explicitly on every `crm.lead` create, overriding the default rather than leaving it unset. Team assignment (`team_id = 1`, unchanged), stage (`stage_id` default "New", unchanged — not written by the adapter either way), and `x_website_rfq_reference` are all unaffected. **Real salesperson assignment remains a deliberate future decision** (an explicit staff workflow or team-assignment rule, once one is approved) — this fix only stops the technical account from silently claiming ownership by default; it does not assign anyone else, hard-code a human, or add any new assignment logic.
+
+**Regression test added (`lib/odoo/adapter.test.ts`):** "upsertRfq never lets the technical integration user become the opportunity's salesperson" — asserts `vals.user_id === false` on every `crm.lead.create` call. All 36 repo tests pass (was 35 — DAR-028 added one, this entry adds a second); `tsc --noEmit` clean; `npm run build` succeeds; `git diff --check` clean.
+
+**The existing DAR-028 synthetic lead (id 7) was deliberately NOT modified by this fix** — per this task's own explicit instruction not to touch the existing test record just to make the test look correct. It still shows `user_id = 10` and remains documented as such; only *future* Website RFQ creates are affected by this code change. Confirming the historical record's `user_id` on a future live-write test (not performed as part of this pass, to avoid an unnecessary additional production Odoo write) would show the corrected `user_id = false` state.
+
+**Environment naming, restated for clarity (unchanged from DAR-026/027, no rename performed or requested):**
+
+| Layer | Name | Note |
+|---|---|---|
+| Odoo/PostgreSQL database | `ahanassa` | The actual business database — `dbfilter = ^ahanassa$` |
+| Docker container | `odoo-ahantorob` | Legacy/historical container name only; does **not** indicate which tenant/database it serves — confirmed via the nginx reverse-proxy chain and `db_name` in its own `odoo.conf`, not the container's name |
+| Cloudflare D1 (staging) | `ahanassa-ops-staging` | Website-side operational database (`DB_OPS` binding), fully separate from Odoo's Postgres |
+
+No database, container, or D1 resource was renamed in this task.
+
+**Deliberately out of scope, per this task's own boundaries:** Customer Authentication, Customer Portal, Pricing, Product Sync, and any production infrastructure change. No Odoo ACL/group change. No new credential minted. No second live Odoo write performed to verify the fix against a fresh record (the fix's correctness is established via the field-default source verification above plus the passing regression test, consistent with DAR-028's own "validate via unit test when a further live write isn't necessary" pattern).
+
 ---
 
 ## 5. Missing referenced documents

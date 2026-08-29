@@ -109,6 +109,30 @@ test("upsertRfq reuses an existing partner matched by normalized email instead o
   assert.ok(!("opportunity_no" in leadCreateVals), "must never attempt to write Odoo's own permanent opportunity_no");
 });
 
+test("upsertRfq never lets the technical integration user become the opportunity's salesperson", async () => {
+  // DAR-029: crm.lead.user_id defaults to the authenticated API user
+  // (odoo/addons/crm/models/crm_lead.py `default=lambda self: self.env.user`,
+  // verified live) unless the create() payload explicitly overrides it. The
+  // adapter authenticates as the dedicated integration user, so an omitted
+  // user_id would silently make that technical account the opportunity's
+  // "Salesperson" — not the intended business architecture. Real
+  // salesperson assignment must remain an explicit staff/team decision,
+  // never a side effect of which account happened to call the API.
+  const calls = installMockFetch([
+    { status: 200, body: [] }, // crm.lead lookup by x_website_rfq_reference
+    { status: 200, body: [] }, // res.partner search_read: no match
+    { status: 200, body: [555] }, // res.partner create
+    { status: 200, body: [9005] }, // crm.lead create
+  ]);
+  const adapter = createOdooAdapter();
+  const result = await adapter.upsertRfq(baseInput);
+  assert.equal(result.status, "synced");
+  const createCall = calls.at(-1)!;
+  assert.match(createCall.url, /\/json\/2\/crm\.lead\/create$/);
+  const vals = (createCall.body.vals_list as Array<Record<string, unknown>>)[0];
+  assert.equal(vals.user_id, false, "user_id must be explicitly cleared, never left to Odoo's self.env.user default");
+});
+
 test("upsertRfq creates a new partner when no email match exists", async () => {
   const calls = installMockFetch([
     { status: 200, body: [] }, // crm.lead lookup by x_website_rfq_reference

@@ -90,6 +90,13 @@ export function createOdooAdapter(): OdooGateway {
           description: summary,
           contact_name: input.contact.fullName,
           [RFQ_REFERENCE_MAPPING.field]: input.referenceNumber,
+          // DAR-029: crm.lead.user_id defaults to `self.env.user` (odoo/addons/crm/models/crm_lead.py,
+          // verified live) — i.e. whoever's API key made this create() call. Left unset, this makes the
+          // technical integration user the opportunity's own "Salesperson", which is not the intended
+          // business architecture (this account creates RFQs, it does not own them). Explicitly clearing
+          // it to false suppresses that default; real salesperson assignment is a separate, explicit
+          // staff/team decision this adapter must never make on the integration user's own behalf.
+          user_id: false,
         };
         if (partner) createVals.partner_id = partner.id;
         if (input.contact.email) createVals.email_from = input.contact.email;
