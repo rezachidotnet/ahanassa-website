@@ -50,73 +50,18 @@ export interface IntegrationHealth {
 }
 
 /**
- * Raw Odoo `product.category` row shape, as returned by `search_read`
- * (only the fields this project's mapping actually reads — DOCUMENT_AUDIT_REPORT.md
- * DAR-033, lib/odoo/mapping.ts CATALOG_CATEGORY_MAPPING).
- */
-export interface OdooCatalogCategoryRow {
-  id: number;
-  name: string;
-  parent_id: [number, string] | false;
-  complete_name: string;
-  /** Odoo's ORM active-record default filter — omitted rows never appear unless queried with `active_test: false`. */
-  active: boolean;
-}
-
-/** Raw Odoo `product.template` row shape (never includes `list_price`/`standard_price` — pricing is out of scope). */
-export interface OdooCatalogProductRow {
-  id: number;
-  name: string;
-  default_code: string | false;
-  categ_id: [number, string] | false;
-  sale_ok: boolean;
-  active: boolean;
-  uom_id: [number, string] | false;
-  write_date: string;
-}
-
-/** Raw Odoo `product.product` row shape (never includes `lst_price`/`standard_price`). */
-export interface OdooProductVariantRow {
-  id: number;
-  product_tmpl_id: [number, string];
-  default_code: string | false;
-  active: boolean;
-  write_date: string;
-}
-
-/** Raw Odoo `uom.uom` row shape. `name` is JSON-translated in this install (verified: `{"en_US": "...", "fa_IR": "...", "ar_001": "..."}`); other locales may be absent. */
-export interface OdooUomRow {
-  id: number;
-  name: Partial<Record<"en_US" | "fa_IR" | "ar_001", string>> | string;
-  active: boolean;
-  /** Verified: this install's `uom.uom` has no classic `category_id` — units relate via `relative_uom_id`/`relative_factor` instead (DAR-033). */
-  relative_uom_id: number | false;
-}
-
-export type CatalogPullStatus = "pulled" | "not_configured" | "failed";
-
-export interface CatalogPullResult {
-  status: CatalogPullStatus;
-  categories: OdooCatalogCategoryRow[];
-  products: OdooCatalogProductRow[];
-  variants: OdooProductVariantRow[];
-  units: OdooUomRow[];
-  /** Safe operational reason code only, present when status !== "pulled" — never a raw provider error body. */
-  reasonCode?: string;
-}
-
-/**
- * Scoped to the RFQ sync path plus catalog discovery/pull
- * (DOCUMENT_AUDIT_REPORT.md DAR-033). The full canonical interface
- * (TECHNICAL_ARCHITECTURE.md §14.1) also declares `pullPublicPrices` for
- * the scheduled price sync — deliberately not implemented here; pricing is
- * an explicitly separate, not-yet-scoped concern (CLAUDE.md, this task's
- * own boundary).
+ * Catalog discovery/pull was REMOVED from this gateway (DOCUMENT_AUDIT_REPORT.md
+ * DAR-034), superseding DAR-033's `pullCatalog()`. That method used the
+ * generic JSON-2 `search_read` RPC transport (`callOdoo` below) against raw
+ * Odoo models — exactly the "generic Odoo ORM/model access" the now-live
+ * dedicated Odoo Public Catalog API v1 (docs/integrations/odoo/catalog-v1/)
+ * makes both unnecessary and architecturally forbidden for catalog data.
+ * All catalog sync now goes through `lib/catalog/odoo-api-client.ts`
+ * exclusively — a dedicated public HTTP client, not this generic gateway.
+ * This `OdooGateway` remains scoped to the RFQ sync path only.
  */
 export interface OdooGateway {
   upsertContact(input: OdooContactInput): Promise<OdooRef | null>;
   upsertRfq(input: OdooRfqInput): Promise<OdooRfqResult>;
   getHealth(): Promise<IntegrationHealth>;
-  /** Read-only. Never mutates Odoo. Returns empty arrays, never throws, when not configured — mirrors upsertRfq's `not_configured` honesty. */
-  pullCatalog(): Promise<CatalogPullResult>;
 }

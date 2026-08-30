@@ -48,6 +48,17 @@ export function getOdooConfig(): OdooConfig | null {
   return { baseUrl, database, apiKey };
 }
 
+/**
+ * Public Catalog API v1 base URL — the same Odoo host as `ODOO_BASE_URL`,
+ * reused rather than a new env var since this endpoint needs no credential
+ * (`auth=public`, docs/integrations/odoo/catalog-v1/PUBLIC_CATALOG_API_V1.md).
+ * Undefined until configured — never fabricated/hardcoded to a production
+ * hostname here.
+ */
+export function getOdooCatalogApiBaseUrl(): string | undefined {
+  return process.env.ODOO_BASE_URL || undefined;
+}
+
 /** Server-side Turnstile verification secret. Undefined until provisioned — see PROJECT_OVERRIDES.md §10. */
 export function getTurnstileSecret(): string | undefined {
   return process.env.TURNSTILE_SECRET_KEY || undefined;

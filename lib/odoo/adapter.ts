@@ -1,19 +1,7 @@
 import { getOdooConfig } from "../env.ts";
 import { callOdoo, OdooRequestError, type OdooClientConfig } from "./client.ts";
-import { CATALOG_CATEGORY_MAPPING, CATALOG_PRODUCT_MAPPING, PARTNER_MAPPING, PRODUCT_VARIANT_MAPPING, RFQ_HEADER_MAPPING, RFQ_REFERENCE_MAPPING, UOM_MAPPING } from "./mapping.ts";
-import type {
-  CatalogPullResult,
-  IntegrationHealth,
-  OdooCatalogCategoryRow,
-  OdooCatalogProductRow,
-  OdooContactInput,
-  OdooGateway,
-  OdooProductVariantRow,
-  OdooRef,
-  OdooRfqInput,
-  OdooRfqResult,
-  OdooUomRow,
-} from "./types.ts";
+import { PARTNER_MAPPING, RFQ_HEADER_MAPPING, RFQ_REFERENCE_MAPPING } from "./mapping.ts";
+import type { IntegrationHealth, OdooContactInput, OdooGateway, OdooRef, OdooRfqInput, OdooRfqResult } from "./types.ts";
 
 /**
  * Concrete OdooGateway implementation.
@@ -155,48 +143,6 @@ export function createOdooAdapter(): OdooGateway {
         return { configured: true };
       } catch (err) {
         return { configured: false, reasonCode: classifyOdooError(err) };
-      }
-    },
-
-    async pullCatalog(): Promise<CatalogPullResult> {
-      const config = getOdooConfig();
-      if (!config) {
-        return { status: "not_configured", reasonCode: "ODOO_CREDENTIALS_NOT_SET", categories: [], products: [], variants: [], units: [] };
-      }
-
-      // Read-only. Never mutates Odoo, never reads list_price/standard_price
-      // (CATALOG_PRODUCT_MAPPING.neverRead — pricing is out of scope). One
-      // failed call fails the whole pull rather than returning a partial,
-      // silently-incomplete catalog — `status` distinguishes "Odoo has zero
-      // rows" (a real `pulled` result with empty arrays, DAR-033's verified
-      // current state) from "the pull itself did not run" (`failed`), so a
-      // caller never mistakes the latter for the former.
-      try {
-        const [categories, products, variants, units] = await Promise.all([
-          callOdoo(config, {
-            model: CATALOG_CATEGORY_MAPPING.model,
-            method: "search_read",
-            kwargs: { domain: [], fields: ["name", "parent_id", "complete_name", "active"] },
-          }) as Promise<OdooCatalogCategoryRow[]>,
-          callOdoo(config, {
-            model: CATALOG_PRODUCT_MAPPING.model,
-            method: "search_read",
-            kwargs: { domain: [], fields: ["name", "default_code", "categ_id", "sale_ok", "active", "uom_id", "write_date"] },
-          }) as Promise<OdooCatalogProductRow[]>,
-          callOdoo(config, {
-            model: PRODUCT_VARIANT_MAPPING.model,
-            method: "search_read",
-            kwargs: { domain: [], fields: ["product_tmpl_id", "default_code", "active", "write_date"] },
-          }) as Promise<OdooProductVariantRow[]>,
-          callOdoo(config, {
-            model: UOM_MAPPING.model,
-            method: "search_read",
-            kwargs: { domain: [], fields: ["name", "active", "relative_uom_id"] },
-          }) as Promise<OdooUomRow[]>,
-        ]);
-        return { status: "pulled", categories, products, variants, units };
-      } catch (err) {
-        return { status: "failed", reasonCode: classifyOdooError(err), categories: [], products: [], variants: [], units: [] };
       }
     },
   };
