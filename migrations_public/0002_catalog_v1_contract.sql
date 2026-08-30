@@ -18,6 +18,27 @@
 -- anyway, so recreating an already-empty table is strictly simpler and
 -- equally safe.
 --
+-- ============================================================================
+-- WARNING FOR EVERY FUTURE MIGRATION IN THIS DIRECTORY (DAR-035, 2026-08-30):
+-- this DROP-and-recreate pattern was safe ONLY because these two tables
+-- were verified empty in every environment at the moment this migration was
+-- authored and applied. That is no longer true starting with DAR-035's real
+-- staging/production sync: `product_variants`/`catalog_products` now hold
+-- 237 real, synchronized Odoo Public Catalog API rows in BOTH
+-- `ahanassa-public-staging` and `ahanassa-public-production`, plus whatever
+-- website-owned editorial content (`name_fa`/`slug_fa`, and any
+-- `product_seo_contents` rows referencing them) accumulates on top of that
+-- data going forward. A future migration must NEVER copy this file's
+-- DROP TABLE approach against either table again — doing so would silently
+-- destroy real synchronized catalog data and any editorial work built on
+-- it. Any future schema change to these tables MUST use an additive
+-- pattern instead: `ALTER TABLE ... ADD COLUMN`, or — only if a
+-- column/constraint genuinely cannot be added in place — a new table
+-- created alongside the old one, with an explicit `INSERT INTO new_table
+-- SELECT ... FROM old_table` data-preserving copy step, verified row counts
+-- before the old table is ever dropped.
+-- ============================================================================
+--
 -- What changed and why (Stage B comparison):
 --   - Identity: the API returns no PostgreSQL/Odoo integer IDs at all
 --     ("Identity is product_variant_xid exposed as id ... no PostgreSQL IDs

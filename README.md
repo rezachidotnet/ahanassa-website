@@ -115,21 +115,34 @@ An unrelated R2 bucket, `ahanassa-odoo-backups`, exists in this Cloudflare accou
 
 **Before production traffic:** a distinct production Odoo API key; a production Turnstile widget + site/secret key pair; production secrets provisioned as Cloudflare Secrets; `wrangler deploy --env production` to its `*.workers.dev` URL first (never straight to a custom domain); a temporary smoke test; the controlled `ahanassa.com`/`www.ahanassa.com` DNS cutover (separate, explicit, owner-approved Deployment phase); post-cutover validation. Full runbook: `DOCUMENT_AUDIT_REPORT.md` DAR-031/DAR-032.
 
-## Product catalog: Odoo Public Catalog API v1 integration (DAR-033/DAR-034, 2026-08-30)
+## Product catalog: Odoo Public Catalog API v1 integration (DAR-033/034/035, 2026-08-30)
 
-**The Odoo Product Master is now populated and exposes a dedicated, read-only Public Catalog API** — `docs/integrations/odoo/catalog-v1/` holds the authoritative contract (`PUBLIC_CATALOG_API_V1.md`, `public_catalog_api_v1.openapi.yaml`, and the Odoo-side validation report). **This API — never Odoo PostgreSQL, never generic Odoo ORM access — is the sole integration boundary for catalog data.** `GET /api/v1/catalog/{products,products/<xid>,meta}`, `auth=public` (no credential needed), all other methods rejected with 405.
+**The Odoo Product Master is populated; a dedicated, read-only Public Catalog API is live; `DB_PUBLIC` is physically provisioned in both staging and production; and a real, complete, idempotent sync has been run against both.** `docs/integrations/odoo/catalog-v1/` holds the authoritative contract. **This API — never Odoo PostgreSQL, never generic Odoo ORM access — is the sole integration boundary for catalog data.** `GET /api/v1/catalog/{products,products/<xid>,meta}`, `auth=public` (no credential needed), all other methods rejected with 405.
 
-A real, complete sync was run end-to-end against the live API into local D1 as part of verifying this integration: **237/237 active variants synced, zero duplicates, replay produces zero additional writes (idempotent).** `migrations_public/0001_catalog_schema.sql`'s original `catalog_products`/`product_variants` design (written before any real data or API existed) didn't match the real contract (no integer IDs, no category master, flat classification codes, polymorphic dimension/weight shapes) and was corrected by `migrations_public/0002_catalog_v1_contract.sql` — see DAR-034 for the full comparison and the two documented drifts found between the API's own docs and its live behavior.
+### Catalog environment (real Cloudflare infrastructure, no Worker deployed)
 
-What exists: `lib/catalog/odoo-api-client.ts` (the dedicated HTTP client — pagination, `updated_since`, ETag/304, bounded timeout), `lib/catalog/sync.ts` (pure sync-planning logic), `lib/catalog/sync-runner.ts` (`runFullCatalogSync`/`runIncrementalCatalogSync`, not exposed as an HTTP route), `lib/catalog/repository.ts` (DB_PUBLIC reads + the sync's only write path). No `DB_PUBLIC` D1 database has been created in staging/production — local dev simulates it against a placeholder ID (same bootstrap pattern `DB_OPS` used before staging existed).
+| Resource | Name | UUID | Jurisdiction |
+|---|---|---|---|
+| D1 (staging) | `ahanassa-public-staging` | `35cef70f-3ad3-4049-add4-ddcac6cac45b` | none (automatic, matches `ahanassa-ops-staging`) |
+| D1 (production) | `ahanassa-public-production` | `73ba6b50-ef57-4d89-baa9-617a0b0af127` | `eu` (matches `ahanassa-ops-production` — `PROJECT_OVERRIDES.md` §14 is a project-wide policy, not DB_OPS-specific) |
+
+Both hold **237 real synchronized product variants, 13 templates, zero duplicates, `is_public = 0` on every row** (publication is a deliberate future editorial step — nothing is publicly visible). Proven against real remote infrastructure: idempotent replay (zero writes on an unchanged re-sync), incremental sync with an empty result safely leaves existing data untouched, and a live forced-update test confirmed website-owned `name_fa`/`slug_fa` survive a real commercial-field UPDATE. Full results: `DOCUMENT_AUDIT_REPORT.md` DAR-035.
+
+```bash
+npx wrangler d1 execute DB_PUBLIC --env staging --remote --command "SELECT ..."      # inspect real staging catalog data
+npx wrangler d1 execute DB_PUBLIC --env production --remote --command "SELECT ..."   # inspect real production catalog data
+```
+
+**A migration safety guardrail was added** to `migrations_public/0002_catalog_v1_contract.sql`: it was safe to `DROP TABLE`/recreate at the time it ran (verified empty everywhere), but now that both databases hold real synced data, **no future migration may ever reuse that pattern** — see the warning block at the end of that file for the required additive alternative.
+
+**Local dev** still works against a placeholder `DB_PUBLIC` (same bootstrap pattern `DB_OPS` used before staging existed):
 
 ```bash
 npx wrangler d1 migrations apply DB_PUBLIC --local        # apply the catalog schema to local D1 simulation
-echo "ODOO_BASE_URL=https://odoo.ahanassa.com" >> .env.local   # point local dev at the real, public, read-only catalog API
-# then, from a route or script: import { runFullCatalogSync } from "@/lib/catalog/sync-runner"
+echo "ODOO_BASE_URL=https://odoo.ahanassa.com" >> .env.local   # point local dev at the real, public, read-only catalog API — delete this file when done, it is not meant to be left around
 ```
 
-**`app/[locale]/products/**` still reads `lib/content/catalog-sample.ts`** (the existing, clearly-labeled, non-indexable sample dataset) — deliberately left unwired, even though real synced data now exists locally: every synced row still has `is_public = 0` (publication is a deliberate, not-yet-built editorial step) and no `DB_PUBLIC` binding exists in any deployed environment. The RFQ form's product dropdown (`lib/rfq/validation.ts`) is unchanged for the same reason — its existing catalog-selection-or-custom-item model already matches the desired future shape, no code change needed. Both are a one-line swap once (a) `DB_PUBLIC` is provisioned and (b) specific rows are editorially approved for publication.
+**`app/[locale]/products/**` still reads `lib/content/catalog-sample.ts`** (the existing, clearly-labeled, non-indexable sample dataset) — deliberately left unwired even though real, physically-provisioned data now exists in staging and production: every synced row still has `is_public = 0`, and no page/route reads from `DB_PUBLIC` yet. The RFQ form's product dropdown (`lib/rfq/validation.ts`) is unchanged for the same reason. Both are a one-line swap once specific rows are editorially approved for publication — not before.
 
-**Before this can serve real public pages:** a `DB_PUBLIC` D1 database provisioned in staging/production (deliberately not done by this pass); a scheduled sync trigger (Worker cron or an authenticated internal action — deliberately not wired up); the (separately out-of-scope) catalog editorial/CMS step that reviews an auto-created row's Odoo-sourced `nameFa`/`slugFa` bootstrap and produces approved `product_seo_contents`.
+**Before this can serve real public pages:** a scheduled sync trigger (Worker cron or an authenticated internal action — deliberately not wired up, see DAR-035 for a proposed cadence); the (separately out-of-scope) catalog editorial/CMS step that reviews an auto-created row's Odoo-sourced `commercialName`/slug bootstrap and produces approved `product_seo_contents`; then wiring `app/[locale]/products/**`/the RFQ dropdown to `DB_PUBLIC`. **Two Odoo-side API documentation gaps remain open** (undocumented `schedule`/`template_name` fields; `nominal_weight.kg_branch` in the docs vs. the live `per_branch`) — see DAR-034/035; do not build Product Detail UI around these fields' exact documented shape until Odoo's own documentation is corrected at its source.
 

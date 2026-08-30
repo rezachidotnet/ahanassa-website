@@ -174,7 +174,17 @@
 			"name": "ahanassa-production",
 			"images": { "binding": "IMAGES" },
 			"d1_databases": [
-				{ "binding": "DB_OPS", "database_name": "ahanassa-ops-production", "database_id": "7240a6a7-c293-4e6e-baf3-95838a3c2944", "migrations_dir": "migrations" }
+				{ "binding": "DB_OPS", "database_name": "ahanassa-ops-production", "database_id": "7240a6a7-c293-4e6e-baf3-95838a3c2944", "migrations_dir": "migrations" },
+				// Website Catalog read model (DOCUMENT_AUDIT_REPORT.md DAR-035).
+				// `wrangler d1 create ahanassa-public-production --jurisdiction eu`
+				// — verified `jurisdiction: eu`, `running_in_region: EEUR`, matching
+				// the DB_OPS production jurisdiction decision (PROJECT_OVERRIDES.md
+				// §14, which is not DB_OPS-specific — the same variable name and a
+				// parallel R2 invariant confirm a project-wide production data
+				// jurisdiction policy). Physically separate from DB_OPS — RFQ/
+				// contact/integration data never mixes with the public catalog
+				// projection.
+				{ "binding": "DB_PUBLIC", "database_name": "ahanassa-public-production", "database_id": "73ba6b50-ef57-4d89-baa9-617a0b0af127", "migrations_dir": "migrations_public" }
 			],
 			"queues": {
 				"producers": [{ "binding": "ODOO_SYNC_QUEUE", "queue": "ahanassa-odoo-sync-production" }],
@@ -205,7 +215,13 @@
 			"name": "ahanassa-bootstrap-staging",
 			"images": { "binding": "IMAGES" },
 			"d1_databases": [
-				{ "binding": "DB_OPS", "database_name": "ahanassa-ops-staging", "database_id": "49bd0aff-e289-4fff-b7b9-0f4b517e6b14", "migrations_dir": "migrations" }
+				{ "binding": "DB_OPS", "database_name": "ahanassa-ops-staging", "database_id": "49bd0aff-e289-4fff-b7b9-0f4b517e6b14", "migrations_dir": "migrations" },
+				// Website Catalog read model (DOCUMENT_AUDIT_REPORT.md DAR-035) —
+				// physically separate from DB_OPS (RFQ/contacts/integration data
+				// never mixes with the public catalog projection). No jurisdiction
+				// set — automatic default placement, same as ahanassa-ops-staging;
+				// staging placement is never production policy.
+				{ "binding": "DB_PUBLIC", "database_name": "ahanassa-public-staging", "database_id": "35cef70f-3ad3-4049-add4-ddcac6cac45b", "migrations_dir": "migrations_public" }
 			],
 			"queues": {
 				"producers": [{ "binding": "ODOO_SYNC_QUEUE", "queue": "ahanassa-odoo-sync-staging" }],

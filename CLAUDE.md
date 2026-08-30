@@ -105,13 +105,14 @@ Visitor / Search engine
         ↓
 Next.js App Router via vinext, on Cloudflare Workers + Static Assets
         ↓
-  (scaffolded, not yet implemented: D1, R2, Queues, Odoo adapter)
+  D1 (DB_OPS + DB_PUBLIC), Queues + DLQ, Odoo adapter — built, staging+production provisioned
+  (not yet built: R2, scheduled catalog sync, public catalog pages)
 ```
 
 - **Framework/adapter:** `vinext` + `@vinext/cloudflare`, driven by Vite (`@cloudflare/vite-plugin`, `@vitejs/plugin-rsc`). This is confirmed by the live scaffold, not merely preferred — see `PROJECT_OVERRIDES.md` §2 for why it supersedes older `@opennextjs/cloudflare` guidance.
-- **Deployment:** `wrangler` (`^4.126.0`), `wrangler.jsonc` already declares `assets`, `images`, and `cache` bindings; D1/R2/Queues bindings are not yet added.
+- **Deployment:** `wrangler` (`^4.126.0`), `wrangler.jsonc` declares `assets`, `images`, `cache`, `d1_databases` (`DB_OPS`, `DB_PUBLIC`), `queues`, and `ratelimits` bindings for `env.staging`/`env.production`; R2 bindings are not yet added.
 - **Do not** introduce Vercel, `@opennextjs/cloudflare`, or `@cloudflare/next-on-pages` — all three are explicitly superseded (`PROJECT_OVERRIDES.md` §2).
-- **Target architecture** (not yet built): D1 (two databases — `DB_PUBLIC`, `DB_OPS`), R2 (public media + private RFQ attachments), Queues + DLQ, server-only Odoo adapter. Full detail: `01-sources/TECHNICAL_ARCHITECTURE.md`, `01-sources/DATABASE_SCHEMA.md`.
+- **Current architecture, built and provisioned in both staging and production:** D1 (`DB_OPS` — RFQ/contacts/integration; `DB_PUBLIC` — Website Catalog read model, `DOCUMENT_AUDIT_REPORT.md` DAR-035), Queues + DLQ (RFQ→Odoo sync), a server-only Odoo adapter (RFQ path via JSON-2 RPC; catalog sync via the dedicated Odoo Public Catalog API v1, `docs/integrations/odoo/catalog-v1/` — never the same generic-ORM transport). **Not yet built:** R2 (public media + private RFQ attachments), a scheduled catalog sync trigger, public catalog pages/RFQ catalog-selector wiring. Full detail: `01-sources/TECHNICAL_ARCHITECTURE.md`, `01-sources/DATABASE_SCHEMA.md`.
 
 **System of record:** Odoo owns commercial truth (customers, CRM, products/variants/UOM, prices, quotations, sales). The website owns presentation, SEO, and RFQ intake. Public rendering must never synchronously depend on Odoo. An accepted RFQ must be durably persisted in D1 before Odoo sync — Odoo downtime must never lose a lead. Full detail: `PROJECT_OVERRIDES.md` §3, `01-sources/TECHNICAL_ARCHITECTURE.md` §5–§14.
 
