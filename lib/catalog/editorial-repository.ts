@@ -692,3 +692,70 @@ export async function listIndexableCatalogTemplateSlugs(locale: Locale): Promise
   const templates = await listPublishedCatalogTemplates(locale);
   return templates.filter((t) => t.seo.indexStatus === "index").map((t) => ({ slug: t.seo.slug, updatedAt: t.seo.updatedAt }));
 }
+
+// --- Catalog -> RFQ Variant Preselection (docs/CATALOG_RFQ_INTEGRATION.md) ---
+
+/**
+ * The canonical, server-resolved snapshot of a commercial Variant eligible
+ * for RFQ preselection — every field is Website-derived from DB_PUBLIC at
+ * the moment of resolution; a browser-supplied `product_variant_xid` is
+ * never trusted for anything beyond "which row to look up."
+ */
+export interface RfqCatalogSelection {
+  variantXid: string;
+  /** Stable template identity — never the mutable slug — for the `product_ref` snapshot column. */
+  templateXid: string;
+  sku: string;
+  /** The variant's own commercial size/spec string, e.g. "Ø16" or "10×1500×6000" — never a raw dimensions_json key. */
+  variantSpecLabel: string;
+  /** The published template's editorial title for this locale. */
+  productLabel: string;
+  templateSlug: string;
+  categoryCode: string | null;
+  categoryLabel: string | null;
+}
+
+/**
+ * A Variant is eligible for RFQ preselection under the exact same rule that
+ * makes it eligible to appear in its template's public specification table
+ * (docs/CATALOG_PUBLIC_ROUTES.md §5) — commercially active, explicitly
+ * public, AND belonging to a template that is itself currently
+ * published+approved for `locale`. A Variant never needs its own dedicated
+ * SEO page to be RFQ-selectable (this task's own "Important Publication
+ * Distinction"); it DOES need to belong to a real, currently-live product
+ * page — an archived, unpublished, or not-yet-editorially-approved template
+ * can never contribute an RFQ-selectable Variant, matching
+ * `evaluatePublicationEligibility`'s `visible` rule exactly, just applied to
+ * a specific variant xid instead of a slug lookup. Returns `null` for any
+ * unknown, malformed, archived, inactive, or not-currently-selectable xid —
+ * callers must never fabricate a fallback value on `null` (docs/CATALOG_RFQ_INTEGRATION.md
+ * §Invalid/stale XID).
+ */
+export async function resolveRfqCatalogVariant(variantXid: string, locale: Locale): Promise<RfqCatalogSelection | null> {
+  const db = getPublicDb();
+  const row = await db
+    .prepare(
+      `SELECT v.xid, v.sku, v.commercial_size, v.section_size, v.family_code, v.family_name, cp.template_xid, s.h1 as template_h1, s.slug as template_slug
+       FROM product_variants v
+       JOIN catalog_products cp ON cp.id = v.product_id
+       JOIN product_seo_contents s ON s.entity_type = 'product' AND s.entity_id = cp.id
+       WHERE v.xid = ? AND v.is_active = 1 AND v.is_public = 1
+         AND cp.is_active = 1 AND cp.is_public = 1
+         AND s.locale = ? AND s.content_quality_status = 'approved' AND s.published_at IS NOT NULL AND s.h1 IS NOT NULL`,
+    )
+    .bind(variantXid, locale)
+    .first<{ xid: string; sku: string; commercial_size: string | null; section_size: string | null; family_code: string | null; family_name: string | null; template_xid: string; template_h1: string; template_slug: string }>();
+
+  if (!row) return null;
+
+  return {
+    variantXid: row.xid,
+    templateXid: row.template_xid,
+    sku: row.sku,
+    variantSpecLabel: row.commercial_size ?? row.section_size ?? row.sku,
+    productLabel: row.template_h1,
+    templateSlug: row.template_slug,
+    categoryCode: row.family_code,
+    categoryLabel: row.family_name,
+  };
+}

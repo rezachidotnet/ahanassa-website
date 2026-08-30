@@ -185,3 +185,18 @@ node scripts/catalog-editorial.ts publish <template-xid> --locale fa --env stagi
 
 Live-verified end-to-end: environment/production write safeguards refuse an unsafe command before touching anything; the actual `/products` and `/products/{slug}` routes render the 3 pilot pages correctly (title, metadata, canonical, spec table, RFQ CTA, zero price/availability) against a local D1 mirror of the same real data; a real commercial sync against the live Odoo API updated one already-published pilot variant's commercial fields while leaving its publication state and editorial content byte-for-byte unchanged.
 
+## Catalog → RFQ Variant Preselection (DAR-039, 2026-08-30)
+
+**A visitor on a real published Catalog page can now select a real commercial Variant and continue into the existing RFQ form with it safely preselected — `product_variant_xid` is the canonical identity throughout, resolved against DB_PUBLIC both when the request page renders and again, independently, at submission time.** This extends the existing RFQ backend; it is not a second implementation. Canonical doc: `docs/CATALOG_RFQ_INTEGRATION.md`. Full audit trail: `DOCUMENT_AUDIT_REPORT.md` DAR-039.
+
+The `rfq_items` schema already had `source`/`*_ref`/`*_label` columns for exactly this (previously always `NULL`) — only one column was genuinely missing, added via a narrow additive migration:
+
+```bash
+npx wrangler d1 migrations apply DB_OPS --env staging --remote     # migrations/0002_rfq_catalog_snapshot.sql — adds rfq_items.sku_snapshot
+npx wrangler d1 migrations apply DB_OPS --env production --remote  # applied to both; 6/7 staging rows and 0/0 production rows preserved
+```
+
+Flow: Product page → a plain, server-rendered "Request this item" link per eligible Variant row (`components/products/variant-spec-table.tsx`, zero client JS) → `/{locale}/contact?variant=<xid>` → `app/[locale]/contact/page.tsx` resolves the xid server-side → `EnquiryForm` shows a locked-identity card (title/SKU/spec, removable, falls back to the normal custom-item fields) → on submit, `lib/rfq/service.ts` **re-resolves the xid against DB_PUBLIC independently** (never trusts the browser) before any D1 write, using the identical eligibility rule the public Catalog routes already use — a Variant never needs its own SEO page to be RFQ-selectable, but it does need to belong to a real, currently-published product page. An unknown/archived/unpublished/wrong-locale xid rejects the whole submission with a normal validation error — never a fabricated fallback.
+
+Real, live, local end-to-end proof (no deployment): using Cloudflare's own publicly documented Turnstile testing keys in a temporary, non-committed `.env.local` (deleted immediately after), a real `POST /api/rfqs` against the actual dev server correctly created a real RFQ with the canonical Catalog snapshot persisted (`variant_ref`, `product_ref`, `sku_snapshot`, labels), preserved idempotency on retry, rejected an unknown/non-public/wrong-locale xid, correctly persisted a mixed catalog+custom submission and a 2-catalog-item submission, and left the honeypot/Turnstile checks fully intact. Custom/free-text RFQ items are completely unaffected.
+

@@ -2,9 +2,9 @@ import { getOpsDb } from "@/lib/db/ops";
 import { ulid } from "@/lib/rfq/ulid";
 import { generateRfqReference } from "@/lib/rfq/reference";
 import { buildRfqCreatedEvent, tryPublishOutboxEvent } from "@/lib/queue/outbox";
-import type { ValidationResult } from "@/lib/rfq/validation";
+import type { RfqSubmissionRecord } from "@/lib/rfq/types";
 
-type ValidatedRfq = NonNullable<ValidationResult["value"]>;
+type ValidatedRfq = RfqSubmissionRecord;
 
 export interface CreateRfqResult {
   reference: string;
@@ -89,22 +89,29 @@ export async function createRfq(
               `INSERT INTO rfq_items (
                 id, rfq_id, line_number, source, category_ref, product_ref, variant_ref, unit_ref,
                 category_label, product_label, variant_label, unit_label, freeform_title, size_text,
-                quantity_text, quantity_value, quantity_scale, description, resolution_status, created_at, updated_at
-              ) VALUES (?, ?, ?, ?, NULL, NULL, NULL, NULL, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, 'not_applicable', ?, ?)`,
+                quantity_text, quantity_value, quantity_scale, description, sku_snapshot, resolution_status, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'not_applicable', ?, ?)`,
             )
             .bind(
               ulid(),
               rfqId,
               index + 1,
               item.source,
+              item.categoryRef,
+              item.productRef,
+              item.variantRef,
+              item.unitRef,
               item.categoryLabel,
               item.productLabel,
+              item.variantLabel,
+              item.unitLabel,
               item.freeformTitle,
               item.sizeText,
               item.quantityText,
               item.quantityValue,
               item.quantityScale,
               item.description,
+              item.skuSnapshot,
               now,
               now,
             ),

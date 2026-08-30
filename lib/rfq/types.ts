@@ -10,6 +10,16 @@ import type { Locale } from "@/config/locales";
  * more than one line without a backend change.
  */
 export interface RfqItemInput {
+  /**
+   * Real Catalog commercial identity (`product_variant_xid`) — Catalog ->
+   * RFQ Variant Preselection, DOCUMENT_AUDIT_REPORT.md DAR-039,
+   * docs/CATALOG_RFQ_INTEGRATION.md. Advisory only: the client sends
+   * nothing else Catalog-related (no name/grade/dimensions/SKU/UOM) — the
+   * server resolves every displayable/persisted field itself from
+   * DB_PUBLIC at submission time. Mutually exclusive with `productSlug`/
+   * `freeformTitle`; when present, those two are ignored.
+   */
+  catalogVariantXid?: string;
   /** Sample-catalog product slug, or "other" — never treated as a real catalog/product ID (CLAUDE.md §11, DAR-020). */
   productSlug?: string;
   /** Human-readable product name snapshot, required when productSlug is absent or "other". */
@@ -19,6 +29,51 @@ export interface RfqItemInput {
   /** Raw customer-entered quantity, e.g. "200 تن". Required — the approved form always collects this as free text. */
   quantityText: string;
   description?: string;
+}
+
+/**
+ * The final, fully-resolved shape of one RFQ line ready for D1 persistence
+ * — produced by `lib/rfq/service.ts` after format validation (lib/rfq/validation.ts)
+ * and, for a Catalog-linked item, real DB_PUBLIC resolution
+ * (lib/catalog/editorial-repository.ts#resolveRfqCatalogVariant). Every
+ * field here is either server-derived-and-trusted or a plain customer-typed
+ * string — never a raw, unvalidated client value. This is what
+ * `lib/rfq/repository.ts#createRfq` actually persists into `rfq_items`; it
+ * is intentionally a distinct, richer type from `RfqItemInput` (the wire
+ * payload) and from `ValidationResult`'s item shape (format-checked only,
+ * not yet Catalog-resolved).
+ */
+export interface RfqItemRecord {
+  source: "selected" | "freeform";
+  categoryRef: string | null;
+  productRef: string | null;
+  variantRef: string | null;
+  unitRef: string | null;
+  categoryLabel: string | null;
+  productLabel: string | null;
+  variantLabel: string | null;
+  unitLabel: string | null;
+  freeformTitle: string | null;
+  sizeText: string | null;
+  quantityText: string;
+  quantityValue: number | null;
+  quantityScale: number | null;
+  description: string | null;
+  /** Canonical SKU snapshot at submission time — always server-resolved, never the (nonexistent) client-supplied value; null for a freeform item. */
+  skuSnapshot: string | null;
+}
+
+/** Header fields (already format-validated) + fully-resolved items — the exact shape `lib/rfq/repository.ts#createRfq` accepts. */
+export interface RfqSubmissionRecord {
+  idempotencyKey: string;
+  locale: Locale;
+  fullName: string;
+  companyName: string;
+  email: string;
+  phone: string | null;
+  deliveryLocation: string | null;
+  message: string | null;
+  items: RfqItemRecord[];
 }
 
 export interface RfqSubmissionInput {

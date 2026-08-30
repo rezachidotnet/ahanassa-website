@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Script from "next/script";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { categories, sampleProducts } from "@/lib/content/catalog-sample";
 import type { Locale } from "@/config/locales";
 import type { RfqResponse } from "@/lib/rfq/types";
+import type { RfqCatalogSelection } from "@/lib/catalog/editorial-repository";
 import { TURNSTILE_RFQ_ACTION } from "@/lib/security/turnstile-action";
 
 /**
@@ -23,6 +25,18 @@ import { TURNSTILE_RFQ_ACTION } from "@/lib/security/turnstile-action";
  * PROJECT_OVERRIDES.md §10), the widget simply isn't rendered; submission
  * still goes through the real API, which fails closed with a "temporary
  * service" error rather than silently skipping verification server-side.
+ *
+ * Catalog -> RFQ Variant Preselection (DOCUMENT_AUDIT_REPORT.md DAR-039,
+ * docs/CATALOG_RFQ_INTEGRATION.md): `catalogPreselection`, when present, is
+ * an already server-resolved (`app/[locale]/contact/page.tsx`) real Catalog
+ * Variant — every label shown here is Website-derived data, never a raw URL
+ * value. Selecting it replaces the sample-catalog dropdown with a locked-
+ * identity block (title/SKU/spec are read-only; quantity/notes stay
+ * editable, and the visitor can remove it to fall back to a normal custom
+ * item). The single-item shape of this form is unchanged — the backend
+ * already accepts up to MAX_ITEMS=20 items per submission, so a future
+ * multi-line "add another item" UI needs no backend change, only a richer
+ * form (deliberately not built in this pass — see docs/CATALOG_RFQ_INTEGRATION.md).
  */
 
 interface TurnstileRenderOptions {
@@ -56,6 +70,8 @@ const copy: Record<
     successTitle: string; successBody: (reference: string) => string; again: string;
     validationError: string; networkError: string; rateLimited: string;
     verificationError: string; serviceUnavailable: string;
+    catalogItemTitle: string; catalogItemSku: string; catalogItemCategory: string; catalogItemRemove: string;
+    catalogItemQuantity: string; catalogPreselectionInvalid: string;
   }
 > = {
   fa: {
@@ -74,6 +90,12 @@ const copy: Record<
     rateLimited: "درخواست‌های زیادی ارسال شده است. کمی بعد دوباره تلاش کنید.",
     verificationError: "تأیید ناموفق بود. لطفاً دوباره تلاش کنید.",
     serviceUnavailable: "امکان تأیید درخواست در حال حاضر وجود ندارد. لطفاً کمی بعد دوباره تلاش کنید.",
+    catalogItemTitle: "قلم انتخاب‌شده از کاتالوگ",
+    catalogItemSku: "کد کالا",
+    catalogItemCategory: "گروه کالایی",
+    catalogItemRemove: "حذف و ورود دستی مشخصات",
+    catalogItemQuantity: "مقدار درخواستی",
+    catalogPreselectionInvalid: "قلم انتخاب‌شده از کاتالوگ دیگر برای انتخاب در دسترس نیست. می‌توانید نیاز خود را به‌صورت دستی شرح دهید.",
   },
   en: {
     name: "Full name", company: "Company", email: "Work email", phone: "Phone",
@@ -91,6 +113,12 @@ const copy: Record<
     rateLimited: "Too many requests. Please try again shortly.",
     verificationError: "Verification failed. Please try again.",
     serviceUnavailable: "Verification is temporarily unavailable. Please try again shortly.",
+    catalogItemTitle: "Selected catalog item",
+    catalogItemSku: "SKU",
+    catalogItemCategory: "Category",
+    catalogItemRemove: "Remove and describe manually",
+    catalogItemQuantity: "Requested quantity",
+    catalogPreselectionInvalid: "The selected catalog item is no longer available for selection. You can still describe your requirement manually.",
   },
   ar: {
     name: "الاسم الكامل", company: "الشركة", email: "البريد الإلكتروني للعمل", phone: "الهاتف",
@@ -108,6 +136,12 @@ const copy: Record<
     rateLimited: "عدد كبير جدًا من الطلبات. يرجى المحاولة لاحقًا.",
     verificationError: "فشل التحقق. يرجى المحاولة مرة أخرى.",
     serviceUnavailable: "التحقق غير متاح مؤقتًا. يرجى المحاولة لاحقًا.",
+    catalogItemTitle: "الصنف المحدد من الكتالوج",
+    catalogItemSku: "رمز المنتج",
+    catalogItemCategory: "الفئة",
+    catalogItemRemove: "إزالة والإدخال اليدوي",
+    catalogItemQuantity: "الكمية المطلوبة",
+    catalogPreselectionInvalid: "الصنف المحدد من الكتالوج لم يعد متاحًا للاختيار. لا يزال بإمكانك وصف احتياجك يدويًا.",
   },
 };
 
@@ -122,12 +156,25 @@ function generateIdempotencyKey(): string {
   return `key-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export function EnquiryForm({ locale, turnstileSiteKey }: { locale: Locale; turnstileSiteKey?: string }) {
+export function EnquiryForm({
+  locale,
+  turnstileSiteKey,
+  catalogPreselection = null,
+  catalogPreselectionInvalid = false,
+}: {
+  locale: Locale;
+  turnstileSiteKey?: string;
+  /** Already server-resolved by app/[locale]/contact/page.tsx — every field here is real Website-derived Catalog data, never a raw URL value (docs/CATALOG_RFQ_INTEGRATION.md). */
+  catalogPreselection?: RfqCatalogSelection | null;
+  /** True when a `?variant=` was present in the URL but did not resolve to a real, currently RFQ-eligible Variant. */
+  catalogPreselectionInvalid?: boolean;
+}) {
   const [status, setStatus] = useState<Status>("idle");
   const [reference, setReference] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileScriptLoaded, setTurnstileScriptLoaded] = useState(false);
+  const [catalogItem, setCatalogItem] = useState<RfqCatalogSelection | null>(catalogPreselection);
   const idempotencyKeyRef = useRef(generateIdempotencyKey());
   const formRenderedAtRef = useRef(Date.now());
   const turnstileContainerRef = useRef<HTMLDivElement>(null);
@@ -171,7 +218,24 @@ export function EnquiryForm({ locale, turnstileSiteKey }: { locale: Locale; turn
 
     const form = e.currentTarget;
     const data = new FormData(form);
-    const productValue = String(data.get("product") ?? "");
+
+    // Catalog identity, when a Variant is selected, always wins — the
+    // hidden product/grade fields (unmounted, not just visually hidden,
+    // while catalogItem is set) never contribute to the payload
+    // (docs/CATALOG_RFQ_INTEGRATION.md — "never an invalid hybrid"). Only
+    // the stable product_variant_xid is sent; nothing else Catalog-related
+    // is ever read from client state.
+    const item = catalogItem
+      ? { catalogVariantXid: catalogItem.variantXid, quantityText: String(data.get("quantity") ?? "") }
+      : (() => {
+          const productValue = String(data.get("product") ?? "");
+          return {
+            productSlug: productValue && productValue !== "other" ? productValue : undefined,
+            freeformTitle: productValue === "other" ? t.other : undefined,
+            gradeOrStandard: String(data.get("grade") ?? "") || undefined,
+            quantityText: String(data.get("quantity") ?? ""),
+          };
+        })();
 
     const payload = {
       idempotencyKey: idempotencyKeyRef.current,
@@ -182,14 +246,7 @@ export function EnquiryForm({ locale, turnstileSiteKey }: { locale: Locale; turn
       phone: String(data.get("phone") ?? "") || undefined,
       deliveryLocation: String(data.get("destination") ?? "") || undefined,
       message: String(data.get("message") ?? "") || undefined,
-      items: [
-        {
-          productSlug: productValue && productValue !== "other" ? productValue : undefined,
-          freeformTitle: productValue === "other" ? t.other : undefined,
-          gradeOrStandard: String(data.get("grade") ?? "") || undefined,
-          quantityText: String(data.get("quantity") ?? ""),
-        },
-      ],
+      items: [item],
       website: String(data.get("website") ?? ""),
       formRenderedAt: formRenderedAtRef.current,
       turnstileToken: turnstileToken ?? undefined,
@@ -301,27 +358,70 @@ export function EnquiryForm({ locale, turnstileSiteKey }: { locale: Locale; turn
         </div>
       </div>
 
+      {catalogPreselectionInvalid && !catalogItem && (
+        <p role="status" className="border-[var(--aa-color-warning-800)] bg-[var(--aa-color-warning-50)] text-[var(--aa-color-warning-800)] border px-5 py-3 text-sm leading-relaxed">
+          {t.catalogPreselectionInvalid}
+        </p>
+      )}
+
       <div className="grid gap-6 sm:grid-cols-2">
-        <div className="grid gap-2">
-          <label className={label} htmlFor="product">{t.product}</label>
-          <select id="product" name="product" required disabled={submitting} className={field} defaultValue="">
-            <option value="" disabled>{t.productPlaceholder}</option>
-            {categories.map((c) => (
-              <optgroup key={c.id} label={c.label}>
-                {sampleProducts.filter((p) => p.category === c.id).map((p) => (
-                  <option key={p.slug} value={p.slug}>{p.name}</option>
+        {catalogItem ? (
+          <div className="border-navy bg-surface col-span-full border p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="eyebrow text-copper">{t.catalogItemTitle}</p>
+                <p className="text-navy mt-2 text-base font-bold">{catalogItem.productLabel}</p>
+                <dl className="text-muted-foreground mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+                  <div className="flex gap-1.5">
+                    <dt className="font-semibold">{t.catalogItemSku}:</dt>
+                    <dd dir="ltr">{catalogItem.sku}</dd>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <dt className="font-semibold">{catalogItem.variantSpecLabel}</dt>
+                  </div>
+                  {catalogItem.categoryLabel && (
+                    <div className="flex gap-1.5">
+                      <dt className="font-semibold">{t.catalogItemCategory}:</dt>
+                      <dd>{catalogItem.categoryLabel}</dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCatalogItem(null)}
+                disabled={submitting}
+                className="text-muted-foreground hover:text-navy inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold transition-colors disabled:opacity-60"
+              >
+                <X className="size-3.5" aria-hidden="true" />
+                {t.catalogItemRemove}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-2">
+              <label className={label} htmlFor="product">{t.product}</label>
+              <select id="product" name="product" required disabled={submitting} className={field} defaultValue="">
+                <option value="" disabled>{t.productPlaceholder}</option>
+                {categories.map((c) => (
+                  <optgroup key={c.id} label={c.label}>
+                    {sampleProducts.filter((p) => p.category === c.id).map((p) => (
+                      <option key={p.slug} value={p.slug}>{p.name}</option>
+                    ))}
+                  </optgroup>
                 ))}
-              </optgroup>
-            ))}
-            <option value="other">{t.other}</option>
-          </select>
-        </div>
+                <option value="other">{t.other}</option>
+              </select>
+            </div>
+            <div className="grid gap-2">
+              <label className={label} htmlFor="grade">{t.grade}</label>
+              <input id="grade" name="grade" placeholder={t.gradePlaceholder} disabled={submitting} className={field} />
+            </div>
+          </>
+        )}
         <div className="grid gap-2">
-          <label className={label} htmlFor="grade">{t.grade}</label>
-          <input id="grade" name="grade" placeholder={t.gradePlaceholder} disabled={submitting} className={field} />
-        </div>
-        <div className="grid gap-2">
-          <label className={label} htmlFor="quantity">{t.quantity}</label>
+          <label className={label} htmlFor="quantity">{catalogItem ? t.catalogItemQuantity : t.quantity}</label>
           <input id="quantity" name="quantity" required placeholder={t.quantityPlaceholder} disabled={submitting} className={field} />
         </div>
         <div className="grid gap-2">

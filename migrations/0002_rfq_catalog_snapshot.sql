@@ -1,0 +1,23 @@
+-- Migration: 0002_rfq_catalog_snapshot
+-- Database: DB_OPS
+--
+-- Adds the canonical-SKU snapshot column Catalog -> RFQ Variant Preselection
+-- needs (DOCUMENT_AUDIT_REPORT.md DAR-039, docs/CATALOG_RFQ_INTEGRATION.md).
+-- Purely additive (ALTER TABLE ADD COLUMN, nullable) — DB_OPS already holds
+-- real rows in staging (6 rfqs / 7 rfq_items, verified via
+-- `wrangler d1 execute DB_OPS --env staging --remote` immediately before
+-- writing this migration) and 0 in production; this must never be a
+-- DROP/recreate (CLAUDE.md's own migration-safety discipline, already
+-- established for DB_PUBLIC — the same rule applies to DB_OPS the moment
+-- real data exists, which staging already has).
+--
+-- Every other field this integration needs already exists on `rfq_items`
+-- from migration 0001 (`variant_ref`, `product_ref`, `category_ref`,
+-- `variant_label`, `product_label`, `category_label`, `source` already
+-- allows 'selected') — see docs/CATALOG_RFQ_INTEGRATION.md's field-by-field
+-- audit for why only this one column was genuinely missing: there is no
+-- existing column whose name/semantics cleanly fit "canonical commercial
+-- SKU, captured at submission time, independent of the human-readable
+-- variant_label" without overloading an existing column's meaning.
+
+ALTER TABLE rfq_items ADD COLUMN sku_snapshot TEXT;

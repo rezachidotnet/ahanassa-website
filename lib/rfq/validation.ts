@@ -1,8 +1,8 @@
-import { locales, type Locale } from "@/config/locales";
-import { getSampleProduct } from "@/lib/content/catalog-sample";
-import { isValidIdempotencyKey } from "@/lib/rfq/idempotency";
-import { normalizeDigits, parseLeadingQuantity } from "@/lib/rfq/quantity";
-import type { RfqItemInput, RfqSubmissionInput } from "@/lib/rfq/types";
+import { locales, type Locale } from "../../config/locales.ts";
+import { getSampleProduct } from "../content/catalog-sample.ts";
+import { isValidIdempotencyKey } from "./idempotency.ts";
+import { normalizeDigits, parseLeadingQuantity } from "./quantity.ts";
+import type { RfqItemInput, RfqSubmissionInput } from "./types.ts";
 
 /**
  * Server-side RFQ validation. Hand-rolled rather than a schema-validation
@@ -32,7 +32,11 @@ const LIMITS = {
   freeformTitle: { max: 160 },
   categoryLabel: { max: 100 },
   description: { max: 1000 },
+  catalogVariantXid: { max: 200 },
 } as const;
+
+/** Odoo external-ID shape, e.g. "ahanassa_marketplace.product_rb_aj340_d10_l12" — format-only; existence/eligibility is a DB_PUBLIC concern (lib/rfq/service.ts), never decided here. */
+const CATALOG_XID_PATTERN = /^[A-Za-z0-9_.]+$/;
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -51,6 +55,13 @@ export interface ValidationResult {
     message: string | null;
     items: Array<{
       source: "selected" | "freeform";
+      /**
+       * Format-checked only at this stage — a well-formed XID here is NOT
+       * yet proof it exists/is eligible; `lib/rfq/service.ts` resolves it
+       * against DB_PUBLIC before this item may be persisted as "selected".
+       * Null whenever the item is a freeform/sample-catalog item instead.
+       */
+      catalogVariantXid: string | null;
       productRef: string | null;
       productLabel: string | null;
       categoryLabel: string | null;
@@ -87,22 +98,39 @@ function validateItem(raw: unknown, index: number, errors: Record<string, string
     pushError(errors, `${prefix}.quantityText`, "too_long");
   }
 
+  const catalogVariantXidRaw = trimmed(item.catalogVariantXid);
   const productSlug = trimmed(item.productSlug);
   const freeformTitleRaw = trimmed(item.freeformTitle);
   let source: "selected" | "freeform" = "freeform";
+  let catalogVariantXid: string | null = null;
   let productRef: string | null = null;
   let productLabel: string | null = null;
   let categoryLabel: string | null = null;
 
-  if (productSlug && productSlug !== "other") {
+  if (catalogVariantXidRaw) {
+    // Real Catalog identity always wins over any sample-catalog/freeform
+    // fields the client might also send alongside it — this task's own
+    // "do not allow users to edit Catalog identity into an invalid hybrid".
+    if (catalogVariantXidRaw.length > LIMITS.catalogVariantXid.max || !CATALOG_XID_PATTERN.test(catalogVariantXidRaw)) {
+      pushError(errors, `${prefix}.catalogVariantXid`, "invalid_format");
+    } else {
+      // Tentative — lib/rfq/service.ts resolves this against DB_PUBLIC and
+      // rejects the whole submission (never silently downgrades to
+      // freeform) if it does not resolve to a real, currently RFQ-eligible
+      // Variant. productLabel/categoryLabel are populated there, not here —
+      // this module never touches DB_PUBLIC.
+      source = "selected";
+      catalogVariantXid = catalogVariantXidRaw;
+    }
+  } else if (productSlug && productSlug !== "other") {
     const sample = getSampleProduct(productSlug);
     if (!sample) {
       pushError(errors, `${prefix}.productSlug`, "unknown_product");
     } else {
       // Deliberately NOT set as source: "selected" with a real product_ref —
-      // the catalog is disclosed sample data, not a published catalog
-      // (CLAUDE.md §11 / DAR-020). Treated as a freeform snapshot so nothing
-      // downstream mistakes it for a real catalog/product ID.
+      // the sample dataset is disclosed sample data, not a published
+      // catalog (CLAUDE.md §11 / DAR-020). Treated as a freeform snapshot so
+      // nothing downstream mistakes it for a real catalog/product ID.
       source = "freeform";
       productLabel = sample.name;
       categoryLabel = sample.category;
@@ -128,17 +156,19 @@ function validateItem(raw: unknown, index: number, errors: Record<string, string
 
   const parsedQuantity = quantityTextRaw ? parseLeadingQuantity(quantityTextRaw) : null;
 
-  // freeform_title is always populated (sample-catalog display name, or the
-  // customer's own typed title) — every item here is source: "freeform" by
-  // design (no product_ref/variant_ref is ever set; see the comment above),
-  // so freeform_title is the DB's only "this item has a subject" signal and
-  // must never be left null when a label exists.
+  // freeform_title is the DB's "this item has a subject" signal for a
+  // freeform item (no product_ref/variant_ref is ever set for those — see
+  // the comment above) and must never be left null when a label exists. A
+  // catalog-selected item never carries a freeform_title at all — its
+  // subject comes from the real DB_PUBLIC resolution in lib/rfq/service.ts,
+  // never from client-supplied text (this task's own "invalid hybrid" rule).
   return {
     source,
+    catalogVariantXid,
     productRef,
     productLabel,
     categoryLabel,
-    freeformTitle: productLabel || freeformTitleRaw || null,
+    freeformTitle: catalogVariantXid ? null : productLabel || freeformTitleRaw || null,
     sizeText: gradeOrStandard || null,
     quantityText: quantityTextRaw,
     quantityValue: parsedQuantity?.value ?? null,

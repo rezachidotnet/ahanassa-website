@@ -8,9 +8,11 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { EnquiryForm } from "@/components/contact/enquiry-form";
 import { FaqSection } from "@/components/contact/faq-section";
 import { getTurnstileSiteKey } from "@/lib/env";
+import { resolveRfqCatalogVariant } from "@/lib/catalog/editorial-repository";
 
 interface PageProps {
   params: Promise<{ locale: string }>;
+  searchParams: Promise<{ variant?: string }>;
 }
 
 const copy: Record<
@@ -59,11 +61,22 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return buildPageMetadata({ locale, path: "/contact", title: t.title, description: t.body, indexable: false });
 }
 
-export default async function ContactPage({ params }: PageProps) {
+export default async function ContactPage({ params, searchParams }: PageProps) {
   const { locale: rawLocale } = await params;
   const locale: Locale = isLocale(rawLocale) ? rawLocale : "fa";
+  const { variant: variantXid } = await searchParams;
   const t = copy[locale];
   const process = homepageCopy[locale].process;
+
+  // Server-side Catalog -> RFQ Variant Preselection resolution
+  // (docs/CATALOG_RFQ_INTEGRATION.md). A browser-supplied product_variant_xid
+  // is never trusted directly — it is only "which row to look up" in
+  // DB_PUBLIC; every displayed label/SKU/spec comes from this resolution,
+  // never from the URL itself. An unknown/archived/unpublished/wrong-locale
+  // xid resolves to `null` here and the form falls back to its normal
+  // custom-item flow with a non-sensitive notice — never fabricated data.
+  const catalogPreselection = variantXid ? await resolveRfqCatalogVariant(variantXid, locale) : null;
+  const catalogPreselectionInvalid = Boolean(variantXid) && catalogPreselection === null;
 
   return (
     <>
@@ -74,7 +87,7 @@ export default async function ContactPage({ params }: PageProps) {
           <div className="lg:col-span-7">
             <SectionHeading eyebrow={t.formEyebrow} title={t.formTitle} body={t.formBody} />
             <div className="mt-12">
-              <EnquiryForm locale={locale} turnstileSiteKey={getTurnstileSiteKey()} />
+              <EnquiryForm locale={locale} turnstileSiteKey={getTurnstileSiteKey()} catalogPreselection={catalogPreselection} catalogPreselectionInvalid={catalogPreselectionInvalid} />
             </div>
           </div>
 

@@ -1,9 +1,11 @@
 import { hashIdempotencyKey } from "@/lib/rfq/idempotency";
 import { createRfq } from "@/lib/rfq/repository";
 import { validateRfqSubmission } from "@/lib/rfq/validation";
-import type { RfqResponse } from "@/lib/rfq/types";
+import { buildCatalogItemRecord, buildFreeformItemRecord } from "@/lib/rfq/catalog-preselection";
+import type { RfqItemRecord, RfqResponse, RfqSubmissionRecord } from "@/lib/rfq/types";
 import { ServiceUnavailableError } from "@/lib/db/ops";
 import { verifyTurnstileToken } from "@/lib/security/turnstile";
+import { resolveRfqCatalogVariant } from "@/lib/catalog/editorial-repository";
 
 export interface SubmitRfqOptions {
   correlationId: string;
@@ -44,10 +46,54 @@ export async function submitRfq(rawBody: unknown, options: SubmitRfqOptions): Pr
     return { status: 403, body: { ok: false, code: "VERIFICATION_FAILED" } };
   }
 
+  // Catalog resolution — after the cheap/passive checks and Turnstile, but
+  // strictly before any idempotency lookup or D1 write (same "no D1 write on
+  // rejection" ordering the Turnstile check above already follows). Never
+  // trust a browser-submitted product_variant_xid: every "selected" item is
+  // re-resolved against DB_PUBLIC here, using the same publication-
+  // eligibility rule the public Catalog routes use
+  // (lib/catalog/editorial-repository.ts#resolveRfqCatalogVariant) — never a
+  // live Odoo call. An item whose XID does not resolve (unknown, archived,
+  // inactive, unpublished, or the wrong locale) fails the whole submission
+  // with a normal validation error — the same behavior already established
+  // for an unknown sample-catalog `productSlug` — rather than being silently
+  // downgraded into a freeform item or persisted with fabricated data
+  // (docs/CATALOG_RFQ_INTEGRATION.md §Invalid/stale XID).
+  const itemRecords: RfqItemRecord[] = [];
+  const catalogFieldErrors: Record<string, string[]> = {};
+  for (const [index, item] of result.value.items.entries()) {
+    if (item.catalogVariantXid) {
+      const selection = await resolveRfqCatalogVariant(item.catalogVariantXid, result.value.locale);
+      if (!selection) {
+        (catalogFieldErrors[`items[${index}].catalogVariantXid`] ??= []).push("unavailable");
+        continue;
+      }
+      itemRecords.push(buildCatalogItemRecord(selection, { quantityText: item.quantityText, quantityValue: item.quantityValue, quantityScale: item.quantityScale }, item.description));
+    } else {
+      itemRecords.push(
+        buildFreeformItemRecord({
+          productRef: item.productRef,
+          productLabel: item.productLabel,
+          categoryLabel: item.categoryLabel,
+          freeformTitle: item.freeformTitle,
+          sizeText: item.sizeText,
+          quantityText: item.quantityText,
+          quantityValue: item.quantityValue,
+          quantityScale: item.quantityScale,
+          description: item.description,
+        }),
+      );
+    }
+  }
+  if (Object.keys(catalogFieldErrors).length > 0) {
+    return { status: 422, body: { ok: false, code: "VALIDATION_ERROR", fieldErrors: catalogFieldErrors } };
+  }
+
   const idempotencyKeyHash = await hashIdempotencyKey(result.value.idempotencyKey);
+  const record: RfqSubmissionRecord = { ...result.value, items: itemRecords };
 
   try {
-    const { reference } = await createRfq(result.value, idempotencyKeyHash, options.correlationId);
+    const { reference } = await createRfq(record, idempotencyKeyHash, options.correlationId);
     return { status: 201, body: { ok: true, reference, status: "received" } };
   } catch (err) {
     if (err instanceof ServiceUnavailableError) {

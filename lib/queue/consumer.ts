@@ -119,9 +119,9 @@ async function processMessage(db: D1Database, message: QueueMessageLike): Promis
   }
 
   const items = await db
-    .prepare(`SELECT product_label, freeform_title, quantity_text, description FROM rfq_items WHERE rfq_id = ? ORDER BY line_number ASC`)
+    .prepare(`SELECT product_label, variant_label, sku_snapshot, freeform_title, quantity_text, description FROM rfq_items WHERE rfq_id = ? ORDER BY line_number ASC`)
     .bind(event.aggregate_id)
-    .all<{ product_label: string | null; freeform_title: string | null; quantity_text: string; description: string | null }>();
+    .all<{ product_label: string | null; variant_label: string | null; sku_snapshot: string | null; freeform_title: string | null; quantity_text: string; description: string | null }>();
 
   await markSyncStatus(db, event.aggregate_id, "syncing", null);
 
@@ -135,8 +135,16 @@ async function processMessage(db: D1Database, message: QueueMessageLike): Promis
       email: rfq.email_normalized,
       phone: rfq.phone_national,
     },
+    // A Catalog-linked line has no freeform_title (lib/rfq/catalog-preselection.ts
+    // never sets one — CLAUDE.md "invalid hybrid" rule); its human-readable
+    // label is product_label + variant_label + the canonical SKU snapshot
+    // instead. RFQ_LINE_MAPPING (lib/odoo/mapping.ts) remains unchanged —
+    // Odoo still only ever receives this one plaintext summary line, never a
+    // structured product/variant reference.
     items: (items.results ?? []).map((item) => ({
-      label: item.product_label ?? item.freeform_title ?? "",
+      label: item.product_label
+        ? [item.product_label, item.variant_label, item.sku_snapshot ? `SKU ${item.sku_snapshot}` : null].filter(Boolean).join(" — ")
+        : (item.freeform_title ?? ""),
       quantityText: item.quantity_text,
       description: item.description,
     })),
