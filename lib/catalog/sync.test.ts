@@ -123,6 +123,15 @@ test("planCatalogV1Sync updates commercial fields when updated_at advances, neve
   assert.equal(patchKeys.includes("slugFa" as never), false);
 });
 
+test("planCatalogV1Sync's commercial patch never includes isPublic — a reactivated variant cannot be silently republished by sync (DAR-036 Stage K)", () => {
+  const changed = apiProduct({ updated_at: "2026-09-01 08:00:00" });
+  const plan = planCatalogV1Sync([changed], [existingVariant({ isActive: false })], true);
+  assert.equal(plan.toUpdate.length, 1);
+  assert.equal(plan.toUpdate[0].patch.isActive, true); // commercial reactivation IS synced
+  const patchKeys = Object.keys(plan.toUpdate[0].patch);
+  assert.equal(patchKeys.includes("isPublic" as never), false); // website publication decision is never touched
+});
+
 test("planCatalogV1Sync reactivates a previously-deactivated variant that reappears", () => {
   const plan = planCatalogV1Sync([apiProduct()], [existingVariant({ isActive: false })], true);
   assert.equal(plan.toUpdate.length, 1);

@@ -1,19 +1,24 @@
 import { getPublicDb } from "@/lib/db/public";
 import { ulid } from "@/lib/rfq/ulid";
-import type { Locale } from "@/config/locales";
-import type { CatalogProduct, ClassificationRef, ProductSeoContent, ProductVariant } from "./types";
+import type { ClassificationRef, ProductVariant } from "./types";
 import type { VariantCommercialPatch, VariantCreateInput } from "./sync";
 
 /**
- * DB_PUBLIC-backed catalog repository — the boundary all public
- * pages/API routes AND the sync orchestrator use, never `cloudflare:workers`/
- * D1 directly (mirrors lib/rfq/repository.ts's role for DB_OPS).
- * DOCUMENT_AUDIT_REPORT.md DAR-034.
+ * DB_PUBLIC-backed repository for the commercial sync path ONLY
+ * (`lib/catalog/sync-runner.ts`) — never `cloudflare:workers`/D1 directly
+ * (mirrors lib/rfq/repository.ts's role for DB_OPS). DOCUMENT_AUDIT_REPORT.md
+ * DAR-034/DAR-036.
  *
- * Read functions filter to `is_public = 1 AND is_active = 1` so a page
- * built on this repository structurally cannot show an unpublished or
- * archived row. Write functions are the sync orchestrator's only path into
- * DB_PUBLIC — never called from a public route.
+ * Public and editorial reads/writes live in `lib/catalog/editorial-repository.ts`
+ * instead — DAR-036 found that this file's original "public" read functions
+ * (`getPublicVariantByXid`/`getPublicVariantsByGroup`/`getPublicVariantBySlug`/
+ * `getApprovedSeoContent`/`getVariantsNeedingEditorialSetup`/`getProductByTemplateXid`)
+ * filtered only on `product_variants.is_active`/`is_public`, never on
+ * whether real, approved, published editorial content actually existed for
+ * a locale — a real safety gap, since nothing called them yet (verified
+ * before removal) this was a safe, zero-blast-radius fix rather than a
+ * breaking change. See `editorial-repository.ts`'s file header for the
+ * properly-gated replacements.
  */
 
 // --- Reads -----------------------------------------------------------------
@@ -102,131 +107,6 @@ export async function getAllVariantsForSync(): Promise<ProductVariant[]> {
   const db = getPublicDb();
   const result = await db.prepare(`SELECT * FROM product_variants`).all<VariantRow>();
   return (result.results ?? []).map(mapVariant);
-}
-
-export async function getPublicVariantsByGroup(groupCode: string): Promise<ProductVariant[]> {
-  const db = getPublicDb();
-  const result = await db
-    .prepare(`SELECT * FROM product_variants WHERE group_code = ? AND is_public = 1 AND is_active = 1 ORDER BY commercial_name ASC`)
-    .bind(groupCode)
-    .all<VariantRow>();
-  return (result.results ?? []).map(mapVariant);
-}
-
-export async function getPublicVariantByXid(xid: string): Promise<ProductVariant | null> {
-  const db = getPublicDb();
-  const row = await db.prepare(`SELECT * FROM product_variants WHERE xid = ? AND is_public = 1 AND is_active = 1`).bind(xid).first<VariantRow>();
-  return row ? mapVariant(row) : null;
-}
-
-export async function getPublicVariantBySlug(slugFa: string): Promise<ProductVariant | null> {
-  const db = getPublicDb();
-  const row = await db.prepare(`SELECT * FROM product_variants WHERE slug_fa = ? AND is_public = 1 AND is_active = 1`).bind(slugFa).first<VariantRow>();
-  return row ? mapVariant(row) : null;
-}
-
-interface ProductRow {
-  id: string;
-  template_xid: string;
-  commercial_template_name: string;
-  name_fa: string;
-  slug_fa: string;
-  is_active: number;
-  is_public: number;
-  sync_status: CatalogProduct["syncStatus"];
-  last_synced_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-function mapProduct(row: ProductRow): CatalogProduct {
-  return {
-    id: row.id,
-    templateXid: row.template_xid,
-    commercialTemplateName: row.commercial_template_name,
-    nameFa: row.name_fa,
-    slugFa: row.slug_fa,
-    isActive: row.is_active === 1,
-    isPublic: row.is_public === 1,
-    syncStatus: row.sync_status,
-    lastSyncedAt: row.last_synced_at,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-export async function getProductByTemplateXid(templateXid: string): Promise<CatalogProduct | null> {
-  const db = getPublicDb();
-  const row = await db.prepare(`SELECT * FROM catalog_products WHERE template_xid = ?`).bind(templateXid).first<ProductRow>();
-  return row ? mapProduct(row) : null;
-}
-
-/** Variants that were auto-created from Odoo data but have no approved SEO overlay yet — a to-do list, not a blocker (CLAUDE.md "needsEditorialSetup"). */
-export async function getVariantsNeedingEditorialSetup(): Promise<ProductVariant[]> {
-  const db = getPublicDb();
-  const result = await db
-    .prepare(
-      `SELECT v.* FROM product_variants v
-       WHERE v.is_active = 1
-         AND NOT EXISTS (
-           SELECT 1 FROM product_seo_contents s
-           WHERE s.entity_type = 'variant' AND s.entity_id = v.id AND s.content_quality_status = 'approved'
-         )`,
-    )
-    .all<VariantRow>();
-  return (result.results ?? []).map(mapVariant);
-}
-
-interface SeoContentRow {
-  id: string;
-  entity_type: ProductSeoContent["entityType"];
-  entity_id: string;
-  locale: Locale;
-  slug: string;
-  h1: string | null;
-  intro: string | null;
-  body_json: string | null;
-  seo_title: string | null;
-  seo_description: string | null;
-  faq_json: string | null;
-  index_status: ProductSeoContent["indexStatus"];
-  content_quality_status: ProductSeoContent["contentQualityStatus"];
-  published_at: string | null;
-  updated_at: string;
-}
-
-function mapSeoContent(row: SeoContentRow): ProductSeoContent {
-  return {
-    id: row.id,
-    entityType: row.entity_type,
-    entityId: row.entity_id,
-    locale: row.locale,
-    slug: row.slug,
-    h1: row.h1,
-    intro: row.intro,
-    bodyJson: row.body_json,
-    seoTitle: row.seo_title,
-    seoDescription: row.seo_description,
-    faqJson: row.faq_json,
-    indexStatus: row.index_status,
-    contentQualityStatus: row.content_quality_status,
-    publishedAt: row.published_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-/** Only ever returns `approved` content — `incomplete`/`review` rows are never surfaced to a public page. */
-export async function getApprovedSeoContent(
-  entityType: ProductSeoContent["entityType"],
-  entityId: string,
-  locale: Locale,
-): Promise<ProductSeoContent | null> {
-  const db = getPublicDb();
-  const row = await db
-    .prepare(`SELECT * FROM product_seo_contents WHERE entity_type = ? AND entity_id = ? AND locale = ? AND content_quality_status = 'approved'`)
-    .bind(entityType, entityId, locale)
-    .first<SeoContentRow>();
-  return row ? mapSeoContent(row) : null;
 }
 
 // --- Writes (sync orchestrator only — never called from a public route) ---
