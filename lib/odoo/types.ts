@@ -1,4 +1,11 @@
 /**
+ * DEPRECATED FOR RFQ DELIVERY (2026-08-29, DAR-041,
+ * docs/ODOO_RFQ_API_INTEGRATION.md) — this `OdooGateway` interface and its
+ * RFQ-shaped types back the legacy `lib/odoo/adapter.ts` path, no longer
+ * called by `lib/queue/consumer.ts`. Kept for historical readability only.
+ * The current RFQ request/response contract lives in
+ * `lib/odoo/rfq-api-types.ts`.
+ *
  * Odoo adapter boundary — 01-sources/TECHNICAL_ARCHITECTURE.md §14.1.
  * UI, routes, and domain rules must never know whether the adapter uses
  * JSON-2, an older supported API, or an approved custom controller; they

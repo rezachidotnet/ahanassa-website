@@ -59,6 +59,30 @@ export function getOdooCatalogApiBaseUrl(): string | undefined {
   return process.env.ODOO_BASE_URL || undefined;
 }
 
+export interface OdooRfqApiConfig {
+  baseUrl: string;
+  token: string;
+}
+
+/**
+ * Odoo Public RFQ Intake API v1 config — `POST /api/v1/rfq`
+ * (docs/integrations/odoo/rfq-v1/RFQ_API_CONTRACT_V1.md,
+ * DOCUMENT_AUDIT_REPORT.md DAR-041). Deliberately its own credential,
+ * `ODOO_RFQ_API_TOKEN` — never the legacy `ODOO_API_KEY` (that key
+ * authenticates the old generic JSON-2 transport, `lib/odoo/client.ts`,
+ * scoped to a different Odoo permission model and no longer the RFQ
+ * delivery path). Reuses `ODOO_BASE_URL` for the host — that value is not a
+ * secret, just the shared Odoo origin every integration on this project
+ * already points at. Returns null when either half is missing; never a
+ * partial config, matching `getOdooConfig()`'s own convention.
+ */
+export function getOdooRfqApiConfig(): OdooRfqApiConfig | null {
+  const baseUrl = process.env.ODOO_BASE_URL;
+  const token = process.env.ODOO_RFQ_API_TOKEN;
+  if (!baseUrl || !token) return null;
+  return { baseUrl, token };
+}
+
 /** Server-side Turnstile verification secret. Undefined until provisioned — see PROJECT_OVERRIDES.md §10. */
 export function getTurnstileSecret(): string | undefined {
   return process.env.TURNSTILE_SECRET_KEY || undefined;

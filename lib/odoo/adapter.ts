@@ -4,6 +4,18 @@ import { PARTNER_MAPPING, RFQ_HEADER_MAPPING, RFQ_REFERENCE_MAPPING } from "./ma
 import type { IntegrationHealth, OdooContactInput, OdooGateway, OdooRef, OdooRfqInput, OdooRfqResult } from "./types.ts";
 
 /**
+ * DEPRECATED FOR RFQ DELIVERY (2026-08-29, DOCUMENT_AUDIT_REPORT.md DAR-041,
+ * docs/ODOO_RFQ_API_INTEGRATION.md). `lib/queue/consumer.ts` no longer calls
+ * `upsertRfq` — new Website RFQs synchronize via the dedicated Odoo Public
+ * RFQ Intake API v1 (`lib/odoo/rfq-api-client.ts`, `POST /api/v1/rfq`),
+ * which creates `ahanassa.rfq`/`ahanassa.rfq.line`, never `crm.lead`
+ * directly. This file is kept, unmodified and functionally intact, only
+ * for historical readability (it fully synced 0 real RFQs — no credential
+ * was ever provisioned for it, per the Phase 6B report's own
+ * "NOT READY FOR CLOUDFLARE RFQ INTEGRATION" verdict) and because deleting
+ * working, documented infrastructure blindly is worse than an unused file.
+ * Do not wire any new caller to this adapter for RFQ delivery.
+ *
  * Concrete OdooGateway implementation.
  *
  * DAR-013/DAR-026 (DOCUMENT_AUDIT_REPORT.md): Odoo version, installed

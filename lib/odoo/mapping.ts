@@ -1,4 +1,11 @@
 /**
+ * DEPRECATED FOR RFQ DELIVERY (2026-08-29, DAR-041,
+ * docs/ODOO_RFQ_API_INTEGRATION.md) — these `crm.lead`/`res.partner`
+ * mappings back the legacy path in `lib/odoo/adapter.ts`, which
+ * `lib/queue/consumer.ts` no longer calls for RFQ sync. Kept for historical
+ * readability only; do not extend for new RFQ-path work — the Odoo RFQ API
+ * v1 request/response shapes now live in `lib/odoo/rfq-api-types.ts`.
+ *
  * Verified Odoo object mapping — closes DOCUMENT_AUDIT_REPORT.md DAR-013
  * for the RFQ → Odoo path. Every fact below was checked directly against
  * the live `ahanassa` database (Odoo 19.0-20260528, container

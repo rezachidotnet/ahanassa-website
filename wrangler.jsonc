@@ -230,6 +230,10 @@
 			// values below are non-secret configuration only (same real Odoo
 			// instance staging already points at) and setting them here does not
 			// provision or deploy anything.
+			// ODOO_RFQ_API_TOKEN (DAR-041, docs/ODOO_RFQ_API_INTEGRATION.md — the
+			// current RFQ delivery credential, POST /api/v1/rfq) is also NOT set
+			// here yet, for the same reason. ODOO_API_KEY above is no longer the
+			// RFQ-path secret — see lib/odoo/adapter.ts's deprecation note.
 			"vars": {
 				"APP_ENV": "production",
 				"ODOO_BASE_URL": "https://odoo.ahanassa.com",
@@ -266,6 +270,10 @@
 			// connectivity" for provisioning details (dedicated integration user,
 			// minimum-permission groups, no ir.model.data/group_erp_manager
 			// dependency -- DOCUMENT_AUDIT_REPORT.md DAR-027).
+			// ODOO_RFQ_API_TOKEN (DAR-041, docs/ODOO_RFQ_API_INTEGRATION.md) is the
+			// current RFQ delivery credential (POST /api/v1/rfq) -- not yet
+			// provisioned here either; ODOO_API_KEY above is no longer the RFQ-path
+			// secret, see lib/odoo/adapter.ts's deprecation note.
 			"vars": {
 				"APP_ENV": "staging",
 				"ODOO_BASE_URL": "https://odoo.ahanassa.com",

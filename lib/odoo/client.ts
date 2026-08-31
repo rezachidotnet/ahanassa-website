@@ -1,4 +1,11 @@
 /**
+ * DEPRECATED FOR RFQ DELIVERY (2026-08-29, DAR-041,
+ * docs/ODOO_RFQ_API_INTEGRATION.md) — this generic JSON-2 transport is no
+ * longer used to synchronize RFQs (see `lib/odoo/adapter.ts`'s own
+ * deprecation note). Kept only because `lib/odoo/adapter.ts` still imports
+ * it for historical/potential-future-non-RFQ use; do not add new RFQ-path
+ * callers. `lib/odoo/rfq-api-client.ts` is the current RFQ transport.
+ *
  * Odoo External API (JSON-2) HTTP client — protocol mechanics only.
  *
  * Verified 2026-08-28 (DAR-026) directly against the live `ahanassa`

@@ -27,7 +27,9 @@ Inspect local state directly with `npx wrangler d1 execute DB_OPS --local --comm
 
 **Limitation:** local Queue simulation is close to but not identical to deployed Cloudflare Queues behavior (e.g. exact retry backoff timing and DLQ delivery timing may differ) — treat local testing as a strong functional signal, not a substitute for staging verification before production use.
 
-The Odoo sync path is intentionally inert locally (`npm run dev`, no `--env`) — no local Odoo credentials exist. The **staging** environment has real, minimum-permission Odoo credentials configured (see below) and has completed a real, controlled RFQ write test end-to-end — see `lib/odoo/adapter.ts` and `DOCUMENT_AUDIT_REPORT.md` DAR-013/DAR-023/DAR-027/DAR-028.
+The Odoo sync path is intentionally inert locally (`npm run dev`, no `--env`) — no local Odoo credentials exist.
+
+**Update, 2026-08-31 (DAR-041):** the live RFQ sync target changed. `lib/queue/consumer.ts` now calls the dedicated Odoo Public RFQ Intake API v1 (`lib/odoo/rfq-api-client.ts`, `POST /api/v1/rfq`, credential `ODOO_RFQ_API_TOKEN`) — never `lib/odoo/adapter.ts` (the direct `crm.lead`-via-JSON-2 path described in the rest of this section, now deprecated in place and kept only for historical readability). `ODOO_RFQ_API_TOKEN` has not been provisioned anywhere yet (Deployment Stage 1); every RFQ reaching the queue today lands in `sync_status = 'pending'` (`not_configured`), same fail-safe behavior the legacy adapter had. See `docs/ODOO_RFQ_API_INTEGRATION.md` for the current contract. The rest of this section (§"Odoo staging connectivity") is preserved as-is below as the historical record of the legacy path's real staging write test — it does not describe current live behavior.
 
 ## Staging environment (real Cloudflare infrastructure)
 
@@ -218,4 +220,19 @@ Two real bugs were found and fixed while building this, before either ever reach
 Concurrency is a lightweight DB-backed lease (`catalog_sync_state.lease_owner`/`lease_expires_at`, a single atomic conditional `UPDATE`, 10-minute TTL, no distributed-lock system) shared by scheduled runs and the manual CLI alike. `workers/entry.ts#scheduled()` now routes three Cron expressions by their literal string (the pre-existing RFQ outbox sweep, Catalog incremental, Catalog full reconciliation) — `wrangler.jsonc`'s `triggers.crons` lists all three, but **this is configuration only**: no Worker has ever been deployed in this project, so Cloudflare has not registered/activated any of these triggers yet. Activation is Claude Deployment Stage 1, not this phase.
 
 Real, live validation against both environments (no destructive experiment, no Odoo write, production validated only after staging passed in full): a real full reconciliation and a real incremental sync were run against staging (baseline 237 variants / 12 public / 3 published templates / 3 SEO rows) and then production (baseline 237 variants / 0 public / 0 published) — both left every commercial and editorial row exactly as they were (spot-checked byte-identical), applied 0 changes (matching real, unchanged upstream data), and left DB_OPS completely untouched on both.
+
+## Website → Odoo RFQ API handoff (DAR-041, 2026-08-31)
+
+**New Website RFQs now synchronize to Odoo via the dedicated Odoo Public RFQ Intake API v1 (`POST /api/v1/rfq`), creating `ahanassa.rfq`/`ahanassa.rfq.line` only — never `crm.lead` directly.** CRM opportunity creation is a private, Odoo-side, operator/qualification-gated workflow downstream of `ahanassa.rfq`; the Website never triggers it. Canonical doc: `docs/ODOO_RFQ_API_INTEGRATION.md`. Canonical Odoo-owned contract artifacts: `docs/integrations/odoo/rfq-v1/`. Full audit trail: `DOCUMENT_AUDIT_REPORT.md` DAR-041.
+
+Everything upstream of Odoo is unchanged: `POST /api/rfqs` → durable D1 write → outbox → Queue → `lib/queue/consumer.ts`. The consumer now maps the persisted, immutable D1 snapshot to the Odoo request (`lib/odoo/rfq-payload-mapper.ts`) and posts it via a narrow, typed client (`lib/odoo/rfq-api-client.ts`) — never generic Odoo ORM/model access. The outbound `Idempotency-Key` is deterministic (`` `rfq-${rfqs.id}` ``, never per-attempt-random), so every retry of the same RFQ sends byte-identical payload and header, satisfying Odoo's same-key-same-payload safe-replay contract. A genuine, non-fabricating blocker (an unparseable quantity, or a unit that cannot be inferred from the customer's own free text — the Website still has no structured UOM selector, a documented pre-existing gap) fails the whole RFQ into `sync_status = 'manual_review'` with the exact line reported, rather than guessing a number or a unit.
+
+```bash
+npx wrangler d1 migrations apply DB_OPS --env staging --remote      # migrations/0003_odoo_rfq_api_handoff.sql — new nullable rfqs.odoo_rfq_reference column + partial unique index
+npx wrangler d1 migrations apply DB_OPS --env production --remote   # applied to both; row counts verified unchanged at each step (staging 6, production 0)
+```
+
+**`ODOO_RFQ_API_TOKEN` has not been provisioned anywhere** (Deployment Stage 1, not this task) — deliberately a new, separate credential, never the legacy `ODOO_API_KEY`. Until it exists, every RFQ reaching the queue lands in `sync_status = 'pending'` (`not_configured`), the same fail-safe behavior the legacy adapter had; Odoo availability has never affected, and still does not affect, the original Browser-facing submission's success.
+
+The legacy direct-`crm.lead` path (`lib/odoo/adapter.ts`/`client.ts`/`mapping.ts`/`types.ts`) is deprecated in place, not deleted — each file's header now says so. It never actually synced a real production RFQ (no credential was ever provisioned for it), so no historical data migration was needed; `odoo_lead_id`/`integration_mappings` remain in the schema, untouched, as a historical record.
 
