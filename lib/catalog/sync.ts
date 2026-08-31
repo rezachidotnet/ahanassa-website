@@ -173,3 +173,9 @@ export function slugifyFromSku(sku: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
 }
+
+/** Extracts the last dot-separated segment of a template xid (e.g. "ahanassa_marketplace.product_tmpl_rb_aj340" -> "product_tmpl_rb_aj340") as slug material — never the Persian name. Used by both lib/catalog/sync-runner.ts and the D1-free scripts/catalog-sync.ts. */
+export function slugifyTemplateXid(templateXid: string): string {
+  const tail = templateXid.split(".").pop() ?? templateXid;
+  return tail.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}

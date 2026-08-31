@@ -1,7 +1,9 @@
 import { fetchCatalogProductsPage } from "./odoo-api-client";
-import { planCatalogV1Sync, slugifyFromSku } from "./sync";
+import { normalizeCatalogTimestamp, planCatalogV1Sync, slugifyFromSku, slugifyTemplateXid } from "./sync";
 import { createVariant, deactivateVariants, ensureCatalogProduct, getAllVariantsForSync, updateVariantCommercialFields } from "./repository";
+import { evaluateFullSyncPlausibility } from "./sync-safety";
 import type { CatalogApiProduct } from "./odoo-api-client";
+import type { ProductVariant } from "./types";
 
 /**
  * Sync orchestrator — the only place that wires fetch (odoo-api-client) →
@@ -31,7 +33,13 @@ export interface CatalogSyncResult {
   deactivated: number;
   unchanged: number;
   reasonCode?: string;
+  /** The maximum `updated_at` observed across every item this pull actually returned (normalized UTC ISO-8601) — the raw material for the next incremental watermark. Undefined when totalSeen is 0 or the run did not reach applyPlan. */
+  maxObservedUpdatedAt?: string;
 }
+
+/** Reason codes a caller (the scheduled-sync coordinator, the manual CLI) may want to branch/log on specifically. */
+export const CATALOG_SYNC_EMPTY_UPSTREAM = "CATALOG_SYNC_EMPTY_UPSTREAM";
+export const CATALOG_SYNC_IMPLAUSIBLE_DROP = "CATALOG_SYNC_IMPLAUSIBLE_DROP";
 
 async function fetchAllPages(updatedSince?: string): Promise<{ status: "ok" | "not_configured" | "failed"; items: CatalogApiProduct[]; reasonCode?: string }> {
   const items: CatalogApiProduct[] = [];
@@ -50,14 +58,8 @@ async function fetchAllPages(updatedSince?: string): Promise<{ status: "ok" | "n
   return { status: "ok", items };
 }
 
-/** Extracts the last dot-separated segment of a template xid (e.g. "ahanassa_marketplace.product_tmpl_rb_aj340" -> "product_tmpl_rb_aj340") as slug material — never the Persian name. */
-function slugifyTemplateXid(templateXid: string): string {
-  const tail = templateXid.split(".").pop() ?? templateXid;
-  return tail.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-}
-
-async function applyPlan(apiProducts: CatalogApiProduct[], isFullPull: boolean): Promise<CatalogSyncResult> {
-  const existing = await getAllVariantsForSync();
+async function applyPlan(apiProducts: CatalogApiProduct[], isFullPull: boolean, prefetchedExisting?: ProductVariant[]): Promise<CatalogSyncResult> {
+  const existing = prefetchedExisting ?? (await getAllVariantsForSync());
   const plan = planCatalogV1Sync(apiProducts, existing, isFullPull);
 
   for (const item of plan.toCreate) {
@@ -76,6 +78,8 @@ async function applyPlan(apiProducts: CatalogApiProduct[], isFullPull: boolean):
 
   await deactivateVariants(plan.toDeactivate);
 
+  const maxObservedUpdatedAt = apiProducts.length > 0 ? apiProducts.map((p) => normalizeCatalogTimestamp(p.updated_at)).sort().at(-1) : undefined;
+
   return {
     status: "ok",
     totalSeen: apiProducts.length,
@@ -83,16 +87,49 @@ async function applyPlan(apiProducts: CatalogApiProduct[], isFullPull: boolean):
     updated: plan.toUpdate.length,
     deactivated: plan.toDeactivate.length,
     unchanged: plan.unchanged.length,
+    maxObservedUpdatedAt,
   };
 }
 
-/** Full reconciliation — paginates the entire active catalog and detects deactivations. Safe to run repeatedly (idempotent). */
+/**
+ * Full reconciliation — paginates the entire active catalog and detects
+ * deactivations. Safe to run repeatedly (idempotent).
+ *
+ * A partial pagination failure never reaches this point at all —
+ * `fetchAllPages` returns `status: "failed"` (with `items` discarded, never
+ * partially applied) the moment any single page fails, and this function
+ * returns immediately without ever calling `applyPlan` — see
+ * docs/CATALOG_SYNC_OPERATIONS.md "Failure semantics".
+ *
+ * Before applying any deactivation, a completed, `status: "ok"` pull is
+ * still checked against `evaluateFullSyncPlausibility` (lib/catalog/sync-safety.ts)
+ * — a technically-successful fetch that returns catastrophically fewer
+ * items than the currently-known active catalog is refused rather than
+ * treated as a real mass-deactivation event ("Empty-Upstream Catastrophe
+ * Protection").
+ */
 export async function runFullCatalogSync(): Promise<CatalogSyncResult> {
   const pulled = await fetchAllPages();
   if (pulled.status !== "ok") {
     return { status: pulled.status, totalSeen: 0, created: 0, updated: 0, deactivated: 0, unchanged: 0, reasonCode: pulled.reasonCode };
   }
-  return applyPlan(pulled.items, true);
+
+  const existing = await getAllVariantsForSync();
+  const currentActiveCount = existing.filter((v) => v.isActive).length;
+  const plausibility = evaluateFullSyncPlausibility({ upstreamCount: pulled.items.length, currentActiveCount });
+  if (!plausibility.plausible) {
+    return {
+      status: "failed",
+      totalSeen: pulled.items.length,
+      created: 0,
+      updated: 0,
+      deactivated: 0,
+      unchanged: 0,
+      reasonCode: plausibility.reason === "empty_upstream" ? CATALOG_SYNC_EMPTY_UPSTREAM : CATALOG_SYNC_IMPLAUSIBLE_DROP,
+    };
+  }
+
+  return applyPlan(pulled.items, true, existing);
 }
 
 /** Uses `updated_since` — cheaper, but cannot detect deactivations (the API never returns archived records at all, incrementally or otherwise). Run a full sync periodically to reconcile those. */

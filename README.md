@@ -200,3 +200,22 @@ Flow: Product page → a plain, server-rendered "Request this item" link per eli
 
 Real, live, local end-to-end proof (no deployment): using Cloudflare's own publicly documented Turnstile testing keys in a temporary, non-committed `.env.local` (deleted immediately after), a real `POST /api/rfqs` against the actual dev server correctly created a real RFQ with the canonical Catalog snapshot persisted (`variant_ref`, `product_ref`, `sku_snapshot`, labels), preserved idempotency on retry, rejected an unknown/non-public/wrong-locale xid, correctly persisted a mixed catalog+custom submission and a 2-catalog-item submission, and left the honeypot/Turnstile checks fully intact. Custom/free-text RFQ items are completely unaffected.
 
+## Scheduled Catalog Synchronization (DAR-040, 2026-08-31)
+
+**The operational layer that keeps DB_PUBLIC current without any manual step now exists — incremental sync every 3 hours, full reconciliation once daily — safe against Odoo being temporarily unavailable and safe against a catastrophic/implausible upstream response.** Canonical doc: `docs/CATALOG_SYNC_OPERATIONS.md`. Full audit trail: `DOCUMENT_AUDIT_REPORT.md` DAR-040. No fetch/plan/apply logic was duplicated — `lib/catalog/scheduled-sync.ts` orchestrates the exact same `lib/catalog/sync-runner.ts` primitives proven since DAR-034/035.
+
+```bash
+npx wrangler d1 migrations apply DB_PUBLIC --env staging --remote     # migrations_public/0003_catalog_sync_state.sql — new catalog_sync_state table
+npx wrangler d1 migrations apply DB_PUBLIC --env production --remote  # applied to both; all real Catalog + editorial rows preserved
+
+node scripts/catalog-sync.ts status --env staging          # durable watermark / lease / failure state
+node scripts/catalog-sync.ts incremental --env staging --dry-run
+node scripts/catalog-sync.ts full --env production --confirm-production --dry-run   # --env is mandatory; production writes also require --confirm-production
+```
+
+Two real bugs were found and fixed while building this, before either ever reached staging: (1) a technically-successful full pull returning **zero items** would previously have caused the existing planner to deactivate the entire catalog — `lib/catalog/sync-safety.ts#evaluateFullSyncPlausibility` now refuses to apply a full reconciliation whose upstream count is implausible relative to the currently-known active count (never a hardcoded `237` — the catalog may legitimately grow or shrink); (2) the watermark could never be established for the very first incremental run — a successful full reconciliation now also advances it, since a full pull re-observes everything.
+
+Concurrency is a lightweight DB-backed lease (`catalog_sync_state.lease_owner`/`lease_expires_at`, a single atomic conditional `UPDATE`, 10-minute TTL, no distributed-lock system) shared by scheduled runs and the manual CLI alike. `workers/entry.ts#scheduled()` now routes three Cron expressions by their literal string (the pre-existing RFQ outbox sweep, Catalog incremental, Catalog full reconciliation) — `wrangler.jsonc`'s `triggers.crons` lists all three, but **this is configuration only**: no Worker has ever been deployed in this project, so Cloudflare has not registered/activated any of these triggers yet. Activation is Claude Deployment Stage 1, not this phase.
+
+Real, live validation against both environments (no destructive experiment, no Odoo write, production validated only after staging passed in full): a real full reconciliation and a real incremental sync were run against staging (baseline 237 variants / 12 public / 3 published templates / 3 SEO rows) and then production (baseline 237 variants / 0 public / 0 published) — both left every commercial and editorial row exactly as they were (spot-checked byte-identical), applied 0 changes (matching real, unchanged upstream data), and left DB_OPS completely untouched on both.
+

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeCatalogTimestamp, planCatalogV1Sync, slugifyFromSku } from "./sync.ts";
+import { normalizeCatalogTimestamp, planCatalogV1Sync, slugifyFromSku, slugifyTemplateXid } from "./sync.ts";
 import type { CatalogApiProduct } from "./odoo-api-client.ts";
 import type { ProductVariant } from "./types.ts";
 
@@ -182,4 +182,12 @@ test("slugifyFromSku derives a deterministic ASCII slug from the stable SKU", ()
 
 test("slugifyFromSku never derives from a Persian name (only ever receives the ASCII SKU)", () => {
   assert.equal(slugifyFromSku("AA-PF-SHS-S100X100X4-L6"), "aa-pf-shs-s100x100x4-l6");
+});
+
+test("slugifyTemplateXid extracts the last dot-separated segment as ASCII slug material", () => {
+  assert.equal(slugifyTemplateXid("ahanassa_marketplace.product_tmpl_rb_aj340"), "product-tmpl-rb-aj340");
+});
+
+test("slugifyTemplateXid falls back to the whole string when there is no dot", () => {
+  assert.equal(slugifyTemplateXid("no-dot-here"), "no-dot-here");
 });
