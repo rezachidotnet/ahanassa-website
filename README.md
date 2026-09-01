@@ -264,3 +264,11 @@ A new, narrow, publication-safe read — `lib/catalog/editorial-repository.ts#li
 
 Real, live, local end-to-end proof (twice) using Cloudflare's official always-passing Turnstile test keys in a temporary, non-committed `.env.local` (deleted immediately after) against 12 real published Variants (the DAR-038 pilot data): a `?variant=` preselection correctly seeded row 1 and, after adding a quantity, produced a real `201` and a real D1 row (`AA-RFQ-6V6D5SHD`); a second submission mixed one real Catalog line with one custom line in a single RFQ (`AA-RFQ-K25XQRKC`), both persisted correctly in one atomic write. Also verified: 20/20 row cap with the Add button correctly disabling past it, and the per-row validation error summary with correct scroll-to-first-invalid-field behavior.
 
+## Multi-Item RFQ deployed to production Worker (DAR-044, 2026-09-02)
+
+**The Multi-Item RFQ form is now live on the existing protected non-live `ahanassa-production` Worker** — no second Worker created, `ahanassa.com`/`www.ahanassa.com` DNS unchanged, the temporary Basic Auth gate left fully intact. Canonical doc: `docs/CLOUDFLARE_DEPLOYMENT_STAGE1.md` §29. Full audit trail: `DOCUMENT_AUDIT_REPORT.md` DAR-044. **Gate: PASS.**
+
+Real 1/10/11/15/20-row UI validation passed live on the deployed Worker (Add correctly disabled at 20, 21st blocked, no data loss on add/remove). Production `DB_PUBLIC` currently has zero publication-eligible Catalog Variants (unchanged, deliberate baseline) — Catalog preselection's graceful-degradation path was verified live instead of a successful resolution, per this task's own "do not alter Catalog publication merely for this test" instruction.
+
+**One real 12-line synthetic RFQ, using the real (non-test-key) Turnstile path, succeeded on the first attempt:** Website reference `AA-RFQ-C3SZCRT7`, Odoo reference `RFQ-2026-000006` — exactly 12 `rfq_items` rows (all custom/free-text, since no Catalog data exists in production to select), exactly one outbox event, exactly one successful `integration_attempts` row, zero new DLQ entries. Basic Auth and Turnstile re-confirmed intact after the E2E; no secret in HTML; performance unchanged from baseline.
+

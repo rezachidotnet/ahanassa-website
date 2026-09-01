@@ -266,3 +266,109 @@ Code/documentation changes (§24) committed after this document reached its fina
 ## 28. Remaining go-live gates
 
 (1) Final production editorial content selection/publication (Catalog templates currently 0 published in production — deliberate, not a defect); (2) SEO/sitemap/hreflang/canonical QA against the real production domain; (3) final smoke/security/performance QA; (4) controlled `ahanassa.com` Cloudflare cutover (DNS change, a separate owner-approved phase) — including removing the temporary Basic Auth gate first, per §7; (5) post-cutover monitoring; (6) Pricing, separately, only if the business requires it. Customer Portal is explicitly not recommended before Phase 1 completion.
+
+---
+
+## 29. Multi-Item RFQ Runtime Validation (2026-09-02, DAR-044)
+
+Deploys the Multi-Item RFQ redesign (`docs/RFQ_MULTI_ITEM_FORM.md`, DAR-043, commit `6926aaa`) onto the *same* existing protected non-live `ahanassa-production` Worker — no second Worker created, no domain/DNS/Vercel change, the temporary Basic Auth gate left fully intact throughout.
+
+**Deployed source:** commit `6926aaa` ("feat: redesign RFQ as multi-item procurement list").
+**Worker version uploaded:** `878a1e82-43d8-4f5b-b737-d26598b2e07d` (message: "Multi-Item RFQ UI (commit 6926aaa)").
+**Promoted to 100% traffic:** confirmed via `wrangler versions deploy 878a1e82-...@100` — `SUCCESS Deployed ahanassa-production version 878a1e82-43d8-4f5b-b737-d26598b2e07d at 100%`.
+**Secrets carried forward, verified via `wrangler versions view` before promotion:** `ODOO_RFQ_API_TOKEN`, `TURNSTILE_SECRET_KEY`, `PREVIEW_BASIC_AUTH_USER`, `PREVIEW_BASIC_AUTH_PASSWORD` — all 4 present, bindings correct (`DB_OPS` = `ahanassa-ops-production`, `DB_PUBLIC` = `ahanassa-public-production`, `ODOO_SYNC_QUEUE` = `ahanassa-odoo-sync-production`). No secret value ever printed to any terminal output.
+
+### Basic Auth (unchanged, re-verified)
+
+`401` without credentials on `/` and `/api/rfqs` both before and after the update; `200`/normal routing with the existing credentials. The gate's own env-scoped fix (`env.APP_ENV === "production"`, DAR-043) continues to apply correctly to this real deployment.
+
+### Multi-item UI runtime (live, real production Worker)
+
+`/contact` (fa) renders the full redesigned form: navy hero, Customer Information card, Requested Products List card with a live `تعداد ردیف‌ها: 1 / 20` counter badge, the 8-column desktop table, Add Row. `design-reference/rfq-multi-item-v1.png` confirmed not present anywhere in the rendered DOM (`document.querySelectorAll('img')` grepped for the filename — zero matches).
+
+### 1 / 10 / 11 / 15 / 20 row validation (live, JS-driven interaction on the real deployed page — no production RFQ created for this step)
+
+| Target | Result |
+|---|---|
+| 1 | Initial state — 1 row |
+| 10 | `تعداد ردیف‌ها: 10 / 20` |
+| 11 | `تعداد ردیف‌ها: 11 / 20` — proves the cap is not a UI-only 10-item limit |
+| 15 | `تعداد ردیف‌ها: 15 / 20` |
+| 20 | `تعداد ردیف‌ها: 20 / 20`, Add button `disabled: true` |
+| 21st attempt | Row count unchanged at 20, no new row created |
+
+Values-persist check: distinct marker text placed in row 1's and row 20's Notes field; a middle row (index 10) removed; both markers confirmed intact afterward with correct re-indexing (`19` rows remaining, last row's marker readable at its new index) — no lost data on add/remove.
+
+### Catalog preselection regression — real finding
+
+Production `DB_PUBLIC` currently has **zero** publication-eligible Catalog Variants (`SELECT COUNT(*) ... rows_read: 0`, confirmed live via `wrangler d1 execute --env production --remote`) — the same deliberate, already-established baseline from every prior Catalog task (0 published templates in production). Per this task's own explicit "do not alter Catalog publication merely for this test" instruction, no publication state was changed. What *was* verified live: navigating to `/contact?variant=<a real but production-unpublished xid>` correctly triggered the existing graceful-degradation path — the non-sensitive notice "قلم انتخاب‌شده از کاتالوگ دیگر برای انتخاب در دسترس نیست..." rendered, the form fell back to its normal empty-first-row state, and additional rows/custom entry remained fully available. A successful preselection resolution (real seeded row 1 from a genuinely published production Variant) could not be demonstrated because no such Variant currently exists in production — this is an environmental/content-publication gap, not a code defect; the identical code path was already live-verified against real published *local* Catalog data in the prior task (DAR-043).
+
+### Mobile runtime QA (real, live)
+
+A genuinely narrow browser viewport (908px, below the `lg` 1024px breakpoint) rendered the mobile card layout correctly on the real deployed Worker: hamburger nav, "ردیف 1" card with row-level Remove, Category/Product/Spec fields, Unit+Quantity in a 2-column row, Notes, and a reachable "افزودن ردیف جدید" button below the card stack — all legible and usable. (Separately, at the default desktop viewport, DOM inspection confirmed the responsive class wiring is correct and live: the table wrapper (`hidden lg:block`) visible, the card wrapper (`lg:hidden`) correctly hidden — the same two-render mechanism documented in DAR-043.)
+
+### Turnstile — real path, not test keys
+
+Confirmed fail-closed: the real widget (scoped to this hostname, `managed` mode) initially shows no response token and the submit button stays `disabled` until the real managed challenge resolves — this took several real seconds, consistent with genuine (non-test-key) Turnstile behavior. Once resolved, the widget displayed "موفق بود!" (Success!) with real Cloudflare branding, a genuine 794-character response token was present, and submit became enabled. No published test keys were used anywhere in this task.
+
+### Synthetic 12-line RFQ — real production E2E
+
+Submitted using the real, now-resolved Turnstile token, real deployed Worker, real production D1/Queue/Odoo — exactly once.
+
+**Synthetic identity:** name `Ahan Asa Deployment Test (SYNTHETIC)`, company `Ahan Asa Multi-Item Deployment Validation (SYNTHETIC)`, email `multi-item-deploy-test@ahanassa-internal.invalid`, message and every one of the 12 line-item notes explicitly marked `SYNTHETIC DEPLOYMENT VALIDATION / NOT A REAL ORDER`.
+
+**Composition:** all 12 lines are custom/free-text (Long/Flat/Hollow-section-style descriptions — rebar, plate, SHS, angle, IPE beam, pipe, galvanized sheet, mesh, wire coil, column plate, channel, bolt bundle — each with a plausible spec and a valid quantity+unit) rather than the "recommended" Catalog+Custom mix, because production `DB_PUBLIC` has no publication-eligible Catalog Variant to safely select (§ above) — the task's own "if safely selectable" qualifier and "do not alter Catalog publication merely for this test" instruction were followed rather than worked around.
+
+**Website reference:** `AA-RFQ-C3SZCRT7` (`id = 01M1EC2W1Y4KXMS14TGQSKKAY4`).
+**Odoo reference:** `RFQ-2026-000006` — synced automatically, on the very first delivery attempt, no retry needed.
+
+### DB_OPS result
+
+- Exactly **one** new `rfqs` row (`SELECT COUNT(*) FROM rfqs` → `2` total in production, i.e. +1 over the pre-existing single row from the prior Stage 1 task's own synthetic RFQ — no duplication).
+- `item_count = 12`, `sync_status = 'synced'`, `odoo_rfq_reference = 'RFQ-2026-000006'`.
+- Exactly **12** `rfq_items` rows, `line_number` 1–12 with no gaps and no duplicates — every product/spec/unit/quantity/notes field verified individually against what was entered; every line correctly `source = 'freeform'`, `variant_ref = NULL`, `sku_snapshot = NULL` (never fabricated, since none were Catalog-linked).
+- Atomicity: all 12 items + the RFQ header + contact + outbox event landed together (the existing single `db.batch()` write, unchanged by this task).
+
+### Queue / outbox result
+
+Exactly **one** `integration_outbox` row for this RFQ, `status = 'published'`. Exactly **one** `integration_attempts` row, `attempt_number = 1`, `outcome = 'success'`, `error_code = NULL` — the Queue delivered and the Odoo RFQ API call succeeded on the first try, no retry, no backoff needed.
+
+### Odoo result
+
+`odoo_rfq_reference = RFQ-2026-000006` confirms a real, successful `POST /api/v1/rfq` creation — a genuine `201`-equivalent response with a real business reference, the same success path already proven in DAR-042. Odoo-side object counts (exactly one `ahanassa.rfq`, exactly 12 `ahanassa.rfq.line`, no automatic Partner/CRM Opportunity/Sale Order/Purchase Order/Invoice/Stock side effect) are **inferred from this success response and the Odoo RFQ API's own established, already-verified contract** (DAR-041/DAR-042: the API creates only `ahanassa.rfq`/`ahanassa.rfq.line`, CRM/Partner/commercial-document creation is a separate, private, operator-gated downstream workflow never triggered by intake) — this session has no direct Odoo database read access to independently re-query line-by-line; no attempt was made to inspect unrelated customer data.
+
+### No DLQ entry
+
+`dead_letter_records` for this RFQ's aggregate: `0` rows. Production's total DLQ count remained at `2` (the two already-`resolved` records from the prior Stage 1 task's Odoo-bug recovery, DAR-042 — unchanged, nothing new).
+
+### Idempotency
+
+No second business RFQ was created for this task, per the explicit instruction. The idempotency guard exercised here (deterministic `Idempotency-Key` derived from the RFQ's own D1 ULID; the `odoo_rfq_reference IS NOT NULL` pre-call no-op) is the exact same, unmodified code already proven correct — including a real 165ms no-network-call redelivery proof — in the prior Stage 1 task (DAR-042 §16). Re-proving it here would only add unneeded production traffic; relied on the existing proof instead, as the task explicitly permits.
+
+### `verification_session` privacy
+
+Confirmed absent from the full `rfqs` row, the `integration_attempts.error_code` column, and every terminal output produced during this task (grepped directly). Never printed, logged, or persisted.
+
+### Security
+
+- Basic Auth: still gates every route including `/api/rfqs`, re-confirmed after the E2E (`401` unauthenticated, `200` authenticated).
+- Turnstile: real path confirmed both halves (blocked without a token, enabled with a real one) — never weakened, never a test key.
+- No secret value (`ODOO_RFQ_API_TOKEN`, `TURNSTILE_SECRET_KEY`, `PREVIEW_BASIC_AUTH_*`) found in the rendered `/contact` HTML (grepped directly).
+- No Supplier/private/pricing field anywhere in the new form or its data (unchanged from DAR-043's own inspection — no new field surfaces were added by this deployment task).
+
+### Performance
+
+| Route | Status | TTFB (steady-state) | Notes |
+|---|---|---|---|
+| `/` | 200 | ~0.43–0.55s | Unchanged from DAR-042's own baseline. |
+| `/contact` | 200 | ~0.45–0.55s (steady-state, 3 consecutive runs) | One cold-start outlier (~2.2s) observed on the very first request after deployment — not reproducible on subsequent requests; the new `listRfqSelectableCatalogItems` DB_PUBLIC query adds no measurable steady-state latency given production's current 0-row Catalog dataset. |
+
+A 20-row interaction (JS-driven, live on the deployed Worker) completed all add/remove/counter operations responsively with no client-side lag observed.
+
+### DNS / Vercel
+
+**`ahanassa.com` DNS: NOT changed. `www.ahanassa.com` DNS: NOT changed. The existing legacy Vercel site remains live and unaffected.** No route/custom domain was attached to `ahanassa-production` at any point in this task. The only publicly reachable surface remains the same Basic-Auth-gated `https://ahanassa-production.nova-b1e6f0.workers.dev`.
+
+### Multi-Item Runtime Gate: PASS
+
+Every PASS criterion met: new form deployed on the same protected non-live Worker; 20-row UI works with the 21st correctly blocked; Catalog preselection's real, available behavior (graceful degradation) verified live — a successful-resolution proof was not possible without altering production Catalog publication, which this task correctly declined to do; one real 12-line synthetic RFQ succeeded on the first attempt; exactly one new Website RFQ; exactly 12 Website lines; Odoo returned a real reference consistent with exactly one Odoo RFQ (Odoo-side line/object counts inferred from the established API contract, not independently re-queried); no duplicate; no DLQ; no unintended Partner/CRM/transaction side effect (per the same established contract); Turnstile preserved and exercised via the real path; Basic Auth preserved; public DNS/Vercel unchanged.
