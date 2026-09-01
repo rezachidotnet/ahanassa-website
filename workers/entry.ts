@@ -2,6 +2,7 @@ import vinextHandler from "vinext/server/fetch-handler";
 import { handleOdooSyncBatch, type QueueBatchLike, type QueueMessageLike } from "@/lib/queue/consumer";
 import { dispatchPendingOutboxEvents } from "@/lib/queue/outbox";
 import { runScheduledCatalogSync } from "@/lib/catalog/scheduled-sync";
+import { checkPreviewBasicAuth } from "@/lib/security/preview-auth";
 
 /**
  * Custom Worker entry. Delegates all HTTP traffic to vinext unchanged
@@ -35,7 +36,18 @@ const CATALOG_INCREMENTAL_CRON = "0 */3 * * *";
 const CATALOG_FULL_RECONCILIATION_CRON = "30 2 * * *";
 
 export default {
-  fetch: vinextHandler.fetch,
+  // TEMPORARY / NON-LIVE ONLY — Deployment Stage 1 preview protection
+  // (docs/CLOUDFLARE_DEPLOYMENT_STAGE1.md). Gates EVERY HTTP request,
+  // including /api/rfqs, before any application routing — this non-live
+  // deployment carries the real, live-writing Odoo RFQ credential and
+  // Cloudflare Access is not available on this account. No route is
+  // excluded. Delete this whole block (and lib/security/preview-auth.ts)
+  // before the public ahanassa.com cutover.
+  async fetch(request: Request, env: CloudflareEnv, ctx: ExecutionContext): Promise<Response> {
+    const denied = checkPreviewBasicAuth(request);
+    if (denied) return denied;
+    return vinextHandler.fetch(request, env, ctx);
+  },
 
   async queue(batch: QueueBatchLike, env: CloudflareEnv): Promise<void> {
     await handleOdooSyncBatch(batch, env);

@@ -222,23 +222,20 @@
 			// Same binding name/limit as staging; a distinct namespace_id (not
 			// 1001/local or 1002/staging) so production counts separately.
 			"ratelimits": [{ "name": "RFQ_RATE_LIMITER", "namespace_id": "2001", "simple": { "limit": 5, "period": 60 } }],
-			// ODOO_API_KEY and TURNSTILE_SECRET_KEY are NOT set here and have NOT
-			// been provisioned as Cloudflare Secrets for this environment yet —
-			// that is a separate, later, explicit Deployment-phase step (never
-			// copied from staging's values; a distinct production Odoo API key
-			// under the same dedicated integration identity, per DAR-032). The
-			// values below are non-secret configuration only (same real Odoo
-			// instance staging already points at) and setting them here does not
-			// provision or deploy anything.
-			// ODOO_RFQ_API_TOKEN (DAR-041, docs/ODOO_RFQ_API_INTEGRATION.md — the
-			// current RFQ delivery credential, POST /api/v1/rfq) is also NOT set
-			// here yet, for the same reason. ODOO_API_KEY above is no longer the
-			// RFQ-path secret — see lib/odoo/adapter.ts's deprecation note.
+			// ODOO_API_KEY (legacy) is NOT provisioned here — DAR-041 confirmed
+			// nothing in the live runtime calls it anymore; do not provision it.
+			// TURNSTILE_SECRET_KEY and ODOO_RFQ_API_TOKEN are real Cloudflare
+			// Secrets (`wrangler versions secret put ... --config dist/server/wrangler.json`,
+			// built with CLOUDFLARE_ENV=production — see
+			// docs/CLOUDFLARE_DEPLOYMENT_STAGE1.md for why the env-flattening step
+			// matters), values never appear here or anywhere in Git.
+			// The values below are non-secret configuration only.
 			"vars": {
 				"APP_ENV": "production",
 				"ODOO_BASE_URL": "https://odoo.ahanassa.com",
 				"ODOO_DATABASE": "ahanassa",
-				"ODOO_CRM_TEAM_ID": "1"
+				"ODOO_CRM_TEAM_ID": "1",
+				"NEXT_PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAAEi2RZ3NHcqTk0ej"
 			}
 		},
 		"staging": {

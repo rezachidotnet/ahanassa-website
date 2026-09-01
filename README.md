@@ -232,7 +232,23 @@ npx wrangler d1 migrations apply DB_OPS --env staging --remote      # migrations
 npx wrangler d1 migrations apply DB_OPS --env production --remote   # applied to both; row counts verified unchanged at each step (staging 6, production 0)
 ```
 
-**`ODOO_RFQ_API_TOKEN` has not been provisioned anywhere** (Deployment Stage 1, not this task) — deliberately a new, separate credential, never the legacy `ODOO_API_KEY`. Until it exists, every RFQ reaching the queue lands in `sync_status = 'pending'` (`not_configured`), the same fail-safe behavior the legacy adapter had; Odoo availability has never affected, and still does not affect, the original Browser-facing submission's success.
+**Update, 2026-09-01 (DAR-042, Claude Deployment Stage 1):** `ODOO_RFQ_API_TOKEN` is now provisioned for `ahanassa-production` — deliberately a new, separate credential, never the legacy `ODOO_API_KEY`. See "Claude Deployment Stage 1" below: a real synthetic RFQ E2E test surfaced a genuine Odoo-side HTTP 500 on RFQ creation (not a Website-side issue) — Odoo's own RFQ-creation logic is not yet proven working end-to-end. Until that Odoo Server-track defect is fixed, real RFQs reaching the queue will continue to land in `sync_status = 'retry'`/DLQ rather than `synced`; Odoo availability/correctness has never affected, and still does not affect, the original Browser-facing submission's success.
 
 The legacy direct-`crm.lead` path (`lib/odoo/adapter.ts`/`client.ts`/`mapping.ts`/`types.ts`) is deprecated in place, not deleted — each file's header now says so. It never actually synced a real production RFQ (no credential was ever provisioned for it), so no historical data migration was needed; `odoo_lead_id`/`integration_mappings` remain in the schema, untouched, as a historical record.
+
+## Claude Deployment Stage 1 (DAR-042, 2026-09-01)
+
+**The first real Cloudflare Worker deployment of this Website is live — `ahanassa-production`, non-live, `workers.dev` only.** `ahanassa.com`/`www.ahanassa.com` DNS is **unchanged**; the legacy Vercel site remains the live public production site throughout and after this deployment. Canonical doc: `docs/CLOUDFLARE_DEPLOYMENT_STAGE1.md`. Full audit trail: `DOCUMENT_AUDIT_REPORT.md` DAR-042. **Gate: PARTIAL.**
+
+```bash
+CLOUDFLARE_ENV=production npx vinext build                       # REQUIRED before any wrangler command below — see the gotcha noted in DAR-042
+npx wrangler versions upload --config dist/server/wrangler.json  # never pass --env again; the config is already flattened
+npx wrangler versions deploy <version-id>@100 --config dist/server/wrangler.json
+```
+
+Real production D1/Queue/DLQ/Cron (provisioned earlier, DAR-032) are now attached to a real deployed Worker for the first time — all 4 secrets provisioned (`TURNSTILE_SECRET_KEY` via a real, hostname-scoped Turnstile widget created for this task; `ODOO_RFQ_API_TOKEN` provisioned directly by the project owner, value never entering any AI session; `PREVIEW_BASIC_AUTH_USER`/`PASSWORD` for the temporary gate below). Catalog/security/SEO runtime smoke tests all passed against real production `DB_PUBLIC`.
+
+**Temporary non-live protection — Cloudflare Access is not enabled on this account.** A Basic Auth gate (`lib/security/preview-auth.ts`) protects every route on this deployment, including `/api/rfqs`, with no exclusions — this deployment carries the real, live-writing Odoo RFQ credential. **This is TEMPORARY / NON-LIVE ONLY** and must be removed before the real `ahanassa.com` cutover — see `docs/CLOUDFLARE_DEPLOYMENT_STAGE1.md` §7 for the exact removal steps.
+
+**One real synthetic RFQ E2E test surfaced a genuine Odoo-side defect, not a Website defect.** Website reference `AA-RFQ-VD1DCR16` was durably captured exactly once, correctly retried 6 times against the real live Odoo endpoint, and correctly landed in the DLQ after exhausting retries — every one of those 6 calls received a genuine HTTP 500 from Odoo itself (confirmed via diagnostic probes: the route requires auth, correctly returns `401` unauthenticated; the Odoo host and the sibling, already-working Catalog API v1 both return `200`). The Website's own RFQ delivery code (mapping, idempotency, retry/DLQ) behaved exactly as designed under this real failure. This is reported as an Odoo Server-track defect, matching the Phase 6B report's own earlier "NOT READY FOR CLOUDFLARE RFQ INTEGRATION" verdict — still apparently true even with a runtime credential now provisioned. The synthetic record was retained (not deleted) in production `DB_OPS` as audit evidence, clearly marked synthetic.
 
