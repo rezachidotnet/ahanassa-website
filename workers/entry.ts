@@ -43,9 +43,19 @@ export default {
   // Cloudflare Access is not available on this account. No route is
   // excluded. Delete this whole block (and lib/security/preview-auth.ts)
   // before the public ahanassa.com cutover.
+  //
+  // Scoped to `env.APP_ENV === "production"` (set only in wrangler.jsonc's
+  // `env.production.vars`) — never local dev (no APP_ENV var at all, a real
+  // regression found and fixed during the RFQ multi-item form task: this
+  // gate was originally unconditional and silently 401'd every local
+  // `npm run dev` request) and never staging (this gate was never deployed
+  // there and must not newly start applying). The real deployed non-live
+  // Worker's fail-closed behavior (missing-credential -> 401) is unchanged.
   async fetch(request: Request, env: CloudflareEnv, ctx: ExecutionContext): Promise<Response> {
-    const denied = checkPreviewBasicAuth(request);
-    if (denied) return denied;
+    if (env.APP_ENV === "production") {
+      const denied = checkPreviewBasicAuth(request);
+      if (denied) return denied;
+    }
     return vinextHandler.fetch(request, env, ctx);
   },
 

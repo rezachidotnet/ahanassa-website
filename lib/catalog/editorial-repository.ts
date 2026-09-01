@@ -759,3 +759,42 @@ export async function resolveRfqCatalogVariant(variantXid: string, locale: Local
     categoryLabel: row.family_name,
   };
 }
+
+/**
+ * Every RFQ-selectable Catalog Variant for `locale` — the exact same
+ * eligibility predicate as `resolveRfqCatalogVariant`, just without the
+ * `v.xid = ?` filter (docs/RFQ_MULTI_ITEM_FORM.md "Catalog item UX").
+ * Fetched once per page render and shared client-side across every Catalog
+ * row's cascading Category -> Product -> Variant selects
+ * (`lib/rfq/catalog-selector.ts#groupCatalogItemsForSelector`) — never
+ * re-queried per row, and never returns an unpublished/archived/private
+ * Variant or price/stock/Supplier data (this read touches only the same
+ * columns `resolveRfqCatalogVariant` already exposes).
+ */
+export async function listRfqSelectableCatalogItems(locale: Locale): Promise<RfqCatalogSelection[]> {
+  const db = getPublicDb();
+  const result = await db
+    .prepare(
+      `SELECT v.xid, v.sku, v.commercial_size, v.section_size, v.family_code, v.family_name, cp.template_xid, s.h1 as template_h1, s.slug as template_slug
+       FROM product_variants v
+       JOIN catalog_products cp ON cp.id = v.product_id
+       JOIN product_seo_contents s ON s.entity_type = 'product' AND s.entity_id = cp.id
+       WHERE v.is_active = 1 AND v.is_public = 1
+         AND cp.is_active = 1 AND cp.is_public = 1
+         AND s.locale = ? AND s.content_quality_status = 'approved' AND s.published_at IS NOT NULL AND s.h1 IS NOT NULL
+       ORDER BY v.family_name ASC, s.h1 ASC, v.commercial_size ASC`,
+    )
+    .bind(locale)
+    .all<{ xid: string; sku: string; commercial_size: string | null; section_size: string | null; family_code: string | null; family_name: string | null; template_xid: string; template_h1: string; template_slug: string }>();
+
+  return (result.results ?? []).map((row) => ({
+    variantXid: row.xid,
+    templateXid: row.template_xid,
+    sku: row.sku,
+    variantSpecLabel: row.commercial_size ?? row.section_size ?? row.sku,
+    productLabel: row.template_h1,
+    templateSlug: row.template_slug,
+    categoryCode: row.family_code,
+    categoryLabel: row.family_name,
+  }));
+}

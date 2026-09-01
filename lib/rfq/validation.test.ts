@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { validateRfqSubmission } from "./validation.ts";
+import { MAX_ITEMS, validateRfqSubmission } from "./validation.ts";
 
 /**
  * lib/rfq/validation.ts had no direct unit test file before Catalog -> RFQ
@@ -53,6 +53,76 @@ test("validateRfqSubmission enforces MAX_ITEMS", () => {
   const result = validateRfqSubmission(basePayload({ items }));
   assert.equal(result.ok, false);
   assert.ok(result.fieldErrors.items?.includes("too_many"));
+});
+
+// --- Multi-item RFQ form: explicit 20-line proof (docs/RFQ_MULTI_ITEM_FORM.md) ---
+// Uses the actual MAX_ITEMS constant this module itself exports/enforces —
+// never a second hardcoded "20" (this task's own "Do NOT duplicate 20
+// across many files" instruction).
+
+function itemsOfLength(count: number) {
+  return Array.from({ length: count }, (_, i) => ({ productSlug: "deformed-rebar", quantityText: `${i + 1} تن` }));
+}
+
+test("validateRfqSubmission accepts exactly 1 line", () => {
+  const result = validateRfqSubmission(basePayload({ items: itemsOfLength(1) }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.items.length, 1);
+});
+
+test("validateRfqSubmission accepts exactly 10 lines", () => {
+  const result = validateRfqSubmission(basePayload({ items: itemsOfLength(10) }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.items.length, 10);
+});
+
+test("validateRfqSubmission accepts exactly 11 lines — proves the cap is not a UI-only 10-item limit", () => {
+  const result = validateRfqSubmission(basePayload({ items: itemsOfLength(11) }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.items.length, 11);
+});
+
+test("validateRfqSubmission accepts exactly 15 lines", () => {
+  const result = validateRfqSubmission(basePayload({ items: itemsOfLength(15) }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.items.length, 15);
+});
+
+test("validateRfqSubmission accepts exactly MAX_ITEMS (20) lines", () => {
+  const result = validateRfqSubmission(basePayload({ items: itemsOfLength(MAX_ITEMS) }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.items.length, MAX_ITEMS);
+});
+
+test("validateRfqSubmission rejects MAX_ITEMS + 1 (21) lines", () => {
+  const result = validateRfqSubmission(basePayload({ items: itemsOfLength(MAX_ITEMS + 1) }));
+  assert.equal(result.ok, false);
+  assert.ok(result.fieldErrors.items?.includes("too_many"));
+});
+
+test("validateRfqSubmission preserves every line's own data across a full 20-item submission — no lost lines", () => {
+  const items = Array.from({ length: MAX_ITEMS }, (_, i) => ({ freeformTitle: `Custom item ${i + 1}`, quantityText: `${i + 1} piece` }));
+  const result = validateRfqSubmission(basePayload({ items }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.items.length, MAX_ITEMS);
+  result.value?.items.forEach((item, i) => {
+    assert.equal(item.freeformTitle, `Custom item ${i + 1}`);
+    assert.equal(item.quantityText, `${i + 1} piece`);
+  });
+});
+
+test("validateRfqSubmission accepts a mixed catalog + custom 12-line submission — a core multi-item acceptance criterion", () => {
+  const items = [
+    { catalogVariantXid: "ahanassa_marketplace.product_rb_aj340_d16_l12", quantityText: "5000 kg" },
+    { freeformTitle: "Custom steel requirement", quantityText: "1 piece" },
+    ...itemsOfLength(10),
+  ];
+  const result = validateRfqSubmission(basePayload({ items }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.items.length, 12);
+  assert.equal(result.value?.items[0].source, "selected");
+  assert.equal(result.value?.items[0].catalogVariantXid, "ahanassa_marketplace.product_rb_aj340_d16_l12");
+  assert.equal(result.value?.items[1].source, "freeform");
 });
 
 test("validateRfqSubmission honeypot rejects a filled 'website' field", () => {

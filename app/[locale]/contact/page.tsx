@@ -8,7 +8,7 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { EnquiryForm } from "@/components/contact/enquiry-form";
 import { FaqSection } from "@/components/contact/faq-section";
 import { getTurnstileSiteKey } from "@/lib/env";
-import { resolveRfqCatalogVariant } from "@/lib/catalog/editorial-repository";
+import { listRfqSelectableCatalogItems, resolveRfqCatalogVariant } from "@/lib/catalog/editorial-repository";
 
 interface PageProps {
   params: Promise<{ locale: string }>;
@@ -78,6 +78,12 @@ export default async function ContactPage({ params, searchParams }: PageProps) {
   const catalogPreselection = variantXid ? await resolveRfqCatalogVariant(variantXid, locale) : null;
   const catalogPreselectionInvalid = Boolean(variantXid) && catalogPreselection === null;
 
+  // Fetched exactly once per page render and shared client-side across
+  // every Catalog row's cascading selects in the multi-item form — never
+  // re-fetched per row (docs/RFQ_MULTI_ITEM_FORM.md "Performance"). Same
+  // publication-eligibility predicate as `resolveRfqCatalogVariant` above.
+  const catalogItems = await listRfqSelectableCatalogItems(locale);
+
   return (
     <>
       <PageHero locale={locale} eyebrow={t.eyebrow} title={t.title} body={t.body} breadcrumb={[{ path: "/contact", label: t.eyebrow }]} />
@@ -87,7 +93,13 @@ export default async function ContactPage({ params, searchParams }: PageProps) {
           <div className="lg:col-span-7">
             <SectionHeading eyebrow={t.formEyebrow} title={t.formTitle} body={t.formBody} />
             <div className="mt-12">
-              <EnquiryForm locale={locale} turnstileSiteKey={getTurnstileSiteKey()} catalogPreselection={catalogPreselection} catalogPreselectionInvalid={catalogPreselectionInvalid} />
+              <EnquiryForm
+                locale={locale}
+                turnstileSiteKey={getTurnstileSiteKey()}
+                catalogPreselection={catalogPreselection}
+                catalogPreselectionInvalid={catalogPreselectionInvalid}
+                catalogItems={catalogItems}
+              />
             </div>
           </div>
 
