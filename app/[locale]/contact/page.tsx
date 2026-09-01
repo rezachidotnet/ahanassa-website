@@ -90,7 +90,16 @@ export default async function ContactPage({ params, searchParams }: PageProps) {
 
       <section className="border-border bg-background border-b py-20 lg:py-28">
         <div className="container-x grid gap-14 lg:grid-cols-12 lg:gap-16">
-          <div className="lg:col-span-7">
+          {/*
+            min-w-0: without this, a CSS Grid item's default min-width is its
+            content's intrinsic minimum (`min-width: auto`) — the RFQ form's
+            wide desktop item table (docs/RFQ_MULTI_ITEM_FORM.md) can then
+            force this column wider than its allotted 7/12 fraction instead
+            of scrolling within its own `overflow-x-auto` wrapper, visually
+            squeezing/overlapping the "Next steps" aside in the 5/12 column
+            beside it. Go-Live Readiness RFQ-layout-collision fix.
+          */}
+          <div className="lg:col-span-7 min-w-0">
             <SectionHeading eyebrow={t.formEyebrow} title={t.formTitle} body={t.formBody} />
             <div className="mt-12">
               <EnquiryForm

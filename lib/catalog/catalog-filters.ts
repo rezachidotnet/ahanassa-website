@@ -98,3 +98,91 @@ export function buildQueryString(params: Partial<Record<CatalogFilterQueryKey, s
   const pairs = CATALOG_FILTER_QUERY_KEYS.filter((k) => params[k]).map((k) => `${k}=${encodeURIComponent(params[k]!)}`);
   return pairs.length > 0 ? `?${pairs.join("&")}` : "";
 }
+
+// --- Conditional ("faceted") narrowing — Go-Live Readiness catalog-filter audit ---
+//
+// A per-dimension DISTINCT over every published template's variants (the
+// original design) is a set of independently-true marginal values — it does
+// NOT guarantee any given combination across dimensions corresponds to a
+// real published template. Two published templates from different families
+// (e.g. Ribbed Rebar Aj340 = REBAR/RIBBED_REBAR/AJ340, Hot Rolled Plate
+// S355JR = SHEET_PLATE/HOT_ROLLED_PLATE/S355JR) each contribute real,
+// individually-valid facet values, but a visitor toggling one value from
+// each ends up at `?group=REBAR&grade=S355JR` — a combination that matches
+// zero real templates and dead-ends at the empty state. This was found live
+// in production during Go-Live Readiness manual verification.
+//
+// Fix: every dimension's *own* option list is computed from only the rows
+// that already match every *other* currently-active dimension (its own
+// current value is deliberately excluded from its own filter, or the
+// currently-selected option itself would vanish from its own list). This is
+// standard "faceted search" narrowing — it guarantees every rendered link
+// leads to at least one real published template, because it was derived
+// from real co-occurring rows, never independently per column.
+
+export interface ClassificationRow {
+  familyCode: string | null;
+  familyName: string | null;
+  groupCode: string | null;
+  groupName: string | null;
+  formCode: string | null;
+  formName: string | null;
+  gradeCode: string | null;
+  gradeName: string | null;
+  standardCode: string | null;
+  standardName: string | null;
+}
+
+export interface CatalogFilterFacets {
+  family: import("./types.ts").ClassificationRef[];
+  group: import("./types.ts").ClassificationRef[];
+  form: import("./types.ts").ClassificationRef[];
+  grade: import("./types.ts").ClassificationRef[];
+  standard: import("./types.ts").ClassificationRef[];
+}
+
+const DIMENSION_ACTIVE_KEYS: (keyof CatalogFilterInput)[] = ["familyCode", "groupCode", "formCode", "gradeCode", "standardCode"];
+const DIMENSION_ROW_KEY: Record<keyof CatalogFilterInput, keyof ClassificationRow> = {
+  familyCode: "familyCode",
+  groupCode: "groupCode",
+  formCode: "formCode",
+  gradeCode: "gradeCode",
+  standardCode: "standardCode",
+};
+
+function rowMatchesActiveExcept(row: ClassificationRow, active: CatalogFilterInput, excludeKey: keyof CatalogFilterInput): boolean {
+  for (const key of DIMENSION_ACTIVE_KEYS) {
+    if (key === excludeKey) continue;
+    const activeValue = active[key];
+    if (!activeValue) continue;
+    if (row[DIMENSION_ROW_KEY[key]] !== activeValue) return false;
+  }
+  return true;
+}
+
+/**
+ * Computes each dimension's option list conditioned on every *other*
+ * currently-active dimension — never a flat per-column DISTINCT over the
+ * full published-template row set. Pure, D1-free; `rows` is the full,
+ * already-published-eligible classification row set (one row per real
+ * commercial variant belonging to a published template), fetched once by
+ * the repository layer.
+ */
+export function computeConditionalFacets(rows: ClassificationRow[], active: CatalogFilterInput = {}): CatalogFilterFacets {
+  const family = dedupeClassificationRefs(
+    rows.filter((r) => rowMatchesActiveExcept(r, active, "familyCode")).map((r) => ({ code: r.familyCode, name: r.familyName })),
+  );
+  const group = dedupeClassificationRefs(
+    rows.filter((r) => rowMatchesActiveExcept(r, active, "groupCode")).map((r) => ({ code: r.groupCode, name: r.groupName })),
+  );
+  const form = dedupeClassificationRefs(
+    rows.filter((r) => rowMatchesActiveExcept(r, active, "formCode")).map((r) => ({ code: r.formCode, name: r.formName })),
+  );
+  const grade = dedupeClassificationRefs(
+    rows.filter((r) => rowMatchesActiveExcept(r, active, "gradeCode")).map((r) => ({ code: r.gradeCode, name: r.gradeName })),
+  );
+  const standard = dedupeClassificationRefs(
+    rows.filter((r) => rowMatchesActiveExcept(r, active, "standardCode")).map((r) => ({ code: r.standardCode, name: r.standardName })),
+  );
+  return { family, group, form, grade, standard };
+}

@@ -3,7 +3,10 @@ import { localizedPath, type Locale } from "@/config/locales";
 import { normalizeVariantDimensions, normalizeVariantNominalWeight, normalizeVariantSpecifications, NOMINAL_WEIGHT_DISCLAIMER } from "@/lib/catalog/specification-presenter";
 import type { ProductVariant } from "@/lib/catalog/types";
 
-const chrome: Record<Locale, { caption: string; size: string; sku: string; units: (u: string) => string; request: string; requestAria: (size: string) => string }> = {
+const chrome: Record<
+  Locale,
+  { caption: string; size: string; sku: string; units: (u: string) => string; request: string; requestAria: (size: string) => string; selected: string }
+> = {
   fa: {
     caption: "جدول مشخصات فنی و اندازه‌های موجود",
     size: "اندازه بازرگانی",
@@ -11,6 +14,7 @@ const chrome: Record<Locale, { caption: string; size: string; sku: string; units
     units: (u) => `واحدهای بازرگانی قابل سفارش: ${u}`,
     request: "درخواست این قلم",
     requestAria: (size) => `درخواست این قلم — سایز ${size}`,
+    selected: "قلم انتخاب‌شده",
   },
   en: {
     caption: "Technical specifications and available sizes",
@@ -19,6 +23,7 @@ const chrome: Record<Locale, { caption: string; size: string; sku: string; units
     units: (u) => `Orderable commercial units: ${u}`,
     request: "Request this item",
     requestAria: (size) => `Request this item — size ${size}`,
+    selected: "Selected item",
   },
   ar: {
     caption: "جدول المواصفات الفنية والمقاسات المتاحة",
@@ -27,8 +32,14 @@ const chrome: Record<Locale, { caption: string; size: string; sku: string; units
     units: (u) => `وحدات الطلب التجارية: ${u}`,
     request: "طلب هذا الصنف",
     requestAria: (size) => `طلب هذا الصنف — مقاس ${size}`,
+    selected: "الصنف المحدد",
   },
 };
+
+/** A stable, URL/HTML-id-safe anchor derived from the variant's own SKU — never the internal xid (kept out of the DOM/URL per the existing "xid is never rendered" rule). Lets a link elsewhere (query param today, a future `#anchor` deep link) point at one specific row. */
+export function variantRowAnchorId(sku: string): string {
+  return `v-${sku.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}`;
+}
 
 /**
  * Commercial Variant / specification selector inside a Product/Template
@@ -41,8 +52,16 @@ const chrome: Record<Locale, { caption: string; size: string; sku: string; units
  * (`/{locale}/contact?variant=<xid>`) — a plain server-rendered `<Link>`,
  * never constructed or resolved client-side, and never an ecommerce
  * "Buy"/"Add to cart" control.
+ *
+ * `highlightXid` — an optional Variant identity (from the page's own
+ * `?variant=` query param, server-resolved against `variants` before this
+ * component ever renders) whose row gets a visible highlight and an `id`
+ * anchor (`variantRowAnchorId`) — pure server-side CSS, no client JS. Lets a
+ * Variant-scoped link (e.g. a shared/bookmarked URL, or a future deep link)
+ * land the visitor directly on the intended row within the Template page,
+ * without ever creating an independent Variant SEO page.
  */
-export function VariantSpecTable({ locale, variants }: { locale: Locale; variants: ProductVariant[] }) {
+export function VariantSpecTable({ locale, variants, highlightXid }: { locale: Locale; variants: ProductVariant[]; highlightXid?: string }) {
   if (variants.length === 0) return null;
   const t = chrome[locale];
 
@@ -101,10 +120,16 @@ export function VariantSpecTable({ locale, variants }: { locale: Locale; variant
               const spec = normalizeVariantSpecifications(variant, locale);
               const dimByKey = new Map(spec.dimensions.map((r) => [r.key, r.value]));
               const weightByKey = new Map(spec.nominalWeight.map((r) => [r.key, r.value]));
+              const isHighlighted = highlightXid !== undefined && variant.xid === highlightXid;
               return (
-                <tr key={variant.id}>
+                <tr
+                  key={variant.id}
+                  id={variantRowAnchorId(variant.sku)}
+                  className={isHighlighted ? "bg-copper/10 outline-copper -outline-offset-2 outline-2 scroll-mt-24" : "scroll-mt-24"}
+                >
                   <th scope="row" className="text-navy px-3 py-2.5 text-start font-semibold">
                     <span dir="ltr">{variant.commercialSize ?? variant.sectionSize ?? "—"}</span>
+                    {isHighlighted && <span className="text-copper ms-2 align-middle text-[11px] font-semibold">({t.selected})</span>}
                   </th>
                   {dimensionColumns.map((c) => (
                     <td key={c.key} className="text-muted-foreground px-3 py-2.5">

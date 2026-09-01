@@ -2,8 +2,8 @@ import { getPublicDb } from "@/lib/db/public";
 import { ulid } from "@/lib/rfq/ulid";
 import type { Locale } from "@/config/locales";
 import { canPublish, canSubmitForReview, isValidContentStatusTransition } from "./editorial";
-import { buildTemplateFilterConditions, dedupeClassificationRefs, type CatalogFilterInput } from "./catalog-filters";
-import type { CatalogProduct, ProductSeoContent, ProductVariant, ContentQualityStatus, IndexStatus, ClassificationRef } from "./types";
+import { buildTemplateFilterConditions, computeConditionalFacets, type CatalogFilterInput, type CatalogFilterFacets, type ClassificationRow } from "./catalog-filters";
+import type { CatalogProduct, ProductSeoContent, ProductVariant, ContentQualityStatus, IndexStatus } from "./types";
 
 /**
  * Editorial/publication repository — DOCUMENT_AUDIT_REPORT.md DAR-036/DAR-037,
@@ -642,21 +642,48 @@ export async function getPublishedCatalogTemplateBySlug(locale: Locale, slug: st
   return { product: mapCatalogProduct(row), seo: seoRowFromPrefixedColumns(row), variants: (variantRows.results ?? []).map(mapVariant) };
 }
 
-export interface CatalogFilterFacets {
-  family: ClassificationRef[];
-  group: ClassificationRef[];
-  form: ClassificationRef[];
-  grade: ClassificationRef[];
-  standard: ClassificationRef[];
+export interface PublishedLocaleSlug {
+  locale: Locale;
+  slug: string;
 }
 
 /**
- * Distinct filter values drawn ONLY from variants that belong to a
- * currently-published template and are themselves active+public — never
- * from the full 237-row commercial universe, so filters never expose a
- * classification value with zero real public results behind it.
+ * Which locales actually have a published, indexable-or-not editorial page
+ * for this exact template entity — used only to build honest hreflang
+ * alternates for a Product/Template detail page (docs/CATALOG_PUBLIC_ROUTES.md
+ * §12, this task's own Go-Live Readiness Stage H requirement: "do not create
+ * hreflang links to unpublished localized Product pages"). Each locale's
+ * *own* slug is returned — never the requesting locale's slug reused across
+ * locales, since `product_seo_contents.slug` is independent per `(entity,
+ * locale)` row and a future en/ar slug is not guaranteed to match the fa one.
  */
-export async function getPublicCatalogFilterFacets(locale: Locale): Promise<CatalogFilterFacets> {
+export async function listPublishedLocalesForProduct(entityId: string): Promise<PublishedLocaleSlug[]> {
+  const db = getPublicDb();
+  const result = await db
+    .prepare(
+      `SELECT locale, slug FROM product_seo_contents
+       WHERE entity_type = 'product' AND entity_id = ?
+         AND content_quality_status = 'approved' AND published_at IS NOT NULL AND h1 IS NOT NULL AND slug IS NOT NULL`,
+    )
+    .bind(entityId)
+    .all<{ locale: string; slug: string }>();
+
+  return (result.results ?? []).map((row) => ({ locale: row.locale as Locale, slug: row.slug }));
+}
+
+export type { CatalogFilterFacets };
+
+/**
+ * Filter values drawn ONLY from variants that belong to a currently-published
+ * template and are themselves active+public — never from the full 237-row
+ * commercial universe. Conditioned on `activeFilters` (Go-Live Readiness
+ * catalog-filter audit, see `computeConditionalFacets`'s own header): each
+ * dimension's option list only ever contains values that co-occur, in a real
+ * published variant row, with every *other* currently-active filter — so
+ * combining a link from one dimension with a link from another can never
+ * produce a combination with zero real published templates behind it.
+ */
+export async function getPublicCatalogFilterFacets(locale: Locale, activeFilters: CatalogFilterInput = {}): Promise<CatalogFilterFacets> {
   const db = getPublicDb();
   const result = await db
     .prepare(
@@ -670,14 +697,20 @@ export async function getPublicCatalogFilterFacets(locale: Locale): Promise<Cata
     .bind(locale)
     .all<{ family_code: string | null; family_name: string | null; group_code: string | null; group_name: string | null; form_code: string | null; form_name: string | null; grade_code: string | null; grade_name: string | null; standard_code: string | null; standard_name: string | null }>();
 
-  const rows = result.results ?? [];
-  return {
-    family: dedupeClassificationRefs(rows.map((r) => ({ code: r.family_code, name: r.family_name }))),
-    group: dedupeClassificationRefs(rows.map((r) => ({ code: r.group_code, name: r.group_name }))),
-    form: dedupeClassificationRefs(rows.map((r) => ({ code: r.form_code, name: r.form_name }))),
-    grade: dedupeClassificationRefs(rows.map((r) => ({ code: r.grade_code, name: r.grade_name }))),
-    standard: dedupeClassificationRefs(rows.map((r) => ({ code: r.standard_code, name: r.standard_name }))),
-  };
+  const rows: ClassificationRow[] = (result.results ?? []).map((r) => ({
+    familyCode: r.family_code,
+    familyName: r.family_name,
+    groupCode: r.group_code,
+    groupName: r.group_name,
+    formCode: r.form_code,
+    formName: r.form_name,
+    gradeCode: r.grade_code,
+    gradeName: r.grade_name,
+    standardCode: r.standard_code,
+    standardName: r.standard_name,
+  }));
+
+  return computeConditionalFacets(rows, activeFilters);
 }
 
 // --- Sitemap boundary (docs/CATALOG_PUBLIC_ROUTES.md §Sitemap) ---

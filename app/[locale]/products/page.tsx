@@ -44,15 +44,16 @@ export default async function ProductsPage({ params, searchParams }: PageProps) 
   const filters = parseCatalogFilterParams(rawParams);
   const activeQuery = { family: filters.familyCode, group: filters.groupCode, form: filters.formCode, grade: filters.gradeCode, standard: filters.standardCode };
 
-  const [templates, facets] = await Promise.all([listPublishedCatalogTemplates(locale, filters), getPublicCatalogFilterFacets(locale)]);
+  const [templates, facets] = await Promise.all([listPublishedCatalogTemplates(locale, filters), getPublicCatalogFilterFacets(locale, filters)]);
   const t = heroCopy[locale];
+  const hasActiveFilters = Object.values(filters).some(Boolean);
 
   return (
     <>
       <PageHero locale={locale} eyebrow={t.eyebrow} title={t.title} body={t.body} image="/images/ops/mill-exterior.png" breadcrumb={[{ path: "/products", label: t.eyebrow }]} />
 
       {templates.length === 0 ? (
-        <CatalogEmptyState locale={locale} />
+        <CatalogEmptyState locale={locale} variant={hasActiveFilters ? "no-filter-match" : "catalog-preparing"} />
       ) : (
         <>
           <div className="container-x pt-10">

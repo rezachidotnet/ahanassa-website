@@ -1,6 +1,6 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { Trash2, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Locale } from "@/config/locales";
 import { RFQ_UOM_CODES, RFQ_UOM_LABELS, type RfqUomCode } from "@/lib/rfq/uom";
@@ -100,6 +100,38 @@ const copy: Record<Locale, RowCopy> = {
 const cellInput =
   "w-full border border-border bg-background px-3 py-2.5 text-sm text-navy outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-copper disabled:opacity-60 disabled:bg-muted";
 
+/**
+ * `<select>`-specific variant of `cellInput` — Go-Live Readiness RTL-select
+ * clipping fix. The browser's native dropdown affordance does not reliably
+ * reserve enough space for long selected text in every browser once the
+ * page direction is RTL (found live: text extended underneath the arrow on
+ * the left side). `appearance-none` removes the inconsistent native
+ * rendering; the select is always wrapped in a `relative` container with an
+ * explicit `<ChevronDown>` positioned via `end-3` (a CSS logical property —
+ * "inline-end", which resolves to the LEFT in RTL and the RIGHT in LTR
+ * automatically, unlike a hardcoded `right-3`), and `pe-9` guarantees fixed,
+ * generous padding-inline-end so text can never render under the icon in
+ * either direction. `truncate` lets a genuinely long value elide with an
+ * ellipsis instead of overflowing; the select's own `title` attribute (set
+ * by the caller to the full selected label) exposes the untruncated value
+ * on hover/assistive tech.
+ */
+const selectInput = cn(cellInput, "appearance-none truncate pe-9");
+
+function SelectChevron() {
+  return <ChevronDown aria-hidden="true" className="text-muted-foreground pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2" />;
+}
+
+/** Wraps a native `<select>` with the positioning context `SelectChevron` needs — never changes the select's own semantics/behavior. */
+function SelectField({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn("relative", className)}>
+      {children}
+      <SelectChevron />
+    </div>
+  );
+}
+
 export interface RfqItemRowProps {
   layout: "table" | "card";
   index: number;
@@ -158,47 +190,54 @@ export function RfqItemRow({ layout, index, fields, locale, disabled, errors, ca
     onChange({ ...fields, notes: value });
   }
 
+  const categorySelectedLabel = fields.mode === "custom" ? t.customCategoryOption : (selectedCategory?.categoryLabel ?? t.categoryPlaceholder);
   const categorySelect = (
-    <select
-      id={`${idPrefix}-category`}
-      aria-label={t.categoryPlaceholder}
-      value={categoryValue}
-      disabled={disabled}
-      onChange={(e) => handleCategoryChange(e.target.value)}
-      className={cellInput}
-    >
-      {categoryValue === "" && (
-        <option value="" disabled>
-          {t.categoryPlaceholder}
-        </option>
-      )}
-      {catalogGroups.map((group) => (
-        <option key={group.categoryCode ?? UNCATEGORIZED_VALUE} value={group.categoryCode ?? UNCATEGORIZED_VALUE}>
-          {group.categoryLabel}
-        </option>
-      ))}
-      <option value={CUSTOM_CATEGORY_VALUE}>{t.customCategoryOption}</option>
-    </select>
+    <SelectField>
+      <select
+        id={`${idPrefix}-category`}
+        aria-label={t.categoryPlaceholder}
+        title={categorySelectedLabel}
+        value={categoryValue}
+        disabled={disabled}
+        onChange={(e) => handleCategoryChange(e.target.value)}
+        className={selectInput}
+      >
+        {categoryValue === "" && (
+          <option value="" disabled>
+            {t.categoryPlaceholder}
+          </option>
+        )}
+        {catalogGroups.map((group) => (
+          <option key={group.categoryCode ?? UNCATEGORIZED_VALUE} value={group.categoryCode ?? UNCATEGORIZED_VALUE}>
+            {group.categoryLabel}
+          </option>
+        ))}
+        <option value={CUSTOM_CATEGORY_VALUE}>{t.customCategoryOption}</option>
+      </select>
+    </SelectField>
   );
 
   const productCell =
     fields.mode === "catalog" ? (
-      <select
-        id={`${idPrefix}-product`}
-        aria-label={t.productPlaceholder}
-        aria-invalid={hasProductError && !fields.variantXid}
-        value={fields.templateXid ?? ""}
-        disabled={disabled || !selectedCategory}
-        onChange={(e) => handleTemplateChange(e.target.value)}
-        className={cn(cellInput, hasProductError && !fields.variantXid && "border-[var(--aa-color-danger-700)]")}
-      >
-        <option value="">{t.productPlaceholder}</option>
-        {selectedCategory?.templates.map((tpl) => (
-          <option key={tpl.templateXid} value={tpl.templateXid}>
-            {tpl.productLabel}
-          </option>
-        ))}
-      </select>
+      <SelectField>
+        <select
+          id={`${idPrefix}-product`}
+          aria-label={t.productPlaceholder}
+          aria-invalid={hasProductError && !fields.variantXid}
+          title={selectedTemplate?.productLabel ?? t.productPlaceholder}
+          value={fields.templateXid ?? ""}
+          disabled={disabled || !selectedCategory}
+          onChange={(e) => handleTemplateChange(e.target.value)}
+          className={cn(selectInput, hasProductError && !fields.variantXid && "border-[var(--aa-color-danger-700)]")}
+        >
+          <option value="">{t.productPlaceholder}</option>
+          {selectedCategory?.templates.map((tpl) => (
+            <option key={tpl.templateXid} value={tpl.templateXid}>
+              {tpl.productLabel}
+            </option>
+          ))}
+        </select>
+      </SelectField>
     ) : (
       <input
         id={`${idPrefix}-product`}
@@ -216,21 +255,24 @@ export function RfqItemRow({ layout, index, fields, locale, disabled, errors, ca
   const specCell =
     fields.mode === "catalog" ? (
       <div className="grid gap-1">
-        <select
-          id={`${idPrefix}-spec`}
-          aria-label={t.specPlaceholder}
-          value={fields.variantXid ?? ""}
-          disabled={disabled || !selectedTemplate}
-          onChange={(e) => handleVariantChange(e.target.value)}
-          className={cellInput}
-        >
-          <option value="">{t.specSelectPlaceholder}</option>
-          {selectedTemplate?.variants.map((v) => (
-            <option key={v.variantXid} value={v.variantXid}>
-              {v.variantSpecLabel}
-            </option>
-          ))}
-        </select>
+        <SelectField>
+          <select
+            id={`${idPrefix}-spec`}
+            aria-label={t.specPlaceholder}
+            title={selectedVariant?.variantSpecLabel ?? t.specSelectPlaceholder}
+            value={fields.variantXid ?? ""}
+            disabled={disabled || !selectedTemplate}
+            onChange={(e) => handleVariantChange(e.target.value)}
+            className={selectInput}
+          >
+            <option value="">{t.specSelectPlaceholder}</option>
+            {selectedTemplate?.variants.map((v) => (
+              <option key={v.variantXid} value={v.variantXid}>
+                {v.variantSpecLabel}
+              </option>
+            ))}
+          </select>
+        </SelectField>
         {selectedVariant && (
           <p dir="ltr" className="text-muted-foreground text-left text-[11px]">
             {t.skuLabel}: {selectedVariant.sku}
@@ -251,13 +293,23 @@ export function RfqItemRow({ layout, index, fields, locale, disabled, errors, ca
     );
 
   const unitSelect = (
-    <select id={`${idPrefix}-unit`} aria-label="Unit" value={fields.unit} disabled={disabled} onChange={(e) => handleUnitChange(e.target.value)} className={cellInput}>
-      {RFQ_UOM_CODES.map((code) => (
-        <option key={code} value={code}>
-          {RFQ_UOM_LABELS[locale][code]}
-        </option>
-      ))}
-    </select>
+    <SelectField>
+      <select
+        id={`${idPrefix}-unit`}
+        aria-label="Unit"
+        title={RFQ_UOM_LABELS[locale][fields.unit]}
+        value={fields.unit}
+        disabled={disabled}
+        onChange={(e) => handleUnitChange(e.target.value)}
+        className={selectInput}
+      >
+        {RFQ_UOM_CODES.map((code) => (
+          <option key={code} value={code}>
+            {RFQ_UOM_LABELS[locale][code]}
+          </option>
+        ))}
+      </select>
+    </SelectField>
   );
 
   const quantityInput = (

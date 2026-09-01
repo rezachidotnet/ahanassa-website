@@ -19,6 +19,7 @@ function basePayload(overrides: Record<string, unknown> = {}) {
     fullName: "Ali Ahmadi",
     companyName: "Ahan Sazeh Co.",
     email: "ali@example.com",
+    phone: "+989121234567",
     items: [{ productSlug: "deformed-rebar", quantityText: "200 تن" }],
     ...overrides,
   };
@@ -123,6 +124,64 @@ test("validateRfqSubmission accepts a mixed catalog + custom 12-line submission 
   assert.equal(result.value?.items[0].source, "selected");
   assert.equal(result.value?.items[0].catalogVariantXid, "ahanassa_marketplace.product_rb_aj340_d16_l12");
   assert.equal(result.value?.items[1].source, "freeform");
+});
+
+// --- Phone required (Go-Live Readiness Stage 6, owner decision) ---
+
+test("validateRfqSubmission rejects a missing phone", () => {
+  const result = validateRfqSubmission(basePayload({ phone: undefined }));
+  assert.equal(result.ok, false);
+  assert.ok(result.fieldErrors.phone?.includes("required"));
+});
+
+test("validateRfqSubmission rejects an empty-string phone", () => {
+  const result = validateRfqSubmission(basePayload({ phone: "" }));
+  assert.equal(result.ok, false);
+  assert.ok(result.fieldErrors.phone?.includes("required"));
+});
+
+test("validateRfqSubmission rejects a whitespace-only phone (treated the same as missing)", () => {
+  const result = validateRfqSubmission(basePayload({ phone: "   " }));
+  assert.equal(result.ok, false);
+  assert.ok(result.fieldErrors.phone?.includes("required"));
+});
+
+test("validateRfqSubmission still rejects a malformed (present but invalid) phone", () => {
+  const result = validateRfqSubmission(basePayload({ phone: "abc" }));
+  assert.equal(result.ok, false);
+  assert.ok(result.fieldErrors.phone?.includes("invalid"));
+});
+
+test("validateRfqSubmission accepts a well-formed phone and never returns it as null", () => {
+  const result = validateRfqSubmission(basePayload({ phone: "+989121234567" }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.phone, "+989121234567");
+});
+
+test("validateRfqSubmission normalizes Persian digits and strips separators in a valid phone", () => {
+  const result = validateRfqSubmission(basePayload({ phone: "۰۹۱۲-۱۲۳-۴۵۶۷" }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.phone, "09121234567");
+});
+
+// --- Full-form required-field regression (name/company/email unaffected) ---
+
+test("validateRfqSubmission still requires fullName (unchanged by the phone change)", () => {
+  const result = validateRfqSubmission(basePayload({ fullName: "" }));
+  assert.equal(result.ok, false);
+  assert.ok(result.fieldErrors.fullName?.includes("invalid_length"));
+});
+
+test("validateRfqSubmission still requires companyName (unchanged by the phone change)", () => {
+  const result = validateRfqSubmission(basePayload({ companyName: "" }));
+  assert.equal(result.ok, false);
+  assert.ok(result.fieldErrors.companyName?.includes("required"));
+});
+
+test("validateRfqSubmission still requires email (unchanged by the phone change)", () => {
+  const result = validateRfqSubmission(basePayload({ email: "" }));
+  assert.equal(result.ok, false);
+  assert.ok(result.fieldErrors.email?.includes("required"));
 });
 
 test("validateRfqSubmission honeypot rejects a filled 'website' field", () => {

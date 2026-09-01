@@ -42,6 +42,10 @@ interface TurnstileRenderOptions {
   callback: (token: string) => void;
   "error-callback": () => void;
   "expired-callback": () => void;
+  /** Fires right when Turnstile shows an interactive challenge to the visitor — lets the UI distinguish "passively verifying" from "waiting on the visitor" (Go-Live Readiness Turnstile-UX fix). Real Cloudflare Turnstile render() options, not invented. */
+  "before-interactive-callback"?: () => void;
+  "after-interactive-callback"?: () => void;
+  "timeout-callback"?: () => void;
 }
 
 interface TurnstileApi {
@@ -77,6 +81,9 @@ const copy: Record<
     validationError: string; networkError: string; rateLimited: string;
     verificationError: string; serviceUnavailable: string;
     catalogPreselectionInvalid: string;
+    requiredMark: string;
+    phoneRequired: string; phoneInvalid: string;
+    turnstileVerifying: string; turnstileInteractive: string; turnstileFailed: string;
   }
 > = {
   fa: {
@@ -105,6 +112,12 @@ const copy: Record<
     verificationError: "تأیید ناموفق بود. لطفاً دوباره تلاش کنید.",
     serviceUnavailable: "امکان تأیید درخواست در حال حاضر وجود ندارد. لطفاً کمی بعد دوباره تلاش کنید.",
     catalogPreselectionInvalid: "قلم انتخاب‌شده از کاتالوگ دیگر برای انتخاب در دسترس نیست. می‌توانید نیاز خود را به‌صورت دستی شرح دهید.",
+    requiredMark: "الزامی",
+    phoneRequired: "شماره موبایل الزامی است",
+    phoneInvalid: "شماره موبایل را به‌صورت معتبر وارد کنید",
+    turnstileVerifying: "در حال انجام تأیید امنیتی…",
+    turnstileInteractive: "برای فعال شدن ارسال درخواست، تأیید امنیتی را تکمیل کنید.",
+    turnstileFailed: "تأیید امنیتی کامل نشد. لطفاً دوباره تلاش کنید.",
   },
   en: {
     customerInfoTitle: "Your information",
@@ -132,6 +145,12 @@ const copy: Record<
     verificationError: "Verification failed. Please try again.",
     serviceUnavailable: "Verification is temporarily unavailable. Please try again shortly.",
     catalogPreselectionInvalid: "The selected catalog item is no longer available for selection. You can still describe your requirement manually.",
+    requiredMark: "required",
+    phoneRequired: "Mobile number is required",
+    phoneInvalid: "Enter a valid mobile number",
+    turnstileVerifying: "Running security verification…",
+    turnstileInteractive: "Complete the security verification to enable sending your request.",
+    turnstileFailed: "Security verification did not complete. Please try again.",
   },
   ar: {
     customerInfoTitle: "معلوماتك",
@@ -159,12 +178,36 @@ const copy: Record<
     verificationError: "فشل التحقق. يرجى المحاولة مرة أخرى.",
     serviceUnavailable: "التحقق غير متاح مؤقتًا. يرجى المحاولة لاحقًا.",
     catalogPreselectionInvalid: "الصنف المحدد من الكتالوج لم يعد متاحًا للاختيار. لا يزال بإمكانك وصف احتياجك يدويًا.",
+    requiredMark: "إلزامي",
+    phoneRequired: "رقم الجوال إلزامي",
+    phoneInvalid: "أدخل رقم جوال صالحًا",
+    turnstileVerifying: "جارٍ إجراء التحقق الأمني…",
+    turnstileInteractive: "أكمل التحقق الأمني لتفعيل إرسال الطلب.",
+    turnstileFailed: "لم يكتمل التحقق الأمني. يرجى المحاولة مرة أخرى.",
   },
 };
 
 const field =
   "w-full border border-border bg-background px-4 py-3 text-sm text-navy outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-copper disabled:opacity-60";
 const label = "block text-[11px] font-bold uppercase tracking-[0.14em] text-navy";
+
+/**
+ * Visible required-field marker — Go-Live Readiness "Required Fields Must
+ * Be Obvious" fix. Always paired with the field's own real `required` HTML
+ * attribute (and, server-side, `lib/rfq/validation.ts`'s own "required"
+ * error) — this marker is never shown on a field the backend actually
+ * treats as optional, and never omitted from one it requires.
+ */
+function RequiredMark({ srLabel }: { srLabel: string }) {
+  return (
+    <>
+      <span className="text-[var(--aa-color-danger-700)]" aria-hidden="true">
+        {" *"}
+      </span>
+      <span className="sr-only"> ({srLabel})</span>
+    </>
+  );
+}
 
 type Status = "idle" | "submitting" | "success" | "error";
 
@@ -194,6 +237,8 @@ export function EnquiryForm({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileScriptLoaded, setTurnstileScriptLoaded] = useState(false);
+  /** UI-only status for explaining the disabled Submit button while Turnstile hasn't produced a token yet — never affects whether Submit is actually enabled (that remains solely `Boolean(turnstileToken)`, unchanged). */
+  const [turnstileStatus, setTurnstileStatus] = useState<"verifying" | "interactive" | "failed" | "success">("verifying");
   const [rows, setRows] = useState<RfqRow[]>(() => [
     catalogPreselection
       ? createCatalogRowFromSelection({ categoryCode: catalogPreselection.categoryCode, templateXid: catalogPreselection.templateXid, variantXid: catalogPreselection.variantXid })
@@ -211,6 +256,7 @@ export function EnquiryForm({
 
   const resetTurnstile = useCallback(() => {
     setTurnstileToken(null);
+    setTurnstileStatus("verifying");
     if (turnstileWidgetIdRef.current) {
       window.turnstile?.reset(turnstileWidgetIdRef.current);
     }
@@ -223,13 +269,29 @@ export function EnquiryForm({
     if (!turnstileSiteKey || !turnstileScriptLoaded || !turnstileContainerRef.current) return;
     if (!window.turnstile) return;
 
+    setTurnstileStatus("verifying");
     const widgetId = window.turnstile.render(turnstileContainerRef.current, {
       sitekey: turnstileSiteKey,
       action: TURNSTILE_RFQ_ACTION,
       language: turnstileLanguage[locale],
-      callback: (token) => setTurnstileToken(token),
-      "error-callback": () => setTurnstileToken(null),
-      "expired-callback": () => setTurnstileToken(null),
+      callback: (token) => {
+        setTurnstileToken(token);
+        setTurnstileStatus("success");
+      },
+      "error-callback": () => {
+        setTurnstileToken(null);
+        setTurnstileStatus("failed");
+      },
+      "expired-callback": () => {
+        setTurnstileToken(null);
+        setTurnstileStatus("failed");
+      },
+      "timeout-callback": () => {
+        setTurnstileToken(null);
+        setTurnstileStatus("failed");
+      },
+      "before-interactive-callback": () => setTurnstileStatus("interactive"),
+      "after-interactive-callback": () => setTurnstileStatus("verifying"),
     });
     turnstileWidgetIdRef.current = widgetId;
 
@@ -384,7 +446,7 @@ export function EnquiryForm({
   const rowIndexById = new Map(rows.map((r, i) => [r.id, i]));
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-8" noValidate={false}>
+    <form onSubmit={handleSubmit} className="grid min-w-0 gap-8" noValidate={false}>
       {turnstileSiteKey && (
         <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" strategy="afterInteractive" onLoad={() => setTurnstileScriptLoaded(true)} />
       )}
@@ -405,20 +467,42 @@ export function EnquiryForm({
         <legend className="text-navy px-1 text-base font-bold">{t.customerInfoTitle}</legend>
         <div className="mt-5 grid gap-6 sm:grid-cols-2">
           <div className="grid gap-2">
-            <label className={label} htmlFor="name">{t.name}</label>
-            <input id="name" name="name" required autoComplete="name" disabled={submitting} className={field} />
+            <label className={label} htmlFor="name">
+              {t.name}
+              <RequiredMark srLabel={t.requiredMark} />
+            </label>
+            <input id="name" name="name" required aria-required="true" autoComplete="name" disabled={submitting} className={field} />
           </div>
           <div className="grid gap-2">
-            <label className={label} htmlFor="company">{t.company}</label>
-            <input id="company" name="company" required autoComplete="organization" disabled={submitting} className={field} />
+            <label className={label} htmlFor="company">
+              {t.company}
+              <RequiredMark srLabel={t.requiredMark} />
+            </label>
+            <input id="company" name="company" required aria-required="true" autoComplete="organization" disabled={submitting} className={field} />
           </div>
           <div className="grid gap-2">
-            <label className={label} htmlFor="email">{t.email}</label>
-            <input id="email" name="email" type="email" required autoComplete="email" disabled={submitting} className={field} />
+            <label className={label} htmlFor="email">
+              {t.email}
+              <RequiredMark srLabel={t.requiredMark} />
+            </label>
+            <input id="email" name="email" type="email" required aria-required="true" autoComplete="email" disabled={submitting} className={field} />
           </div>
           <div className="grid gap-2">
-            <label className={label} htmlFor="phone">{t.phone}</label>
-            <input id="phone" name="phone" type="tel" autoComplete="tel" disabled={submitting} className={field} />
+            <label className={label} htmlFor="phone">
+              {t.phone}
+              <RequiredMark srLabel={t.requiredMark} />
+            </label>
+            <input
+              id="phone"
+              name="phone"
+              type="tel"
+              required
+              aria-required="true"
+              autoComplete="tel"
+              disabled={submitting}
+              className={field}
+              title={t.phoneInvalid}
+            />
           </div>
           <div className="grid gap-2 sm:col-span-2">
             <label className={label} htmlFor="message">{t.message}</label>
@@ -433,8 +517,11 @@ export function EnquiryForm({
         </p>
       )}
 
-      {/* Items card */}
-      <div className="border-border bg-surface rounded-[var(--aa-radius-lg)] border p-6 sm:p-8">
+      {/* Items card. min-w-0: this grid item's own wide desktop table
+          (contained by its own overflow-x-auto wrapper below) must never be
+          allowed to expand this card past its grid track — see the
+          contact-page column wrapper's own comment for the full mechanism. */}
+      <div className="border-border bg-surface min-w-0 rounded-[var(--aa-radius-lg)] border p-6 sm:p-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h3 className="text-navy text-base font-bold">{t.itemsTitle}</h3>
@@ -539,7 +626,31 @@ export function EnquiryForm({
         )}
       </div>
 
-      {turnstileSiteKey && <div ref={turnstileContainerRef} />}
+      {turnstileSiteKey && (
+        <div className="grid gap-2">
+          <div ref={turnstileContainerRef} />
+          {/* Explains WHY Submit is disabled while Turnstile hasn't produced a
+              token yet (Go-Live Readiness Turnstile-UX fix) — purely
+              informational, never a way to bypass verification: Submit's own
+              `disabled` condition below is unchanged (`turnstileBlocking`,
+              still solely `Boolean(turnstileSiteKey) && !turnstileToken`). */}
+          {!turnstileToken && turnstileStatus === "verifying" && (
+            <p role="status" className="text-muted-foreground text-xs">
+              {t.turnstileVerifying}
+            </p>
+          )}
+          {!turnstileToken && turnstileStatus === "interactive" && (
+            <p role="status" className="text-navy text-xs font-medium">
+              {t.turnstileInteractive}
+            </p>
+          )}
+          {!turnstileToken && turnstileStatus === "failed" && (
+            <p role="alert" className="text-xs font-medium text-[var(--aa-color-danger-700)]">
+              {t.turnstileFailed}
+            </p>
+          )}
+        </div>
+      )}
 
       {status === "error" && errorMessage && errorRowEntries.length === 0 && (
         <p role="alert" className="text-sm font-medium text-[var(--aa-color-danger-700)]">

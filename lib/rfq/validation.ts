@@ -215,9 +215,15 @@ export function validateRfqSubmission(input: unknown): ValidationResult {
     pushError(errors, "email", "invalid");
   }
 
+  // Phone is required — owner decision, Go-Live Readiness Stage 6 (2026-09).
+  // Stricter than Odoo's own "name + one contact method" rule (email alone
+  // was previously sufficient) — this is a deliberate Website-side tightening,
+  // never a weakening of the Odoo-side contract.
   const phoneRaw = trimmed(body.phone);
   const phone = phoneRaw ? normalizeDigits(phoneRaw).replace(/[\s()-]/g, "") : "";
-  if (phone && (phone.length > LIMITS.phone.max || !/^[+\d][\d]{5,20}$/.test(phone))) {
+  if (!phone) {
+    pushError(errors, "phone", "required");
+  } else if (phone.length > LIMITS.phone.max || !/^[+\d][\d]{5,20}$/.test(phone)) {
     pushError(errors, "phone", "invalid");
   }
 

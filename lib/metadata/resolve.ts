@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { locales, defaultLocale, localeConfig, localizedPath, type Locale } from "@/config/locales";
-import { siteConfig } from "./site";
+import { locales, defaultLocale, localeConfig, localizedPath, type Locale } from "../../config/locales.ts";
+import { siteConfig } from "./site.ts";
 
 /**
  * Foundation metadata resolver.
@@ -19,15 +19,42 @@ export interface PageMetadataInput {
   description: string;
   /** false for pages that must not be indexed yet (e.g. structural placeholders). */
   indexable?: boolean;
+  /**
+   * Override the default "same path in every locale" hreflang map — required
+   * for any entity whose route/slug is independent per locale (e.g. a
+   * Catalog Product page, where `product_seo_contents.slug` is a distinct
+   * value per `(entity, locale)` row and a locale may not be published at
+   * all yet). Build with `buildLanguageAlternatesFromEntries`. When omitted,
+   * falls back to the uniform-path behavior of `buildLanguageAlternates`.
+   */
+  languageAlternates?: Record<string, string>;
 }
 
-/** Reciprocal hreflang map, including x-default pointing at the default locale. */
+/** Reciprocal hreflang map, including x-default pointing at the default locale. Only valid when the same path exists in every locale. */
 export function buildLanguageAlternates(path: string): Record<string, string> {
   const languages: Record<string, string> = {};
   for (const locale of locales) {
     languages[locale] = `${siteConfig.baseUrl}${localizedPath(locale, path)}`;
   }
   languages["x-default"] = `${siteConfig.baseUrl}${localizedPath(defaultLocale, path)}`;
+  return languages;
+}
+
+/**
+ * Reciprocal hreflang map built from an explicit, per-locale-verified list of
+ * (locale, path) entries — never assumes a locale is available just because
+ * it's a supported locale. x-default points at the default locale's entry
+ * when present, otherwise the first supplied entry (never a fabricated URL
+ * for a locale that has no real published page).
+ */
+export function buildLanguageAlternatesFromEntries(entries: { locale: Locale; path: string }[]): Record<string, string> | undefined {
+  if (entries.length === 0) return undefined;
+  const languages: Record<string, string> = {};
+  for (const { locale, path } of entries) {
+    languages[locale] = `${siteConfig.baseUrl}${localizedPath(locale, path)}`;
+  }
+  const defaultEntry = entries.find((entry) => entry.locale === defaultLocale) ?? entries[0];
+  languages["x-default"] = `${siteConfig.baseUrl}${localizedPath(defaultEntry.locale, defaultEntry.path)}`;
   return languages;
 }
 
@@ -43,7 +70,7 @@ export function buildPageMetadata(input: PageMetadataInput): Metadata {
     description: input.description,
     alternates: {
       canonical,
-      languages: buildLanguageAlternates(input.path),
+      languages: input.languageAlternates ?? buildLanguageAlternates(input.path),
     },
     robots:
       input.indexable === false

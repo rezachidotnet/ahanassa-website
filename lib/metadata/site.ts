@@ -1,4 +1,4 @@
-import { getAppBaseUrl } from "@/lib/env";
+import { getAppBaseUrl } from "../env.ts";
 
 /**
  * Brand facts stable across every documentation layer this session

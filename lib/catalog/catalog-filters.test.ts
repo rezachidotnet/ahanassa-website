@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildQueryString, buildTemplateFilterConditions, dedupeClassificationRefs, parseCatalogFilterParams, toggleFilterQueryValue } from "./catalog-filters.ts";
+import { buildQueryString, buildTemplateFilterConditions, computeConditionalFacets, dedupeClassificationRefs, parseCatalogFilterParams, toggleFilterQueryValue, type ClassificationRow } from "./catalog-filters.ts";
 
 test("buildTemplateFilterConditions returns nothing for an empty filter object", () => {
   assert.deepEqual(buildTemplateFilterConditions({}), []);
@@ -113,4 +113,106 @@ test("buildQueryString produces a deterministic key order regardless of input ob
 
 test("buildQueryString URL-encodes values", () => {
   assert.equal(buildQueryString({ group: "A B" }), "?group=A%20B");
+});
+
+// --- computeConditionalFacets (Go-Live Readiness catalog-filter audit) ---
+//
+// Fixture mirrors the real 3-template production launch set: Ribbed Rebar
+// Aj340 (REBAR/RIBBED_REBAR/AJ340/INSO3132), Hot Rolled Plate S355JR
+// (SHEET_PLATE/HOT_ROLLED_PLATE/S355JR/EN10029), Square Hollow Section
+// (SHS/SHS_FORM, no grade, EN10219-2) — one row per real published variant.
+
+const rebarRow: ClassificationRow = {
+  familyCode: "LONG_PRODUCTS",
+  familyName: "Long Products",
+  groupCode: "REBAR",
+  groupName: "Rebar",
+  formCode: "RIBBED_REBAR",
+  formName: "Ribbed Rebar",
+  gradeCode: "AJ340",
+  gradeName: "Aj340 (market A2)",
+  standardCode: "INSO3132",
+  standardName: "INSO 3132",
+};
+
+const plateRow: ClassificationRow = {
+  familyCode: "FLAT_PRODUCTS",
+  familyName: "Flat Products",
+  groupCode: "SHEET_PLATE",
+  groupName: "Sheet & Plate",
+  formCode: "HOT_ROLLED_PLATE",
+  formName: "Hot Rolled Plate",
+  gradeCode: "S355JR",
+  gradeName: "S355JR",
+  standardCode: "EN10029",
+  standardName: "EN 10029",
+};
+
+const shsRow: ClassificationRow = {
+  familyCode: "HOLLOW_SECTIONS_PROFILES",
+  familyName: "Hollow Sections & Profiles",
+  groupCode: "SHS",
+  groupName: "Square Hollow Section",
+  formCode: "SHS_FORM",
+  formName: "Square Hollow Section",
+  gradeCode: null,
+  gradeName: null,
+  standardCode: "EN10219-2",
+  standardName: "EN 10219-2",
+};
+
+const productionFixtureRows: ClassificationRow[] = [rebarRow, plateRow, shsRow];
+
+test("computeConditionalFacets with no active filters returns every dimension's full marginal set (unfiltered listing)", () => {
+  const result = computeConditionalFacets(productionFixtureRows, {});
+  assert.deepEqual(
+    result.group.map((r) => r.code),
+    ["REBAR", "SHEET_PLATE", "SHS"],
+  );
+  assert.deepEqual(
+    result.grade.map((r) => r.code),
+    ["AJ340", "S355JR"],
+  );
+});
+
+test("computeConditionalFacets reproduces, then fixes, the real production dead-end: selecting group=REBAR must never leave grade=S355JR selectable", () => {
+  const result = computeConditionalFacets(productionFixtureRows, { groupCode: "REBAR" });
+  assert.deepEqual(
+    result.grade.map((r) => r.code),
+    ["AJ340"],
+  );
+  assert.ok(!result.grade.some((r) => r.code === "S355JR"), "S355JR must not appear as a grade option once group=REBAR is active");
+});
+
+test("computeConditionalFacets: selecting grade=S355JR narrows group down to only SHEET_PLATE", () => {
+  const result = computeConditionalFacets(productionFixtureRows, { gradeCode: "S355JR" });
+  assert.deepEqual(
+    result.group.map((r) => r.code),
+    ["SHEET_PLATE"],
+  );
+});
+
+test("computeConditionalFacets: a dimension's own active value still appears in its own option list (excluded from its own filter)", () => {
+  const result = computeConditionalFacets(productionFixtureRows, { groupCode: "REBAR" });
+  assert.deepEqual(
+    result.group.map((r) => r.code),
+    ["REBAR", "SHEET_PLATE", "SHS"],
+    "the group dimension's own list still shows every group — only OTHER dimensions narrow around the active group",
+  );
+});
+
+test("computeConditionalFacets: every combination of two links from the resulting facets always matches at least one real row", () => {
+  const base = computeConditionalFacets(productionFixtureRows, {});
+  for (const groupOption of base.group) {
+    const narrowed = computeConditionalFacets(productionFixtureRows, { groupCode: groupOption.code ?? undefined });
+    for (const gradeOption of narrowed.grade) {
+      const matches = productionFixtureRows.some((r) => r.groupCode === groupOption.code && r.gradeCode === gradeOption.code);
+      assert.ok(matches, `group=${groupOption.code}&grade=${gradeOption.code} must match at least one real row`);
+    }
+  }
+});
+
+test("computeConditionalFacets: SHS's null grade never surfaces as a fake grade option", () => {
+  const result = computeConditionalFacets(productionFixtureRows, { groupCode: "SHS" });
+  assert.deepEqual(result.grade, []);
 });
