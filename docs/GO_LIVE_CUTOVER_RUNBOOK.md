@@ -21,9 +21,31 @@ npx wrangler versions deploy <version-id>@100 --config dist/server/wrangler.json
 
 This is the same `ahanassa-production` Worker already live at `workers.dev` — no new Worker is created for cutover. Confirm via `wrangler versions view <version-id>` that all 4 secrets (`ODOO_RFQ_API_TOKEN`, `TURNSTILE_SECRET_KEY`, `PREVIEW_BASIC_AUTH_USER`, `PREVIEW_BASIC_AUTH_PASSWORD`) are present **before** proceeding to §3 (Basic Auth removal) — §3 removes 2 of these 4; do not skip straight to §3 without confirming this deploy succeeded and is serving correctly at its `workers.dev` URL first.
 
+## Corrected operational order (2026-09-02, `DOCUMENT_AUDIT_REPORT.md` DAR-049)
+
+**Turnstile hostname readiness (§4) must be confirmed before Basic Auth removal (§3), not after** — the numbered sections below are individually-accurate action descriptions, not a strict execution sequence; use this order instead:
+
+1. Freeze cutover window.
+2. Capture final DNS/Vercel/Cloudflare snapshots.
+3. Verify final source/runtime SHA.
+4. Disconnect Vercel's Git integration (§8) — before `main` is ever touched again.
+5. **Confirm the Turnstile widget's domain allowlist already contains `www.ahanassa.com` and `ahanassa.com`** — see §4: this step is **already done** as of 2026-09-02, ahead of the rest of cutover, precisely so it never blocks or races the domain-activation steps below.
+6. Remove Preview Basic Auth (§3), in an isolated commit.
+7. Run full tests.
+8. Deploy the public-mode Worker version.
+9. Verify workers.dev public-mode security (no Basic Auth, all other protections intact).
+10. Attach `www.ahanassa.com` to the Worker (§5).
+11. Configure `ahanassa.com` → `www.ahanassa.com` (§6/§7).
+12. Verify TLS and redirects.
+13. Verify Turnstile on the real `www` hostname (already allowlisted per step 5 — this step is a live confirmation, not a configuration change).
+14. Website/Catalog/Product/RFQ/SEO smoke (§9).
+15. Queue/Cron/Odoo health.
+16. Monitor (§12).
+17. Roll back if required (§10/§11).
+
 ## 3. Basic Auth removal
 
-Only after §2's deploy is confirmed healthy at its `workers.dev` URL. Exact steps (unchanged from `docs/CLOUDFLARE_DEPLOYMENT_STAGE1.md` §7, restated here for cutover-time convenience):
+Only after §2's deploy is confirmed healthy at its `workers.dev` URL, **and after §4's Turnstile hostname readiness is confirmed** (see "Corrected operational order" above — Turnstile allowlist readiness precedes Basic Auth removal, not the reverse). Exact steps (unchanged from `docs/CLOUDFLARE_DEPLOYMENT_STAGE1.md` §7, restated here for cutover-time convenience):
 
 1. Delete `lib/security/preview-auth.ts` and `lib/security/preview-auth.test.ts`.
 2. In `workers/entry.ts`, remove the `checkPreviewBasicAuth` import and the `if (env.APP_ENV === "production") { ... }` block — revert the `fetch` handler to the plain `fetch: vinextHandler.fetch` property reference.
@@ -37,10 +59,11 @@ Only after §2's deploy is confirmed healthy at its `workers.dev` URL. Exact ste
 
 ## 4. Turnstile real-domain validation
 
-Before §7:
+**Hostname allowlist step already completed, 2026-09-02 (`DOCUMENT_AUDIT_REPORT.md` DAR-049) — ahead of the rest of cutover, on purpose, so it can never block or race the domain-activation steps.** Via `wrangler turnstile widget update 0x4AAAAAAEi2RZ3NHcqTk0ej --domain ahanassa-production.nova-b1e6f0.workers.dev --domain www.ahanassa.com --domain ahanassa.com`, read back and confirmed via `wrangler turnstile widget get`: the existing widget (same sitekey `0x4AAAAAAEi2RZ3NHcqTk0ej`, same `managed` mode, same secret — nothing rotated or replaced) now allows exactly three hostnames: `ahanassa-production.nova-b1e6f0.workers.dev`, `www.ahanassa.com`, `ahanassa.com` — no wildcard, no unrelated domain. The `workers.dev` entry was deliberately preserved (not removed) — it remains the pre-cutover validation endpoint while Basic Auth is still active; remove it only after §9's post-cutover monitoring window has passed, as a separate, later, explicit step (not part of this runbook's execution).
 
-1. Cloudflare dashboard (or API): add `ahanassa.com` and `www.ahanassa.com` to the existing Turnstile widget's (`0x4AAAAAAEi2RZ3NHcqTk0ej`) domain allowlist, alongside the existing `ahanassa-production.nova-b1e6f0.workers.dev` entry (do not remove the workers.dev entry until §9's post-cutover monitoring window has passed — it may still be needed for a final pre-cutover smoke test).
-2. After §7 (DNS live), submit one real (or the owner's own) RFQ against `https://ahanassa.com/contact` using the real Turnstile widget and confirm a `200`/success — this is covered by §9.
+Remaining, not yet performed:
+
+1. After §7 (DNS live), submit one real (or the owner's own) RFQ against `https://ahanassa.com/contact` using the real Turnstile widget on the now-real hostname and confirm a `200`/success — this is covered by §9.
 
 ## 5. Worker custom-domain/route attachment
 
