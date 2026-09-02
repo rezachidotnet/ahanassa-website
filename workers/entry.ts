@@ -2,7 +2,6 @@ import vinextHandler from "vinext/server/fetch-handler";
 import { handleOdooSyncBatch, type QueueBatchLike, type QueueMessageLike } from "@/lib/queue/consumer";
 import { dispatchPendingOutboxEvents } from "@/lib/queue/outbox";
 import { runScheduledCatalogSync } from "@/lib/catalog/scheduled-sync";
-import { checkPreviewBasicAuth } from "@/lib/security/preview-auth";
 
 /**
  * Custom Worker entry. Delegates all HTTP traffic to vinext unchanged
@@ -36,28 +35,16 @@ const CATALOG_INCREMENTAL_CRON = "0 */3 * * *";
 const CATALOG_FULL_RECONCILIATION_CRON = "30 2 * * *";
 
 export default {
-  // TEMPORARY / NON-LIVE ONLY — Deployment Stage 1 preview protection
-  // (docs/CLOUDFLARE_DEPLOYMENT_STAGE1.md). Gates EVERY HTTP request,
-  // including /api/rfqs, before any application routing — this non-live
-  // deployment carries the real, live-writing Odoo RFQ credential and
-  // Cloudflare Access is not available on this account. No route is
-  // excluded. Delete this whole block (and lib/security/preview-auth.ts)
-  // before the public ahanassa.com cutover.
-  //
-  // Scoped to `env.APP_ENV === "production"` (set only in wrangler.jsonc's
-  // `env.production.vars`) — never local dev (no APP_ENV var at all, a real
-  // regression found and fixed during the RFQ multi-item form task: this
-  // gate was originally unconditional and silently 401'd every local
-  // `npm run dev` request) and never staging (this gate was never deployed
-  // there and must not newly start applying). The real deployed non-live
-  // Worker's fail-closed behavior (missing-credential -> 401) is unchanged.
-  async fetch(request: Request, env: CloudflareEnv, ctx: ExecutionContext): Promise<Response> {
-    if (env.APP_ENV === "production") {
-      const denied = checkPreviewBasicAuth(request);
-      if (denied) return denied;
-    }
-    return vinextHandler.fetch(request, env, ctx);
-  },
+  // Temporary Deployment Stage 1 preview Basic Auth protection
+  // (docs/CLOUDFLARE_DEPLOYMENT_STAGE1.md §7) removed here at Stage 2B
+  // production cutover (docs/GO_LIVE_CUTOVER_RUNBOOK.md §3,
+  // DOCUMENT_AUDIT_REPORT.md DAR-050) — the public www.ahanassa.com
+  // domain must never be gated behind a Basic Auth prompt. Public-mode
+  // request handling delegates directly to vinext, unchanged from before
+  // preview-auth.ts existed. Turnstile, rate limiting, honeypot,
+  // same-origin checks, security headers, and RFQ server-side validation
+  // are all independent of this gate and remain fully intact.
+  fetch: vinextHandler.fetch,
 
   async queue(batch: QueueBatchLike, env: CloudflareEnv): Promise<void> {
     await handleOdooSyncBatch(batch, env);
