@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import "../globals.css";
 import { locales, isLocale, getDirection, type Locale } from "@/config/locales";
-import { getFontFamily } from "@/lib/fonts";
+import { estedad } from "@/lib/fonts/estedad";
 import { siteConfig } from "@/lib/metadata/site";
 import { SkipLink } from "@/components/layout/SkipLink";
 import { SiteHeader } from "@/components/layout/SiteHeader";
@@ -45,8 +45,8 @@ export default async function LocaleLayout({
   const direction = getDirection(locale);
 
   return (
-    <html lang={locale} dir={direction}>
-      <body style={{ fontFamily: getFontFamily(locale) }}>
+    <html lang={locale} dir={direction} className={estedad.variable}>
+      <body>
         <SkipLink label={skipLinkLabel[locale]} />
         <SiteHeader locale={locale} />
         <main id="main-content">{children}</main>

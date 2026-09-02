@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { localizedPath, type Locale } from "@/config/locales";
 import { homepageCopy } from "@/lib/content/homepage";
 import { primaryCta } from "@/lib/content/nav";
+import { CONTACT_PHONE_E164, CONTACT_WHATSAPP_URL } from "@/lib/content/contact-channels";
 import { buttonVariants } from "@/components/ui/button";
 
 /**
@@ -49,7 +50,8 @@ export function Hero({ locale }: { locale: Locale }) {
               <ArrowRight className="size-4 rtl:-scale-x-100 transition-transform group-hover:translate-x-1 rtl:group-hover:-translate-x-1" />
             </Link>
             <a
-              href="#process"
+              href={locale === "fa" ? `tel:${CONTACT_PHONE_E164}` : CONTACT_WHATSAPP_URL}
+              {...(locale !== "fa" && { target: "_blank", rel: "noopener noreferrer" })}
               className="inline-flex items-center gap-2.5 border border-white/25 px-7 py-4 text-sm font-semibold tracking-wide text-white transition-colors hover:border-white hover:bg-white/5"
             >
               {t.secondaryCta}

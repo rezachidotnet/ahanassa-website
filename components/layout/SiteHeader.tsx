@@ -4,10 +4,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Phone } from "lucide-react";
 import { locales, localeConfig, localizedPath, type Locale } from "@/config/locales";
 import { siteConfig } from "@/lib/metadata/site";
-import { navLinks, primaryCta } from "@/lib/content/nav";
+import { navLinks, primaryCta, contactAction } from "@/lib/content/nav";
+import { CONTACT_PHONE_E164, CONTACT_WHATSAPP_URL } from "@/lib/content/contact-channels";
+import { WhatsAppIcon } from "@/components/icons/whatsapp-icon";
 import { cn } from "@/lib/utils";
 
 const menuLabel: Record<Locale, { open: string; close: string; nav: string; mobileNav: string; language: string }> = {
@@ -103,7 +105,27 @@ export function SiteHeader({ locale }: { locale: Locale }) {
             })}
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {locale === "fa" ? (
+              <a
+                href={`tel:${CONTACT_PHONE_E164}`}
+                className="text-muted-foreground hover:text-navy hidden items-center gap-1.5 text-sm font-medium transition-colors sm:inline-flex"
+              >
+                <Phone className="size-4" aria-hidden="true" />
+                {contactAction[locale].label}
+              </a>
+            ) : (
+              <a
+                href={CONTACT_WHATSAPP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="border-border text-navy hover:border-navy hidden items-center gap-1.5 border px-3 py-2 text-sm font-medium transition-colors sm:inline-flex"
+              >
+                <WhatsAppIcon className="size-4" />
+                {contactAction[locale].label}
+              </a>
+            )}
+
             <Link
               href={localizedPath(locale, "/contact")}
               className="bg-copper hover:bg-copper-400 hidden items-center gap-2 px-5 py-3 text-[13px] font-semibold tracking-wide text-white transition-colors sm:inline-flex"
@@ -148,6 +170,22 @@ export function SiteHeader({ locale }: { locale: Locale }) {
           <Link href={localizedPath(locale, "/contact")} className="bg-copper mt-8 px-6 py-4 text-center text-sm font-semibold tracking-wide text-white">
             {primaryCta[locale].full}
           </Link>
+          {locale === "fa" ? (
+            <a href={`tel:${CONTACT_PHONE_E164}`} className="mt-4 inline-flex items-center justify-center gap-1.5 py-3 text-sm font-medium text-white/80 hover:text-white">
+              <Phone className="size-4" aria-hidden="true" />
+              {contactAction[locale].label}
+            </a>
+          ) : (
+            <a
+              href={CONTACT_WHATSAPP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-flex items-center justify-center gap-1.5 border border-white/25 py-3 text-sm font-medium text-white hover:border-white"
+            >
+              <WhatsAppIcon className="size-4" />
+              {contactAction[locale].label}
+            </a>
+          )}
           <div className="mt-8 flex items-center gap-4 text-sm text-white/60">
             {locales.map((code) => (
               <Link key={code} href={localizedPath(code, pathname_stripLocale(pathname, locale))} className="hover:text-white">

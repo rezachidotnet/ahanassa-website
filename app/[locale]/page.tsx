@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
+import { env } from "cloudflare:workers";
 import { isLocale, type Locale } from "@/config/locales";
 import { buildPageMetadata } from "@/lib/metadata/resolve";
 import { organizationSchema, websiteSchema, jsonLdGraph } from "@/lib/seo/schema";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { Hero } from "@/components/home/hero";
+import { PriceStrip } from "@/components/home/price-strip";
 import { ProductShowcase } from "@/components/home/product-showcase";
 import { Capabilities } from "@/components/home/capabilities";
 import { Assurance } from "@/components/home/assurance";
 import { Process } from "@/components/home/process";
 import { Reach } from "@/components/home/reach";
 import { CtaBand } from "@/components/ui/cta-band";
+import type { PublicPriceStripItem } from "@/lib/pricing/types";
 
 interface PageProps {
   params: Promise<{ locale: string }>;
@@ -44,9 +47,21 @@ export default async function HomePage({ params }: PageProps) {
   const { locale: rawLocale } = await params;
   const locale = isLocale(rawLocale) ? rawLocale : "fa";
 
+  // Checked here, before getHomepagePriceStrip is even called (defense in
+  // depth — the function itself re-checks the same flag) — when off, zero
+  // DB-related code path executes for the price strip at all
+  // (docs/pricing/PRICE_PROVIDER_CONTRACT.md "Safe rollout order").
+  let priceStripItems: PublicPriceStripItem[] = [];
+  const priceStripEnabled: string | undefined = env.PRICE_STRIP_ENABLED;
+  if (priceStripEnabled === "true") {
+    const { getHomepagePriceStrip } = await import("@/lib/pricing/repository");
+    priceStripItems = await getHomepagePriceStrip(env as CloudflareEnv, locale);
+  }
+
   return (
     <>
       <Hero locale={locale} />
+      <PriceStrip locale={locale} items={priceStripItems} />
       <ProductShowcase locale={locale} />
       <Capabilities locale={locale} />
       <Assurance locale={locale} />

@@ -1,9 +1,9 @@
-import { getPublicDb } from "@/lib/db/public";
-import { ulid } from "@/lib/rfq/ulid";
-import type { Locale } from "@/config/locales";
-import { canPublish, canSubmitForReview, isValidContentStatusTransition } from "./editorial";
-import { buildTemplateFilterConditions, computeConditionalFacets, type CatalogFilterInput, type CatalogFilterFacets, type ClassificationRow } from "./catalog-filters";
-import type { CatalogProduct, ProductSeoContent, ProductVariant, ContentQualityStatus, IndexStatus } from "./types";
+import { getPublicDb } from "../db/public.ts";
+import { ulid } from "../rfq/ulid.ts";
+import type { Locale } from "../../config/locales.ts";
+import { canPublish, canSubmitForReview, isValidContentStatusTransition } from "./editorial.ts";
+import { buildTemplateFilterConditions, computeConditionalFacets, type CatalogFilterInput, type CatalogFilterFacets, type ClassificationRow } from "./catalog-filters.ts";
+import type { CatalogProduct, ProductSeoContent, ProductVariant, ContentQualityStatus, IndexStatus } from "./types.ts";
 
 /**
  * Editorial/publication repository — DOCUMENT_AUDIT_REPORT.md DAR-036/DAR-037,
@@ -640,6 +640,38 @@ export async function getPublishedCatalogTemplateBySlug(locale: Locale, slug: st
     .all<VariantRow>();
 
   return { product: mapCatalogProduct(row), seo: seoRowFromPrefixedColumns(row), variants: (variantRows.results ?? []).map(mapVariant) };
+}
+
+export interface PublishedCatalogTemplateTitle {
+  title: string;
+  slug: string;
+}
+
+/**
+ * Minimal published-title+link lookup by `template_xid` — the internal
+ * catalog identity is the only thing the homepage price strip
+ * (lib/pricing/repository.ts) is allowed to treat as the authoritative
+ * public title/link source; a price provider's own `provider_title` is
+ * never surfaced (docs/pricing/PRICE_PROVIDER_CONTRACT.md). Same
+ * publication gate as `listPublishedCatalogTemplates`/
+ * `getPublishedCatalogTemplateBySlug` — deliberately not those functions
+ * themselves, which return the full template+variants shape this caller
+ * doesn't need.
+ */
+export async function getPublishedCatalogTemplateTitleByXid(locale: Locale, templateXid: string): Promise<PublishedCatalogTemplateTitle | null> {
+  const db = getPublicDb();
+  const row = await db
+    .prepare(
+      `SELECT s.h1 as title, s.slug as slug
+       FROM catalog_products cp
+       JOIN product_seo_contents s ON s.entity_type = 'product' AND s.entity_id = cp.id
+       WHERE cp.is_active = 1 AND cp.is_public = 1 AND cp.template_xid = ? AND s.locale = ?
+         AND s.content_quality_status = 'approved' AND s.published_at IS NOT NULL AND s.h1 IS NOT NULL`,
+    )
+    .bind(templateXid, locale)
+    .first<{ title: string; slug: string }>();
+
+  return row ? { title: row.title, slug: row.slug } : null;
 }
 
 export interface PublishedLocaleSlug {

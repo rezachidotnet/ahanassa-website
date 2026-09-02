@@ -3,6 +3,14 @@ import { composeQuantityText, DEFAULT_RFQ_UOM, isValidQuantityValue, type RfqUom
 import type { RfqItemInput } from "./types.ts";
 
 /**
+ * Moved here from lib/rfq/validation.ts so `"use client"` components can
+ * depend on it without ever importing validation.ts — validation.ts pulls
+ * in the server-only `lib/rfq/phone-server.ts` (libphonenumber-js), which
+ * must never reach the browser bundle.
+ */
+export const MAX_ITEMS = 20;
+
+/**
  * Pure, D1-free row-state model for the multi-item RFQ form
  * (docs/RFQ_MULTI_ITEM_FORM.md). Deliberately a plain data-driven array —
  * `items: RfqRow[]`, never `item1`/`item2`/... discrete fields — so the UI

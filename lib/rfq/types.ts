@@ -82,7 +82,12 @@ export interface RfqSubmissionRecord {
   fullName: string;
   companyName: string;
   email: string;
-  phone: string | null;
+  /** ISO-3166-1 alpha-2, e.g. "IR" — server-resolved, never trusted from a client-composed value (lib/rfq/phone-server.ts). */
+  phoneIso2: string | null;
+  /** ITU calling code without the leading "+", e.g. "98" — resolved from `phoneIso2` via libphonenumber-js metadata, never a client-supplied dial code. */
+  phoneCallingCode: string | null;
+  phoneNational: string | null;
+  phoneE164: string | null;
   deliveryLocation: string | null;
   message: string | null;
   items: RfqItemRecord[];
@@ -94,7 +99,10 @@ export interface RfqSubmissionInput {
   fullName: string;
   companyName: string;
   email: string;
-  phone?: string;
+  /** ISO-3166-1 alpha-2 country selected by the customer, e.g. "IR" — the client never sends a dial code or a composed number; the server resolves/validates/composes E.164 authoritatively (lib/rfq/phone-server.ts). */
+  phoneCountry?: string;
+  /** Raw local-number digits as typed (Persian/Arabic/Latin numerals accepted, normalized server-side). */
+  phoneLocal?: string;
   deliveryLocation?: string;
   message?: string;
   items: RfqItemInput[];

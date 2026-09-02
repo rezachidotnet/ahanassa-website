@@ -129,18 +129,17 @@
   --aa-z-toast: 50;
 
   /*
-   * Typography — fallback stacks only. No licensed font files exist in the
-   * repository yet (Estedad Variable for Persian is the approved baseline
-   * per FONT_STRATEGY.md, but the actual font asset has not been supplied,
-   * and Arabic has no family decision at all — see DOCUMENT_AUDIT_REPORT.md
-   * DAR-017). This is a non-blocking dependency for Phase 1: once approved
-   * font files are added (e.g. under /public/fonts/), wire them via
-   * next/font/local and replace these system-font fallbacks with the
-   * licensed family name as the first entry in each stack. Arabic must
-   * never silently fall back to the Persian family — it gets its own
-   * system-font stack, not --aa-font-family-fa, per FONT_STRATEGY.md §13.
+   * Typography — Estedad Variable (OFL-1.1, self-hosted, lib/fonts/estedad.ts)
+   * applied uniformly to fa/en/ar as of the Typography Implementation pass —
+   * see docs/TYPOGRAPHY_ESTEDAD_IMPLEMENTATION.md for the full verification
+   * record (license, Persian/Arabic/Latin glyph coverage, byte budget,
+   * production-build compatibility) and DOCUMENT_AUDIT_REPORT.md for the
+   * Phase-1 resolution note (previously DAR-017's open Arabic-family gap).
+   * `--font-ahan-asa` is the CSS variable next/font/local generates
+   * (app/[locale]/layout.tsx applies `estedad.variable` on <body>); the
+   * original system-font stacks remain as the fallback chain, never removed.
    */
-  --aa-font-family-fa: Tahoma, Arial, sans-serif;
-  --aa-font-family-ar: Tahoma, "Segoe UI", Arial, sans-serif;
-  --aa-font-family-en: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --aa-font-family-fa: var(--font-ahan-asa), Tahoma, Arial, sans-serif;
+  --aa-font-family-ar: var(--font-ahan-asa), Tahoma, "Segoe UI", Arial, sans-serif;
+  --aa-font-family-en: var(--font-ahan-asa), system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
 }

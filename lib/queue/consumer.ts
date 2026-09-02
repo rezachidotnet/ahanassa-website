@@ -102,7 +102,7 @@ async function processMessage(db: D1Database, message: QueueMessageLike): Promis
 
   const rfq = await db
     .prepare(
-      `SELECT r.id, r.odoo_rfq_reference, r.company_name, r.message, r.locale, c.full_name, c.email_normalized, c.phone_national
+      `SELECT r.id, r.odoo_rfq_reference, r.company_name, r.message, r.locale, c.full_name, c.email_normalized, c.phone_e164, c.phone_national
        FROM rfqs r JOIN rfq_contacts c ON c.rfq_id = r.id
        WHERE r.id = ?`,
     )
@@ -115,6 +115,7 @@ async function processMessage(db: D1Database, message: QueueMessageLike): Promis
       locale: string;
       full_name: string;
       email_normalized: string | null;
+      phone_e164: string | null;
       phone_national: string | null;
     }>();
 
@@ -166,7 +167,7 @@ async function processMessage(db: D1Database, message: QueueMessageLike): Promis
     locale: rfq.locale,
     fullName: rfq.full_name,
     companyName: rfq.company_name,
-    phone: rfq.phone_national,
+    phone: rfq.phone_e164 ?? rfq.phone_national,
     email: rfq.email_normalized,
     message: rfq.message,
     items,

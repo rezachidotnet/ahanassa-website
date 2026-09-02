@@ -41,6 +41,8 @@ interface RowCopy {
   specCustomPlaceholder: string;
   skuLabel: string;
   quantityPlaceholder: string;
+  /** Localized "Select unit" — the unit `<select>` is deliberately never blank (Launch UoM policy safety, withUnitResetIfInvalid), so this is surfaced as an aria-label/title only, never a selectable empty option. */
+  unitPlaceholder: string;
   notesPlaceholder: string;
   remove: string;
   fieldRequired: string;
@@ -52,13 +54,14 @@ const copy: Record<Locale, RowCopy> = {
     rowLabel: "ردیف",
     categoryPlaceholder: "دسته محصول",
     customCategoryOption: "سایر / کالای سفارشی",
-    productPlaceholder: "نام / نوع محصول",
+    productPlaceholder: "انتخاب محصول",
     productCustomPlaceholder: "مثلاً میلگرد آجدار، ورق سیاه",
     specPlaceholder: "سایز / مشخصات فنی",
     specSelectPlaceholder: "انتخاب سایز",
     specCustomPlaceholder: "ضخامت، ابعاد، گرید و…",
     skuLabel: "کد کالا",
-    quantityPlaceholder: "مقدار",
+    quantityPlaceholder: "مثلاً ۵۰۰۰",
+    unitPlaceholder: "انتخاب واحد",
     notesPlaceholder: "توضیحات اختیاری…",
     remove: "حذف ردیف",
     fieldRequired: "این فیلد را تکمیل کنید",
@@ -68,13 +71,14 @@ const copy: Record<Locale, RowCopy> = {
     rowLabel: "Row",
     categoryPlaceholder: "Product category",
     customCategoryOption: "Other / custom item",
-    productPlaceholder: "Product / type",
+    productPlaceholder: "Select product",
     productCustomPlaceholder: "e.g. ribbed rebar, hot-rolled sheet",
     specPlaceholder: "Size / specification",
     specSelectPlaceholder: "Select size",
     specCustomPlaceholder: "Thickness, dimensions, grade…",
     skuLabel: "SKU",
-    quantityPlaceholder: "Quantity",
+    quantityPlaceholder: "e.g. 5000",
+    unitPlaceholder: "Select unit",
     notesPlaceholder: "Optional notes…",
     remove: "Remove row",
     fieldRequired: "This field is required",
@@ -84,13 +88,14 @@ const copy: Record<Locale, RowCopy> = {
     rowLabel: "الصف",
     categoryPlaceholder: "فئة المنتج",
     customCategoryOption: "أخرى / صنف مخصص",
-    productPlaceholder: "اسم / نوع المنتج",
+    productPlaceholder: "اختر المنتج",
     productCustomPlaceholder: "مثال: حديد تسليح، صاج أسود",
     specPlaceholder: "المقاس / المواصفات الفنية",
     specSelectPlaceholder: "اختر المقاس",
     specCustomPlaceholder: "السماكة، الأبعاد، الدرجة…",
     skuLabel: "رمز المنتج",
-    quantityPlaceholder: "الكمية",
+    quantityPlaceholder: "مثلاً ٥٠٠٠",
+    unitPlaceholder: "اختر الوحدة",
     notesPlaceholder: "ملاحظات اختيارية…",
     remove: "حذف الصف",
     fieldRequired: "هذا الحقل مطلوب",
@@ -323,7 +328,7 @@ export function RfqItemRow({ layout, index, fields, locale, disabled, errors, ca
     <SelectField>
       <select
         id={`${idPrefix}-unit`}
-        aria-label="Unit"
+        aria-label={t.unitPlaceholder}
         title={RFQ_UOM_LABELS[locale][fields.unit]}
         value={fields.unit}
         disabled={disabled}
@@ -386,12 +391,12 @@ export function RfqItemRow({ layout, index, fields, locale, disabled, errors, ca
     return (
       <tr ref={rowRef as (el: HTMLTableRowElement | null) => void} className={cn("border-border border-b align-top", (hasProductError || hasQuantityError) && "bg-[var(--aa-color-danger-50)]/40")}>
         <td className="text-muted-foreground px-3 py-3 text-center text-sm font-semibold">{index + 1}</td>
-        <td className="min-w-40 px-2 py-3">{categorySelect}</td>
-        <td className="min-w-44 px-2 py-3">{productCell}</td>
-        <td className="min-w-36 px-2 py-3">{specCell}</td>
-        <td className="min-w-28 px-2 py-3">{unitSelect}</td>
-        <td className="min-w-28 px-2 py-3">{quantityInput}</td>
-        <td className="min-w-40 px-2 py-3">{notesInput}</td>
+        <td className="px-2 py-3">{categorySelect}</td>
+        <td className="px-2 py-3">{productCell}</td>
+        <td className="px-2 py-3">{specCell}</td>
+        <td className="px-2 py-3">{quantityInput}</td>
+        <td className="px-2 py-3">{unitSelect}</td>
+        <td className="px-2 py-3">{notesInput}</td>
         <td className="px-2 py-3 text-center">{removeButton}</td>
       </tr>
     );
@@ -412,8 +417,8 @@ export function RfqItemRow({ layout, index, fields, locale, disabled, errors, ca
       <div className="grid gap-2">{productCell}</div>
       <div className="grid gap-2">{specCell}</div>
       <div className="grid grid-cols-2 gap-3">
-        {unitSelect}
         {quantityInput}
+        {unitSelect}
       </div>
       {notesInput}
     </div>

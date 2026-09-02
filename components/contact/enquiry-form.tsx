@@ -2,11 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Script from "next/script";
-import { Plus } from "lucide-react";
+import { Plus, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Locale } from "@/config/locales";
 import type { RfqItemInput, RfqResponse } from "@/lib/rfq/types";
-import { MAX_ITEMS } from "@/lib/rfq/validation";
 import type { RfqCatalogSelection } from "@/lib/catalog/editorial-repository";
 import { TURNSTILE_RFQ_ACTION } from "@/lib/security/turnstile-action";
 import { groupCatalogItemsForSelector, type RfqSelectableCatalogItem } from "@/lib/rfq/catalog-selector";
@@ -15,11 +14,14 @@ import {
   createCatalogRowFromSelection,
   createEmptyCatalogRow,
   validateRfqRow,
+  MAX_ITEMS,
   type RfqRow,
   type RfqRowFieldKey,
   type RfqRowFields,
 } from "@/lib/rfq/item-row-validation";
 import { RfqItemRow } from "@/components/contact/rfq-item-row";
+import { getDefaultPhoneCountry, getCountryLabel, PHONE_COUNTRIES } from "@/lib/rfq/phone-country-registry";
+import { normalizeDigits } from "@/lib/rfq/quantity";
 
 /**
  * Multi-item RFQ / purchase-list form (docs/RFQ_MULTI_ITEM_FORM.md).
@@ -66,12 +68,16 @@ const copy: Record<
   Locale,
   {
     customerInfoTitle: string;
-    name: string; company: string; email: string; phone: string; message: string; messagePlaceholder: string;
+    name: string; namePlaceholder: string;
+    company: string; companyOptionalSuffix: string; companyPlaceholder: string;
+    email: string; emailPlaceholder: string;
+    phone: string; phoneCountryPlaceholder: string; phoneLocalPlaceholder: string;
+    message: string; messagePlaceholder: string;
     itemsTitle: string; itemsBody: string;
     counter: (n: number, max: number) => string;
     maxReached: string;
     addRow: string;
-    tableHeadIndex: string; tableHeadCategory: string; tableHeadProduct: string; tableHeadSpec: string; tableHeadUnit: string; tableHeadQuantity: string; tableHeadNotes: string; tableHeadActions: string;
+    tableHeadIndex: string; tableHeadCategory: string; tableHeadProduct: string; tableHeadSpec: string; tableHeadQuantity: string; tableHeadUnit: string; tableHeadNotes: string; tableHeadActions: string;
     errorSummaryTitle: string;
     rowPrefix: (n: number) => string;
     errorProductCatalog: string; errorProductCustom: string; errorQuantity: string;
@@ -88,14 +94,17 @@ const copy: Record<
 > = {
   fa: {
     customerInfoTitle: "اطلاعات شما",
-    name: "نام و نام خانوادگی", company: "شرکت", email: "ایمیل", phone: "شماره موبایل",
+    name: "نام و نام خانوادگی", namePlaceholder: "نام و نام خانوادگی",
+    company: "شرکت", companyOptionalSuffix: "اختیاری", companyPlaceholder: "نام شرکت – اختیاری",
+    email: "ایمیل", emailPlaceholder: "you@company.com",
+    phone: "شماره موبایل", phoneCountryPlaceholder: "کشور", phoneLocalPlaceholder: "۹۱۲۳۴۵۶۷۸۹",
     message: "توضیحات / نکات", messagePlaceholder: "هر نکته‌ای که در بررسی درخواست شما مؤثر است بنویسید.",
     itemsTitle: "لیست محصولات درخواستی",
     itemsBody: "جزئیات و مقدار هر محصول را در ردیف‌های زیر وارد کنید (حداکثر ۲۰ ردیف).",
     counter: (n, max) => `تعداد ردیف‌ها: ${n} / ${max}`,
     maxReached: "به حداکثر تعداد ردیف (۲۰) رسیده‌اید.",
     addRow: "افزودن ردیف جدید",
-    tableHeadIndex: "#", tableHeadCategory: "دسته محصول", tableHeadProduct: "نام / نوع محصول", tableHeadSpec: "سایز / مشخصات فنی", tableHeadUnit: "واحد", tableHeadQuantity: "مقدار", tableHeadNotes: "نکات / توضیحات", tableHeadActions: "عملیات",
+    tableHeadIndex: "#", tableHeadCategory: "دسته محصول", tableHeadProduct: "نام / نوع محصول", tableHeadSpec: "سایز / مشخصات فنی", tableHeadQuantity: "مقدار", tableHeadUnit: "واحد", tableHeadNotes: "نکات / توضیحات", tableHeadActions: "عملیات",
     errorSummaryTitle: "لطفاً موارد زیر را تکمیل کنید:",
     rowPrefix: (n) => `ردیف ${n}:`,
     errorProductCatalog: "محصول را انتخاب کنید",
@@ -121,14 +130,17 @@ const copy: Record<
   },
   en: {
     customerInfoTitle: "Your information",
-    name: "Full name", company: "Company", email: "Email", phone: "Mobile number",
+    name: "Full name", namePlaceholder: "Full name",
+    company: "Company", companyOptionalSuffix: "optional", companyPlaceholder: "Company name – optional",
+    email: "Email", emailPlaceholder: "you@company.com",
+    phone: "Mobile number", phoneCountryPlaceholder: "Country", phoneLocalPlaceholder: "9123456789",
     message: "Notes", messagePlaceholder: "Anything else that helps us review your request.",
     itemsTitle: "Requested product list",
     itemsBody: "Enter the specification and quantity for each item below (up to 20 rows).",
     counter: (n, max) => `Rows: ${n} / ${max}`,
     maxReached: "You've reached the maximum of 20 rows.",
     addRow: "Add new row",
-    tableHeadIndex: "#", tableHeadCategory: "Category", tableHeadProduct: "Product / type", tableHeadSpec: "Size / specification", tableHeadUnit: "Unit", tableHeadQuantity: "Quantity", tableHeadNotes: "Notes", tableHeadActions: "Actions",
+    tableHeadIndex: "#", tableHeadCategory: "Category", tableHeadProduct: "Product / type", tableHeadSpec: "Size / specification", tableHeadQuantity: "Quantity", tableHeadUnit: "Unit", tableHeadNotes: "Notes", tableHeadActions: "Actions",
     errorSummaryTitle: "Please complete the following:",
     rowPrefix: (n) => `Row ${n}:`,
     errorProductCatalog: "Select a product",
@@ -154,14 +166,17 @@ const copy: Record<
   },
   ar: {
     customerInfoTitle: "معلوماتك",
-    name: "الاسم الكامل", company: "الشركة", email: "البريد الإلكتروني", phone: "رقم الجوال",
+    name: "الاسم الكامل", namePlaceholder: "الاسم الكامل",
+    company: "الشركة", companyOptionalSuffix: "اختياري", companyPlaceholder: "اسم الشركة – اختياري",
+    email: "البريد الإلكتروني", emailPlaceholder: "you@company.com",
+    phone: "رقم الجوال", phoneCountryPlaceholder: "الدولة", phoneLocalPlaceholder: "٩١٢٣٤٥٦٧٨٩",
     message: "ملاحظات", messagePlaceholder: "أي تفاصيل أخرى تساعدنا في مراجعة طلبك.",
     itemsTitle: "قائمة المنتجات المطلوبة",
     itemsBody: "أدخل المواصفات والكمية لكل صنف أدناه (حتى 20 صفًا).",
     counter: (n, max) => `عدد الصفوف: ${n} / ${max}`,
     maxReached: "لقد وصلت إلى الحد الأقصى (20 صفًا).",
     addRow: "إضافة صف جديد",
-    tableHeadIndex: "#", tableHeadCategory: "الفئة", tableHeadProduct: "المنتج / النوع", tableHeadSpec: "المقاس / المواصفات", tableHeadUnit: "الوحدة", tableHeadQuantity: "الكمية", tableHeadNotes: "ملاحظات", tableHeadActions: "إجراءات",
+    tableHeadIndex: "#", tableHeadCategory: "الفئة", tableHeadProduct: "المنتج / النوع", tableHeadSpec: "المقاس / المواصفات", tableHeadQuantity: "الكمية", tableHeadUnit: "الوحدة", tableHeadNotes: "ملاحظات", tableHeadActions: "إجراءات",
     errorSummaryTitle: "يرجى إكمال ما يلي:",
     rowPrefix: (n) => `الصف ${n}:`,
     errorProductCatalog: "اختر منتجًا",
@@ -251,6 +266,8 @@ export function EnquiryForm({
   const turnstileWidgetIdRef = useRef<string | null>(null);
   const rowElementRefs = useRef<Record<string, HTMLElement | null>>({});
   const t = copy[locale];
+  const [phoneCountry, setPhoneCountry] = useState<string>(() => getDefaultPhoneCountry(locale)?.iso2 ?? "");
+  const [phoneLocal, setPhoneLocal] = useState("");
 
   const catalogGroups = useMemo(() => groupCatalogItemsForSelector(catalogItems, locale), [catalogItems, locale]);
 
@@ -370,7 +387,8 @@ export function EnquiryForm({
       fullName: String(data.get("name") ?? ""),
       companyName: String(data.get("company") ?? ""),
       email: String(data.get("email") ?? ""),
-      phone: String(data.get("phone") ?? "") || undefined,
+      phoneCountry: phoneCountry || undefined,
+      phoneLocal: phoneLocal || undefined,
       message: String(data.get("message") ?? "") || undefined,
       items,
       website: String(data.get("website") ?? ""),
@@ -425,6 +443,8 @@ export function EnquiryForm({
     setErrorMessage(null);
     setRows([createEmptyCatalogRow()]);
     setRowErrors({});
+    setPhoneCountry(getDefaultPhoneCountry(locale)?.iso2 ?? "");
+    setPhoneLocal("");
     resetTurnstile();
   }
 
@@ -471,39 +491,79 @@ export function EnquiryForm({
               {t.name}
               <RequiredMark srLabel={t.requiredMark} />
             </label>
-            <input id="name" name="name" required aria-required="true" autoComplete="name" disabled={submitting} className={field} />
+            <input id="name" name="name" required aria-required="true" autoComplete="name" placeholder={t.namePlaceholder} disabled={submitting} className={field} />
           </div>
           <div className="grid gap-2">
             <label className={label} htmlFor="company">
-              {t.company}
-              <RequiredMark srLabel={t.requiredMark} />
+              {t.company} <span className="text-muted-foreground font-normal normal-case tracking-normal">({t.companyOptionalSuffix})</span>
             </label>
-            <input id="company" name="company" required aria-required="true" autoComplete="organization" disabled={submitting} className={field} />
+            <input id="company" name="company" autoComplete="organization" placeholder={t.companyPlaceholder} disabled={submitting} className={field} />
           </div>
           <div className="grid gap-2">
             <label className={label} htmlFor="email">
               {t.email}
               <RequiredMark srLabel={t.requiredMark} />
             </label>
-            <input id="email" name="email" type="email" required aria-required="true" autoComplete="email" disabled={submitting} className={field} />
+            <input id="email" name="email" type="email" required aria-required="true" autoComplete="email" placeholder={t.emailPlaceholder} disabled={submitting} className={field} />
           </div>
-          <div className="grid gap-2">
-            <label className={label} htmlFor="phone">
+          {/* A nested <fieldset>/<legend> (not just a <label>) so assistive
+              tech announces "Mobile number" as shared context for BOTH the
+              country selector and the local-number input, while each still
+              keeps its own distinct accessible name (aria-label) and
+              validation message — neither control is announced in
+              isolation. border-0/p-0/m-0 resets the browser's default
+              fieldset box so it renders identically to the sibling
+              <label>-based fields around it. */}
+          <fieldset className="grid gap-2 border-0 p-0 m-0">
+            <legend className={label}>
               {t.phone}
               <RequiredMark srLabel={t.requiredMark} />
-            </label>
-            <input
-              id="phone"
-              name="phone"
-              type="tel"
-              required
-              aria-required="true"
-              autoComplete="tel"
-              disabled={submitting}
-              className={field}
-              title={t.phoneInvalid}
-            />
-          </div>
+            </legend>
+            <div className="flex gap-2">
+              <div className="relative w-[7.5rem] shrink-0">
+                <select
+                  id="phone-country"
+                  name="phoneCountry"
+                  aria-label={`${t.phone} — ${t.phoneCountryPlaceholder}`}
+                  required
+                  aria-required="true"
+                  disabled={submitting}
+                  value={phoneCountry}
+                  onChange={(e) => setPhoneCountry(e.target.value)}
+                  className={`${field} appearance-none truncate pe-8`}
+                >
+                  {!phoneCountry && (
+                    <option value="" disabled>
+                      {t.phoneCountryPlaceholder}
+                    </option>
+                  )}
+                  {PHONE_COUNTRIES.map((c) => (
+                    <option key={c.iso2} value={c.iso2}>
+                      +{c.dialCode} {getCountryLabel(c.iso2, locale)}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown aria-hidden="true" className="text-muted-foreground pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2" />
+              </div>
+              <input
+                id="phone-local"
+                name="phoneLocal"
+                type="tel"
+                inputMode="numeric"
+                required
+                aria-required="true"
+                aria-label={t.phone}
+                autoComplete="tel-national"
+                dir="ltr"
+                placeholder={t.phoneLocalPlaceholder}
+                disabled={submitting}
+                value={phoneLocal}
+                onChange={(e) => setPhoneLocal(normalizeDigits(e.target.value).replace(/[^\d]/g, ""))}
+                className={`${field} flex-1`}
+                title={t.phoneInvalid}
+              />
+            </div>
+          </fieldset>
           <div className="grid gap-2 sm:col-span-2">
             <label className={label} htmlFor="message">{t.message}</label>
             <textarea id="message" name="message" rows={3} placeholder={t.messagePlaceholder} disabled={submitting} className={`${field} resize-y`} />
@@ -532,17 +592,33 @@ export function EnquiryForm({
           </span>
         </div>
 
-        {/* Desktop table */}
+        {/* Desktop table. table-layout:fixed + an explicit <colgroup> gives
+            every column (Quantity in particular) a guaranteed reserved
+            width track — without this, table-layout:auto lets Category/
+            Product's larger content win space before Quantity (the
+            narrowest column) is laid out, clipping it (RFQ Column Order &
+            Clipping fix). Column order matches the semantic order:
+            # / Category / Product / Spec / Quantity / Unit / Notes / Actions. */}
         <div className="mt-6 hidden overflow-x-auto lg:block">
-          <table className="w-full border-collapse text-sm">
+          <table className="w-full border-collapse text-sm [table-layout:fixed]">
+            <colgroup>
+              <col className="w-[4%]" />
+              <col className="w-[15%]" />
+              <col className="w-[17%]" />
+              <col className="w-[15%]" />
+              <col className="w-[12%]" />
+              <col className="w-[11%]" />
+              <col className="w-[18%]" />
+              <col className="w-[8%]" />
+            </colgroup>
             <thead>
               <tr className="border-border text-muted-foreground border-b text-xs font-bold uppercase tracking-wide">
                 <th className="px-3 py-2 text-center">{t.tableHeadIndex}</th>
                 <th className="px-2 py-2 text-start">{t.tableHeadCategory}</th>
                 <th className="px-2 py-2 text-start">{t.tableHeadProduct}</th>
                 <th className="px-2 py-2 text-start">{t.tableHeadSpec}</th>
-                <th className="px-2 py-2 text-start">{t.tableHeadUnit}</th>
                 <th className="px-2 py-2 text-start">{t.tableHeadQuantity}</th>
+                <th className="px-2 py-2 text-start">{t.tableHeadUnit}</th>
                 <th className="px-2 py-2 text-start">{t.tableHeadNotes}</th>
                 <th className="px-2 py-2 text-center">{t.tableHeadActions}</th>
               </tr>

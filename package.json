@@ -7,6 +7,7 @@
     "@vinext/cloudflare": "latest",
     "class-variance-authority": "latest",
     "clsx": "latest",
+    "libphonenumber-js": "^1.13.12",
     "lucide-react": "latest",
     "react": "latest",
     "react-dom": "latest",

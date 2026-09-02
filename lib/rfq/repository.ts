@@ -78,11 +78,11 @@ export async function createRfq(
         db
           .prepare(
             `INSERT INTO rfq_contacts (
-              rfq_id, full_name, job_title, phone_country_code, phone_national, phone_e164,
+              rfq_id, full_name, job_title, phone_iso2, phone_country_code, phone_national, phone_e164,
               email_normalized, country_code, city, preferred_contact_method, created_at, updated_at
-            ) VALUES (?, ?, NULL, NULL, ?, NULL, ?, NULL, NULL, NULL, ?, ?)`,
+            ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?)`,
           )
-          .bind(rfqId, input.fullName, input.phone, input.email, now, now),
+          .bind(rfqId, input.fullName, input.phoneIso2, input.phoneCallingCode, input.phoneNational, input.phoneE164, input.email, now, now),
         ...input.items.map((item, index) =>
           db
             .prepare(

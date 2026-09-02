@@ -253,7 +253,15 @@
 				"ODOO_BASE_URL": "https://odoo.ahanassa.com",
 				"ODOO_DATABASE": "ahanassa",
 				"ODOO_CRM_TEAM_ID": "1",
-				"NEXT_PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAAEi2RZ3NHcqTk0ej"
+				"NEXT_PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAAEi2RZ3NHcqTk0ej",
+				// Homepage price strip (docs/pricing/PRICE_PROVIDER_CONTRACT.md) —
+				// explicit default-OFF feature flag + empty enabled-provider list.
+				// No price data exists yet (no real provider is configured — see
+				// the doc's "safe rollout order"); flipping PRICE_STRIP_ENABLED to
+				// "true" and populating ENABLED_PRICE_PROVIDERS are separate, later,
+				// explicit deployment steps, never bundled with an app-code deploy.
+				"PRICE_STRIP_ENABLED": "false",
+				"ENABLED_PRICE_PROVIDERS": ""
 			}
 		},
 		"staging": {
@@ -293,7 +301,9 @@
 				"APP_ENV": "staging",
 				"ODOO_BASE_URL": "https://odoo.ahanassa.com",
 				"ODOO_DATABASE": "ahanassa",
-				"ODOO_CRM_TEAM_ID": "1"
+				"ODOO_CRM_TEAM_ID": "1",
+				"PRICE_STRIP_ENABLED": "false",
+				"ENABLED_PRICE_PROVIDERS": ""
 			}
 		}
 	}

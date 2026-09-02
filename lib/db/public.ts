@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { ServiceUnavailableError } from "@/lib/db/ops";
+import { ServiceUnavailableError } from "./ops.ts";
 
 /**
  * DB_PUBLIC access helper. Public catalog/SEO projection data only — never

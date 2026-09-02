@@ -42,3 +42,15 @@ export const primaryCta: Record<Locale, { full: string; compact: string }> = {
   en: { full: "Send invoice or purchase list", compact: "Send invoice" },
   ar: { full: "إرسال الفاتورة أو قائمة الشراء", compact: "إرسال الفاتورة" },
 };
+
+/**
+ * Lightweight header contact action, next to the primary CTA — never a
+ * second primary button. fa gets a plain `tel:` text link ("تماس"); en/ar
+ * get a WhatsApp deep link instead (components/layout/SiteHeader.tsx),
+ * lib/content/contact-channels.ts for the actual number/URL.
+ */
+export const contactAction: Record<Locale, { label: string }> = {
+  fa: { label: "تماس" },
+  en: { label: "WhatsApp" },
+  ar: { label: "واتساب" },
+};

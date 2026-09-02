@@ -55,6 +55,12 @@ export interface HomepageCopy {
     body: string;
     cta: string;
   };
+  priceStrip: {
+    heading: string;
+    /** "Updated <relative time>" label prefix — components/home/price-strip.tsx appends the formatted value. */
+    updatedPrefix: string;
+    staleLabel: string;
+  };
 }
 
 export const homepageCopy: Record<Locale, HomepageCopy> = {
@@ -64,7 +70,7 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
       title: "خرید آهن را به یک تصمیم مطمئن تبدیل کنید.",
       body: "فاکتور یا لیست خریدتان را بفرستید؛ آهن آسا نیاز پروژه، گزینه‌های تأمین و مسیر خرید را با نگاه فنی و تجاری بررسی و هماهنگ می‌کند.",
       brandLine: "ما مراقب سرمایه شما هستیم.",
-      secondaryCta: "آشنایی با فرآیند خرید",
+      secondaryCta: "درخواست قیمت تلفنی",
       rail: [
         { title: "شفافیت در نیاز", body: "مشخصات و زمان‌بندی پیش از تعهد نهایی روشن می‌شود" },
         { title: "کنترل تأمین", body: "گزینه‌های تأمین مقایسه و ارزیابی می‌شوند" },
@@ -114,6 +120,11 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
       body: "پوشش جغرافیایی و صنعتی بر اساس نیاز هر پروژه بررسی می‌شود؛ جزئیات کامل به‌زودی منتشر می‌شود.",
       cta: "جزئیات دامنه فعالیت",
     },
+    priceStrip: {
+      heading: "آخرین قیمت‌ها",
+      updatedPrefix: "به‌روزرسانی:",
+      staleLabel: "قیمت قدیمی",
+    },
   },
   en: {
     hero: {
@@ -121,7 +132,7 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
       title: "Turn buying steel into a confident decision.",
       body: "Send your invoice or purchase list — Ahan Asa reviews the project requirement, sourcing options, and purchasing path with both technical and commercial judgment.",
       brandLine: "We protect your capital.",
-      secondaryCta: "Learn how the process works",
+      secondaryCta: "Request a quote on WhatsApp",
       rail: [
         { title: "Requirement clarity", body: "Specification and timing clarified before commitment" },
         { title: "Sourcing control", body: "Sourcing options compared and evaluated" },
@@ -171,6 +182,11 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
       body: "Geographic and industry coverage is reviewed per project requirement; full details will be published soon.",
       cta: "Scope of activity details",
     },
+    priceStrip: {
+      heading: "Latest prices",
+      updatedPrefix: "Updated:",
+      staleLabel: "Older price",
+    },
   },
   ar: {
     hero: {
@@ -178,7 +194,7 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
       title: "حوّل شراء الحديد إلى قرار مطمئن.",
       body: "أرسل فاتورتك أو قائمة الشراء الخاصة بك؛ يقوم آهن آسا بمراجعة احتياج المشروع وخيارات التوريد ومسار الشراء بنظرة فنية وتجارية.",
       brandLine: "نحن نحرص على رأس مالك.",
-      secondaryCta: "تعرف على مسار الشراء",
+      secondaryCta: "طلب سعر عبر واتساب",
       rail: [
         { title: "وضوح الاحتياج", body: "توضيح المواصفات والتوقيت قبل الالتزام" },
         { title: "التحكم في التوريد", body: "مقارنة وتقييم خيارات التوريد" },
@@ -227,6 +243,11 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
       title: "تُراجَع الطلبات من مجموعة من الصناعات.",
       body: "تُراجَع التغطية الجغرافية والصناعية بحسب احتياج كل مشروع؛ ستُنشَر التفاصيل الكاملة قريبًا.",
       cta: "تفاصيل نطاق النشاط",
+    },
+    priceStrip: {
+      heading: "أحدث الأسعار",
+      updatedPrefix: "آخر تحديث:",
+      staleLabel: "سعر قديم",
     },
   },
 };

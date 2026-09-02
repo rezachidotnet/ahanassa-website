@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MAX_ITEMS, validateRfqSubmission } from "./validation.ts";
+import { validateRfqSubmission } from "./validation.ts";
+import { MAX_ITEMS } from "./item-row-validation.ts";
 
 /**
  * lib/rfq/validation.ts had no direct unit test file before Catalog -> RFQ
@@ -19,7 +20,8 @@ function basePayload(overrides: Record<string, unknown> = {}) {
     fullName: "Ali Ahmadi",
     companyName: "Ahan Sazeh Co.",
     email: "ali@example.com",
-    phone: "+989121234567",
+    phoneCountry: "IR",
+    phoneLocal: "9121234567",
     items: [{ productSlug: "deformed-rebar", quantityText: "200 تن", unit: "ton" }],
     ...overrides,
   };
@@ -126,56 +128,85 @@ test("validateRfqSubmission accepts a mixed catalog + custom 12-line submission 
   assert.equal(result.value?.items[1].source, "freeform");
 });
 
-// --- Phone required (Go-Live Readiness Stage 6, owner decision) ---
+// --- Phone required, country-aware, server-authoritative E.164 (RFQ Phone Field hardening) ---
 
-test("validateRfqSubmission rejects a missing phone", () => {
-  const result = validateRfqSubmission(basePayload({ phone: undefined }));
+test("validateRfqSubmission rejects a missing phoneCountry", () => {
+  const result = validateRfqSubmission(basePayload({ phoneCountry: undefined }));
   assert.equal(result.ok, false);
   assert.ok(result.fieldErrors.phone?.includes("required"));
 });
 
-test("validateRfqSubmission rejects an empty-string phone", () => {
-  const result = validateRfqSubmission(basePayload({ phone: "" }));
+test("validateRfqSubmission rejects a missing phoneLocal", () => {
+  const result = validateRfqSubmission(basePayload({ phoneLocal: undefined }));
   assert.equal(result.ok, false);
   assert.ok(result.fieldErrors.phone?.includes("required"));
 });
 
-test("validateRfqSubmission rejects a whitespace-only phone (treated the same as missing)", () => {
-  const result = validateRfqSubmission(basePayload({ phone: "   " }));
+test("validateRfqSubmission rejects an empty-string phoneLocal", () => {
+  const result = validateRfqSubmission(basePayload({ phoneLocal: "" }));
   assert.equal(result.ok, false);
   assert.ok(result.fieldErrors.phone?.includes("required"));
 });
 
-test("validateRfqSubmission still rejects a malformed (present but invalid) phone", () => {
-  const result = validateRfqSubmission(basePayload({ phone: "abc" }));
+test("validateRfqSubmission rejects a malformed (present but invalid) phone", () => {
+  const result = validateRfqSubmission(basePayload({ phoneLocal: "abc" }));
   assert.equal(result.ok, false);
   assert.ok(result.fieldErrors.phone?.includes("invalid"));
 });
 
-test("validateRfqSubmission accepts a well-formed phone and never returns it as null", () => {
-  const result = validateRfqSubmission(basePayload({ phone: "+989121234567" }));
-  assert.equal(result.ok, true);
-  assert.equal(result.value?.phone, "+989121234567");
+test("validateRfqSubmission rejects an Iranian phone with a leading zero (owner's explicit convention)", () => {
+  const result = validateRfqSubmission(basePayload({ phoneCountry: "IR", phoneLocal: "09121234567" }));
+  assert.equal(result.ok, false);
+  assert.ok(result.fieldErrors.phone?.includes("invalid"));
 });
 
-test("validateRfqSubmission normalizes Persian digits and strips separators in a valid phone", () => {
-  const result = validateRfqSubmission(basePayload({ phone: "۰۹۱۲-۱۲۳-۴۵۶۷" }));
+test("validateRfqSubmission accepts a well-formed IR phone and composes E.164 server-side", () => {
+  const result = validateRfqSubmission(basePayload({ phoneCountry: "IR", phoneLocal: "9121234567" }));
   assert.equal(result.ok, true);
-  assert.equal(result.value?.phone, "09121234567");
+  assert.equal(result.value?.phoneE164, "+989121234567");
+  assert.equal(result.value?.phoneIso2, "IR");
+  assert.equal(result.value?.phoneCallingCode, "98");
+  assert.equal(result.value?.phoneNational, "9121234567");
 });
 
-// --- Full-form required-field regression (name/company/email unaffected) ---
+test("validateRfqSubmission accepts a well-formed IQ phone and composes E.164 server-side", () => {
+  const result = validateRfqSubmission(basePayload({ phoneCountry: "IQ", phoneLocal: "7123456789" }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.phoneE164, "+9647123456789");
+});
 
-test("validateRfqSubmission still requires fullName (unchanged by the phone change)", () => {
+test("validateRfqSubmission normalizes Persian digits in phoneLocal before validation", () => {
+  const result = validateRfqSubmission(basePayload({ phoneCountry: "IR", phoneLocal: "۹۱۲۱۲۳۴۵۶۷" }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.phoneE164, "+989121234567");
+});
+
+test("validateRfqSubmission never trusts a client-supplied dial code — only phoneCountry (ISO-2) is accepted", () => {
+  // No phoneDialCode/phoneCallingCode input field exists in the payload
+  // contract at all — the server always resolves it itself from phoneCountry.
+  const result = validateRfqSubmission(basePayload({ phoneCountry: "IR", phoneLocal: "9121234567", phoneCallingCode: "1" }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.phoneCallingCode, "98", "a spoofed phoneCallingCode in the body must be ignored");
+});
+
+// --- Full-form required-field regression (name/email unaffected; company now optional) ---
+
+test("validateRfqSubmission still requires fullName", () => {
   const result = validateRfqSubmission(basePayload({ fullName: "" }));
   assert.equal(result.ok, false);
   assert.ok(result.fieldErrors.fullName?.includes("invalid_length"));
 });
 
-test("validateRfqSubmission still requires companyName (unchanged by the phone change)", () => {
+test("validateRfqSubmission accepts an empty companyName (owner decision: company is optional)", () => {
   const result = validateRfqSubmission(basePayload({ companyName: "" }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.companyName, "");
+});
+
+test("validateRfqSubmission still rejects an oversized companyName even though it's optional", () => {
+  const result = validateRfqSubmission(basePayload({ companyName: "a".repeat(161) }));
   assert.equal(result.ok, false);
-  assert.ok(result.fieldErrors.companyName?.includes("required"));
+  assert.ok(result.fieldErrors.companyName?.includes("too_long"));
 });
 
 test("validateRfqSubmission still requires email (unchanged by the phone change)", () => {

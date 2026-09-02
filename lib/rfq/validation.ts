@@ -1,9 +1,11 @@
 import { locales, type Locale } from "../../config/locales.ts";
 import { getSampleProduct } from "../content/catalog-sample.ts";
 import { isValidIdempotencyKey } from "./idempotency.ts";
-import { normalizeDigits, parseLeadingQuantity } from "./quantity.ts";
+import { parseLeadingQuantity } from "./quantity.ts";
 import { RFQ_UOM_CODES, type RfqUomCode } from "./uom.ts";
 import { isUomAllowedForCustomItem } from "./uom-policy.ts";
+import { MAX_ITEMS } from "./item-row-validation.ts";
+import { validateAndComposeE164 } from "./phone-server.ts";
 import type { RfqItemInput, RfqSubmissionInput } from "./types.ts";
 
 /**
@@ -19,14 +21,14 @@ import type { RfqItemInput, RfqSubmissionInput } from "./types.ts";
  * approved form actually has were carried over. See DOCUMENT_AUDIT_REPORT.md.
  */
 
-export const MAX_ITEMS = 20;
 export const MAX_BODY_BYTES = 20_000;
 
 const LIMITS = {
   fullName: { min: 2, max: 100 },
   companyName: { max: 160 },
   email: { max: 254 },
-  phone: { max: 32 },
+  phoneCountry: { max: 2 },
+  phoneLocal: { max: 20 },
   deliveryLocation: { max: 200 },
   message: { max: 3000 },
   gradeOrStandard: { max: 100 },
@@ -52,7 +54,10 @@ export interface ValidationResult {
     fullName: string;
     companyName: string;
     email: string;
-    phone: string | null;
+    phoneIso2: string | null;
+    phoneCallingCode: string | null;
+    phoneNational: string | null;
+    phoneE164: string | null;
     deliveryLocation: string | null;
     message: string | null;
     items: Array<{
@@ -234,10 +239,10 @@ export function validateRfqSubmission(input: unknown): ValidationResult {
     pushError(errors, "fullName", "numeric_only");
   }
 
+  // Company name is optional (owner decision) — server-side must not
+  // reject an empty value; only the max-length guard remains.
   const companyName = trimmed(body.companyName);
-  if (!companyName) {
-    pushError(errors, "companyName", "required");
-  } else if (companyName.length > LIMITS.companyName.max) {
+  if (companyName.length > LIMITS.companyName.max) {
     pushError(errors, "companyName", "too_long");
   }
 
@@ -249,15 +254,30 @@ export function validateRfqSubmission(input: unknown): ValidationResult {
   }
 
   // Phone is required — owner decision, Go-Live Readiness Stage 6 (2026-09).
-  // Stricter than Odoo's own "name + one contact method" rule (email alone
-  // was previously sufficient) — this is a deliberate Website-side tightening,
-  // never a weakening of the Odoo-side contract.
-  const phoneRaw = trimmed(body.phone);
-  const phone = phoneRaw ? normalizeDigits(phoneRaw).replace(/[\s()-]/g, "") : "";
-  if (!phone) {
+  // Country-aware, server-authoritative composition (lib/rfq/phone-server.ts)
+  // — the client sends only phoneCountry (ISO-2) + phoneLocal (raw local
+  // digits), never a pre-composed E.164 value, and this is the sole place
+  // that value is ever trusted/derived from those two inputs.
+  const phoneCountry = trimmed(body.phoneCountry).toUpperCase();
+  const phoneLocal = trimmed(body.phoneLocal);
+  let phoneIso2: string | null = null;
+  let phoneCallingCode: string | null = null;
+  let phoneNational: string | null = null;
+  let phoneE164: string | null = null;
+  if (!phoneCountry || !phoneLocal) {
     pushError(errors, "phone", "required");
-  } else if (phone.length > LIMITS.phone.max || !/^[+\d][\d]{5,20}$/.test(phone)) {
+  } else if (phoneCountry.length > LIMITS.phoneCountry.max || phoneLocal.length > LIMITS.phoneLocal.max) {
     pushError(errors, "phone", "invalid");
+  } else {
+    const result = validateAndComposeE164(phoneCountry, phoneLocal);
+    if (!result.ok || !result.e164 || !result.callingCode || !result.nationalNumber) {
+      pushError(errors, "phone", "invalid");
+    } else {
+      phoneIso2 = phoneCountry;
+      phoneCallingCode = result.callingCode;
+      phoneNational = result.nationalNumber;
+      phoneE164 = result.e164;
+    }
   }
 
   const deliveryLocation = trimmed(body.deliveryLocation);
@@ -299,7 +319,10 @@ export function validateRfqSubmission(input: unknown): ValidationResult {
       fullName,
       companyName,
       email,
-      phone: phone || null,
+      phoneIso2,
+      phoneCallingCode,
+      phoneNational,
+      phoneE164,
       deliveryLocation: deliveryLocation || null,
       message: message || null,
       items: items as NonNullable<ReturnType<typeof validateItem>>[],

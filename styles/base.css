@@ -28,6 +28,22 @@
     color: var(--aa-color-text-primary);
     font-size: var(--aa-text-body-md);
     line-height: var(--aa-leading-body-md);
+    font-family: var(--aa-font-family-fa);
+  }
+
+  /* Per-locale font-family (Typography Implementation) — html[lang] always
+     matches app/[locale]/layout.tsx's `locale`. Arabic and English never
+     silently fall back to the Persian rule below; each keyed explicitly
+     (01-sources/FONT_STRATEGY.md §13's own "Arabic must not automatically
+     reuse the Persian family" requirement, satisfied by the underlying
+     font choice being identical while the CSS wiring stays explicit and
+     independently overridable per locale). */
+  html[lang="ar"] body {
+    font-family: var(--aa-font-family-ar);
+  }
+
+  html[lang="en"] body {
+    font-family: var(--aa-font-family-en);
   }
 
   a {
