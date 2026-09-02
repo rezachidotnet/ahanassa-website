@@ -134,7 +134,7 @@ async function processMessage(db: D1Database, message: QueueMessageLike): Promis
 
   const itemRows = await db
     .prepare(
-      `SELECT line_number, variant_ref, sku_snapshot, freeform_title, description, quantity_text, quantity_value, quantity_scale
+      `SELECT line_number, variant_ref, sku_snapshot, freeform_title, description, quantity_text, quantity_value, quantity_scale, unit_ref
        FROM rfq_items WHERE rfq_id = ? ORDER BY line_number ASC`,
     )
     .bind(event.aggregate_id)
@@ -147,6 +147,7 @@ async function processMessage(db: D1Database, message: QueueMessageLike): Promis
       quantity_text: string;
       quantity_value: number | null;
       quantity_scale: number | null;
+      unit_ref: string | null;
     }>();
 
   const items: RfqSnapshotItem[] = (itemRows.results ?? []).map((item) => ({
@@ -158,6 +159,7 @@ async function processMessage(db: D1Database, message: QueueMessageLike): Promis
     quantityText: item.quantity_text,
     quantityValue: item.quantity_value,
     quantityScale: item.quantity_scale,
+    unitCode: item.unit_ref,
   }));
 
   const snapshot: RfqSnapshotForMapping = {

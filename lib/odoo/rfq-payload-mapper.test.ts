@@ -2,6 +2,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildOutboundRfqIdempotencyKey, computeNumericQuantity, inferOdooUomCode, mapRfqToApiPayload, type RfqSnapshotForMapping, type RfqSnapshotItem } from "./rfq-payload-mapper.ts";
 
+// unitCode defaults to null in both factories below — deliberately exercises
+// the legacy inferOdooUomCode(quantityText) fallback path for every
+// pre-existing test in this file (docs/RFQ_LAUNCH_UOM_ALIGNMENT.md: a
+// historical row with unit_ref=null). Dedicated tests further down cover
+// the new, deterministic unitCode-present path explicitly.
+
 function catalogItem(overrides: Partial<RfqSnapshotItem> = {}): RfqSnapshotItem {
   return {
     lineNumber: 1,
@@ -12,6 +18,7 @@ function catalogItem(overrides: Partial<RfqSnapshotItem> = {}): RfqSnapshotItem 
     quantityText: "5 branch",
     quantityValue: 5,
     quantityScale: 0,
+    unitCode: null,
     ...overrides,
   };
 }
@@ -26,6 +33,7 @@ function freeformItem(overrides: Partial<RfqSnapshotItem> = {}): RfqSnapshotItem
     quantityText: "10 piece",
     quantityValue: 10,
     quantityScale: 0,
+    unitCode: null,
     ...overrides,
   };
 }
@@ -106,6 +114,54 @@ test("inferOdooUomCode returns null (never guesses) when no known keyword is pre
 
 test("inferOdooUomCode is case-insensitive", () => {
   assert.equal(inferOdooUomCode("2 TON"), "ton");
+});
+
+// --- Launch UoM Contract Alignment: deterministic unitCode preference ---
+// (docs/RFQ_LAUNCH_UOM_ALIGNMENT.md, Phase N — "prove 100 branch serializes
+// to explicit numeric quantity + branch, not ambiguous text re-parsing")
+
+test("mapRfqToApiPayload uses the structured unitCode directly when present — never re-infers from quantityText", () => {
+  // quantityText deliberately contains a DIFFERENT, misleading keyword —
+  // proves unitCode wins outright, not merely "also happens to agree".
+  const result = mapRfqToApiPayload(snapshot({ items: [catalogItem({ quantityText: "100 (see notes for unit)", quantityValue: 100, quantityScale: 0, unitCode: "branch" })] }));
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.payload.items[0].uom, "branch");
+});
+
+test("mapRfqToApiPayload serializes a structured 100/branch line to explicit numeric quantity + branch code", () => {
+  const result = mapRfqToApiPayload(snapshot({ items: [catalogItem({ quantityValue: 100, quantityScale: 0, unitCode: "branch" })] }));
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.payload.items[0].quantity, 100);
+  assert.equal(result.payload.items[0].uom, "branch");
+});
+
+for (const code of ["sheet", "meter", "kg", "ton"] as const) {
+  test(`mapRfqToApiPayload serializes unitCode=${code} deterministically`, () => {
+    const result = mapRfqToApiPayload(snapshot({ items: [catalogItem({ quantityValue: 42, quantityScale: 0, unitCode: code })] }));
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.payload.items[0].uom, code);
+  });
+}
+
+test("mapRfqToApiPayload falls back to inferOdooUomCode only when unitCode is null (a historical row predating this field)", () => {
+  const result = mapRfqToApiPayload(snapshot({ items: [catalogItem({ quantityText: "5 branch", unitCode: null })] }));
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.payload.items[0].uom, "branch");
+});
+
+test("mapRfqToApiPayload rejects an unrecognized unitCode value rather than trusting it blindly — falls back to inference instead", () => {
+  // Defensive: unitCode is always DB-sourced and format-validated at
+  // submission time in real use, but this proves a corrupt/unknown value
+  // can never silently reach Odoo as a fabricated uom — it is treated the
+  // same as absent and falls back to the same non-fabricating inference.
+  const result = mapRfqToApiPayload(snapshot({ items: [catalogItem({ quantityText: "5 branch", unitCode: "not-a-real-uom-code" })] }));
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.payload.items[0].uom, "branch");
 });
 
 // --- full payload mapping: catalog item ---

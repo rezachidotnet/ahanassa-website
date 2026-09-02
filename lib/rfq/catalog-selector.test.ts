@@ -12,6 +12,7 @@ function item(overrides: Partial<RfqSelectableCatalogItem> = {}): RfqSelectableC
     templateSlug: "rebar-aj340",
     categoryCode: "LONG_PRODUCTS",
     categoryLabel: "مقاطع طولی",
+    groupCode: "REBAR",
     ...overrides,
   };
 }
@@ -58,6 +59,11 @@ test("groupCatalogItemsForSelector groups a null-category variant under a labele
   assert.equal(groups[0].categoryCode, null);
   assert.equal(groups[0].categoryLabel, "Other categories");
   assert.equal(groups[0].templates[0].variants.length, 1);
+});
+
+test("groupCatalogItemsForSelector captures each template's own groupCode — for the Unit selector's Launch UoM policy lookup", () => {
+  const groups = groupCatalogItemsForSelector([item({ groupCode: "REBAR" })]);
+  assert.equal(groups[0].templates[0].groupCode, "REBAR");
 });
 
 test("groupCatalogItemsForSelector returns an empty array for an empty input, never throws", () => {

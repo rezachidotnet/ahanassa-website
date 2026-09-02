@@ -86,8 +86,10 @@ never a fabricated/guessed quantity, and never Supplier MOQ-adjusted.
 
 ### UOM
 
-The Website has no structured, customer-facing unit-of-measure selector —
-a genuine, pre-existing gap (DAR-039 Stage G), **not solved by this task**
+**Superseded by docs/RFQ_LAUNCH_UOM_ALIGNMENT.md (2026-09-02) — the Website now has a real, structured, product-aware UoM policy.** The paragraph below is preserved as the historical record of the DAR-039-era gap; it no longer describes current behavior.
+
+~~The Website has no structured, customer-facing unit-of-measure selector —
+a genuine, pre-existing gap (DAR-039 Stage G), not solved by this task
 (this integration does not redesign the RFQ form). Odoo's contract requires
 one of exactly 8 controlled UOM codes per line
 (`kg`/`ton`/`branch`/`sheet`/`meter`/`coil`/`bundle`/`piece` — never an
@@ -95,10 +97,37 @@ Odoo integer `uom.uom` ID). `inferOdooUomCode` does a best-effort,
 non-fabricating keyword match against the same free-text `quantity_text`
 the customer already typed (fa/en/ar keyword dictionary). When no keyword
 matches, it returns `null` — an equally hard sync blocker
-(`UNRESOLVED_UOM`), never a guessed default unit.
+(`UNRESOLVED_UOM`), never a guessed default unit.~~
 
-Both blockers fail the **entire** RFQ (not just the offending line) and
-report the exact failing `lineNumber` — see §6.
+**Current contract (Odoo Ahan Asa Marketplace production `19.0.27.0.0`, `LAUNCH UOM HARDENING LIVE`/`DYNAMIC PRICING UNIT BASIS LIVE`/`SETTLEMENT DUAL-SIDED BILLING LIVE` all confirmed PASS):**
+
+Odoo's `POST /api/v1/rfq` schema still recognizes all 8 UoM codes
+(`kg`/`ton`/`branch`/`sheet`/`meter`/`coil`/`bundle`/`piece`) — that has not
+changed. What changed is Odoo's **accepted-from-Website** Launch policy:
+`coil`/`bundle`/`piece` are no longer accepted as normal Website request
+UoMs, and each product group has its own allowed subset (Rebar: kg/ton/
+branch; Plate: kg/ton/sheet; SHS: kg/ton/meter; Custom/free-text: kg/ton
+only). See `docs/RFQ_LAUNCH_UOM_ALIGNMENT.md` for the full policy, and
+`lib/rfq/uom-policy.ts` for its one canonical implementation.
+
+The Website now sends an explicit, structured `unit` code on every RFQ
+item wire payload (`RfqItemInput.unit`), already Launch-policy-validated
+before any D1 write (`lib/rfq/validation.ts`, `lib/rfq/service.ts`) — never
+merely inferred from free text for a new submission. `rfq_items.unit_ref`/
+`unit_label` (previously always `NULL` — the DAR-039 Stage G gap) are now
+populated with this real, validated code and its localized label.
+`inferOdooUomCode`'s keyword-match extraction (`lib/odoo/rfq-payload-mapper.ts`)
+remains in the codebase **only** as a fallback for a historical row
+persisted before this field existed (`unit_ref IS NULL`) — every new
+submission's outbound Odoo payload uses the structured code directly and
+deterministically.
+
+An item still fails the **entire** RFQ (not just the offending line) and
+reports the exact failing `lineNumber` on `UNCONVERTIBLE_QUANTITY`/
+`UNRESOLVED_UOM` — see §6. `UNRESOLVED_UOM` is now structurally rare for a
+new submission (it would require a data integrity problem, not ordinary
+customer input) since the Website's own Launch policy already rejects an
+invalid unit before the RFQ can ever be durably persisted.
 
 ## 4. Outbound idempotency
 

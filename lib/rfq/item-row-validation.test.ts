@@ -101,7 +101,7 @@ test("isRfqRowEmpty is false once any field is filled", () => {
 test("buildRfqItemInput builds a catalogVariantXid-only item for a catalog row, never leaking category/template filter state", () => {
   const fields: RfqCatalogRowFields = { mode: "catalog", categoryCode: "LONG_PRODUCTS", templateXid: "tmpl-a", variantXid: "variant-a", quantityValue: "5000", unit: "kg", notes: "" };
   const item = buildRfqItemInput(fields, "fa");
-  assert.deepEqual(item, { catalogVariantXid: "variant-a", quantityText: "5000 کیلوگرم", description: undefined });
+  assert.deepEqual(item, { catalogVariantXid: "variant-a", quantityText: "5000 کیلوگرم", unit: "kg", description: undefined });
 });
 
 test("buildRfqItemInput includes notes as description when present", () => {
@@ -123,7 +123,13 @@ test("buildRfqItemInput returns null for an invalid quantity, never fabricates a
 test("buildRfqItemInput builds a freeformTitle item for a custom row, with gradeOrStandard from sizeSpec", () => {
   const fields: RfqCustomRowFields = { mode: "custom", productTitle: "Custom bracket", sizeSpec: "per drawing", quantityValue: "1", unit: "piece", notes: "" };
   const item = buildRfqItemInput(fields, "en");
-  assert.deepEqual(item, { freeformTitle: "Custom bracket", gradeOrStandard: "per drawing", quantityText: "1 piece", description: undefined });
+  assert.deepEqual(item, { freeformTitle: "Custom bracket", gradeOrStandard: "per drawing", quantityText: "1 piece", unit: "piece", description: undefined });
+});
+
+test("buildRfqItemInput sends the structured unit code on the wire payload — deterministic Odoo mapping (docs/RFQ_LAUNCH_UOM_ALIGNMENT.md)", () => {
+  const fields: RfqCatalogRowFields = { mode: "catalog", categoryCode: null, templateXid: null, variantXid: "variant-a", quantityValue: "5", unit: "branch", notes: "" };
+  const item = buildRfqItemInput(fields, "fa");
+  assert.equal(item?.unit, "branch");
 });
 
 test("buildRfqItemInput never sends catalogVariantXid for a custom row", () => {

@@ -27,6 +27,15 @@ export interface RfqSnapshotItem {
   quantityText: string;
   quantityValue: number | null;
   quantityScale: number | null;
+  /**
+   * `rfq_items.unit_ref` — the structured, already-Launch-policy-validated
+   * UoM code captured at submission time (docs/RFQ_LAUNCH_UOM_ALIGNMENT.md,
+   * `lib/rfq/validation.ts` / `lib/rfq/service.ts`). `null` only for a
+   * historical row persisted before this field existed — `mapItem` falls
+   * back to `inferOdooUomCode(quantityText)` for those, never for a new
+   * submission (which always has this populated).
+   */
+  unitCode: string | null;
 }
 
 export interface RfqSnapshotForMapping {
@@ -68,16 +77,20 @@ export function buildOutboundRfqIdempotencyKey(rfqId: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * The Website currently captures quantity as one freeform string
- * (`quantity_text`, e.g. "200 تن") with no structured customer-facing UoM
- * selector — a genuine, documented, pre-existing gap (DAR-039 Stage G;
- * unchanged, not solved by this task, which does not redesign the RFQ
- * form). Odoo's contract, however, requires a controlled UoM code per line.
- * This is a best-effort, non-fabricating extraction of a REAL keyword
- * already present in genuine customer-typed text — not an invented value.
- * Returns `null` (never a guessed default) when no known keyword is found;
- * the caller treats that identically to an unconvertible quantity — a
- * real, reported blocker, never a silently wrong unit.
+ * Legacy fallback only (docs/RFQ_LAUNCH_UOM_ALIGNMENT.md). Until the Launch
+ * UoM Contract Alignment task, the Website captured quantity as one
+ * freeform string (`quantity_text`, e.g. "200 تن") with no structured
+ * customer-facing UoM selector (DAR-039 Stage G) — this best-effort,
+ * non-fabricating keyword extraction was the only way to recover a UoM
+ * code for Odoo's contract. Every new submission now carries a real,
+ * already-Launch-policy-validated structured code
+ * (`RfqSnapshotItem.unitCode`, populated from `rfq_items.unit_ref`) that
+ * `mapItem` uses directly and deterministically — this function is only
+ * still consulted as a fallback for a historical row whose `unit_ref` is
+ * `null` (persisted before this field existed). Returns `null` (never a
+ * guessed default) when no known keyword is found; the caller treats that
+ * identically to an unconvertible quantity — a real, reported blocker,
+ * never a silently wrong unit.
  */
 const UOM_KEYWORDS: Record<RfqApiUomCode, string[]> = {
   kg: ["kg", "kilogram", "کیلوگرم", "کیلو", "كجم", "كيلوجرام"],
@@ -115,11 +128,19 @@ export function computeNumericQuantity(quantityValue: number | null, quantitySca
 // Item mapping
 // ---------------------------------------------------------------------------
 
+/** `item.unitCode`, deterministically, when it's a real recognized Odoo UoM code; `inferOdooUomCode` fallback only for a historical row that predates the structured field (see `RfqSnapshotItem.unitCode`'s own doc comment) — never re-inferred for a value that's already structurally present, even if it happens to also be keyword-matchable. */
+function resolveUomCode(item: RfqSnapshotItem): RfqApiUomCode | null {
+  if (item.unitCode && (RFQ_API_UOM_CODES as readonly string[]).includes(item.unitCode)) {
+    return item.unitCode as RfqApiUomCode;
+  }
+  return inferOdooUomCode(item.quantityText);
+}
+
 function mapItem(item: RfqSnapshotItem): { ok: true; apiItem: RfqApiItem } | { ok: false; reason: RfqMappingFailureReason } {
   const quantity = computeNumericQuantity(item.quantityValue, item.quantityScale);
   if (quantity === null) return { ok: false, reason: "UNCONVERTIBLE_QUANTITY" };
 
-  const uom = inferOdooUomCode(item.quantityText);
+  const uom = resolveUomCode(item);
   if (uom === null) return { ok: false, reason: "UNRESOLVED_UOM" };
 
   const notes = item.description ?? undefined;

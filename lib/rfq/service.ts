@@ -2,6 +2,8 @@ import { hashIdempotencyKey } from "@/lib/rfq/idempotency";
 import { createRfq } from "@/lib/rfq/repository";
 import { validateRfqSubmission } from "@/lib/rfq/validation";
 import { buildCatalogItemRecord, buildFreeformItemRecord } from "@/lib/rfq/catalog-preselection";
+import { RFQ_UOM_LABELS } from "@/lib/rfq/uom";
+import { isUomAllowedForCatalogGroup } from "@/lib/rfq/uom-policy";
 import type { RfqItemRecord, RfqResponse, RfqSubmissionRecord } from "@/lib/rfq/types";
 import { ServiceUnavailableError } from "@/lib/db/ops";
 import { verifyTurnstileToken } from "@/lib/security/turnstile";
@@ -62,26 +64,42 @@ export async function submitRfq(rawBody: unknown, options: SubmitRfqOptions): Pr
   const itemRecords: RfqItemRecord[] = [];
   const catalogFieldErrors: Record<string, string[]> = {};
   for (const [index, item] of result.value.items.entries()) {
+    const unitInput = { code: item.unit, label: RFQ_UOM_LABELS[result.value.locale][item.unit] };
     if (item.catalogVariantXid) {
       const selection = await resolveRfqCatalogVariant(item.catalogVariantXid, result.value.locale);
       if (!selection) {
         (catalogFieldErrors[`items[${index}].catalogVariantXid`] ??= []).push("unavailable");
         continue;
       }
-      itemRecords.push(buildCatalogItemRecord(selection, { quantityText: item.quantityText, quantityValue: item.quantityValue, quantityScale: item.quantityScale }, item.description));
+      // Launch UoM policy (docs/RFQ_LAUNCH_UOM_ALIGNMENT.md) — Stage F,
+      // the group-specific half `lib/rfq/validation.ts` cannot check on its
+      // own (it has no DB_PUBLIC access). Rejected identically to an
+      // unresolvable xid: the whole submission fails before any D1 write,
+      // never a partial/silently-corrected persist.
+      if (!isUomAllowedForCatalogGroup(selection.groupCode, item.unit)) {
+        (catalogFieldErrors[`items[${index}].unit`] ??= []).push("unsupported_for_product");
+        continue;
+      }
+      itemRecords.push(buildCatalogItemRecord(selection, { quantityText: item.quantityText, quantityValue: item.quantityValue, quantityScale: item.quantityScale }, item.description, unitInput));
     } else {
+      // The Custom-item Launch restriction (kg/ton only) was already
+      // enforced format-side in lib/rfq/validation.ts (no DB access
+      // needed for it) — item.unit is guaranteed allowed here.
       itemRecords.push(
-        buildFreeformItemRecord({
-          productRef: item.productRef,
-          productLabel: item.productLabel,
-          categoryLabel: item.categoryLabel,
-          freeformTitle: item.freeformTitle,
-          sizeText: item.sizeText,
-          quantityText: item.quantityText,
-          quantityValue: item.quantityValue,
-          quantityScale: item.quantityScale,
-          description: item.description,
-        }),
+        buildFreeformItemRecord(
+          {
+            productRef: item.productRef,
+            productLabel: item.productLabel,
+            categoryLabel: item.categoryLabel,
+            freeformTitle: item.freeformTitle,
+            sizeText: item.sizeText,
+            quantityText: item.quantityText,
+            quantityValue: item.quantityValue,
+            quantityScale: item.quantityScale,
+            description: item.description,
+          },
+          unitInput,
+        ),
       );
     }
   }

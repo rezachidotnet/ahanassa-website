@@ -24,6 +24,8 @@ export type RfqSelectableCatalogItem = RfqCatalogSelection;
 export interface CatalogTemplateGroup {
   templateXid: string;
   productLabel: string;
+  /** Every variant under one template shares the same Product Master group_code — captured once here so a row's Unit selector can look up its Launch UoM policy (lib/rfq/uom-policy.ts) without re-deriving it per variant. */
+  groupCode: string | null;
   variants: RfqSelectableCatalogItem[];
 }
 
@@ -60,7 +62,7 @@ export function groupCatalogItemsForSelector(items: RfqSelectableCatalogItem[], 
 
     let template = category.templates.find((t) => t.templateXid === item.templateXid);
     if (!template) {
-      template = { templateXid: item.templateXid, productLabel: item.productLabel, variants: [] };
+      template = { templateXid: item.templateXid, productLabel: item.productLabel, groupCode: item.groupCode, variants: [] };
       category.templates.push(template);
     }
 

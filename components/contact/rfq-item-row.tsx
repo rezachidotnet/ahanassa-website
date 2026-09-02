@@ -3,7 +3,8 @@
 import { Trash2, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Locale } from "@/config/locales";
-import { RFQ_UOM_CODES, RFQ_UOM_LABELS, type RfqUomCode } from "@/lib/rfq/uom";
+import { RFQ_UOM_LABELS, type RfqUomCode } from "@/lib/rfq/uom";
+import { CUSTOM_ITEM_LAUNCH_UOMS, getAllowedUomsForCatalogGroup } from "@/lib/rfq/uom-policy";
 import type { RfqRowFieldKey, RfqRowFields } from "@/lib/rfq/item-row-validation";
 import type { CatalogCategoryGroup } from "@/lib/rfq/catalog-selector";
 
@@ -159,18 +160,44 @@ export function RfqItemRow({ layout, index, fields, locale, disabled, errors, ca
   const selectedTemplate = selectedCategory?.templates.find((tpl) => tpl.templateXid === (fields.mode === "catalog" ? fields.templateXid : null));
   const selectedVariant = selectedTemplate?.variants.find((v) => v.variantXid === (fields.mode === "catalog" ? fields.variantXid : null));
 
+  /**
+   * The Launch UoM policy for THIS row right now (docs/RFQ_LAUNCH_UOM_ALIGNMENT.md
+   * Phase C/H) — a Custom row is always restricted to kg/ton (no
+   * authoritative per-unit conversion exists without a real Catalog
+   * identity); a Catalog row with a product chosen yet gets its resolved
+   * product group's own policy (Rebar->branch, Plate->sheet, SHS->meter);
+   * a Catalog row with NO product chosen yet falls back to the same
+   * conservative kg/ton set as Custom, never a guessed product-specific
+   * unit before the customer has actually picked a product.
+   */
+  const allowedUnits = fields.mode === "custom" ? CUSTOM_ITEM_LAUNCH_UOMS : getAllowedUomsForCatalogGroup(selectedTemplate?.groupCode);
+
+  /** Resets the row's unit to the new context's default whenever the previously-selected unit is no longer valid for it — never lets an invalid stale unit survive a product change (Phase H's own explicit "do NOT silently submit an invalid stale UoM"). Returns the fields unchanged (aside from the caller's own delta) when the current unit is still valid. */
+  function withUnitResetIfInvalid<T extends RfqRowFields>(nextFields: T, nextAllowedUnits: readonly RfqUomCode[]): T {
+    if (nextAllowedUnits.includes(nextFields.unit)) return nextFields;
+    return { ...nextFields, unit: nextAllowedUnits[0] };
+  }
+
   function handleCategoryChange(value: string) {
     if (!value) return; // the leading placeholder option is disabled/unselectable — defensive only
     if (value === CUSTOM_CATEGORY_VALUE) {
-      onChange({ mode: "custom", productTitle: "", sizeSpec: "", quantityValue: fields.quantityValue, unit: fields.unit, notes: fields.notes });
+      onChange(withUnitResetIfInvalid({ mode: "custom", productTitle: "", sizeSpec: "", quantityValue: fields.quantityValue, unit: fields.unit, notes: fields.notes }, CUSTOM_ITEM_LAUNCH_UOMS));
     } else {
-      onChange({ mode: "catalog", categoryCode: value === UNCATEGORIZED_VALUE ? null : value, templateXid: null, variantXid: null, quantityValue: fields.quantityValue, unit: fields.unit, notes: fields.notes });
+      // No product chosen yet within the new category -> conservative kg/ton default, same as Custom, until a real Template narrows the policy further.
+      onChange(
+        withUnitResetIfInvalid(
+          { mode: "catalog", categoryCode: value === UNCATEGORIZED_VALUE ? null : value, templateXid: null, variantXid: null, quantityValue: fields.quantityValue, unit: fields.unit, notes: fields.notes },
+          CUSTOM_ITEM_LAUNCH_UOMS,
+        ),
+      );
     }
   }
 
   function handleTemplateChange(templateXid: string) {
     if (fields.mode !== "catalog") return;
-    onChange({ ...fields, templateXid: templateXid || null, variantXid: null });
+    const newTemplate = selectedCategory?.templates.find((tpl) => tpl.templateXid === templateXid);
+    const nextAllowedUnits = getAllowedUomsForCatalogGroup(newTemplate?.groupCode);
+    onChange(withUnitResetIfInvalid({ ...fields, templateXid: templateXid || null, variantXid: null }, nextAllowedUnits));
   }
 
   function handleVariantChange(variantXid: string) {
@@ -303,7 +330,7 @@ export function RfqItemRow({ layout, index, fields, locale, disabled, errors, ca
         onChange={(e) => handleUnitChange(e.target.value)}
         className={selectInput}
       >
-        {RFQ_UOM_CODES.map((code) => (
+        {allowedUnits.map((code) => (
           <option key={code} value={code}>
             {RFQ_UOM_LABELS[locale][code]}
           </option>

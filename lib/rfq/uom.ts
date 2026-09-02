@@ -23,6 +23,15 @@ import { normalizeDigits } from "./quantity.ts";
  * guaranteed to parse to quantity=5000 and infer uom="kg" server-side, with
  * zero coordination needed beyond keeping this list in sync if that
  * dictionary ever changes.
+ *
+ * All 8 codes remain the full set the Odoo RFQ API schema itself
+ * recognizes (`lib/odoo/rfq-api-types.ts#RFQ_API_UOM_CODES`, unchanged) —
+ * `coil`/`bundle`/`piece` are NOT removed from this module, since they may
+ * still need to be understood for historical/internal representation. What
+ * changed (docs/RFQ_LAUNCH_UOM_ALIGNMENT.md) is that the normal Website RFQ
+ * UI and server-side validation no longer OFFER or ACCEPT them from a new
+ * submission — see `lib/rfq/uom-policy.ts` for the product/Custom-aware
+ * Launch policy that actually governs what a given row may select.
  */
 
 export const RFQ_UOM_CODES = ["kg", "ton", "branch", "sheet", "meter", "coil", "bundle", "piece"] as const;
@@ -34,7 +43,8 @@ export const RFQ_UOM_LABELS: Record<Locale, Record<RfqUomCode, string>> = {
   ar: { kg: "كجم", ton: "طن", branch: "فرع", sheet: "لوح", meter: "متر", coil: "لفة", bundle: "حزمة", piece: "قطعة" },
 };
 
-export const DEFAULT_RFQ_UOM: RfqUomCode = "piece";
+/** "kg" — the one unit every current Launch policy allows (every Catalog group and Custom items alike), so it is always a safe, non-fabricated default regardless of which row/product it's applied to. Never "piece" — piece is Launch-deferred (lib/rfq/uom-policy.ts). */
+export const DEFAULT_RFQ_UOM: RfqUomCode = "kg";
 
 /**
  * Composes a structured quantity number + unit into the single freeform

@@ -2,6 +2,8 @@ import { locales, type Locale } from "../../config/locales.ts";
 import { getSampleProduct } from "../content/catalog-sample.ts";
 import { isValidIdempotencyKey } from "./idempotency.ts";
 import { normalizeDigits, parseLeadingQuantity } from "./quantity.ts";
+import { RFQ_UOM_CODES, type RfqUomCode } from "./uom.ts";
+import { isUomAllowedForCustomItem } from "./uom-policy.ts";
 import type { RfqItemInput, RfqSubmissionInput } from "./types.ts";
 
 /**
@@ -70,6 +72,14 @@ export interface ValidationResult {
       quantityText: string;
       quantityValue: number | null;
       quantityScale: number | null;
+      /**
+       * Format-checked and, for a freeform/sample-catalog item, Launch
+       * Custom-item-policy-checked here (kg/ton only — no DB access
+       * needed). A Catalog-linked item's unit is checked again in
+       * `lib/rfq/service.ts` against its resolved product group's own
+       * Launch policy, which this D1-free module cannot know.
+       */
+      unit: RfqUomCode;
       description: string | null;
     }>;
   };
@@ -154,6 +164,28 @@ function validateItem(raw: unknown, index: number, errors: Record<string, string
     pushError(errors, `${prefix}.description`, "too_long");
   }
 
+  // Launch UoM policy (docs/RFQ_LAUNCH_UOM_ALIGNMENT.md) — Stage F.
+  // Format-checked here (is this even one of the 8 known codes?) plus, for
+  // a freeform/sample-catalog item only, the Custom-item Launch restriction
+  // (kg/ton only) — a pure, D1-free check this module can make on its own.
+  // A Catalog-linked item's group-specific policy (Rebar->branch,
+  // Plate->sheet, SHS->meter) additionally requires the resolved product's
+  // group_code, which only becomes known after DB_PUBLIC resolution — that
+  // check happens in lib/rfq/service.ts, immediately after
+  // resolveRfqCatalogVariant, never here.
+  const unitRaw = trimmed(item.unit);
+  let unit: RfqUomCode = "kg";
+  if (!unitRaw) {
+    pushError(errors, `${prefix}.unit`, "required");
+  } else if (!(RFQ_UOM_CODES as readonly string[]).includes(unitRaw)) {
+    pushError(errors, `${prefix}.unit`, "invalid");
+  } else {
+    unit = unitRaw as RfqUomCode;
+    if (source === "freeform" && !isUomAllowedForCustomItem(unit)) {
+      pushError(errors, `${prefix}.unit`, "unsupported_for_custom_item");
+    }
+  }
+
   const parsedQuantity = quantityTextRaw ? parseLeadingQuantity(quantityTextRaw) : null;
 
   // freeform_title is the DB's "this item has a subject" signal for a
@@ -173,6 +205,7 @@ function validateItem(raw: unknown, index: number, errors: Record<string, string
     quantityText: quantityTextRaw,
     quantityValue: parsedQuantity?.value ?? null,
     quantityScale: parsedQuantity?.scale ?? null,
+    unit,
     description: description || null,
   };
 }

@@ -20,7 +20,7 @@ function basePayload(overrides: Record<string, unknown> = {}) {
     companyName: "Ahan Sazeh Co.",
     email: "ali@example.com",
     phone: "+989121234567",
-    items: [{ productSlug: "deformed-rebar", quantityText: "200 تن" }],
+    items: [{ productSlug: "deformed-rebar", quantityText: "200 تن", unit: "ton" }],
     ...overrides,
   };
 }
@@ -62,7 +62,7 @@ test("validateRfqSubmission enforces MAX_ITEMS", () => {
 // across many files" instruction).
 
 function itemsOfLength(count: number) {
-  return Array.from({ length: count }, (_, i) => ({ productSlug: "deformed-rebar", quantityText: `${i + 1} تن` }));
+  return Array.from({ length: count }, (_, i) => ({ productSlug: "deformed-rebar", quantityText: `${i + 1} تن`, unit: "ton" }));
 }
 
 test("validateRfqSubmission accepts exactly 1 line", () => {
@@ -102,7 +102,7 @@ test("validateRfqSubmission rejects MAX_ITEMS + 1 (21) lines", () => {
 });
 
 test("validateRfqSubmission preserves every line's own data across a full 20-item submission — no lost lines", () => {
-  const items = Array.from({ length: MAX_ITEMS }, (_, i) => ({ freeformTitle: `Custom item ${i + 1}`, quantityText: `${i + 1} piece` }));
+  const items = Array.from({ length: MAX_ITEMS }, (_, i) => ({ freeformTitle: `Custom item ${i + 1}`, quantityText: `${i + 1} piece`, unit: "kg" }));
   const result = validateRfqSubmission(basePayload({ items }));
   assert.equal(result.ok, true);
   assert.equal(result.value?.items.length, MAX_ITEMS);
@@ -114,8 +114,8 @@ test("validateRfqSubmission preserves every line's own data across a full 20-ite
 
 test("validateRfqSubmission accepts a mixed catalog + custom 12-line submission — a core multi-item acceptance criterion", () => {
   const items = [
-    { catalogVariantXid: "ahanassa_marketplace.product_rb_aj340_d16_l12", quantityText: "5000 kg" },
-    { freeformTitle: "Custom steel requirement", quantityText: "1 piece" },
+    { catalogVariantXid: "ahanassa_marketplace.product_rb_aj340_d16_l12", quantityText: "5000 kg", unit: "kg" },
+    { freeformTitle: "Custom steel requirement", quantityText: "1 kg", unit: "kg" },
     ...itemsOfLength(10),
   ];
   const result = validateRfqSubmission(basePayload({ items }));
@@ -195,27 +195,27 @@ test("validateRfqSubmission honeypot rejects a filled 'website' field", () => {
 const REAL_XID = "ahanassa_marketplace.product_rb_aj340_d10_l12";
 
 test("validateRfqSubmission accepts a well-formed catalogVariantXid and marks the item source: selected", () => {
-  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: REAL_XID, quantityText: "5 branch" }] }));
+  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: REAL_XID, quantityText: "5 branch", unit: "branch" }] }));
   assert.equal(result.ok, true);
   assert.equal(result.value?.items[0].source, "selected");
   assert.equal(result.value?.items[0].catalogVariantXid, REAL_XID);
 });
 
 test("validateRfqSubmission rejects a malformed catalogVariantXid (format only — existence is lib/rfq/service.ts's job)", () => {
-  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: "not a real xid with spaces!", quantityText: "1" }] }));
+  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: "not a real xid with spaces!", quantityText: "1", unit: "kg" }] }));
   assert.equal(result.ok, false);
   assert.ok(result.fieldErrors["items[0].catalogVariantXid"]?.includes("invalid_format"));
 });
 
 test("validateRfqSubmission rejects an oversized catalogVariantXid", () => {
-  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: "a".repeat(201), quantityText: "1" }] }));
+  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: "a".repeat(201), quantityText: "1", unit: "kg" }] }));
   assert.equal(result.ok, false);
   assert.ok(result.fieldErrors["items[0].catalogVariantXid"]?.includes("invalid_format"));
 });
 
 test("validateRfqSubmission: catalogVariantXid takes priority over productSlug/freeformTitle sent alongside it (never an invalid hybrid)", () => {
   const result = validateRfqSubmission(
-    basePayload({ items: [{ catalogVariantXid: REAL_XID, productSlug: "deformed-rebar", freeformTitle: "something else", quantityText: "1" }] }),
+    basePayload({ items: [{ catalogVariantXid: REAL_XID, productSlug: "deformed-rebar", freeformTitle: "something else", quantityText: "1", unit: "kg" }] }),
   );
   assert.equal(result.ok, true);
   assert.equal(result.value?.items[0].source, "selected");
@@ -225,7 +225,7 @@ test("validateRfqSubmission: catalogVariantXid takes priority over productSlug/f
 });
 
 test("validateRfqSubmission still requires quantityText for a catalog-selected item", () => {
-  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: REAL_XID, quantityText: "" }] }));
+  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: REAL_XID, quantityText: "", unit: "kg" }] }));
   assert.equal(result.ok, false);
   assert.ok(result.fieldErrors["items[0].quantityText"]?.includes("required"));
 });
@@ -236,8 +236,8 @@ test("validateRfqSubmission accepts a submission mixing a catalog item and a fre
   const result = validateRfqSubmission(
     basePayload({
       items: [
-        { catalogVariantXid: REAL_XID, quantityText: "5 branch" },
-        { freeformTitle: "Custom bracket, per drawing", quantityText: "10 pcs" },
+        { catalogVariantXid: REAL_XID, quantityText: "5 branch", unit: "branch" },
+        { freeformTitle: "Custom bracket, per drawing", quantityText: "10 kg", unit: "kg" },
       ],
     }),
   );
@@ -252,12 +252,63 @@ test("validateRfqSubmission accepts multiple catalog items (multi-line preselect
   const result = validateRfqSubmission(
     basePayload({
       items: [
-        { catalogVariantXid: REAL_XID, quantityText: "5 branch" },
-        { catalogVariantXid: "ahanassa_marketplace.product_pf_shs_s80x80x4_l6", quantityText: "2 ton" },
+        { catalogVariantXid: REAL_XID, quantityText: "5 branch", unit: "branch" },
+        { catalogVariantXid: "ahanassa_marketplace.product_pf_shs_s80x80x4_l6", quantityText: "2 ton", unit: "ton" },
       ],
     }),
   );
   assert.equal(result.ok, true);
   assert.equal(result.value?.items.length, 2);
   assert.ok(result.value?.items.every((i) => i.source === "selected"));
+});
+
+// --- Launch UoM policy — Stage F/L (docs/RFQ_LAUNCH_UOM_ALIGNMENT.md) ---
+// Format-level checks only: is `unit` one of the 8 known codes, and — for a
+// freeform/sample-catalog item specifically — is it kg/ton (the Custom-item
+// Launch restriction, checkable with zero DB access). A Catalog item's
+// group-specific policy (Rebar->branch, Plate->sheet, SHS->meter) requires
+// DB_PUBLIC resolution and is checked in lib/rfq/service.ts instead — see
+// lib/rfq/uom-policy.test.ts for the exhaustive pure policy-function matrix.
+
+test("validateRfqSubmission requires unit", () => {
+  const result = validateRfqSubmission(basePayload({ items: [{ productSlug: "deformed-rebar", quantityText: "200 تن" }] }));
+  assert.equal(result.ok, false);
+  assert.ok(result.fieldErrors["items[0].unit"]?.includes("required"));
+});
+
+test("validateRfqSubmission rejects an unknown unit code", () => {
+  const result = validateRfqSubmission(basePayload({ items: [{ productSlug: "deformed-rebar", quantityText: "200 تن", unit: "not-a-real-unit" }] }));
+  assert.equal(result.ok, false);
+  assert.ok(result.fieldErrors["items[0].unit"]?.includes("invalid"));
+});
+
+test("validateRfqSubmission accepts unit=kg for a Custom/freeform item", () => {
+  const result = validateRfqSubmission(basePayload({ items: [{ freeformTitle: "Custom part", quantityText: "5 kg", unit: "kg" }] }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.items[0].unit, "kg");
+});
+
+test("validateRfqSubmission accepts unit=ton for a Custom/freeform item", () => {
+  const result = validateRfqSubmission(basePayload({ items: [{ freeformTitle: "Custom part", quantityText: "5 ton", unit: "ton" }] }));
+  assert.equal(result.ok, true);
+});
+
+for (const unsupported of ["branch", "sheet", "meter", "coil", "bundle", "piece"] as const) {
+  test(`validateRfqSubmission rejects unit=${unsupported} for a Custom/freeform item (Launch restricts Custom to kg/ton only)`, () => {
+    const result = validateRfqSubmission(basePayload({ items: [{ freeformTitle: "Custom part", quantityText: "5", unit: unsupported }] }));
+    assert.equal(result.ok, false);
+    assert.ok(result.fieldErrors["items[0].unit"]?.includes("unsupported_for_custom_item"));
+  });
+}
+
+test("validateRfqSubmission rejects unit=piece for a sample-catalog (productSlug) item — freeform-sourced, same Custom restriction applies", () => {
+  const result = validateRfqSubmission(basePayload({ items: [{ productSlug: "deformed-rebar", quantityText: "5", unit: "piece" }] }));
+  assert.equal(result.ok, false);
+  assert.ok(result.fieldErrors["items[0].unit"]?.includes("unsupported_for_custom_item"));
+});
+
+test("validateRfqSubmission does NOT apply the Custom-item kg/ton restriction to a catalogVariantXid item — every known unit format-passes here (group-specific policy is lib/rfq/service.ts's job)", () => {
+  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: REAL_XID, quantityText: "5 branch", unit: "branch" }] }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.items[0].unit, "branch");
 });

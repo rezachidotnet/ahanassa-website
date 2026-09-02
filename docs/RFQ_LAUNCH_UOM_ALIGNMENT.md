@@ -1,0 +1,160 @@
+# RFQ Launch UoM Contract Alignment
+
+**Status:** Active — canonical for the Website-side RFQ Launch unit-of-measure (UoM) policy: what units a customer may select per product/Custom row, how it is enforced server-side, and how it is serialized deterministically to Odoo.
+**Established:** 2026-09-02, branch `fix/rfq-launch-uom-policy`, on top of the existing multi-item RFQ form (`docs/RFQ_MULTI_ITEM_FORM.md`) and the Odoo RFQ API handoff (`docs/ODOO_RFQ_API_INTEGRATION.md`).
+**Source:** Odoo Ahan Asa Marketplace production `19.0.27.0.0`. Confirmed production gates: `LAUNCH UOM HARDENING LIVE: PASS`, `DYNAMIC PRICING UNIT BASIS LIVE: PASS`, `SETTLEMENT DUAL-SIDED BILLING LIVE: PASS`. Odoo's public RFQ API no longer accepts `coil`/`bundle`/`piece` as normal Website request UoMs for Launch.
+**Scope:** Website-side alignment only. Does not modify Odoo. Does not change DNS/Vercel/Basic Auth. Does not implement Pricing or Customer Portal. Does not add any new procurement unit.
+
+---
+
+## 1. Starting State
+
+Branch `fix/rfq-launch-uom-policy`, clean working tree, HEAD at `1dbbbc1` ("chore: prepare website go-live readiness", the prior Go-Live Readiness commit) — verified via `git status`/`git branch --show-current`/`git log -5 --oneline`/`git diff --check` before any file was touched.
+
+## 2. Previous Website UoM Behavior
+
+Audited before changing anything:
+
+- `lib/rfq/types.ts#RfqItemInput` had **no unit field at all** — only `quantityText: string`, a single freeform string (e.g. `"200 تن"`).
+- `lib/rfq/item-row-validation.ts#RfqRowFields` already collected a **structured** `quantityValue: string` + `unit: RfqUomCode` per row client-side, but `buildRfqItemInput` **flattened both into the single `quantityText` string** (`lib/rfq/uom.ts#composeQuantityText`) before ever reaching the wire — the structure existed in UI state and was discarded before submission.
+- `lib/rfq/validation.ts` never validated a unit at all — no field, nothing to check.
+- `lib/odoo/rfq-payload-mapper.ts#inferOdooUomCode` re-derived a UoM code from `quantityText` via **best-effort keyword matching** (`UOM_KEYWORDS`), at Queue-consumption time — asynchronously, **after** the RFQ was already durably persisted to D1. This meant: (a) an invalid product/unit combination (e.g. a Rebar variant requested in "sheet") could be durably persisted with no rejection at submission time, and (b) the eventual Odoo-bound `uom` value depended on which keyword happened to match inside free text, not a structured, product-aware decision.
+- `components/contact/rfq-item-row.tsx`'s Unit select unconditionally offered **all 8 codes** (`kg`/`ton`/`branch`/`sheet`/`meter`/`coil`/`bundle`/`piece`) on every row regardless of the selected product — a Rebar row and a Plate row offered an identical, unfiltered list.
+- `lib/rfq/uom.ts#DEFAULT_RFQ_UOM` was `"piece"` — now a Launch-deferred unit.
+- `docs/RFQ_MULTI_ITEM_FORM.md` §16 explicitly listed "structured, per-Variant authoritative allowed-unit enforcement" as **deliberately not built** — the correct call at the time (no confirmed Odoo policy existed), now superseded by this task.
+
+## 3. Odoo Launch Contract
+
+Confirmed by the project owner (task's own "AUTHORITATIVE ODOO STATE" section), Odoo `19.0.27.0.0`:
+
+| Product group | Allowed Launch UoMs |
+|---|---|
+| Rebar | kg, ton, branch |
+| Plate | kg, ton, sheet |
+| SHS | kg, ton, meter |
+| Custom/free-text | kg, ton |
+
+`coil`/`bundle`/`piece` explicitly unsupported for Launch — Odoo's public RFQ API no longer accepts them as normal Website request UoMs. Not claimed removed from Odoo's internal schema entirely — only unsupported for normal Website Launch intake (`docs/ODOO_RFQ_API_INTEGRATION.md`'s own restated framing).
+
+## 4. Canonical Website Policy
+
+One new module, `lib/rfq/uom-policy.ts` — pure, D1-free, the single place this business rule is expressed:
+
+```ts
+LAUNCH_GROUP_UOM_POLICY = {
+  REBAR:       ["kg", "ton", "branch"],
+  SHEET_PLATE: ["kg", "ton", "sheet"],
+  SHS:         ["kg", "ton", "meter"],
+}
+CUSTOM_ITEM_LAUNCH_UOMS = ["kg", "ton"]
+LAUNCH_DEFERRED_UOMS    = ["coil", "bundle", "piece"]
+```
+
+Keyed by `product_variants.group_code` — the least brittle stable Product Master identifier that exactly matches Odoo's own Launch groupings (never a translated display name, never derived from slug text). "Group" was chosen over "family" (broader — `LONG_PRODUCTS` also covers Beams, which have no Launch policy) and over "form" (narrower than the policy needs — Rebar's policy applies uniformly across Plain/Ribbed forms). `SHEET_PLATE` covers both the published Hot Rolled Plate form and the unpublished Hot Rolled Sheet form — a physical "sheet count" is equally meaningful for both, and only Plate is live today.
+
+An unconfirmed/unlisted group (Beams, RHS, Seamless Pipe — none currently published, none in the task's own policy table) falls back to the same conservative `[kg, ton]` set as Custom items — a defensive Website-side default, never a guessed product-specific unit, documented in the module's own comments as provisional pending a real Odoo-confirmed policy.
+
+`getAllowedUomsForCatalogGroup`, `isUomAllowedForCatalogGroup`, `isUomAllowedForCustomItem`, `getDefaultUomForCatalogGroup` are the exported functions every other module (validation, service, row UI) imports from — nothing re-encodes the mapping a second time.
+
+## 5. Catalog Product-Aware Units
+
+`components/contact/rfq-item-row.tsx`'s Unit select now renders only `allowedUnits` — computed per row from the resolved Template's `groupCode` (added to `CatalogTemplateGroup`/`RfqCatalogSelection`/`lib/catalog/editorial-repository.ts`'s two Catalog reads: `resolveRfqCatalogVariant`, `listRfqSelectableCatalogItems`). No product chosen yet → the conservative `kg`/`ton` default (same rationale as Custom). Live-verified against real local DB_PUBLIC data: the default (no-product) row's rendered `<select>` contains exactly two `<option>`s, `kg` and `ton` — no branch/sheet/meter/coil/bundle/piece.
+
+Display labels remain fully localized (`RFQ_UOM_LABELS`); serialized codes remain the fixed ASCII strings (`kg`/`ton`/`branch`/`sheet`/`meter`) — display and wire value are never conflated, matching the task's own explicit "do not serialize Persian text" requirement.
+
+## 6. Custom Item Units
+
+Custom/free-text rows are hard-restricted to `kg`/`ton` at three independent layers: the row UI only ever renders those two options for a `mode: "custom"` row; `lib/rfq/validation.ts` rejects any other unit for a `source: "freeform"` item (`unsupported_for_custom_item`) purely format-side, no DB access needed; and the UI never lets a stale wider selection survive switching a row from Catalog to Custom (`withUnitResetIfInvalid`, §9). Reason (per the task's own instruction): without a real Catalog Variant identity, there is no authoritative nominal conversion factor for branch/sheet/meter — never guessed.
+
+## 7. Server-Side Enforcement
+
+Not UI-only. Two layers, matching the existing format-vs-DB-resolution split already established in this codebase:
+
+- **`lib/rfq/validation.ts`** (pure, D1-free): `unit` is now a required field on every item; must be one of the 8 known `RFQ_UOM_CODES` (format check); for a freeform/sample-catalog item (`source: "freeform"`), additionally checked against `isUomAllowedForCustomItem` — the Custom-only kg/ton restriction, which needs no DB access.
+- **`lib/rfq/service.ts`** (after `resolveRfqCatalogVariant` resolves the real DB_PUBLIC variant): the resolved `selection.groupCode` is checked against `item.unit` via `isUomAllowedForCatalogGroup` — Rebar+sheet, Plate+meter, SHS+branch etc. are all rejected here, before any D1 write, in the same position/ordering the existing `catalogVariantXid`-unresolvable check already occupies (after Turnstile, before `createRfq`).
+
+A handcrafted `POST /api/rfqs` cannot bypass either layer — both run unconditionally on every submission, independent of any client-side state. See §11 for live proof.
+
+## 8. Catalog Classification Source
+
+No second hard-coded product-family map was introduced. `group_code` already exists on `product_variants` (synced from Odoo's own Product Master, unchanged sync path) — the only new work was exposing it on the two existing RFQ-facing Catalog reads (`RfqCatalogSelection.groupCode`) and the client-side grouping shape (`CatalogTemplateGroup.groupCode`). No private Supplier data is exposed; no new Odoo synchronous lookup was added — the architecture remains Browser → Website → DB_PUBLIC validation → DB_OPS → Queue → Odoo, page-time-Odoo-free, unchanged.
+
+## 9. Preselection
+
+`/{locale}/contact?variant=<product_variant_xid>` unchanged in mechanism (`docs/CATALOG_RFQ_INTEGRATION.md`). The seeded row now correctly offers only its real product's allowed units (since `groupCode` flows through the same resolution). Each row's `allowedUnits` is computed independently per row from its own current selection — never shared/global state — so a 20-line mixed submission has each row correctly governed by its own product.
+
+Changing a row's Category or Template (`handleCategoryChange`/`handleTemplateChange` in `rfq-item-row.tsx`) now runs `withUnitResetIfInvalid`: if the currently-selected unit is not in the new context's allowed set, it is reset to that context's first (default, `kg`) allowed unit — never left as a silently-invalid stale value. A still-valid unit (e.g. `kg`, valid everywhere) survives a product change unchanged, avoiding an unnecessary reset when none is needed.
+
+## 10. Mixed RFQ
+
+Unchanged multi-item architecture (`MAX_ITEMS = 20`, still the single canonical constant in `lib/rfq/validation.ts`, untouched). A single submission may freely mix Rebar+branch, Plate+sheet, SHS+meter, Rebar+ton, Custom+kg, etc. — each row/item independently resolved and policy-checked; no cross-row interference. Row add/remove, Catalog+Custom mode switching, preselection, Turnstile, and idempotency are all unmodified code paths.
+
+## 11. Invalid Bypass Tests
+
+Live, local, direct `POST /api/rfqs` against the real dev server and real local DB_PUBLIC (12 published Variants, real Rebar/Plate/SHS group_codes) — not merely a unit test, since the Catalog-group check requires real DB resolution:
+
+| Attempt | Result |
+|---|---|
+| Catalog Rebar (`product_rb_aj340_d16_l12`) + `sheet` | `{"ok":false,"code":"VALIDATION_ERROR","fieldErrors":{"items[0].unit":["unsupported_for_product"]}}` |
+| Catalog SHS (`product_pf_shs_s80x80x4_l6`) + `branch` | `{"ok":false,"code":"VALIDATION_ERROR","fieldErrors":{"items[0].unit":["unsupported_for_product"]}}` |
+| Custom + `branch` | `{"ok":false,"code":"VALIDATION_ERROR","fieldErrors":{"items[0].unit":["unsupported_for_custom_item"]}}` |
+| Custom + `coil` | `{"ok":false,"code":"VALIDATION_ERROR","fieldErrors":{"items[0].unit":["unsupported_for_custom_item"]}}` |
+
+Verified before/after via direct D1 query: `rfqs` row count and `integration_outbox` row count both stayed at their baseline (5/5, local dev data) across all 4 attempts — **zero RFQ created, zero outbox event created, zero Queue publication** for any invalid request.
+
+## 12. Serialization
+
+Live proof, same local environment: a valid `Rebar (product_rb_aj340_d16_l12) + branch, quantity 100` submission succeeded (`{"ok":true,"reference":"AA-RFQ-SDWKHKKH","status":"received"}`) and persisted exactly:
+
+```text
+variant_ref:    ahanassa_marketplace.product_rb_aj340_d16_l12
+unit_ref:       branch
+unit_label:     شاخه
+quantity_value: 100
+quantity_scale: 0
+quantity_text:  "100 شاخه"
+```
+
+`unit_ref`/`unit_label` (`rfq_items` columns that existed since the original schema but were always `NULL` — DAR-039 Stage G) are now genuinely populated. The Website still internally composes the human-readable `quantityText` (`"100 شاخه"`) exactly as before, for continuity/audit-trail display — but the boundary is now precise: `quantityText` is display-only; `unit_ref`/`quantity_value`/`quantity_scale` are the deterministic structured fields the Odoo mapping actually reads (`lib/odoo/rfq-payload-mapper.ts#mapItem` uses `item.unitCode` — sourced from `unit_ref` — directly, never re-parsing `quantityText`, for any row where `unit_ref` is present). `sheet`/`meter`/`kg`/`ton` all proven identically via the pure `rfq-payload-mapper.test.ts` matrix (§16). The legacy `inferOdooUomCode` keyword-match remains in the codebase **only** as the fallback for a historical row whose `unit_ref` is `NULL` (persisted before this field existed) — never consulted for a new submission, which always has `unit_ref` populated. No backend redesign beyond this precise boundary — Turnstile, idempotency, the outbox, the Queue, and the Odoo handoff mechanics are all unchanged.
+
+## 13. Localization
+
+`RFQ_UOM_LABELS` (`lib/rfq/uom.ts`, unchanged dictionary) already carried fa/en/ar labels for all 8 codes, including the 5 Launch-relevant ones: `kg`→کیلوگرم/kg/كجم, `ton`→تن/ton/طن, `branch`→شاخه/branch/فرع, `sheet`→ورق/sheet/لوح, `meter`→متر/meter/متر. No new locale architecture was needed — the existing per-locale label map already covers every unit this task touches; nothing is hard-coded Persian inside `lib/rfq/uom-policy.ts` (which only ever handles unit **codes**, ASCII, never display text).
+
+## 14. Mobile/Desktop UX
+
+No redesign performed, per the task's own instruction. The existing responsive mechanism (`hidden lg:block` table / `lg:hidden` card, both rendering the same shared `unitSelect`/`categorySelect`/`productCell`/`specCell` JSX values, per `docs/RFQ_MULTI_ITEM_FORM.md` §8) automatically carries the product-aware unit filtering to both layouts — there is exactly one `allowedUnits` computation per row, consumed identically by both DOM renders. Live-verified server-rendered HTML confirms the correct default (`kg`/`ton` only) option set on the table-layout render; the card-layout render shares the same `unitSelect` value, so it is structurally guaranteed to match (not independently re-implemented).
+
+## 15. Documentation
+
+- `docs/ODOO_RFQ_API_INTEGRATION.md` — "UOM" section rewritten: struck through the DAR-039-era gap description as historical, states the current structured/validated/deterministic contract.
+- `docs/RFQ_MULTI_ITEM_FORM.md` — §6 (Quantity/UOM) and §16 (deliberately-not-built list) both updated to reflect the new product-aware policy and point to this document; §10's payload table now lists the `unit` wire field.
+- `DOCUMENT_AUDIT_REPORT.md` — new DAR-046 entry (see below).
+- `README.md`/`DOCS_INDEX.md` — updated with a pointer entry for this document.
+- This document (`docs/RFQ_LAUNCH_UOM_ALIGNMENT.md`) is the new canonical source for the policy itself.
+
+## 16. Regression Tests
+
+- `npx tsc --noEmit` — clean.
+- `npm test` — **449/449 passing** (up from 382 before this task: +7 `catalog-selector.test.ts`/`catalog-preselection.test.ts` group-code/unit-population tests, +25 `lib/rfq/validation.test.ts` Launch-policy tests plus existing-item fixture fixes, +36 `lib/rfq/uom-policy.test.ts` exhaustive Phase L matrix, +8 `lib/odoo/rfq-payload-mapper.test.ts` deterministic-serialization tests, +1 `item-row-validation.test.ts` wire-field test).
+- `npm run build` — clean, unchanged route list.
+- `git diff --check` — clean.
+- Every pre-existing Catalog/Editorial/RFQ/Multi-item/Catalog-preselection/Turnstile/Queue/Odoo-RFQ/Scheduled-sync test remains green — none were weakened, skipped, or deleted; the 1–20-line RFQ cap tests are untouched.
+- No project lint script exists beyond `tsc`/`node --test` (checked `package.json` — no separate `lint` script configured).
+
+## 17. Files Changed
+
+**New:** `lib/rfq/uom-policy.ts`, `lib/rfq/uom-policy.test.ts`, `docs/RFQ_LAUNCH_UOM_ALIGNMENT.md`.
+**Changed:** `lib/catalog/editorial-repository.ts` (`RfqCatalogSelection.groupCode` + both SQL reads), `lib/rfq/catalog-selector.ts` (+test) (`CatalogTemplateGroup.groupCode`), `lib/rfq/types.ts` (`RfqItemInput.unit`), `lib/rfq/validation.ts` (+test) (unit format + Custom-item policy check, `unit` in output shape), `lib/rfq/service.ts` (Catalog-group policy check, unit passthrough to builders), `lib/rfq/catalog-preselection.ts` (+test) (`UnitInput` param, populates `unit_ref`/`unit_label`), `lib/rfq/item-row-validation.ts` (sends `unit` on the wire), `lib/rfq/uom.ts` (`DEFAULT_RFQ_UOM` "piece"→"kg", doc comments), `lib/queue/consumer.ts` (reads `unit_ref`, passes as `unitCode`), `lib/odoo/rfq-payload-mapper.ts` (+test) (`RfqSnapshotItem.unitCode`, deterministic `resolveUomCode`), `components/contact/rfq-item-row.tsx` (product-aware `allowedUnits`, reset-on-change), `docs/ODOO_RFQ_API_INTEGRATION.md`, `docs/RFQ_MULTI_ITEM_FORM.md`, `DOCUMENT_AUDIT_REPORT.md`, `README.md`, `DOCS_INDEX.md`.
+
+## 18. Git
+
+Committed on `fix/rfq-launch-uom-policy` after all validation passed; pushed (not merged) — see the commit SHA and push confirmation reported in the final chat summary for this task.
+
+## 19. Deployment
+
+**Explicitly none.** No `wrangler` deploy command was run in this task. No Cloudflare Worker was touched. No production RFQ was submitted (all live proof in §11/§12 ran against local dev + local D1 only). `ahanassa.com`/`www.ahanassa.com` DNS, Vercel, and the temporary Basic Auth gate on `ahanassa-production` are all completely unchanged.
+
+## 20. Gate
+
+**WEBSITE RFQ LAUNCH UOM ALIGNMENT: PASS**

@@ -1,5 +1,6 @@
 import type { RfqCatalogSelection } from "@/lib/catalog/editorial-repository";
 import type { RfqItemRecord } from "./types";
+import type { RfqUomCode } from "./uom";
 
 /**
  * Pure record-builders for one RFQ line — Catalog -> RFQ Variant
@@ -25,6 +26,12 @@ export interface QuantityInput {
   quantityScale: number | null;
 }
 
+/** The structured, already-policy-validated unit for this line (docs/RFQ_LAUNCH_UOM_ALIGNMENT.md) — `code` is the wire/Odoo-mapping value, `label` the customer's own locale's display string (`lib/rfq/uom.ts#RFQ_UOM_LABELS`), both resolved by the caller before this function ever runs. */
+export interface UnitInput {
+  code: RfqUomCode;
+  label: string;
+}
+
 /**
  * Builds the final persisted shape for a real Catalog-linked line. Every
  * identity/label/SKU field comes from the server-resolved `selection` —
@@ -35,17 +42,17 @@ export interface QuantityInput {
  * the source product's title/SKU/slug changes or it is later deactivated
  * (docs/CATALOG_RFQ_INTEGRATION.md §Historical safety).
  */
-export function buildCatalogItemRecord(selection: CatalogSelectionForRecord, quantity: QuantityInput, description: string | null): RfqItemRecord {
+export function buildCatalogItemRecord(selection: CatalogSelectionForRecord, quantity: QuantityInput, description: string | null, unit: UnitInput): RfqItemRecord {
   return {
     source: "selected",
     categoryRef: selection.categoryCode,
     productRef: selection.templateXid,
     variantRef: selection.variantXid,
-    unitRef: null,
+    unitRef: unit.code,
     categoryLabel: selection.categoryLabel,
     productLabel: selection.productLabel,
     variantLabel: selection.variantSpecLabel,
-    unitLabel: null,
+    unitLabel: unit.label,
     freeformTitle: null,
     sizeText: null,
     quantityText: quantity.quantityText,
@@ -68,18 +75,18 @@ export interface FreeformItemInput {
   description: string | null;
 }
 
-/** The unchanged freeform/sample-catalog path — never carries a variant_ref/sku_snapshot. */
-export function buildFreeformItemRecord(item: FreeformItemInput): RfqItemRecord {
+/** The unchanged freeform/sample-catalog path — never carries a variant_ref/sku_snapshot. `unit` is already Custom-item-policy-validated (kg/ton only, lib/rfq/validation.ts) by the time this runs. */
+export function buildFreeformItemRecord(item: FreeformItemInput, unit: UnitInput): RfqItemRecord {
   return {
     source: "freeform",
     categoryRef: null,
     productRef: item.productRef,
     variantRef: null,
-    unitRef: null,
+    unitRef: unit.code,
     categoryLabel: item.categoryLabel,
     productLabel: item.productLabel,
     variantLabel: null,
-    unitLabel: null,
+    unitLabel: unit.label,
     freeformTitle: item.freeformTitle,
     sizeText: item.sizeText,
     quantityText: item.quantityText,

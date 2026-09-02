@@ -28,6 +28,18 @@ export interface RfqItemInput {
   gradeOrStandard?: string;
   /** Raw customer-entered quantity, e.g. "200 تن". Required — the approved form always collects this as free text. */
   quantityText: string;
+  /**
+   * The structured RFQ Launch UoM code (`lib/rfq/uom.ts#RfqUomCode`) —
+   * required, sent alongside `quantityText` (docs/RFQ_LAUNCH_UOM_ALIGNMENT.md).
+   * Raw/unchecked at the wire boundary, like `catalogVariantXid`; format-
+   * and policy-validated server-side (`lib/rfq/validation.ts`,
+   * `lib/rfq/service.ts`) before ever being trusted. `quantityText` still
+   * carries a human-readable localized unit word for continuity/display —
+   * this field is the deterministic, structured value the Odoo mapping
+   * actually serializes, never re-inferred from `quantityText` for a new
+   * submission.
+   */
+  unit?: string;
   description?: string;
 }
 

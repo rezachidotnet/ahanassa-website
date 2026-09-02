@@ -746,6 +746,17 @@ export interface RfqCatalogSelection {
   templateSlug: string;
   categoryCode: string | null;
   categoryLabel: string | null;
+  /**
+   * `product_variants.group_code` — the stable Product Master classification
+   * (e.g. "REBAR", "SHEET_PLATE", "SHS") the Website RFQ Launch UoM policy
+   * keys off (`lib/rfq/uom-policy.ts`, docs/RFQ_LAUNCH_UOM_ALIGNMENT.md).
+   * Deliberately the "group" level, not "family" (broader, e.g.
+   * LONG_PRODUCTS also covers Beams) or "form" (narrower than the policy
+   * needs) — the least brittle stable identifier that exactly matches the
+   * Odoo-confirmed Launch UoM policy's own product groupings. Never derived
+   * from slug/display text.
+   */
+  groupCode: string | null;
 }
 
 /**
@@ -768,7 +779,7 @@ export async function resolveRfqCatalogVariant(variantXid: string, locale: Local
   const db = getPublicDb();
   const row = await db
     .prepare(
-      `SELECT v.xid, v.sku, v.commercial_size, v.section_size, v.family_code, v.family_name, cp.template_xid, s.h1 as template_h1, s.slug as template_slug
+      `SELECT v.xid, v.sku, v.commercial_size, v.section_size, v.family_code, v.family_name, v.group_code, cp.template_xid, s.h1 as template_h1, s.slug as template_slug
        FROM product_variants v
        JOIN catalog_products cp ON cp.id = v.product_id
        JOIN product_seo_contents s ON s.entity_type = 'product' AND s.entity_id = cp.id
@@ -777,7 +788,7 @@ export async function resolveRfqCatalogVariant(variantXid: string, locale: Local
          AND s.locale = ? AND s.content_quality_status = 'approved' AND s.published_at IS NOT NULL AND s.h1 IS NOT NULL`,
     )
     .bind(variantXid, locale)
-    .first<{ xid: string; sku: string; commercial_size: string | null; section_size: string | null; family_code: string | null; family_name: string | null; template_xid: string; template_h1: string; template_slug: string }>();
+    .first<{ xid: string; sku: string; commercial_size: string | null; section_size: string | null; family_code: string | null; family_name: string | null; group_code: string | null; template_xid: string; template_h1: string; template_slug: string }>();
 
   if (!row) return null;
 
@@ -790,6 +801,7 @@ export async function resolveRfqCatalogVariant(variantXid: string, locale: Local
     templateSlug: row.template_slug,
     categoryCode: row.family_code,
     categoryLabel: row.family_name,
+    groupCode: row.group_code,
   };
 }
 
@@ -808,7 +820,7 @@ export async function listRfqSelectableCatalogItems(locale: Locale): Promise<Rfq
   const db = getPublicDb();
   const result = await db
     .prepare(
-      `SELECT v.xid, v.sku, v.commercial_size, v.section_size, v.family_code, v.family_name, cp.template_xid, s.h1 as template_h1, s.slug as template_slug
+      `SELECT v.xid, v.sku, v.commercial_size, v.section_size, v.family_code, v.family_name, v.group_code, cp.template_xid, s.h1 as template_h1, s.slug as template_slug
        FROM product_variants v
        JOIN catalog_products cp ON cp.id = v.product_id
        JOIN product_seo_contents s ON s.entity_type = 'product' AND s.entity_id = cp.id
@@ -818,7 +830,7 @@ export async function listRfqSelectableCatalogItems(locale: Locale): Promise<Rfq
        ORDER BY v.family_name ASC, s.h1 ASC, v.commercial_size ASC`,
     )
     .bind(locale)
-    .all<{ xid: string; sku: string; commercial_size: string | null; section_size: string | null; family_code: string | null; family_name: string | null; template_xid: string; template_h1: string; template_slug: string }>();
+    .all<{ xid: string; sku: string; commercial_size: string | null; section_size: string | null; family_code: string | null; family_name: string | null; group_code: string | null; template_xid: string; template_h1: string; template_slug: string }>();
 
   return (result.results ?? []).map((row) => ({
     variantXid: row.xid,
@@ -829,5 +841,6 @@ export async function listRfqSelectableCatalogItems(locale: Locale): Promise<Rfq
     templateSlug: row.template_slug,
     categoryCode: row.family_code,
     categoryLabel: row.family_name,
+    groupCode: row.group_code,
   }));
 }

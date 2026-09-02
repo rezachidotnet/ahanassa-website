@@ -119,6 +119,7 @@ export function buildRfqItemInput(fields: RfqRowFields, locale: Locale): RfqItem
     return {
       catalogVariantXid: fields.variantXid,
       quantityText,
+      unit: fields.unit,
       description: fields.notes.trim() || undefined,
     };
   }
@@ -129,6 +130,7 @@ export function buildRfqItemInput(fields: RfqRowFields, locale: Locale): RfqItem
     freeformTitle: productTitle,
     gradeOrStandard: fields.sizeSpec.trim() || undefined,
     quantityText,
+    unit: fields.unit,
     description: fields.notes.trim() || undefined,
   };
 }

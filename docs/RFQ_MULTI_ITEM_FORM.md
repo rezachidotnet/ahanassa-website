@@ -81,11 +81,13 @@ Live-verified against a real published local Variant: navigating to `/contact?va
 
 ## 6. Quantity / UOM
 
-The wire contract (`RfqItemInput.quantityText: string`) is **unchanged** — still one freeform string, matching `lib/rfq/quantity.ts#parseLeadingQuantity`'s existing server-side leading-number extraction and `lib/odoo/rfq-payload-mapper.ts#inferOdooUomCode`'s existing keyword-match UOM inference. This task does not touch either.
+**Superseded in part by `docs/RFQ_LAUNCH_UOM_ALIGNMENT.md` (2026-09-02).** At the time this document was first written, the wire contract sent only one freeform `quantityText` string, and every one of the 8 Odoo-contract UOM codes was offered on every row regardless of product. That is no longer accurate — kept below as the historical record of the original design, with the current behavior stated after it.
 
-What changed is the **UI**: every row now has a real numeric Quantity input and a real Unit select (the 8 Odoo-contract codes — `kg`/`ton`/`branch`/`sheet`/`meter`/`coil`/`bundle`/`piece` — localized per `lib/rfq/uom.ts#RFQ_UOM_LABELS`). `lib/rfq/uom.ts#composeQuantityText` combines both into the exact string the existing parser/inference already understand (e.g. `"5000 کیلوگرم"` → `parseLeadingQuantity` → `{value: 5000, scale: 0}`; `inferOdooUomCode` → `"kg"`), using the **same literal keyword strings** `inferOdooUomCode`'s dictionary matches — verified by reading that file directly, not assumed. Persian/Arabic-Indic digits are normalized client-side via the same `normalizeDigits` function the server already uses, so `۵۰۰۰` composes identically to `5000`.
+~~The wire contract (`RfqItemInput.quantityText: string`) is unchanged — still one freeform string... every row now has a real numeric Quantity input and a real Unit select (the 8 Odoo-contract codes — kg/ton/branch/sheet/meter/coil/bundle/piece)... No backend change was made or needed.~~
 
-**No backend change was made or needed.** This is a purely additive UX improvement layered onto an unchanged contract — the structured quantity/unit gap documented in `docs/CATALOG_RFQ_INTEGRATION.md` §7 (no per-Variant authoritative allowed-unit set in DB_PUBLIC) is unchanged and not solved here; the Website still cannot claim a specific Variant only accepts certain units. `composeQuantityText` never fabricates a quantity — an empty, non-numeric, zero, or negative value returns `null`, and the row is treated as invalid (§7) rather than submitted with a guessed number.
+**Current behavior:** every row still has a real numeric Quantity input and a real Unit select, composed via `lib/rfq/uom.ts#composeQuantityText` into the same human-readable `quantityText` string as before (unchanged mechanism, still normalizes Persian/Arabic-Indic digits the same way). What changed: the Unit select's **options are now product-aware** (`lib/rfq/uom-policy.ts`) — a Catalog row offers only its resolved product group's Launch-allowed units (Rebar: kg/ton/branch; Plate: kg/ton/sheet; SHS: kg/ton/meter; no product chosen yet, or a Custom row: kg/ton only) — `coil`/`bundle`/`piece` are never offered in the normal UI. The wire payload now **also** sends the structured code explicitly (`RfqItemInput.unit`), which `lib/rfq/validation.ts`/`lib/rfq/service.ts` validate against this same policy before any D1 write, and which the Odoo mapping (`lib/odoo/rfq-payload-mapper.ts`) uses directly and deterministically rather than re-inferring from `quantityText`. See `docs/RFQ_LAUNCH_UOM_ALIGNMENT.md` for the full policy, server enforcement, and test matrix.
+
+`composeQuantityText` still never fabricates a quantity — an empty, non-numeric, zero, or negative value returns `null`, and the row is treated as invalid (§7) rather than submitted with a guessed number.
 
 ---
 
@@ -124,8 +126,8 @@ The mobile card stacks: row number + Remove action, Category, Product, Spec, Uni
 
 | Row mode | Wire fields sent |
 |---|---|
-| Catalog | `catalogVariantXid`, `quantityText` (composed), `description` (from Notes, optional) |
-| Custom | `freeformTitle`, `gradeOrStandard` (from Spec, optional), `quantityText` (composed), `description` (from Notes, optional) |
+| Catalog | `catalogVariantXid`, `quantityText` (composed), `unit` (structured Launch UoM code — `docs/RFQ_LAUNCH_UOM_ALIGNMENT.md`), `description` (from Notes, optional) |
+| Custom | `freeformTitle`, `gradeOrStandard` (from Spec, optional), `quantityText` (composed), `unit` (kg/ton only for Launch), `description` (from Notes, optional) |
 
 The form's `handleSubmit` builds `items: RfqItemInput[]` from every row and POSTs the exact same shape `POST /api/rfqs` already accepts (`app/api/rfqs/route.ts`, `lib/rfq/service.ts`, `lib/rfq/validation.ts` — none of these three files were touched). Server-side validation, Turnstile verification, honeypot/timing checks, idempotency, atomic DB_OPS persistence (`lib/rfq/repository.ts`), the outbox, the Queue, and the Odoo RFQ API handoff (DAR-041) are all **completely unmodified** by this task.
 
@@ -167,7 +169,7 @@ The visual reference's login/register UI is not implemented — the existing, ap
 
 ## 16. Deliberately not built in this phase
 
-- Structured, per-Variant authoritative allowed-unit enforcement (Catalog-side gap, unchanged — see §6 and `docs/CATALOG_RFQ_INTEGRATION.md` §7).
+- ~~Structured, per-Variant authoritative allowed-unit enforcement~~ — **built** in `docs/RFQ_LAUNCH_UOM_ALIGNMENT.md` (2026-09-02), once Odoo confirmed a real Launch UoM policy. Kept here as historical context for why it was originally out of scope (`docs/CATALOG_RFQ_INTEGRATION.md` §7's own documented gap at the time).
 - RFQ attachment upload (§11).
 - Customer Authentication / Portal / login / register (Phase 2, untouched).
 - Any Odoo-side structured line-item model beyond the existing RFQ API v1 handoff (DAR-041, unchanged).
