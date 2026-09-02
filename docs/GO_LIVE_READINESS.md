@@ -209,7 +209,7 @@ See `docs/GO_LIVE_CUTOVER_RUNBOOK.md` — the full Stage 2 plan (not executed in
 
 ## 28. Go-Live Readiness Gate
 
-**GO-LIVE BLOCKED.**
+**GO-LIVE BLOCKED (2026-09-02, at the time this section was written). Superseded — see §30 for the final verdict as of the Final Go-Live Readiness pass (2026-09-02, later the same day).**
 
 Genuine remaining blockers (not exhaustive process items — only things that must change before a real cutover):
 
@@ -330,3 +330,78 @@ Working tree has the 14 modified + 5 new files from this correction pass, not ye
 ### 29.17 Gate restated
 
 This correction pass fixes real, confirmed UI/SEO defects and is fully verified live. It does **not**, by itself, change the overall Go-Live verdict from `GO-LIVE BLOCKED` (§28) — the `UNIT / INVENTORY / PROCUREMENT ARCHITECTURE GATE` (`docs/UOM_INVENTORY_PROCUREMENT_GATE.md`) remains open and is an explicit, owner-mandated blocker independent of Website code readiness, per the owner's own instruction that these UI fixes passing does not by itself justify `GO-LIVE READY`.
+
+---
+
+## 30. Final Go-Live Readiness (2026-09-02, branch `chore/final-go-live-readiness`, based on `b03b62a`)
+
+Between §29 and this section, two further tasks were completed and deployed: RFQ Launch UoM Contract Alignment (`docs/RFQ_LAUNCH_UOM_ALIGNMENT.md`, commit `42ce8fe`, DAR-046) and its Cloudflare runtime validation (evidence commit `b03b62a`, DAR-047) — the Website's RFQ unit-of-measure policy is now aligned with, and live-verified against, Odoo Ahan Asa Marketplace production `19.0.27.0.0`'s confirmed Launch policy (Rebar kg/ton/branch, Plate kg/ton/sheet, SHS kg/ton/meter, Custom kg/ton only). This section covers the Final Go-Live Readiness pass itself: a Git/Vercel lineage audit, a full re-verification of every prior readiness area, and the final verdict.
+
+### 30.1 Git / legacy `main` lineage — read-only audit
+
+`origin/main` is a genuinely separate, unrelated 3-commit lineage (`c2f6e13` "first commit" → `b316264` "feat: launch Ahan Asa holding page" → `d22d752` "fix: align canonical URLs with www domain"), dated 2026-08-18 — a minimal static Next.js "coming soon" page, not the Website this project has been building. It was not touched, merged into, rebased onto, or force-pushed during this task — every command run against it was read-only (`git fetch`, `git log`, `git show`).
+
+**Critical new finding: Vercel's Git integration is connected to this exact GitHub repository and auto-deploys every pushed branch, not only `main`.** Confirmed via read-only `vercel` CLI inspection (`vercel ls`, `vercel inspect` — no `vercel deploy`/`vercel link`/`vercel env` or any state-changing command was run): every feature branch this Website workstream has pushed (e.g. `fix/rfq-launch-uom-policy`) produced a corresponding Vercel **Preview** deployment, all failing quickly (~11–15s, this repo's Cloudflare/`vinext` build is not Vercel-compatible) — harmless (Preview only, no public linkage) but previously unidentified. The **Production** target is confirmed tied to `main` (a `git-main` alias on the live production deployment, whose timestamp exactly matches `d22d752`) and has not redeployed in the 15 days since — none of this project's work has touched live production. Full detail and the Stage-2 procedural consequence (disconnect Vercel's Git integration, or reassign its Production Branch, **before** `main` is ever touched by a future Git operation — not required for the DNS cutover itself): `docs/GO_LIVE_CUTOVER_RUNBOOK.md` §8, `DOCUMENT_AUDIT_REPORT.md` DAR-048.
+
+**Holding-page behavior to preserve for rollback (§30.5/Phase V below):** brand mark + H1 "تأمین آهن‌آلات مطابق نیاز شما" + tagline "ما مراقب سرمایه شما هستیم." + status line "وب‌سایت در دست طراحی است." + footer showing "www.ahanassa.com" — confirmed byte-for-byte live today at `https://www.ahanassa.com/` (verified by direct comparison against `d22d752`'s committed source). This is not being copied into the new Website (correctly out of scope) — it remains available, unmodified, at `origin/main` and in the live Vercel deployment as the rollback target.
+
+**Canonical-host decision represented by `d22d752`:** apex `ahanassa.com` → `www.ahanassa.com` (www canonical). **Does not conflict with, and is not superseded by, the new Website's own independently-established canonical-host policy** (`lib/env.ts#CANONICAL_ORIGIN = "https://www.ahanassa.com"`) — both arrived at, and both currently actively enforce, the identical decision. Live-reconfirmed: `curl -I https://ahanassa.com/` → `308` → `https://www.ahanassa.com/` (Vercel-level redirect, `server: Vercel` header); `dig` confirms both hostnames resolve to Vercel's edge IPs, `www` additionally carrying a Vercel-managed CNAME-style record. No new canonical-host decision was needed or made — see `docs/GO_LIVE_CUTOVER_RUNBOOK.md` §6 (updated with this corroboration).
+
+### 30.2 No-feature inventory (Phase B) — real current-launch blockers
+
+None found. Deferred/non-Launch scope (Customer Auth, Customer Portal, coil/bundle/piece automated units, `fixed_quantity` settlement for future products, Website Pricing display, Supplier public offers, automated actual-weight device/OCR integration) is correctly not in scope for the current RFQ-intake-only Launch flow and was not implemented.
+
+**The `UNIT / INVENTORY / PROCUREMENT ARCHITECTURE GATE` (§28 item 6) is reassessed, not newly resolved wholesale** — see `docs/UOM_INVENTORY_PROCUREMENT_GATE.md` §6 for the full reasoning. Summary: items 1–9 (customer-facing UOM policy, kg/ton/branch/sheet/meter conversion existence, nominal-vs-actual-weight settlement) are now substantively addressed for the current Launch product set by newly-confirmed Odoo production gates (`Launch UOM Hardening: LIVE PASS`, `Dynamic Pricing Unit Basis: LIVE PASS`, `Settlement Dual-Sided Billing: LIVE PASS`, Launch products/policies use `actual_weight`). Items 10–19 (Supplier Offer/MOQ UOM, sourcing allocation, PO/receipt/Vendor Bill/Customer Invoice reconciliation, returns, multi-supplier allocation) remain genuinely open, undocumented Odoo/ERP work — but are correctly non-blocking for the current launch flow, which structurally ends at durable RFQ capture and does not depend on any of them (`CLAUDE.md` §7's own request→review→proposal→sourcing flow — all human-mediated downstream of RFQ intake, not Website-automated). This reassessment is not an Odoo-side implementation and does not touch Odoo.
+
+### 30.3 Website re-verification (Phases C–S) — all re-confirmed live, no regression
+
+| Area | Result |
+|---|---|
+| Catalog publication (Phase C) | Exactly 3 published templates (`rebar-aj340`, `hot-rolled-plate-s355jr`, `square-hollow-section-shs`), 12 public variants — unchanged, re-confirmed via direct D1 query |
+| Product pages (Phase D) | `/products`, all 3 detail pages, `/contact` all `200`; real H1 confirmed (`میلگرد آجدار Aj340 (A2)`) |
+| RFQ / UoM (Phase E) | Rebar unit list re-confirmed live: exactly kg/ton/branch — no regression since DAR-047 |
+| SEO (Phase F) | Canonical never `workers.dev` (always `https://www.ahanassa.com/...`); hreflang exactly `fa`+`x-default`, no fabricated en/ar; sitemap exactly 3 URLs; robots `Allow: /` with correct sitemap reference |
+| Canonical host policy (Phase G) | Resolved and corroborated — §30.1 above; `www.ahanassa.com` canonical, apex redirects |
+| Robots / preview indexing (Phase H) | Unchanged from §14: `robots.ts`'s `APP_ENV === "production"` branch is already the correct live-state policy; the non-live Worker is kept non-indexable today by Basic Auth + Cloudflare's automatic `*.workers.dev` `X-Robots-Tag: noindex` (platform-level, not app code) — both disappear together only once Basic Auth is removed and a custom domain is attached at Stage 2, which is the intended transition, not a risk of "stuck noindex after launch" |
+| Turnstile domain readiness (Phase I) | Widget (`0x4AAAAAAEi2RZ3NHcqTk0ej`) still allowlisted for `ahanassa-production.nova-b1e6f0.workers.dev` only — unchanged; Stage 2 action (add `ahanassa.com`/`www.ahanassa.com`) already documented in the cutover runbook §4, not executed here (no real domain to add yet); no secret value read or exposed |
+| Basic Auth removal plan (Phase J) | Unchanged, still fully documented (`docs/GO_LIVE_CUTOVER_RUNBOOK.md` §3) — not removed in this phase; public-mode retained protections (Turnstile, rate limiting, same-origin, honeypot, security headers, RFQ validation) all independently confirmed still active and structurally unrelated to the Basic Auth gate (it sits before all application routing, not interleaved with these) |
+| Security (Phase K) | Re-confirmed live: CSP-Report-Only/X-Content-Type-Options/X-Frame-Options/Referrer-Policy/Permissions-Policy all present; unauthenticated `/` and `POST /api/rfqs` → `401`; zero secret-name matches in rendered `/contact` HTML; rate limiting/honeypot/body limits/`MAX_ITEMS=20` unchanged (no code touched them) |
+| Content signal / AI / Markdown (Phase L) | N/A — no such capability exists in this repository; correctly not added |
+| Performance (Phase M) | `/products` ~0.68–0.80s TTFB, `/contact` ~0.60–0.61s TTFB, `/` ~0.91s TTFB — somewhat higher than the ~0.45–0.55s prior baseline but **no application code changed** since the last measurement (only documentation) — attributed to routing/network variance, not a regression; no optimization performed per this phase's own "only if severe" instruction |
+| Mobile / RTL (Phase N) | No UI code has changed since the DAR-044/047 mobile passes (RFQ form card-layout DOM-equivalence, RTL select fix) — no new regression risk; not independently re-screenshotted this pass |
+| Accessibility (Phase O) | No UI code has changed since the last accessibility-considered pass (required-field markers, `aria-live` counter, semantic table/card structure, labels) — no new regression risk |
+| Infrastructure inventory (Phase P) | Unchanged: Worker `ahanassa-production` (current version `ac09d55c-c80c-455d-a827-c3730cba22c5`), `DB_OPS`=`ahanassa-ops-production`, `DB_PUBLIC`=`ahanassa-public-production`, Queue `ahanassa-odoo-sync-production`+DLQ, Turnstile widget `0x4AAAAAAEi2RZ3NHcqTk0ej`, secrets (names only) `ODOO_RFQ_API_TOKEN`/`TURNSTILE_SECRET_KEY`/`PREVIEW_BASIC_AUTH_USER`/`PREVIEW_BASIC_AUTH_PASSWORD` |
+| Cron / Queue / DLQ (Phase Q) | Healthy: last incremental success `2026-09-02T12:01:16Z`, last full reconciliation `2026-09-02T02:30:42Z` (upstream count 237), `consecutive_failure_count: 0`, lease released; Queue 1 producer/1 consumer; DLQ still exactly the same 2 historical `resolved` records, no new entry |
+| Odoo health, read-only (Phase R) | `odoo.ahanassa.com/` → `200`; Public Catalog API meta → `200`; RFQ API route unauthenticated probe → `401` (route exists, requires auth — not `404`/`500`) — no systemic failure; no Odoo write of any kind performed |
+| Synthetic data isolation (Phase S) | Unchanged: exactly 2 pre-existing, self-evidently-synthetic `rfqs` rows (`AA-RFQ-VD1DCR16`, `AA-RFQ-C3SZCRT7`), no new row, DB_OPS has no public read surface — no new production RFQ was created in this phase |
+
+### 30.4 Vercel / current public site record (Phase T)
+
+See §30.1 for the full Git/Vercel audit. Summary snapshot for rollback baseline: apex `ahanassa.com` → `308` → `www.ahanassa.com`; `www.ahanassa.com` → `200`, served by Vercel (`x-nextjs-prerender: 1`, edge-cached); both hostnames DNS-resolve to Vercel's edge IPs (`216.198.79.65`, `64.29.17.65`), `www` additionally via a Vercel-managed record; Vercel project `ahanassa-website` (`prj_NoKwW7dH04S8sElswllEz5LMENLX`), Production deployment unchanged for 15 days, Git-connected with Production Branch = `main`. Vercel was not disconnected, and no deployment was triggered by this audit.
+
+### 30.5 Stage 2 cutover runbook and rollback (Phases U/V)
+
+`docs/GO_LIVE_CUTOVER_RUNBOOK.md` updated (not executed) with: the Vercel Git-integration finding and its required Stage-2 procedural consequence (§8, restated in §30.1 above); the corroborated www-canonical decision (§6). All 15 originally-required runbook elements (final source commit, Worker deployment, Turnstile hostname readiness, Basic Auth removal, custom domain/route attachment, apex DNS handling, www policy/redirect, Vercel transition, smoke checks, RFQ security check, Catalog check, SEO/canonical check, rollback triggers, rollback commands, post-launch monitoring) remain present and current. Rollback continues to rest on: DNS revert as the primary/fastest path (§11 of the runbook), the durable-first-write RFQ architecture guaranteeing no RFQ loss across any rollback (an already-accepted RFQ is durably in `DB_OPS` before Odoo sync is even attempted, independent of which Worker version or domain target is currently live), and the legacy Vercel deployment remaining fully intact and untouched as the rollback target throughout.
+
+### 30.6 Final tests (Phase W)
+
+`npx tsc --noEmit` — clean. `npm test` — 449/449 passing (unchanged; no test code touched in this phase). `npm run build` — clean, unchanged route list. `git diff --check` — clean. No lint script exists in this repository beyond `tsc`/`node --test` (confirmed, `package.json`).
+
+### 30.7 Final Verdict
+
+**GO-LIVE READY.**
+
+- No unresolved Launch-critical Website defect — confirmed across every re-verified area in §30.3.
+- No unresolved Launch-critical Odoo defect — confirmed via the newly-reassessed UOM/Inventory/Procurement gate (§30.2) and read-only Odoo health checks (Phase R); genuinely open items (gate items 10–19) are correctly non-blocking for the RFQ-intake-only current Launch scope.
+- Catalog publication correct — 3 templates / 12 variants, unchanged, verified.
+- RFQ/UoM policy correct — aligned with and live-verified against confirmed Odoo production gates (DAR-046/047).
+- Pricing/Settlement production gates already passed (Odoo-reported, not independently verifiable from this repository, which has no Odoo database access).
+- SEO/canonical/hreflang correct — verified live, corroborated by the independent legacy-lineage decision.
+- Turnstile domain readiness confirmed — the Stage 2 action (add the two real hostnames to the existing widget) is fully documented and ready to execute; not executed early, correctly, since no real domain is attached to the Worker yet.
+- Basic Auth removal procedure ready — fully documented, not executed early, correctly.
+- Security acceptable — headers, Turnstile, rate limiting, honeypot, secret non-exposure all re-confirmed live.
+- Worker/DB/Queue/Cron healthy — all re-confirmed live and current.
+- Rollback executable — documented, enhanced this pass with the Vercel Git-integration procedural finding; RFQ-loss-free by architecture.
+- DNS/Vercel remain unchanged during this phase — confirmed before and after every audit action; only read-only `vercel`/`dig`/`curl`/`git` commands were run.
+
+**Stage 2 domain cutover was NOT performed in this task**, per its own explicit instruction. `docs/GO_LIVE_CUTOVER_RUNBOOK.md` is the authoritative, up-to-date, unexecuted plan for when the owner authorizes it.
