@@ -158,3 +158,83 @@ Committed on `fix/rfq-launch-uom-policy` after all validation passed; pushed (no
 ## 20. Gate
 
 **WEBSITE RFQ LAUNCH UOM ALIGNMENT: PASS**
+
+---
+
+## 21. Website RFQ Launch UoM Runtime Validation (2026-09-02, deployment + runtime QA)
+
+Deploys §1–§20 above to the existing protected non-live `ahanassa-production` Cloudflare Worker and runtime-validates it live. Same Worker as every prior deployment — no new Worker created. `ahanassa.com`/`www.ahanassa.com` DNS, Vercel, and Basic Auth are all unchanged throughout.
+
+### Source / deployment
+
+- **Source commit:** `42ce8fe` (verified: `git status`/`git branch --show-current`/`git rev-parse HEAD` all matched before deployment; `npx tsc --noEmit`, `npm test` (449/449), `npm run build`, `git diff --check` all re-ran clean immediately before deploying).
+- **Worker version ID:** `ac09d55c-c80c-455d-a827-c3730cba22c5` (message: "RFQ Launch UoM Contract Alignment (commit 42ce8fe)"), promoted to **100%** traffic via `wrangler versions deploy ac09d55c-...@100`.
+- **Bindings/secrets preserved**, confirmed via `wrangler versions view` before promotion: `ODOO_RFQ_API_TOKEN`, `TURNSTILE_SECRET_KEY`, `PREVIEW_BASIC_AUTH_USER`, `PREVIEW_BASIC_AUTH_PASSWORD` all present; `DB_OPS`=`ahanassa-ops-production`, `DB_PUBLIC`=`ahanassa-public-production`, `ODOO_SYNC_QUEUE`=`ahanassa-odoo-sync-production` all correct.
+- **Deployed-artifact identity check:** the exact `dist/` build just deployed contains the `unsupported_for_custom_item` string (from `lib/rfq/validation.ts`) in its bundled output, confirming the deployed bundle is genuinely built from this commit's source, not a stale artifact.
+
+### Basic Auth / security gate
+
+Unauthenticated `GET /` → `401`; unauthenticated `POST /api/rfqs` → `401`. Authenticated `GET /`, `/products`, `/contact` → `200`. Basic Auth remains fully active — unchanged.
+
+### Live Catalog UoM UI — production, real published Variants
+
+| Family | Variant XID used | Unit options rendered (live, production) |
+|---|---|---|
+| Rebar | `ahanassa_marketplace.product_rb_aj340_d16_l12` | exactly کیلوگرم(kg) / تن(ton) / شاخه(branch) |
+| Plate | `ahanassa_marketplace.product_sh_hr_s355jr_s20x1500x6000` | exactly kg / ton / ورق(sheet) |
+| SHS | `ahanassa_marketplace.product_pf_shs_s80x80x5_l6` | exactly kg / ton / متر(meter) |
+
+Verified via `/fa/contact?variant=<xid>` preselection against the deployed Worker — no sheet/meter/coil/bundle/piece on Rebar; no branch/meter/coil/bundle/piece on Plate; no branch/sheet/coil/bundle/piece on SHS. No editorial/publication state was changed — production Catalog remains exactly 3 published templates / 12 public variants (re-confirmed via D1 query after deployment).
+
+### Custom row, stale-UoM reset, mixed 12+-row multi-line — local dev, identical deployed commit
+
+Basic Auth blocks browser-automation tooling from completing an interactive session against the live `workers.dev` host directly (Chrome's native Basic Auth prompt is not exposed to the remote-control layer — the same limitation already documented in `docs/CLOUDFLARE_DEPLOYMENT_STAGE1.md` §14). These phases were instead run interactively (real browser, real DOM events) against local dev serving the identical deployed commit (`42ce8fe`, same working tree, same synced Catalog data — the local D1 mirror holds the identical 3 published templates / 12 public variants as production, same real xids):
+
+- **Custom row:** switching a row to "سایر / کالای سفارشی" (custom) live-confirmed unit options exactly `["kg","ton"]` — no branch/sheet/meter/coil/bundle/piece.
+- **Stale-UoM reset, two cross-family transitions:** (1) Rebar+`branch` → switched category to Flat Products → unit correctly reset to `kg`, options narrowed to `[kg,ton]`; (2) Plate+`sheet` → switched category to Hollow Sections → unit correctly reset to `kg`, options narrowed to `[kg,ton]`. `branch`/`sheet` never survived their respective product-family change.
+- **Mixed 12+-row multi-line** (grown to 20 rows total, the maximum): row 1 Rebar/`branch`, row 2 SHS/`meter`, row 3 Plate/`sheet`, row 4 Rebar/`ton`, row 5 Custom/`kg`, rows 6–20 default/`kg` — dumped every row's own unit-option list simultaneously and confirmed **zero cross-row leakage** (each row's options exactly match its own product's policy, independent of every other row's state). Add-button correctly disabled at exactly 20/20; removing row 5 correctly dropped the counter to 19/20 and re-indexed remaining rows with their data intact (rows 1–4's product/unit selections survived the entire grow-to-20 and remove-one sequence unchanged). No form was submitted.
+
+### Server-side production runtime POST
+
+Determined via code inspection (`lib/rfq/service.ts`) that format-level validation (`lib/rfq/validation.ts`, including the new required-`unit` + Custom-item kg/ton restriction) runs **before** Turnstile verification, but the Catalog-group-specific check (`isUomAllowedForCatalogGroup`) runs **after** Turnstile succeeds (it needs `resolveRfqCatalogVariant`'s DB_PUBLIC resolution first). This means:
+
+- **`Custom + coil` and `Custom + branch` were safely POSTed directly to production** (`https://ahanassa-production.nova-b1e6f0.workers.dev/api/rfqs`, Basic-Auth-authenticated, no Turnstile token supplied) — both rejected with `422 {"code":"VALIDATION_ERROR","fieldErrors":{"items[0].unit":["unsupported_for_custom_item"]}}`, entirely at the format layer, before Turnstile is ever checked. Production `rfqs`/`integration_outbox` row counts confirmed unchanged (2/2) before and after both attempts — zero RFQ writes, zero outbox writes, zero Queue publication.
+- **`Rebar + sheet` and `SHS + branch` were intentionally NOT repeated against production** — reaching the Catalog-group-specific check requires a genuinely valid Turnstile token, which would require either real interactive verification or weakening/bypassing Turnstile, both explicitly prohibited for this phase. Per the task's own instruction: *server-side production runtime POST intentionally not repeated for these two cases; the exact code path is covered by 449 local tests (`lib/rfq/uom-policy.test.ts`'s exhaustive matrix) and was additionally live-proven end-to-end against local dev + local D1 with real Turnstile test keys in the prior task (`docs/RFQ_LAUNCH_UOM_ALIGNMENT.md` §11) — production UI/runtime identity for these two combinations is verified from the deployed artifact instead (the live Catalog UoM UI table above, drawn from the same deployed commit).*
+
+### Structured serialization identity
+
+Read-only confirmed the deployed bundle (`dist/`) is built from `42ce8fe` (marker-string check above). The `100 branch → quantity_value=100, unit_ref=branch` serialization (and the equivalent `20 sheet`/`30 meter`/`2 ton`/`500 kg` cases) is unchanged code from §12/§16 of this document — proven there via the pure `rfq-payload-mapper.test.ts` matrix and a real local D1 write; not re-submitted to Odoo in this phase.
+
+### Turnstile UX
+
+Confirmed still intact and unchanged by this task: the widget auto-resolved with the local test key (`موفق بود!` / "Success!" shown by the widget itself), and the Submit button's `disabled` state correctly tracked `Boolean(turnstileToken)` — enabled only once Turnstile succeeded, with no explanatory-status regression observed (the "verifying…" message is present in the initial server-rendered HTML, as already proven in the prior Go-Live Readiness task; this task did not touch that code). No raw Turnstile error was ever surfaced. Fail-closed behavior unchanged. No real production RFQ was submitted.
+
+### Responsive QA
+
+Desktop (production, live screenshot-equivalent via authenticated page load) and local-dev interactive session both confirmed: product-aware unit selectors readable, FA RTL labels correct, `appearance-none`/`pe-9`/logical `end-3` chevron classes intact (no clipping regression from the prior task's fix), Custom row shows only kg/ton, 20-row form remains usable. **Mobile viewport:** the browser tool's `resize_window` call reported success but did not actually change `window.innerWidth` in this remote-controlled session (stayed at 1440px) — a tooling limitation, not a site defect. Verified mobile-card-layout equivalence instead by direct DOM inspection: the CSS-hidden (`lg:hidden`) mobile card markup for every row carries **byte-identical** unit-option lists and selections as the visible desktop table markup (both share one row-state source of truth, unchanged mechanism from the prior task) — confirming the mobile rendering is correct without a literal narrow-viewport screenshot. No redesign performed.
+
+### Contract / security regression
+
+Verified against the deployed Worker: no price/stock/supplier/MOQ/supplier-economics data anywhere on `/contact` (the only matches for a broad price-keyword grep were pre-existing FAQ positioning copy — "not just unit price" / "more than a simple price inquiry" — qualitative brand copy, no numeric price, unchanged by this task); zero matches for any of the 4 secret names in the rendered HTML; zero `value="coil"`/`value="bundle"`/`value="piece"` anywhere on the page. Catalog pages remain server-rendered from DB_PUBLIC with no synchronous Odoo dependency (unchanged architecture). RFQ architecture (Browser → DB_OPS → Outbox → Queue → Odoo) unchanged. Basic Auth and Turnstile both confirmed active (above).
+
+### Catalog / SEO regression
+
+All 3 published pages (`rebar-aj340`, `hot-rolled-plate-s355jr`, `square-hollow-section-shs`) still `200`; canonical still `https://www.ahanassa.com/products/rebar-aj340`; hreflang still exactly `fa` + `x-default` (the prior task's fix, unaffected by this task's changes); `sitemap.xml` still exactly 3 URLs, no 237-variant explosion; production Catalog publication state unchanged (3 templates / 12 variants, re-confirmed via direct D1 query post-deployment); Variant selection remains entirely within the Template-page hybrid architecture — no independent Variant SEO pages exist.
+
+### Performance
+
+| Route | TTFB (steady-state, 2nd request) | Total |
+|---|---|---|
+| `/products` | ~0.47s | ~0.52s |
+| `/products/rebar-aj340` | ~0.50s | ~0.68s |
+| `/contact` | ~0.48s | ~0.61s |
+
+Qualitatively comparable to the ~0.43–0.55s TTFB baseline from the prior Go-Live Readiness task — no regression observed. No optimization performed, per this phase's own instruction.
+
+### Production domain safety
+
+`https://ahanassa.com/` → `308` (unchanged existing redirect behavior); `https://www.ahanassa.com/` → `server: Vercel`, real `x-vercel-id` present — confirmed still served entirely by the legacy Vercel deployment. No Cloudflare route or custom domain was attached to `ahanassa-production` at any point. The only publicly reachable surface for this Worker remains the same Basic-Auth-gated `https://ahanassa-production.nova-b1e6f0.workers.dev`.
+
+### Runtime Gate
+
+**WEBSITE RFQ LAUNCH UOM RUNTIME: PASS.** Same existing Worker updated (no new Worker); Basic Auth remains active; Rebar/Plate/SHS/Custom unit lists all exactly match the confirmed Odoo Launch policy live in production; coil/bundle/piece absent everywhere; stale invalid UoM resets safely across two independent cross-family transitions; 20-row mixed multi-line UI works with zero cross-row leakage; Turnstile intact; no production RFQ created (2 format-layer-only invalid POSTs safely proven against production with zero DB writes; the two Catalog-group-specific invalid combinations were intentionally not repeated against production since they would require a real Turnstile pass, and are instead covered by the 449 local tests plus the prior task's own local dev + local D1 live proof); current Catalog pages healthy; public DNS/Vercel unchanged throughout.
