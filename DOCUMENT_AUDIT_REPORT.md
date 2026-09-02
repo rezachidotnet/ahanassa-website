@@ -1246,4 +1246,38 @@ No production RFQ was created. `ahanassa.com`/`www.ahanassa.com` DNS and the leg
 
 ---
 
+### DAR-050 — Stage 2B Production Cutover: `www.ahanassa.com` live on Cloudflare, apex pending (2026-09-02)
+
+**Severity:** N/A — informational; records the executed production cutover for `www.ahanassa.com` and one still-open sub-step (apex redirect)
+**Status:** PARTIALLY RESOLVED — apex redirect remains open, blocked on Cloudflare zone write access (see below)
+**Canonical doc:** `docs/GO_LIVE_CUTOVER_RUNBOOK.md` (execution record added), `docs/GO_LIVE_READINESS.md` §31.
+
+**What was executed, in order:**
+
+1. Cutover freeze declared; pre-mutation Git/DNS/HTTP/Worker/Vercel snapshot captured — all matched the DAR-048/049 baseline.
+2. Vercel Git integration reconfirmed disconnected (`vercel project inspect ahanassa-website` shows no linked repository).
+3. Preview Basic Auth removed: `lib/security/preview-auth.ts` + its 13 tests deleted, `workers/entry.ts`'s `fetch` handler reverted to the plain `vinextHandler.fetch` reference. Committed as `39db058` "chore: enable public production website" (436/436 tests passing, 13 fewer than 449, fully accounted for). Pushed to `chore/final-go-live-readiness`; confirmed no Vercel Preview deployment was triggered.
+4. Worker version `cbbf0344-2e08-4e82-b7dc-b453b635de6e` (source `39db058`) deployed to 100% traffic on the existing `ahanassa-production` Worker, replacing `ac09d55c-c80c-455d-a827-c3730cba22c5`. All bindings/secrets carried forward unchanged (verified via `wrangler versions view`).
+5. `workers.dev` reverified public with no `401`/`WWW-Authenticate`, all routes/Turnstile/catalog/UoM intact.
+6. `PREVIEW_BASIC_AUTH_USER`/`PREVIEW_BASIC_AUTH_PASSWORD` secrets deleted (names only; `TURNSTILE_SECRET_KEY`/`ODOO_RFQ_API_TOKEN` untouched, no value ever printed).
+7. Turnstile reconfirmed via `wrangler turnstile widget list --json` (not `get`, which prints the secret in plain text — DAR-049's flagged product bug deliberately avoided this time): sitekey `0x4AAAAAAEi2RZ3NHcqTk0ej`, mode `managed`, exactly `ahanassa-production.nova-b1e6f0.workers.dev` / `www.ahanassa.com` / `ahanassa.com` allowlisted. No rotation.
+
+**Regression found and fixed — `workers.dev` disabled by `wrangler triggers deploy` (root cause + remediation):** the first attempt to attach `www.ahanassa.com` as a Worker Custom Domain (`wrangler triggers deploy` with a `routes: [{ pattern: "www.ahanassa.com", custom_domain: true }]` block newly added to `wrangler.jsonc`) failed with Cloudflare API error 100117 ("Hostname 'www.ahanassa.com' already has externally managed DNS records") — the pre-existing Vercel CNAME blocked the attachment, exactly as expected before DNS was touched. **Side effect of that same call:** because `wrangler.jsonc` never explicitly set `workers_dev`, `wrangler triggers deploy` defaulted it to `false`, silently taking `ahanassa-production.nova-b1e6f0.workers.dev` from `200` to `404` — a regression unrelated to the DNS conflict. Per this task's own explicit instruction, execution **stopped at this serious error** rather than working around it; reported to the project owner instead of proceeding.
+
+Remediation (owner-authorized continuation): added `"workers_dev": true` permanently to `wrangler.jsonc`'s `env.production` (§`workers_dev`), rebuilt, and ran `wrangler triggers deploy` **without** the `routes` block present (temporarily withheld) so it could not retry the still-blocked Custom Domain attachment. This restored `workers.dev` to `200` on `/`, `/fa`, `/fa/products`, `/fa/contact` with no other trigger/binding/secret affected. `workers_dev: true` is kept permanently going forward — it costs nothing once the Custom Domain is also attached and prevents recurrence.
+
+**DNS mutation and Custom Domain attachment:** the project owner deleted the conflicting `www.ahanassa.com` CNAME (`5ded30fb63f52a9a.vercel-dns-017.com`) directly in the Cloudflare dashboard (the executing agent has no Cloudflare zone write access — the `wrangler` OAuth token is `zone (read)`-only, confirmed via `wrangler whoami`; no Cloudflare dashboard browser session was available or logged into on the agent's behalf). Deletion verified via `dig` (empty). `routes: [{ pattern: "www.ahanassa.com", custom_domain: true }]` was then re-added to `wrangler.jsonc` and `wrangler triggers deploy` run again — succeeded at `2026-09-02T16:01:56Z`, reporting `www.ahanassa.com (custom domain)`. TLS was valid immediately (`CN=ahanassa.com`, issuer Google Trust Services WE1, expires 2026-11-09), no propagation wait needed.
+
+**Full `www.ahanassa.com` gate, live, all passed:** homepage/`/fa`/`/fa/products`/all 3 product pages (`rebar-aj340`, `hot-rolled-plate-s355jr`, `square-hollow-section-shs`)/`/fa/contact` all `200`; `<link rel="canonical">` and `og:url` use `https://www.ahanassa.com` exclusively (never `workers.dev`, never apex); `hreflang` exactly `fa`/`en`/`ar`/`x-default`; `sitemap.xml` lists only `www.ahanassa.com/...` URLs (the 3 product pages); `robots.txt` correct, references the `www` sitemap; Turnstile sitekey + challenge script present on `/contact`; RFQ endpoint fail-closed on the real domain (`422` with no Turnstile token, `403` cross-origin — no data persisted, no secret exposed); Catalog shows exactly the 3 launch templates with variant data rendering, no price/stock/supplier data anywhere; RFQ form embeds `REBAR`/`SHEET_PLATE` family data with zero occurrences of the deferred UoMs (`coil`/`bundle`/`piece`) — consistent with `lib/rfq/uom-policy.ts`, which this task never touched; Queue (`ahanassa-odoo-sync-production`) and DLQ each show exactly 1 producer/1 consumer bound to `ahanassa-production`; all 3 cron schedules confirmed live in the `triggers deploy` output; `odoo.ahanassa.com` and `/web/login` both `200` (read-only, no auth attempted, no business logic touched).
+
+**Still open — apex `ahanassa.com` redirect (Stage 2B step 8, not yet executed):** per this task's own explicit sequencing ("only after www passes every prior gate"), the apex→www permanent redirect was attempted next. The intended mechanism (Cloudflare Redirect Rules, a zone-level Rulesets feature) is not exposed through any `wrangler` subcommand and requires the same zone write access the DNS deletion needed — which the executing agent still does not have. Apex `ahanassa.com` has **not** been modified in any way (per this task's own explicit "do not touch apex yet" instruction) and continues serving exactly as it did before this cutover (Vercel, `308` → `www.ahanassa.com`, per the legacy holding page's own already-corroborated policy — see DAR-048 §30.4/§30.6). No parallel application infrastructure was created at apex; no Worker route was added for it.
+
+**RFQ write policy:** no established, previously-approved synthetic-production-RFQ procedure was found referenced in this task's own context; per its own explicit instruction, no RFQ write was performed. Real-domain Turnstile/security fail-closed behavior was verified instead (above).
+
+**Regression-checked, unaffected throughout:** `origin/main` reconfirmed unchanged at `d22d752` before and after every mutating step in this record. `DB_OPS`/`DB_PUBLIC`/rate limiter bindings, Odoo secrets, and Odoo itself were never modified. The legacy Vercel project/production deployment remain fully intact (`vercel project inspect`/`vercel ls --prod` reconfirmed immediately before the DNS deletion) as the rollback target.
+
+**Gate: WWW PRODUCTION CUTOVER: PASS. APEX REDIRECT: OPEN (access-blocked, not a defect).**
+
+---
+
 **End of `DOCUMENT_AUDIT_REPORT.md`**

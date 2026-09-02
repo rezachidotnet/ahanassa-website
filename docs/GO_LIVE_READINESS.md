@@ -405,3 +405,17 @@ See §30.1 for the full Git/Vercel audit. Summary snapshot for rollback baseline
 - DNS/Vercel remain unchanged during this phase — confirmed before and after every audit action; only read-only `vercel`/`dig`/`curl`/`git` commands were run.
 
 **Stage 2 domain cutover was NOT performed in this task**, per its own explicit instruction. `docs/GO_LIVE_CUTOVER_RUNBOOK.md` is the authoritative, up-to-date, unexecuted plan for when the owner authorizes it.
+
+## 31. Stage 2B Production Cutover — Execution Record (2026-09-02)
+
+Full detail: `DOCUMENT_AUDIT_REPORT.md` DAR-050, `docs/GO_LIVE_CUTOVER_RUNBOOK.md` "Execution record".
+
+**`www.ahanassa.com` cutover executed and verified live.** Preview Basic Auth removed (commit `39db058`); Worker version `cbbf0344-2e08-4e82-b7dc-b453b635de6e` deployed to 100% traffic on the existing `ahanassa-production` Worker (no new Worker created); `PREVIEW_BASIC_AUTH_USER`/`PASSWORD` secrets deleted; `TURNSTILE_SECRET_KEY`/`ODOO_RFQ_API_TOKEN` untouched and never printed; Turnstile allowlist reconfirmed unchanged (`workers.dev`/`www.ahanassa.com`/`ahanassa.com`) via `wrangler turnstile widget list --json`. The project owner deleted the pre-existing `www.ahanassa.com` Vercel CNAME directly in the Cloudflare dashboard (the executing agent holds no Cloudflare zone write access); `www.ahanassa.com` was then attached as a Worker Custom Domain, TLS valid immediately, and the full smoke/SEO/Catalog/RFQ-UoM/security/Queue/Cron/DLQ/Odoo-read-only gate passed live against the real domain.
+
+**One regression found and fixed:** the first Custom Domain attach attempt (correctly blocked by Cloudflare because the Vercel CNAME still existed) had a side effect — `wrangler triggers deploy` silently disabled the `workers.dev` preview endpoint because `workers_dev` was never explicit in `wrangler.jsonc`. Execution stopped immediately at this serious error, per this task's own explicit instruction, and was reported to the owner rather than worked around. After owner authorization, `"workers_dev": true` was added permanently and the endpoint restored before retrying the (by-then-unblocked) Custom Domain attachment.
+
+**Apex `ahanassa.com` was not modified** — still serving its unchanged pre-cutover Vercel behavior. The apex → `www` permanent redirect remains open, blocked on the same Cloudflare zone write access gap (Redirect Rules are a zone-level Rulesets feature outside every `wrangler` subcommand and this agent's token scope) — not a defect in the Website, Worker, or DNS state.
+
+`origin/main` reconfirmed unchanged at `d22d752` throughout. Legacy Vercel project/production deployment remain fully intact as the rollback target.
+
+**Gate: WWW PRODUCTION CUTOVER: PASS. APEX REDIRECT: OPEN (access-blocked).**

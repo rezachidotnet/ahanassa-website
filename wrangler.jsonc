@@ -222,6 +222,24 @@
 			// Same binding name/limit as staging; a distinct namespace_id (not
 			// 1001/local or 1002/staging) so production counts separately.
 			"ratelimits": [{ "name": "RFQ_RATE_LIMITER", "namespace_id": "2001", "simple": { "limit": 5, "period": 60 } }],
+			// Stage 2B step 1 (workers.dev repair): explicit workers_dev=true so
+			// a `wrangler triggers deploy` never again implicitly disables the
+			// workers.dev preview endpoint (root cause of the 2026-09-02 404
+			// regression, docs/GO_LIVE_CUTOVER_RUNBOOK.md §12). Kept true
+			// permanently going forward — it costs nothing once the Custom
+			// Domain is also attached.
+			"workers_dev": true,
+			// Worker Custom Domain — Stage 2B production cutover
+			// (docs/GO_LIVE_CUTOVER_RUNBOOK.md §10). Cloudflare manages the
+			// underlying DNS record for a Custom Domain automatically; the zone
+			// (ahanassa.com) is already on Cloudflare nameservers. Apex
+			// (ahanassa.com) is intentionally NOT listed here — it must remain
+			// non-canonical and instead gets a redirect rule to
+			// https://www.ahanassa.com, configured separately in Cloudflare
+			// (not via Worker route/custom_domain). The conflicting legacy
+			// www.ahanassa.com Vercel CNAME was removed by the project owner
+			// immediately before this attachment (Stage 2B step 3).
+			"routes": [{ "pattern": "www.ahanassa.com", "custom_domain": true }],
 			// ODOO_API_KEY (legacy) is NOT provisioned here — DAR-041 confirmed
 			// nothing in the live runtime calls it anymore; do not provision it.
 			// TURNSTILE_SECRET_KEY and ODOO_RFQ_API_TOKEN are real Cloudflare
