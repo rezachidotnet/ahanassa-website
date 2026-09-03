@@ -10,38 +10,24 @@
 	// traffic) so this Worker can also export `queue` and `scheduled` for the
 	// RFQ -> Odoo sync path. See workers/entry.ts.
 	"main": "workers/entry.ts",
-	"triggers": {
-		// Three independent scheduled jobs, routed by the literal cron string
-		// inside the single shared `scheduled()` handler (workers/entry.ts) —
-		// Workers supports multiple cron triggers per Worker this way.
-		// `triggers` is a shared (non-per-environment) config key, but each
-		// named environment is still a physically separate deployed Worker
-		// with its own D1/Queue bindings, so these schedules never cross
-		// environments (docs/CATALOG_SYNC_OPERATIONS.md "Environment
-		// separation").
-		//
-		//   "*/5 * * * *"  — RFQ outbox reconciliation sweep (unchanged,
-		//                    01-sources/TECHNICAL_ARCHITECTURE.md §12.3/§14.5)
-		//   "0 */3 * * *"  — Catalog incremental sync, every 3 hours
-		//                    (DOCUMENT_AUDIT_REPORT.md DAR-040,
-		//                    docs/CATALOG_SYNC_OPERATIONS.md §Incremental
-		//                    schedule — the Product Master changes at
-		//                    business-decision cadence, not continuously)
-		//   "30 2 * * *"   — Catalog full reconciliation, once daily at
-		//                    02:30 UTC (a low-traffic window for this B2B
-		//                    site's expected time zone) — detects
-		//                    archived/deactivated upstream records, which
-		//                    incremental sync structurally cannot
-		//                    (docs/CATALOG_SYNC_OPERATIONS.md §Full
-		//                    reconciliation schedule)
-		//
-		// PENDING DEPLOYMENT: these Cron triggers are configuration only —
-		// they do not become live/active until this Worker is actually
-		// deployed (`wrangler deploy --env <name>`), which has not happened
-		// for any environment yet. Activation is a Claude Deployment Stage 1
-		// step, not this task's.
-		"crons": ["*/5 * * * *", "0 */3 * * *", "30 2 * * *"]
-	},
+	// No top-level `triggers` key (DOCUMENT_AUDIT_REPORT.md DAR-053) —
+	// `triggers`/`main`/`assets`/`compatibility_date` are shared config keys
+	// that named environments (`env.production`/`env.staging` below)
+	// silently INHERIT when they don't declare their own `triggers` block.
+	// A single shared 3-cron list here previously meant every named
+	// environment tried to register the SAME three Cron Triggers on deploy
+	// — harmless in isolation, but the account's Workers Free plan caps
+	// total Cron Triggers at 5 across the whole account, not per Worker.
+	// Production already holds all 3; a staging deploy attempting to
+	// register its own inherited 3 pushed the account over that cap
+	// mid-deploy, and Cloudflare's own trigger-update API is not
+	// all-or-nothing — the RFQ-outbox cron landed on staging before the
+	// limit was hit, leaving it in a partially-applied state (confirmed via
+	// the Cloudflare dashboard). Each named environment below now declares
+	// its OWN explicit `triggers.crons` — production keeps exactly the 3 it
+	// already has; staging is explicitly `[]` (zero) until either the
+	// account is upgraded past the Free plan's 5-trigger cap or a
+	// deliberate decision is made to run a subset of jobs on staging.
 	"assets": {
 		"directory": "dist/client",
 		"not_found_handling": "none",
@@ -198,6 +184,14 @@
 			// explicitly-approved future phases — see DOCUMENT_AUDIT_REPORT.md
 			// DAR-032 for the full provisioning runbook.
 			"name": "ahanassa-production",
+			// Explicit, not inherited (DAR-053 — see the top-level `triggers`
+			// removal note above). Unchanged in value from what was already
+			// live/registered on this Worker (confirmed via Cloudflare
+			// dashboard, 2026-09-03: exactly these 3 Cron Triggers) — this
+			// makes the existing state explicit in config, it does not alter it.
+			"triggers": {
+				"crons": ["*/5 * * * *", "0 */3 * * *", "30 2 * * *"]
+			},
 			"images": { "binding": "IMAGES" },
 			"d1_databases": [
 				{ "binding": "DB_OPS", "database_name": "ahanassa-ops-production", "database_id": "7240a6a7-c293-4e6e-baf3-95838a3c2944", "migrations_dir": "migrations" },
@@ -277,6 +271,21 @@
 		},
 		"staging": {
 			"name": "ahanassa-bootstrap-staging",
+			// Explicit, not inherited (DAR-053). Deliberately empty — staging
+			// previously inherited the same 3-cron list as production, which
+			// contributed to the account's Workers Free 5-trigger cap being
+			// exceeded during a staging deploy (2026-09-03), leaving one cron
+			// (the RFQ-outbox sweep) partially attached to staging afterward.
+			// The `scheduled` handler remains exported in code
+			// (workers/entry.ts) regardless — an empty crons list here only
+			// means Cloudflare never invokes it for this environment; it is
+			// not a code-level removal of scheduled-job support. Re-enable
+			// specific staging schedules deliberately later (e.g. after a
+			// Workers Paid upgrade), never by silently re-inheriting the
+			// top-level default.
+			"triggers": {
+				"crons": []
+			},
 			"images": { "binding": "IMAGES" },
 			"d1_databases": [
 				{ "binding": "DB_OPS", "database_name": "ahanassa-ops-staging", "database_id": "49bd0aff-e289-4fff-b7b9-0f4b517e6b14", "migrations_dir": "migrations" },
