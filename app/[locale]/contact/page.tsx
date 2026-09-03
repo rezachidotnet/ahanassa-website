@@ -88,52 +88,57 @@ export default async function ContactPage({ params, searchParams }: PageProps) {
     <>
       <PageHero locale={locale} eyebrow={t.eyebrow} title={t.title} body={t.body} breadcrumb={[{ path: "/contact", label: t.eyebrow }]} />
 
+      {/*
+        Vertical component order (owner instruction): 1) Purchase Request /
+        RFQ, full desktop width — 2) Next Steps — 3) Head Office. Previously
+        a 12-col grid with the RFQ in a 7/12 column and Head
+        Office+Next Steps sharing a 5/12 aside beside it; that grid (and its
+        min-w-0 collision fix, no longer needed once there is no competing
+        sibling column) is removed. `container-x` still bounds every
+        section to the approved content max-width/page gutters — "full
+        width" means full width of that container, not the raw viewport.
+      */}
       <section className="border-border bg-background border-b py-20 lg:py-28">
-        <div className="container-x grid gap-14 lg:grid-cols-12 lg:gap-16">
-          {/*
-            min-w-0: without this, a CSS Grid item's default min-width is its
-            content's intrinsic minimum (`min-width: auto`) — the RFQ form's
-            wide desktop item table (docs/RFQ_MULTI_ITEM_FORM.md) can then
-            force this column wider than its allotted 7/12 fraction instead
-            of scrolling within its own `overflow-x-auto` wrapper, visually
-            squeezing/overlapping the "Next steps" aside in the 5/12 column
-            beside it. Go-Live Readiness RFQ-layout-collision fix.
-          */}
-          <div className="lg:col-span-7 min-w-0">
-            <SectionHeading eyebrow={t.formEyebrow} title={t.formTitle} body={t.formBody} />
-            <div className="mt-12">
-              <EnquiryForm
-                locale={locale}
-                turnstileSiteKey={getTurnstileSiteKey()}
-                catalogPreselection={catalogPreselection}
-                catalogPreselectionInvalid={catalogPreselectionInvalid}
-                catalogItems={catalogItems}
-              />
-            </div>
+        <div className="container-x">
+          <SectionHeading eyebrow={t.formEyebrow} title={t.formTitle} body={t.formBody} />
+          <div className="mt-12">
+            <EnquiryForm
+              locale={locale}
+              turnstileSiteKey={getTurnstileSiteKey()}
+              catalogPreselection={catalogPreselection}
+              catalogPreselectionInvalid={catalogPreselectionInvalid}
+              catalogItems={catalogItems}
+            />
           </div>
+        </div>
+      </section>
 
-          <aside className="lg:col-span-5">
-            <h2 className="eyebrow text-navy">{t.officeTitle}</h2>
-            <address className="border-border bg-surface text-muted-foreground mt-5 border p-6 text-sm leading-relaxed not-italic">
-              <span className="text-navy block font-bold">{siteConfig.name}</span>
-              {t.addressLines.map((line) => (
-                <span key={line} className="block">{line}</span>
-              ))}
-            </address>
+      <section className="border-border bg-background border-b py-16 lg:py-20">
+        <div className="container-x">
+          <h2 className="eyebrow text-navy">{t.nextTitle}</h2>
+          <ol className="divide-border border-border mt-5 max-w-2xl divide-y border-y">
+            {process.steps.slice(0, 3).map((step, i) => (
+              <li key={step.title} className="flex gap-4 py-5">
+                <span className="text-copper text-lg font-bold">{String(i + 1).padStart(2, "0")}</span>
+                <div>
+                  <h3 className="text-navy text-sm font-bold">{step.title}</h3>
+                  <p className="text-muted-foreground mt-1 text-[13px] leading-relaxed">{step.activity}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
 
-            <h2 className="eyebrow text-navy mt-12">{t.nextTitle}</h2>
-            <ol className="divide-border border-border mt-5 divide-y border-y">
-              {process.steps.slice(0, 3).map((step, i) => (
-                <li key={step.title} className="flex gap-4 py-5">
-                  <span className="text-copper text-lg font-bold">{String(i + 1).padStart(2, "0")}</span>
-                  <div>
-                    <h3 className="text-navy text-sm font-bold">{step.title}</h3>
-                    <p className="text-muted-foreground mt-1 text-[13px] leading-relaxed">{step.activity}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </aside>
+      <section className="border-border bg-background border-b py-16 lg:py-20">
+        <div className="container-x">
+          <h2 className="eyebrow text-navy">{t.officeTitle}</h2>
+          <address className="border-border bg-surface text-muted-foreground mt-5 max-w-md border p-6 text-sm leading-relaxed not-italic">
+            <span className="text-navy block font-bold">{siteConfig.name}</span>
+            {t.addressLines.map((line) => (
+              <span key={line} className="block">{line}</span>
+            ))}
+          </address>
         </div>
       </section>
 

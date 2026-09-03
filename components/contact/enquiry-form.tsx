@@ -519,7 +519,19 @@ export function EnquiryForm({
               {t.phone}
               <RequiredMark srLabel={t.requiredMark} />
             </legend>
-            <div className="flex gap-2">
+            {/* dir="ltr" here (not on the <fieldset>/<legend> above) — the
+                legend stays locale-direction, but the controls themselves
+                must always visually read [country code][local number]
+                left-to-right in every locale, never RTL-flipped. Setting
+                `dir` on this shared wrapper also fixes tab order for free:
+                DOM order is already select-then-input, and LTR direction is
+                exactly what keeps that the VISIBLE left-to-right order too
+                — no explicit tabIndex needed. The `<select>` and `<input>`
+                below ALSO carry their own explicit dir="ltr" — deliberately
+                redundant with the wrapper's, so each control is correct in
+                isolation (e.g. if either is ever moved/reused outside this
+                wrapper) rather than relying solely on inherited direction. */}
+            <div dir="ltr" className="flex gap-2">
               <div className="relative w-[7.5rem] shrink-0">
                 <select
                   id="phone-country"
@@ -527,10 +539,11 @@ export function EnquiryForm({
                   aria-label={`${t.phone} — ${t.phoneCountryPlaceholder}`}
                   required
                   aria-required="true"
+                  dir="ltr"
                   disabled={submitting}
                   value={phoneCountry}
                   onChange={(e) => setPhoneCountry(e.target.value)}
-                  className={`${field} appearance-none truncate pe-8`}
+                  className={`${field} appearance-none truncate pe-8 text-left`}
                 >
                   {!phoneCountry && (
                     <option value="" disabled>
@@ -559,7 +572,7 @@ export function EnquiryForm({
                 disabled={submitting}
                 value={phoneLocal}
                 onChange={(e) => setPhoneLocal(normalizeDigits(e.target.value).replace(/[^\d]/g, ""))}
-                className={`${field} flex-1`}
+                className={`${field} flex-1 text-left`}
                 title={t.phoneInvalid}
               />
             </div>
