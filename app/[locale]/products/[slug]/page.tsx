@@ -1,9 +1,10 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { isLocale, localizedPath, type Locale } from "@/config/locales";
 import { buildPageMetadata, buildLanguageAlternatesFromEntries } from "@/lib/metadata/resolve";
 import { getPublishedCatalogTemplateBySlug, listPublishedLocalesForProduct } from "@/lib/catalog/editorial-repository";
+import { resolveRouteRedirect } from "@/lib/catalog/route-redirects";
 import { PageHero } from "@/components/ui/page-hero";
 import { VariantSpecTable, variantRowAnchorId } from "@/components/products/variant-spec-table";
 import { ScrollToAnchor } from "@/components/products/scroll-to-anchor";
@@ -67,7 +68,21 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
   const { locale: rawLocale, slug } = await params;
   const locale: Locale = isLocale(rawLocale) ? rawLocale : "fa";
   const entry = await getPublishedCatalogTemplateBySlug(locale, slug);
-  if (!entry) notFound();
+  if (!entry) {
+    // Slug/Route Lifecycle (this task's §11-12): a real miss is either a
+    // recorded canonical-slug change (redirect to the current URL) or a
+    // genuinely never-existing/unpublished path (a plain 404 — never a
+    // fabricated replacement/never a redirect to /products or the
+    // homepage). A recorded terminal (410) disposition also renders as a
+    // 404 today, deliberately — returning a real HTTP 410 needs a Route
+    // Handler rather than a page component; that plumbing is a documented,
+    // deferred gap (docs/CATALOG_PUBLIC_ROUTES.md), not fabricated here.
+    const redirectEntry = await resolveRouteRedirect(locale, `/products/${slug}`);
+    if (redirectEntry?.statusCode === 301 && redirectEntry.targetPath) {
+      redirect(localizedPath(locale, redirectEntry.targetPath));
+    }
+    notFound();
+  }
   const t = chrome[locale];
   const { product, seo, variants } = entry;
 

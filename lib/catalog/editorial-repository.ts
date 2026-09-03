@@ -3,7 +3,10 @@ import { ulid } from "../rfq/ulid.ts";
 import type { Locale } from "../../config/locales.ts";
 import { canPublish, canSubmitForReview, isValidContentStatusTransition } from "./editorial.ts";
 import { buildTemplateFilterConditions, computeConditionalFacets, type CatalogFilterInput, type CatalogFilterFacets, type ClassificationRow } from "./catalog-filters.ts";
-import type { CatalogProduct, ProductSeoContent, ProductVariant, ContentQualityStatus, IndexStatus } from "./types.ts";
+import { resolveCatalogMedia, type ResolvedCatalogMedia } from "./media-registry.ts";
+import { computeHomepageScore, sortByHomepageScore, type HomepageRankingMode } from "../ranking/score.ts";
+import { HOMEPAGE_PRODUCT_DISPLAY_COUNT } from "./homepage-config.ts";
+import type { CatalogProduct, ProductSeoContent, ProductVariant, ContentQualityStatus, IndexStatus, HomepageProductCandidate } from "./types.ts";
 
 /**
  * Editorial/publication repository — DOCUMENT_AUDIT_REPORT.md DAR-036/DAR-037,
@@ -309,11 +312,25 @@ export interface EditorialDraftFields {
  * (`submitForReview`/`approveContent`/`publishContent`/`unpublishContent`).
  * This is a deliberate policy answer to DAR-036's Stage B Q4, applied
  * uniformly to both entity types.
+ *
+ * Slug-change redirect (this task's §11-12): when an EXISTING `entity_type
+ * = 'product'` row's slug actually changes, the previous `/products/{slug}`
+ * path is preserved as a permanent redirect to the new one
+ * (`lib/catalog/route-redirects.ts#recordSlugChangeRedirect`) — never for a
+ * brand-new row (no previous row = nothing to redirect from) and never for
+ * `entity_type = 'variant'` (no dedicated public route exists for a variant
+ * today — this task's explicit non-goal of inventing new routing). A
+ * failure recording the redirect is logged but never fails the editorial
+ * save itself — the redirect table is a best-effort convenience overlay,
+ * not the source of truth for the content change the editor actually asked
+ * for.
  */
 export async function upsertEditorialDraft(entityType: EditorialEntityType, entityId: string, locale: Locale, fields: EditorialDraftFields): Promise<EditorialWriteResult> {
   const db = getPublicDb();
   const now = new Date().toISOString();
   const id = ulid();
+
+  const previous = entityType === "product" ? await getSeoContent(entityType, entityId, locale) : null;
 
   try {
     await db
@@ -340,6 +357,16 @@ export async function upsertEditorialDraft(entityType: EditorialEntityType, enti
         now,
       )
       .run();
+
+    if (previous && previous.slug !== fields.slug) {
+      try {
+        const { recordSlugChangeRedirect } = await import("./route-redirects.ts");
+        await recordSlugChangeRedirect(locale, "catalog_template", entityId, `/products/${previous.slug}`, `/products/${fields.slug}`);
+      } catch (redirectErr) {
+        console.error("SLUG_CHANGE_REDIRECT_FAILED", JSON.stringify({ entityId, locale, message: redirectErr instanceof Error ? redirectErr.message : String(redirectErr) }));
+      }
+    }
+
     return { status: "ok" };
   } catch (err) {
     if (isUniqueConstraintError(err)) return { status: "slug_conflict" };
@@ -581,6 +608,19 @@ function filterConditions(filters: CatalogFilterInput, params: unknown[]): strin
 }
 
 /**
+ * The single canonical template-level publication-gate fragment — the SQL
+ * form of `lib/catalog/editorial.ts#evaluatePublicationEligibility`'s
+ * `visible` rule, applied at the template/`entity_type='product'` grain.
+ * `listPublishedCatalogTemplates` (the /products listing and, via
+ * `getPublishedCatalogTemplateBySlug`, the /products/[slug] detail page)
+ * and `listHomepageProductCandidates` (the homepage) both reference this
+ * exact array — this task's own §5 "Homepage and Product Detail must depend
+ * on the SAME publication rules, not duplicated logic" is enforced by them
+ * being literally the same constant, not merely similar-looking SQL.
+ */
+const TEMPLATE_PUBLICATION_WHERE_CONDITIONS = ["cp.is_active = 1", "cp.is_public = 1", "s.locale = ?", "s.content_quality_status = 'approved'", "s.published_at IS NOT NULL", "s.h1 IS NOT NULL"];
+
+/**
  * The catalog listing's data source: every template with an approved+published
  * `entity_type='product'` row for `locale`, itself commercially active+public.
  * Structurally cannot return a template merely because one of its variants
@@ -591,7 +631,7 @@ export async function listPublishedCatalogTemplates(locale: Locale, filters: Cat
   const db = getPublicDb();
   const params: unknown[] = [locale];
   const filterClauses = filterConditions(filters, params);
-  const where = ["cp.is_active = 1", "cp.is_public = 1", "s.locale = ?", "s.content_quality_status = 'approved'", "s.published_at IS NOT NULL", "s.h1 IS NOT NULL", ...filterClauses];
+  const where = [...TEMPLATE_PUBLICATION_WHERE_CONDITIONS, ...filterClauses];
 
   const result = await db
     .prepare(
@@ -672,6 +712,100 @@ export async function getPublishedCatalogTemplateTitleByXid(locale: Locale, temp
     .first<{ title: string; slug: string }>();
 
   return row ? { title: row.title, slug: row.slug } : null;
+}
+
+// --- Homepage Product Projection (this task's §4-10, §13-26) ---
+// Domain type (`HomepageProductCandidate`) lives in ./types.ts — same
+// "types stay in the pure types module" convention `PublicPriceStripItem`
+// follows in lib/pricing/types.ts, so a component can `import type` it
+// without ever pulling in this file's `cloudflare:workers` dependency.
+
+interface HomepageCandidateRow {
+  id: string;
+  template_xid: string;
+  seo_slug: string;
+  seo_h1: string;
+  seo_intro: string | null;
+  rep_family_code: string | null;
+  rep_group_code: string | null;
+  hpr_base_priority: number | null;
+  hpr_manual_boost: number | null;
+  hpr_demand_score: number | null;
+}
+
+export interface HomepageProductCandidateOptions {
+  limit?: number;
+  mode?: HomepageRankingMode;
+}
+
+/**
+ * The homepage's ONLY product data source (this task's §4-6 Hard Invariant:
+ * "A product may not appear as a clickable Homepage Product Card unless its
+ * Product Detail route for that exact locale is publication-eligible and
+ * resolvable"). Uses the exact same `TEMPLATE_PUBLICATION_WHERE_CONDITIONS`
+ * as `listPublishedCatalogTemplates`/`getPublishedCatalogTemplateBySlug` —
+ * structurally cannot return a template that `/products/[slug]` would 404
+ * on, because both read paths are gated by the identical condition set. A
+ * candidate's `slug` is always read from the same `product_seo_contents`
+ * row the detail page itself resolves against — never guessed, never a
+ * sample-catalog value (this task's own root defect this function exists to
+ * fix).
+ *
+ * Media (`lib/catalog/media-registry.ts`) and ranking
+ * (`lib/ranking/score.ts`) are overlays only (this task's §34) — they never
+ * influence which templates are eligible, only how the eligible set is
+ * illustrated/ordered. Ranking mode defaults safely to `"base"` on a
+ * missing/invalid `options.mode` (via `resolveHomepageRankingMode`, already
+ * applied by the caller in `app/[locale]/page.tsx` — this function accepts
+ * an already-resolved mode rather than resolving `env` itself, keeping it
+ * free of any `cloudflare:workers` dependency beyond `getPublicDb`).
+ *
+ * Locale-specific by construction: `s.locale = ?` means a candidate list for
+ * `en` can never contain a `fa`-only slug (this task's §26).
+ */
+export async function listHomepageProductCandidates(locale: Locale, options: HomepageProductCandidateOptions = {}): Promise<HomepageProductCandidate[]> {
+  const db = getPublicDb();
+  const limit = options.limit ?? HOMEPAGE_PRODUCT_DISPLAY_COUNT;
+  const mode = options.mode ?? "base";
+  const where = TEMPLATE_PUBLICATION_WHERE_CONDITIONS;
+
+  const result = await db
+    .prepare(
+      `SELECT cp.id as id, cp.template_xid as template_xid, s.slug as seo_slug, s.h1 as seo_h1, s.intro as seo_intro,
+              (SELECT pv.family_code FROM product_variants pv WHERE pv.product_id = cp.id AND pv.is_active = 1 AND pv.is_public = 1 ORDER BY pv.commercial_name ASC LIMIT 1) as rep_family_code,
+              (SELECT pv.group_code FROM product_variants pv WHERE pv.product_id = cp.id AND pv.is_active = 1 AND pv.is_public = 1 ORDER BY pv.commercial_name ASC LIMIT 1) as rep_group_code,
+              hpr.base_priority as hpr_base_priority, hpr.manual_boost as hpr_manual_boost, hpr.demand_score as hpr_demand_score
+       FROM catalog_products cp
+       JOIN product_seo_contents s ON s.entity_type = 'product' AND s.entity_id = cp.id
+       LEFT JOIN homepage_product_rank hpr ON hpr.catalog_product_id = cp.id
+       WHERE ${where.join(" AND ")}`,
+    )
+    .bind(locale)
+    .all<HomepageCandidateRow>();
+
+  const scored = (result.results ?? []).map((row) => {
+    const basePriority = row.hpr_base_priority ?? 0;
+    const manualBoost = row.hpr_manual_boost ?? 0;
+    const demandScore = row.hpr_demand_score ?? 0;
+    const score = computeHomepageScore({ mode, basePriority, demandScore, manualBoost });
+    return { row, score };
+  });
+
+  const ranked = sortByHomepageScore(scored.map(({ row, score }) => ({ templateXid: row.template_xid, score, row }))).slice(0, limit);
+
+  return ranked.map(({ row, score }, index) => ({
+    productId: row.id,
+    templateXid: row.template_xid,
+    locale,
+    slug: row.seo_slug,
+    title: row.seo_h1,
+    summary: row.seo_intro,
+    familyCode: row.rep_family_code,
+    groupCode: row.rep_group_code,
+    image: resolveCatalogMedia({ templateXid: row.template_xid, groupCode: row.rep_group_code, familyCode: row.rep_family_code }),
+    rank: index + 1,
+    score,
+  }));
 }
 
 export interface PublishedLocaleSlug {

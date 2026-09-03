@@ -1,4 +1,5 @@
 import type { Locale } from "@/config/locales";
+import type { ResolvedCatalogMedia } from "./media-registry";
 
 /**
  * Website Catalog domain types — DB_PUBLIC projection of the Odoo Public
@@ -176,6 +177,29 @@ export interface VariantAttributeValue {
   variantId: string;
   attributeValueId: string;
   createdAt: string;
+}
+
+/**
+ * Homepage Product Projection candidate (this task's §4-10) — component-
+ * facing domain type, deliberately kept here (not in editorial-repository.ts)
+ * so `components/home/product-showcase.tsx` can `import type` it without
+ * pulling in `editorial-repository.ts`'s `cloudflare:workers` dependency,
+ * mirroring `PublicPriceStripItem`'s placement in `lib/pricing/types.ts`.
+ * Produced only by `lib/catalog/editorial-repository.ts#listHomepageProductCandidates`.
+ */
+export interface HomepageProductCandidate {
+  productId: string;
+  templateXid: string;
+  locale: Locale;
+  slug: string;
+  title: string;
+  summary: string | null;
+  familyCode: string | null;
+  groupCode: string | null;
+  image: ResolvedCatalogMedia;
+  /** 1-based position after ranking — never used for anything but display order. */
+  rank: number;
+  score: number;
 }
 
 export type SeoEntityType = "category" | "product" | "variant" | "price_page";

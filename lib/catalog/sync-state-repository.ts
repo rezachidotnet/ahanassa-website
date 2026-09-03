@@ -1,6 +1,7 @@
 import { getPublicDb } from "@/lib/db/public";
 import { ulid } from "@/lib/rfq/ulid";
 import { applyIncrementalWatermarkMargin } from "./sync-safety";
+import { evaluateCatalogSyncHealth, type CatalogSyncHealth } from "./sync-health";
 
 /**
  * Durable Scheduled Catalog Synchronization state — DB_PUBLIC-backed,
@@ -197,4 +198,13 @@ export async function recordSyncFailure(type: CatalogSyncType, reasonCode: strin
     )
     .bind(now, type, reasonCode, now, SINGLETON_ID)
     .run();
+}
+
+// --- Catalog Sync Health observability (this task's §3 "one acceptable gap") ---
+// Pure evaluation logic lives in ./sync-health.ts (D1-free, unit-tested) —
+// same pure/impure split convention as sync.ts/repository.ts.
+
+export async function getCatalogSyncHealth(nowMs: number = Date.now()): Promise<CatalogSyncHealth> {
+  const state = await getCatalogSyncState();
+  return evaluateCatalogSyncHealth(state, nowMs);
 }

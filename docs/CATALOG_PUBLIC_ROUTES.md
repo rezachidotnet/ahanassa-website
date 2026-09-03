@@ -163,9 +163,9 @@ Listing (`/products`) and detail (`/products/{slug}`) pages both go through the 
 
 ## 14. Sample-catalog isolation
 
-`app/[locale]/products/page.tsx` and `app/[locale]/products/[slug]/page.tsx` no longer import `lib/content/catalog-sample.ts` in any form — verified via `grep` before and after this change. `components/products/catalogue.tsx` and `components/products/sample-data-notice.tsx` (the two components that existed solely to render that sample data on these two routes) were deleted as dead code, not left half-disconnected. `lib/content/catalog-sample.ts` itself is **not deleted** — it remains genuinely used by three other, unrelated, pre-existing site surfaces outside this task's scope: the homepage product showcase (`components/home/product-showcase.tsx`), the footer's category links (`components/layout/SiteFooter.tsx`), and the contact form's product dropdown (`components/contact/enquiry-form.tsx`, `lib/rfq/validation.ts`). No production path in the real Catalog route now combines sample and real DB_PUBLIC data.
+`app/[locale]/products/page.tsx` and `app/[locale]/products/[slug]/page.tsx` no longer import `lib/content/catalog-sample.ts` in any form — verified via `grep` before and after this change. `components/products/catalogue.tsx` and `components/products/sample-data-notice.tsx` (the two components that existed solely to render that sample data on these two routes) were deleted as dead code, not left half-disconnected. `lib/content/catalog-sample.ts` itself is **not deleted** — it remains genuinely used by two other, unrelated, pre-existing site surfaces outside this task's scope: the footer's category links (`components/layout/SiteFooter.tsx`) and the contact form's product dropdown (`components/contact/enquiry-form.tsx`, `lib/rfq/validation.ts`). No production path in the real Catalog route, or the homepage (§16 below), now combines sample and real DB_PUBLIC data.
 
-**Known, deliberately accepted consequence:** the homepage showcase links to sample slugs (e.g. `/products/deformed-rebar`) that now correctly 404 under the real, DB_PUBLIC-backed detail route, since those slugs were never real editorial content. This task's own instruction ("Do not redesign the Website") excludes touching the homepage; silently rendering fake data under a real product URL to avoid a 404 would be a worse outcome than the 404 itself. Recommended follow-up (not performed here): once a first real batch of templates is published, point the homepage showcase at real published templates instead of sample slugs, or remove its slug links.
+**Resolved (Homepage Product Architecture Hardening, 2026-09-03):** the homepage showcase previously linked to sample slugs (e.g. `/products/deformed-rebar`) that 404'd under the real, DB_PUBLIC-backed detail route, exactly as this section originally predicted and flagged as a "recommended follow-up." §16 below describes the fix — the homepage now sources exclusively from `listHomepageProductCandidates`, the same real, publication-gated data this document's §5 already describes.
 
 ---
 
@@ -174,3 +174,45 @@ Listing (`/products`) and detail (`/products/{slug}`) pages both go through the 
 **New:** `docs/CATALOG_PUBLIC_ROUTES.md` (this document), `lib/catalog/catalog-filters.ts` (+ tests), `lib/catalog/specification-presenter.ts` (+ tests), `components/products/catalog-empty-state.tsx`, `components/products/catalog-filter-bar.tsx`, `components/products/catalog-template-grid.tsx`, `components/products/variant-spec-table.tsx`.
 **Changed:** `app/[locale]/products/page.tsx`, `app/[locale]/products/[slug]/page.tsx`, `app/sitemap.ts`, `lib/catalog/editorial-repository.ts` (generalized internal editorial functions to `(entityType, entityId, locale)`; added template-level public reads, filter facets, and the sitemap query — no other file called the old variant-only signatures, verified before the change).
 **Deleted:** `components/products/catalogue.tsx`, `components/products/sample-data-notice.tsx` (dead code once the real pages stopped using them).
+
+---
+
+## 16. Homepage Product Projection (Homepage Product Architecture Hardening, 2026-09-03)
+
+**Source of truth:** `lib/catalog/editorial-repository.ts#listHomepageProductCandidates(locale, options?)` is the homepage's ONLY product data source. `components/home/product-showcase.tsx` takes `items: HomepageProductCandidate[]` as a prop (fetched server-side in `app/[locale]/page.tsx`, the same pattern `PriceStrip`/`getHomepagePriceStrip` already established) — it no longer imports `lib/content/catalog-sample.ts` and contains no hardcoded slug list.
+
+**Eligibility invariant:** `listHomepageProductCandidates` filters on the exact same `TEMPLATE_PUBLICATION_WHERE_CONDITIONS` array `listPublishedCatalogTemplates`/`getPublishedCatalogTemplateBySlug` (§5 above) use — a literal shared constant, not independently duplicated SQL. This makes it structurally impossible for a homepage card to link to a template `/products/[slug]` would 404 on: both read paths require `is_active=1 AND is_public=1 AND` an approved+published+`h1`-populated `product_seo_contents` row for the exact requested locale. A candidate's `slug` is read from that same `product_seo_contents.slug` column `getPublishedCatalogTemplateBySlug` resolves against — never guessed, never sample data.
+
+**Data ownership:** unchanged from §3 — Odoo still owns commercial identity/classification; the website still owns `product_seo_contents` (title/slug/summary via `s.h1`/`s.slug`/`s.intro`). The homepage projection adds one new, presentation-only overlay table, `homepage_product_rank` (`migrations_public/0005_homepage_projection.sql`) — `base_priority`/`manual_boost`/`demand_score`, keyed by `catalog_products.id`. It is explicitly NOT a second product-identity/name/slug source — see §17 (Ranking) for the full contract.
+
+**Locale behavior:** `s.locale = ?` in the shared gate means a candidate list for one locale can never contain another locale's slug — an `en` visitor never sees a `fa`-only published template. Fewer than `lib/catalog/homepage-config.ts#HOMEPAGE_PRODUCT_DISPLAY_COUNT` (currently 6) eligible candidates renders fewer cards; zero eligible candidates renders `components/products/catalog-empty-state.tsx` (`variant="catalog-preparing"` — the identical empty state `/products` already uses for the same real condition) instead of hiding the section or fabricating cards.
+
+**Live-verified (2026-09-03, local D1, real synced data):** with 13 templates / 237 variants synced and 3 currently published (`rebar-aj340`, `square-hollow-section-shs`, `hot-rolled-plate-s355jr`), the exact production query returns exactly those 3 rows with correct slugs/titles/classification codes — see `lib/catalog/homepage-projection-invariants.test.ts` for the pinned structural invariants and this task's final implementation report for the full query output.
+
+---
+
+## 17. Media Registry
+
+`lib/catalog/media-registry.ts#resolveCatalogMedia({ templateXid, groupCode, familyCode })` — pure, D1-free. Resolution hierarchy: (1) `TEMPLATE_XID_IMAGE_OVERRIDES[templateXid]` (empty today — no per-template override tooling exists yet, but the structure is ready for one), (2) `GROUP_DEFAULT_IMAGES[groupCode]`, then `FAMILY_DEFAULT_IMAGES[familyCode]`, (3) a generic fallback (`public/images/products/steel-placeholder.svg`, a NEW, deliberately non-product-specific asset — none of the 13 existing photos under `public/images/products/` is genuinely generic, and none of them was renamed, altered, or reused as a stand-in for an unrelated product).
+
+Group mapping is keyed by **stable commercial classification** (`product_variants.group_code`), never by localized SEO slug — a slug rename never breaks an image. Mapped today, verified live against real synced DB_PUBLIC classification codes (2026-09-03): `REBAR → rebar.png`, `SHEET_PLATE → sheet-plate.png`, `BEAMS → beams.png`, `SEAMLESS_PIPE → pipe.png`. `SHS`/`RHS` (hollow sections) are live, real, currently-published group codes with **no** dedicated photo among the 13 existing assets — they intentionally fall through to the generic fallback rather than borrowing an unrelated product's photo; add a real mapping only once a genuinely representative photo exists, never a guess.
+
+**Future R2 path:** `resolveCatalogMedia` returns a plain `{ src, source }` shape. Moving the underlying files from `public/images/products/` to R2 later only requires changing the string constants inside this one file (e.g. to a full R2/CDN URL) — no caller, no Product identity, and no homepage logic needs to change.
+
+---
+
+## 18. Slug / Route Lifecycle
+
+**Schema:** `route_redirects` (`migrations_public/0005_homepage_projection.sql`) — generic across entity types (`entity_type`/`entity_id` columns, never product-specific), `(locale, old_path)` unique, `status_code IN (301, 302, 410)`, `target_path` required for 301/302 and forbidden (NULL) for 410 (CHECK constraints), full site-relative paths (e.g. `/products/old-slug`) rather than bare slugs.
+
+**Canonical slug change:** `lib/catalog/editorial-repository.ts#upsertEditorialDraft` detects an actual slug change on an existing `entity_type='product'` row (never on first-time slug creation — no previous row means nothing to redirect from) and calls `lib/catalog/route-redirects.ts#recordSlugChangeRedirect`, which writes a 301 from the previous `/products/{slug}` to the new one AND repoints any pre-existing redirect that targeted the now-superseded path (chain collapse at write time — `lib/catalog/route-redirects-logic.ts#planSlugChangeRedirects`), so a reader never has to follow more than one hop. `app/[locale]/products/[slug]/page.tsx` checks `resolveRouteRedirect(locale, path)` before calling `notFound()` and issues a real Next.js `redirect()` for a resolved 301. A redirect-write failure is logged but never fails the editorial save itself (best-effort overlay, not the source of truth).
+
+**Loop/self-redirect protection:** `lib/catalog/route-redirects-logic.ts#validateRedirectInsert` rejects a self-redirect (`oldPath === targetPath`) and walks the existing chain (bounded, `MAX_HOPS = 10`) to reject a cycle — normal multi-hop chains are allowed (and immediately collapsed to one hop by the write path above), only true cycles are rejected. Fully unit-tested (`lib/catalog/route-redirects-logic.test.ts`).
+
+**Retirement (410) — schema/policy hooks only, deliberately deferred beyond that:** the schema fully supports a terminal `status_code = 410` row with `target_path = NULL` (validated the same way — never a fabricated replacement), and `validateRedirectInsert` enforces that a 410 row never carries a target. Actually returning a real HTTP 410 status to a visitor requires a Next.js Route Handler (a page component's `notFound()` always returns 404) — that plumbing is **not built** in this pass; a resolved 410 today still renders the normal 404 page. This is the one explicitly-scoped deferral this task's own spec allows ("if full 410 handling is too large, build schema/policy hooks and document deferred behavior rather than fabricating it") — never auto-redirected to `/products` or the homepage, never an invented replacement.
+
+---
+
+## 19. Ranking
+
+See `docs/HOMEPAGE_RANKING.md` for the full contract (base priority, demand aggregation, decay, manual boost, ranking-mode kill switch, and the DB_OPS→DB_PUBLIC privacy boundary).

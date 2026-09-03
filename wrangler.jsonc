@@ -261,7 +261,18 @@
 				// "true" and populating ENABLED_PRICE_PROVIDERS are separate, later,
 				// explicit deployment steps, never bundled with an app-code deploy.
 				"PRICE_STRIP_ENABLED": "false",
-				"ENABLED_PRICE_PROVIDERS": ""
+				"ENABLED_PRICE_PROVIDERS": "",
+				// Homepage ranking kill switch (this task's Homepage Product
+				// Architecture Hardening) — "base" = deterministic base_priority +
+				// manual_boost only, ignores lib/ranking/ demand aggregation
+				// entirely. "auto" additionally layers in the precomputed,
+				// privacy-safe RFQ-demand score. Any missing/unrecognized value
+				// (including this one being absent) safely resolves to "base" —
+				// lib/ranking/score.ts#resolveHomepageRankingMode never throws.
+				// Flipping to "auto" is a separate, later, explicit deployment step
+				// (mirrors PRICE_STRIP_ENABLED's own rollout discipline above) —
+				// never bundled with an app-code deploy.
+				"HOMEPAGE_RANKING_MODE": "base"
 			}
 		},
 		"staging": {
@@ -303,7 +314,8 @@
 				"ODOO_DATABASE": "ahanassa",
 				"ODOO_CRM_TEAM_ID": "1",
 				"PRICE_STRIP_ENABLED": "false",
-				"ENABLED_PRICE_PROVIDERS": ""
+				"ENABLED_PRICE_PROVIDERS": "",
+				"HOMEPAGE_RANKING_MODE": "base"
 			}
 		}
 	}

@@ -13,6 +13,8 @@ import { Process } from "@/components/home/process";
 import { Reach } from "@/components/home/reach";
 import { CtaBand } from "@/components/ui/cta-band";
 import type { PublicPriceStripItem } from "@/lib/pricing/types";
+import type { HomepageProductCandidate } from "@/lib/catalog/types";
+import { resolveHomepageRankingMode } from "@/lib/ranking/score";
 
 interface PageProps {
   params: Promise<{ locale: string }>;
@@ -58,11 +60,22 @@ export default async function HomePage({ params }: PageProps) {
     priceStripItems = await getHomepagePriceStrip(env as CloudflareEnv, locale);
   }
 
+  // Homepage Product Projection (this task's Homepage Product Architecture
+  // Hardening) — always real, publication-eligible DB_PUBLIC data, never
+  // lib/content/catalog-sample.ts. Ranking mode defaults safely to "base"
+  // on a missing/invalid HOMEPAGE_RANKING_MODE (resolveHomepageRankingMode
+  // never throws) — unlike the price strip, this section is never fully
+  // disabled by a flag; the flag only controls whether demand ranking
+  // layers on top of the deterministic base order.
+  const { listHomepageProductCandidates } = await import("@/lib/catalog/editorial-repository");
+  const homepageRankingMode = resolveHomepageRankingMode(env.HOMEPAGE_RANKING_MODE);
+  const homepageProducts: HomepageProductCandidate[] = await listHomepageProductCandidates(locale, { mode: homepageRankingMode });
+
   return (
     <>
       <Hero locale={locale} />
       <PriceStrip locale={locale} items={priceStripItems} />
-      <ProductShowcase locale={locale} />
+      <ProductShowcase locale={locale} items={homepageProducts} />
       <Capabilities locale={locale} />
       <Assurance locale={locale} />
       <Process locale={locale} />
