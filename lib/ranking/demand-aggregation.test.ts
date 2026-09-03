@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { aggregateDemandSignals, DEFAULT_DEMAND_WEIGHTS, type DemandSignal } from "./demand-aggregation.ts";
+import { aggregateDemandSignals, DEFAULT_DEMAND_WEIGHT, type DemandSignal } from "./demand-aggregation.ts";
 import { DEMAND_HALF_LIFE_DAYS } from "./decay.ts";
 
 // Test I: Demand decay — more recent equivalent demand weighted higher.
@@ -64,14 +64,29 @@ test("aggregateDemandSignals never uses a quantity/tonnage field — the DemandS
   // TypeScript itself enforces this (DemandSignal has no quantity field) —
   // this test documents/pins the intent so a future refactor cannot
   // silently reintroduce a tonnage-weighted term.
-  const result = aggregateDemandSignals(signals, now, DEFAULT_DEMAND_WEIGHTS);
+  const result = aggregateDemandSignals(signals, now, DEFAULT_DEMAND_WEIGHT);
   assert.equal(result.length, 1);
 });
 
-test("aggregateDemandSignals respects custom weights", () => {
+test("aggregateDemandSignals respects a custom weight", () => {
   const now = Date.now();
   const signals: DemandSignal[] = [{ templateXid: "t1", occurredAt: isoDaysAgo(now, 0) }];
-  const doubled = aggregateDemandSignals(signals, now, { frequencyWeight: 2, distinctWeight: 2 });
-  const normal = aggregateDemandSignals(signals, now, { frequencyWeight: 1, distinctWeight: 1 });
+  const doubled = aggregateDemandSignals(signals, now, 2);
+  const normal = aggregateDemandSignals(signals, now, 1);
   assert.ok(Math.abs(doubled[0].score - normal[0].score * 2) < 1e-9);
+});
+
+test("aggregateDemandSignals: two distinct accepted RFQs for the same template are counted once each (one honest signal), not doubled under two names", () => {
+  const now = Date.now();
+  const signals: DemandSignal[] = [
+    { templateXid: "t1", occurredAt: isoDaysAgo(now, 0) },
+    { templateXid: "t1", occurredAt: isoDaysAgo(now, 0) },
+  ];
+  const singleSignalResult = aggregateDemandSignals([signals[0]], now);
+  const twoSignalResult = aggregateDemandSignals(signals, now);
+  // Exactly double the single-signal score (each signal contributes its own
+  // decay weight exactly once) — never quadruple, which the old
+  // frequencyWeightSum+distinctRfqCount double-accumulation would have
+  // produced for the same two signals.
+  assert.ok(Math.abs(twoSignalResult[0].score - singleSignalResult[0].score * 2) < 1e-9);
 });

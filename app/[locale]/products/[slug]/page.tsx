@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { isLocale, localizedPath, type Locale } from "@/config/locales";
 import { buildPageMetadata, buildLanguageAlternatesFromEntries } from "@/lib/metadata/resolve";
 import { getPublishedCatalogTemplateBySlug, listPublishedLocalesForProduct } from "@/lib/catalog/editorial-repository";
@@ -69,17 +69,25 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
   const locale: Locale = isLocale(rawLocale) ? rawLocale : "fa";
   const entry = await getPublishedCatalogTemplateBySlug(locale, slug);
   if (!entry) {
-    // Slug/Route Lifecycle (this task's §11-12): a real miss is either a
-    // recorded canonical-slug change (redirect to the current URL) or a
-    // genuinely never-existing/unpublished path (a plain 404 — never a
-    // fabricated replacement/never a redirect to /products or the
-    // homepage). A recorded terminal (410) disposition also renders as a
-    // 404 today, deliberately — returning a real HTTP 410 needs a Route
-    // Handler rather than a page component; that plumbing is a documented,
-    // deferred gap (docs/CATALOG_PUBLIC_ROUTES.md), not fabricated here.
+    // Slug/Route Lifecycle (this task's §11-12, HTTP semantics hardened by
+    // DAR-054): a real miss is either a recorded canonical-slug change
+    // (permanent redirect to the current URL) or a genuinely
+    // never-existing/unpublished path (a plain 404 — never a fabricated
+    // replacement/never a redirect to /products or the homepage).
+    // `permanentRedirect()` (not `redirect()`) is used deliberately — it is
+    // the only call in this stack's Next.js App Router that actually emits
+    // HTTP 308, matching the `status_code = 308` the row itself stores
+    // (`migrations_public/0006_route_redirects_308.sql`); a plain
+    // `redirect()` would emit a temporary 307/303 while the database
+    // claimed a permanent redirect, which is exactly the DB/HTTP semantics
+    // mismatch this hardening pass fixes. A recorded terminal (410)
+    // disposition also renders as a 404 today, deliberately — returning a
+    // real HTTP 410 needs a Route Handler rather than a page component;
+    // that plumbing is a documented, deferred gap (docs/CATALOG_PUBLIC_ROUTES.md),
+    // not fabricated here.
     const redirectEntry = await resolveRouteRedirect(locale, `/products/${slug}`);
-    if (redirectEntry?.statusCode === 301 && redirectEntry.targetPath) {
-      redirect(localizedPath(locale, redirectEntry.targetPath));
+    if (redirectEntry?.statusCode === 308 && redirectEntry.targetPath) {
+      permanentRedirect(localizedPath(locale, redirectEntry.targetPath));
     }
     notFound();
   }

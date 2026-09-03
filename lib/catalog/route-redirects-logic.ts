@@ -8,7 +8,18 @@
  * `/products/` prefix or a catalog entity.
  */
 
-export type RedirectStatusCode = 301 | 302 | 410;
+/**
+ * 308 (never 301) for a permanent redirect — chosen to match exactly what
+ * `next/navigation`'s `permanentRedirect()` actually emits under this
+ * stack's Next.js App Router (verified: a plain `redirect()` issues a
+ * temporary 307/303, `permanentRedirect()` issues 308). The stored contract
+ * and the real HTTP response must never diverge — a row claiming "301" here
+ * previously while the page emitted a different status was exactly the bug
+ * this task fixes; see `migrations_public/0006_route_redirects_308.sql`.
+ * 302 remains available for a genuinely temporary redirect a future caller
+ * might add (not used by the slug-change path, which is always permanent).
+ */
+export type RedirectStatusCode = 308 | 302 | 410;
 
 export interface RouteRedirectRow {
   locale: string;
@@ -84,4 +95,60 @@ export function planSlugChangeRedirects(previousPath: string, newPath: string, e
     newRedirect: { oldPath: previousPath, targetPath: newPath },
     chainCollapseUpdates,
   };
+}
+
+export interface RawStatement {
+  sql: string;
+  params: unknown[];
+}
+
+export type SlugChangeRedirectStatementsResult = { ok: true; statements: RawStatement[] } | { ok: false; reason: "self_redirect" | "loop_detected" | "missing_target" };
+
+/**
+ * Pure, exhaustively-unit-tested core of the slug-change atomicity
+ * guarantee (code-review hardening pass, DAR-054) — produces the EXACT
+ * SQL+params `lib/catalog/route-redirects.ts#buildSlugChangeRedirectStatements`
+ * turns into real `D1PreparedStatement`s, or refuses (zero statements) when
+ * `validateRedirectInsert` finds the candidate redirect unsafe. Isolating
+ * this decision here (D1-free) is what lets "redirect write failure rolls
+ * back slug update"/"slug conflict creates no bad redirect" be proven by a
+ * deterministic unit test rather than only "validated live" — the D1
+ * wrapper's only remaining job is mechanical (fetch existing rows, call
+ * `db.prepare(sql).bind(...params)`), never a decision point of its own.
+ *
+ * `redirectId`/`nowIso` are caller-supplied (never generated internally),
+ * matching this codebase's `nowMs`-injection convention elsewhere
+ * (`lib/ranking/decay.ts` etc.) so this stays deterministically testable.
+ */
+export function planSlugChangeRedirectStatements(
+  locale: string,
+  entityType: string,
+  entityId: string,
+  previousPath: string,
+  newPath: string,
+  existingForLocale: RouteRedirectRow[],
+  redirectId: string,
+  nowIso: string,
+): SlugChangeRedirectStatementsResult {
+  const plan = planSlugChangeRedirects(previousPath, newPath, existingForLocale);
+
+  const validation = validateRedirectInsert({ oldPath: plan.newRedirect.oldPath, targetPath: plan.newRedirect.targetPath, statusCode: 308 }, existingForLocale);
+  if (!validation.ok) {
+    return { ok: false, reason: validation.reason };
+  }
+
+  const statements: RawStatement[] = [
+    {
+      sql: `INSERT INTO route_redirects (id, locale, old_path, target_path, status_code, entity_type, entity_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, 308, ?, ?, ?, ?)
+            ON CONFLICT(locale, old_path) DO UPDATE SET target_path = excluded.target_path, entity_type = excluded.entity_type, entity_id = excluded.entity_id, updated_at = excluded.updated_at`,
+      params: [redirectId, locale, plan.newRedirect.oldPath, plan.newRedirect.targetPath, entityType, entityId, nowIso, nowIso],
+    },
+    ...plan.chainCollapseUpdates.map((update) => ({
+      sql: `UPDATE route_redirects SET target_path = ?, updated_at = ? WHERE locale = ? AND old_path = ?`,
+      params: [update.targetPath, nowIso, locale, update.oldPath] as unknown[],
+    })),
+  ];
+
+  return { ok: true, statements };
 }

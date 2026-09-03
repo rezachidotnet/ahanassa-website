@@ -10,11 +10,24 @@ import { ageInDaysSince, exponentialDecayWeight } from "./decay.ts";
  * requirement).
  *
  * Deliberately does NOT accept or use requested quantity/tonnage anywhere —
- * only frequency (how many qualifying RFQs) and distinct-demand (how many
- * distinct RFQs, which is the same count here since one signal = one RFQ
- * line already deduplicated per RFQ by the aggregation source query) — so a
- * single very-large-tonnage RFQ can never dominate the ranking over many
- * smaller, more frequent ones.
+ * only how many distinct, qualifying, recency-decayed RFQs reference a
+ * template — so a single very-large-tonnage RFQ can never dominate the
+ * ranking over many smaller, more frequent ones.
+ *
+ * v1 is deliberately a SINGLE signal (code-review hardening pass, DAR-054):
+ * one exponentially-decayed count of distinct accepted RFQs per template
+ * (a `DemandSignal` is already deduplicated to one row per (rfq_id,
+ * templateXid) by the aggregation source query —
+ * `lib/ranking/aggregation-orchestrator.ts#fetchRfqDemandSignals`). An
+ * earlier version accumulated the same decayed value into two identically-
+ * computed fields ("RFQ frequency" and "distinct RFQ count") and summed
+ * them — that was double-counting one observation under two names, not two
+ * independent signals. A real, independent "distinct CUSTOMER demand"
+ * signal (this task's originally-envisioned second term) would need a safe
+ * verified customer identity to group by; no such identity exists in the
+ * current RFQ schema without inventing customer fingerprinting or using IP
+ * (both explicitly out of scope) — deferred until a real, privacy-safe
+ * identity is available, rather than faked by re-weighting the same count.
  */
 
 export interface DemandSignal {
@@ -23,15 +36,8 @@ export interface DemandSignal {
   occurredAt: string;
 }
 
-export interface DemandWeights {
-  /** Weight applied to the decayed RFQ-frequency component. */
-  frequencyWeight: number;
-  /** Weight applied to the decayed distinct-RFQ-count component (kept as a separate, explicit term per this task's "Recent Distinct Demand" even though, at the current one-signal-per-RFQ-per-template granularity, it tracks frequency closely — the separation leaves room for a future stronger "distinct customer" signal without a scoring-formula rewrite). */
-  distinctWeight: number;
-}
-
-/** Explicit, documented, conservative defaults — not fitted against real traffic (no real traffic exists yet). Equal weighting: frequency and distinctness are treated as equally informative until real data suggests otherwise. */
-export const DEFAULT_DEMAND_WEIGHTS: DemandWeights = { frequencyWeight: 1, distinctWeight: 1 };
+/** Explicit, documented, conservative default — not fitted against real traffic (none exists yet). */
+export const DEFAULT_DEMAND_WEIGHT = 1;
 
 export interface DemandScoreResult {
   templateXid: string;
@@ -42,26 +48,20 @@ export interface DemandScoreResult {
  * Aggregates raw signals into one decayed demand score per template.
  * `nowMs` is caller-supplied (never `Date.now()` internally) so this stays
  * deterministically unit-testable. A template with zero signals never
- * appears in the result (callers treat "absent" as demand score 0 — see
- * `lib/ranking/score.ts`), which keeps the output stable rather than
- * padding it with synthetic zero-rows.
+ * appears in the result — the orchestrator (`lib/ranking/aggregation-orchestrator.ts`)
+ * is responsible for full reconciliation (explicitly setting `demand_score = 0`
+ * for any previously-tracked template absent here), not this pure function.
  */
-export function aggregateDemandSignals(signals: DemandSignal[], nowMs: number, weights: DemandWeights = DEFAULT_DEMAND_WEIGHTS): DemandScoreResult[] {
-  const byTemplate = new Map<string, { frequencyWeightSum: number; distinctRfqCount: number }>();
+export function aggregateDemandSignals(signals: DemandSignal[], nowMs: number, weight: number = DEFAULT_DEMAND_WEIGHT): DemandScoreResult[] {
+  const byTemplate = new Map<string, number>();
 
   for (const signal of signals) {
     const age = ageInDaysSince(signal.occurredAt, nowMs);
     const decay = exponentialDecayWeight(age);
-    const bucket = byTemplate.get(signal.templateXid) ?? { frequencyWeightSum: 0, distinctRfqCount: 0 };
-    bucket.frequencyWeightSum += decay;
-    bucket.distinctRfqCount += decay; // one signal == one already-deduplicated-per-RFQ-per-template row (see aggregation-orchestrator.ts) — same decayed unit as frequency at this granularity
-    byTemplate.set(signal.templateXid, bucket);
+    byTemplate.set(signal.templateXid, (byTemplate.get(signal.templateXid) ?? 0) + decay);
   }
 
   return [...byTemplate.entries()]
-    .map(([templateXid, bucket]) => ({
-      templateXid,
-      score: bucket.frequencyWeightSum * weights.frequencyWeight + bucket.distinctRfqCount * weights.distinctWeight,
-    }))
+    .map(([templateXid, weightSum]) => ({ templateXid, score: weightSum * weight }))
     .sort((a, b) => a.templateXid.localeCompare(b.templateXid)); // deterministic output order, independent of Map iteration/insertion order
 }

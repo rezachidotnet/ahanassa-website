@@ -41,7 +41,14 @@ import type { CatalogProduct, ProductSeoContent, ProductVariant, ContentQualityS
  * own convention.
  */
 
-export type EditorialWriteResult = { status: "ok" } | { status: "slug_conflict" } | { status: "invalid_transition" } | { status: "precondition_failed"; reason: string } | { status: "not_found" };
+export type EditorialWriteResult =
+  | { status: "ok" }
+  | { status: "slug_conflict" }
+  | { status: "invalid_transition" }
+  | { status: "precondition_failed"; reason: string }
+  | { status: "not_found" }
+  /** A slug change was requested but the required redirect (preserving the previous canonical URL) could not be safely written — a self-redirect or a loop against existing `route_redirects` rows. The slug change itself is refused, not partially applied — see `upsertEditorialDraft`'s atomicity contract. */
+  | { status: "redirect_conflict"; reason: string };
 
 /** The two entity types this repository's editorial lifecycle functions operate on — `category`/`price_page` (also valid on `product_seo_contents.entity_type`) have no editorial workflow here. */
 export type EditorialEntityType = "variant" | "product";
@@ -313,17 +320,25 @@ export interface EditorialDraftFields {
  * This is a deliberate policy answer to DAR-036's Stage B Q4, applied
  * uniformly to both entity types.
  *
- * Slug-change redirect (this task's §11-12): when an EXISTING `entity_type
- * = 'product'` row's slug actually changes, the previous `/products/{slug}`
- * path is preserved as a permanent redirect to the new one
- * (`lib/catalog/route-redirects.ts#recordSlugChangeRedirect`) — never for a
- * brand-new row (no previous row = nothing to redirect from) and never for
+ * Slug-change redirect — ATOMIC, not best-effort (this task's §11-12 as
+ * hardened by DAR-054). When an EXISTING `entity_type = 'product'` row's
+ * slug actually changes, the previous `/products/{slug}` path's permanent
+ * redirect to the new one is written in the SAME D1 `.batch()` as the
+ * content row itself (`lib/catalog/route-redirects.ts#buildSlugChangeRedirectStatements`
+ * builds, never executes, the redirect statements — they are spliced into
+ * this function's own batch call). D1's `.batch()` is a single implicit
+ * transaction: if either the content write or the redirect write fails, the
+ * WHOLE batch is rolled back — an existing public canonical URL can never
+ * end up 404ing because a redirect write silently failed while the slug
+ * change itself committed. If the required redirect cannot even be
+ * validated (a self-redirect/loop against existing `route_redirects` rows —
+ * checked BEFORE any write is attempted), the slug change is refused
+ * outright (`{ status: "redirect_conflict" }`) rather than silently
+ * skipping the redirect and leaving the old URL unprotected. Never
+ * triggered for a brand-new row (no previous row = nothing to redirect
+ * from — first-slug creation stays a single-statement write) and never for
  * `entity_type = 'variant'` (no dedicated public route exists for a variant
- * today — this task's explicit non-goal of inventing new routing). A
- * failure recording the redirect is logged but never fails the editorial
- * save itself — the redirect table is a best-effort convenience overlay,
- * not the source of truth for the content change the editor actually asked
- * for.
+ * today — this task's explicit non-goal of inventing new routing).
  */
 export async function upsertEditorialDraft(entityType: EditorialEntityType, entityId: string, locale: Locale, fields: EditorialDraftFields): Promise<EditorialWriteResult> {
   const db = getPublicDb();
@@ -331,42 +346,52 @@ export async function upsertEditorialDraft(entityType: EditorialEntityType, enti
   const id = ulid();
 
   const previous = entityType === "product" ? await getSeoContent(entityType, entityId, locale) : null;
+  const isSlugChange = previous !== null && previous.slug !== fields.slug;
+
+  const seoUpsertStatement = db
+    .prepare(
+      `INSERT INTO product_seo_contents (id, entity_type, entity_id, locale, slug, h1, intro, body_json, seo_title, seo_description, faq_json, index_status, content_quality_status, published_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', 'incomplete', NULL, ?)
+       ON CONFLICT(entity_type, entity_id, locale) DO UPDATE SET
+         slug = excluded.slug, h1 = excluded.h1, intro = excluded.intro, body_json = excluded.body_json,
+         seo_title = excluded.seo_title, seo_description = excluded.seo_description, faq_json = excluded.faq_json,
+         updated_at = excluded.updated_at`,
+    )
+    .bind(
+      id,
+      entityType,
+      entityId,
+      locale,
+      fields.slug,
+      fields.h1,
+      fields.intro ?? null,
+      fields.bodyJson ?? null,
+      fields.seoTitle ?? null,
+      fields.seoDescription ?? null,
+      fields.faqJson ?? null,
+      now,
+    );
+
+  if (!isSlugChange) {
+    try {
+      await seoUpsertStatement.run();
+      return { status: "ok" };
+    } catch (err) {
+      if (isUniqueConstraintError(err)) return { status: "slug_conflict" };
+      throw err;
+    }
+  }
+
+  // Validated BEFORE any write is attempted — a failure here means neither
+  // the content row nor any redirect row is touched at all.
+  const { buildSlugChangeRedirectStatements } = await import("./route-redirects.ts");
+  const redirectPlan = await buildSlugChangeRedirectStatements(locale, "catalog_template", entityId, `/products/${previous!.slug}`, `/products/${fields.slug}`);
+  if (!redirectPlan.ok) {
+    return { status: "redirect_conflict", reason: redirectPlan.reason };
+  }
 
   try {
-    await db
-      .prepare(
-        `INSERT INTO product_seo_contents (id, entity_type, entity_id, locale, slug, h1, intro, body_json, seo_title, seo_description, faq_json, index_status, content_quality_status, published_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', 'incomplete', NULL, ?)
-         ON CONFLICT(entity_type, entity_id, locale) DO UPDATE SET
-           slug = excluded.slug, h1 = excluded.h1, intro = excluded.intro, body_json = excluded.body_json,
-           seo_title = excluded.seo_title, seo_description = excluded.seo_description, faq_json = excluded.faq_json,
-           updated_at = excluded.updated_at`,
-      )
-      .bind(
-        id,
-        entityType,
-        entityId,
-        locale,
-        fields.slug,
-        fields.h1,
-        fields.intro ?? null,
-        fields.bodyJson ?? null,
-        fields.seoTitle ?? null,
-        fields.seoDescription ?? null,
-        fields.faqJson ?? null,
-        now,
-      )
-      .run();
-
-    if (previous && previous.slug !== fields.slug) {
-      try {
-        const { recordSlugChangeRedirect } = await import("./route-redirects.ts");
-        await recordSlugChangeRedirect(locale, "catalog_template", entityId, `/products/${previous.slug}`, `/products/${fields.slug}`);
-      } catch (redirectErr) {
-        console.error("SLUG_CHANGE_REDIRECT_FAILED", JSON.stringify({ entityId, locale, message: redirectErr instanceof Error ? redirectErr.message : String(redirectErr) }));
-      }
-    }
-
+    await db.batch([seoUpsertStatement, ...redirectPlan.statements]);
     return { status: "ok" };
   } catch (err) {
     if (isUniqueConstraintError(err)) return { status: "slug_conflict" };
