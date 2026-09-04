@@ -7,12 +7,13 @@ import { useEffect, useRef, useState } from "react";
 import { Menu, Phone } from "lucide-react";
 import { localizedPath, type Locale } from "@/config/locales";
 import { siteConfig } from "@/lib/metadata/site";
-import { navLinks, primaryCta, headerPhoneLabel, dropdownViewAllLabel, headerServiceGroups } from "@/lib/content/nav";
+import { navLinks, primaryCta, headerPhoneLabel, dropdownViewAllLabel } from "@/lib/content/nav";
 import { CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 import { HeaderNavDisclosure } from "@/components/layout/header-nav-disclosure";
 import { HeaderLanguageSelector } from "@/components/layout/header-language-selector";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import type { HeaderProductFamilyShortcut } from "@/lib/catalog/editorial-repository";
+import type { PublicProcessingGroup } from "@/lib/processing/public-repository";
 import { cn } from "@/lib/utils";
 
 /**
@@ -40,12 +41,21 @@ const menuLabel: Record<Locale, { open: string; close: string; nav: string; draw
  * (Version 2.0, fully frozen). One shared implementation for fa/ar (RTL)
  * and en (LTR), §43.9/§58.7 — no locale-specific Header variants.
  *
- * `productFamilies` is fetched server-side (`app/[locale]/layout.tsx`, the
- * real Odoo -> Public Product Projection -> Header data flow, §4.3/§58.2)
- * and passed in as a prop — this component never fetches Products/Services
- * data itself, on mount or on dropdown open (§52.8/§58.4/§58.23).
+ * `productFamilies`/`serviceGroups` are both fetched server-side
+ * (`app/[locale]/layout.tsx` — Public Product Projection §4.3/§58.2 and
+ * Public Processing Projection §26/§52.6/§58.3 respectively) and passed in
+ * as props — this component never fetches Products/Services data itself,
+ * on mount or on dropdown open (§52.8/§58.4/§58.23).
  */
-export function SiteHeader({ locale, productFamilies }: { locale: Locale; productFamilies: HeaderProductFamilyShortcut[] }) {
+export function SiteHeader({
+  locale,
+  productFamilies,
+  serviceGroups,
+}: {
+  locale: Locale;
+  productFamilies: HeaderProductFamilyShortcut[];
+  serviceGroups: PublicProcessingGroup[];
+}) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -53,7 +63,6 @@ export function SiteHeader({ locale, productFamilies }: { locale: Locale; produc
   const t = menuLabel[locale];
   const links = navLinks[locale];
   const viewAllLabels = dropdownViewAllLabel[locale];
-  const serviceGroups = headerServiceGroups[locale];
 
   useEffect(() => {
     // A modest scroll threshold before the compact state activates (§49.2:
@@ -97,7 +106,14 @@ export function SiteHeader({ locale, productFamilies }: { locale: Locale; produc
   // classification level, e.g. "LONG_PRODUCTS") — using the wrong key here
   // would silently filter the real /products listing down to zero results.
   const productItems = productFamilies.map((f) => ({ code: f.code, name: f.name, path: `/products?group=${f.code}` }));
-  const serviceItems = serviceGroups.map((g) => ({ code: g.code, name: g.name, path: g.path }));
+  // No `/services/<slug>` route exists yet (P6 §8, deliberately deferred —
+  // do not fabricate one here); every group links to the same real,
+  // existing `/services` destination, matching `productItems`'s own
+  // unprefixed-path convention immediately above exactly (this component
+  // does not `localizedPath()`-wrap dropdown item hrefs for either
+  // Products or Services — an existing, pre-P6 convention, left unchanged
+  // rather than introduced net-new here).
+  const serviceItems = serviceGroups.map((g) => ({ code: g.id, name: g.name, path: "/services" }));
 
   return (
     <>

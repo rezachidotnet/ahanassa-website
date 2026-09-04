@@ -85,43 +85,18 @@ export const headerPhoneLabel: Record<Locale, { srLabel: string }> = {
   ar: { srLabel: "اتصل بنا" },
 };
 
-/**
- * Frozen Services Header grouping (§27, §52.3, §58.3) — reproduced VERBATIM
- * from the frozen specification itself, not invented by this
- * implementation. This is deliberately NOT the "hardcoded commercial
- * services list" pattern the spec prohibits (§26) — no Odoo Processing
- * Domain / Public Processing Projection exists yet in this codebase to
- * source it from (verified: no `lib/services/`, `lib/processing/`, or
- * equivalent projection module exists), and the frozen document itself is
- * the current content authority for these exact 3 group labels pending
- * that projection's arrival. Shape mirrors `HeaderProductFamilyShortcut`
- * (`lib/catalog/editorial-repository.ts`) deliberately, so a future real
- * projection can replace this constant with zero Header-component changes.
- * All 3 items currently resolve to `/services` (no per-group anchor/route
- * exists on the Services page today, and restructuring that page's content
- * is out of this task's scope) — a real, honest destination, never a
- * fabricated one.
- */
-export interface HeaderServiceGroup {
-  code: string;
-  name: string;
-  path: string;
-}
-
-export const headerServiceGroups: Record<Locale, HeaderServiceGroup[]> = {
-  fa: [
-    { code: "sheet-processing", name: "فرآوری ورق", path: "/services" },
-    { code: "bar-section-pipe-processing", name: "فرآوری میلگرد، مقاطع و لوله", path: "/services" },
-    { code: "drawing-fabrication", name: "ساخت قطعات طبق نقشه", path: "/services" },
-  ],
-  en: [
-    { code: "sheet-processing", name: "Sheet processing", path: "/services" },
-    { code: "bar-section-pipe-processing", name: "Rebar, section & pipe processing", path: "/services" },
-    { code: "drawing-fabrication", name: "Drawing-based fabrication", path: "/services" },
-  ],
-  ar: [
-    { code: "sheet-processing", name: "تجهيز الألواح", path: "/services" },
-    { code: "bar-section-pipe-processing", name: "تجهيز حديد التسليح والمقاطع والأنابيب", path: "/services" },
-    { code: "drawing-fabrication", name: "تصنيع القطع حسب المخطط", path: "/services" },
-  ],
-};
+// Frozen Services Header grouping (§27, §52.3, §58.3) used to live here as a
+// hardcoded `headerServiceGroups` constant — a deliberate, disclosed interim
+// stand-in while no Odoo Processing Domain / Public Processing Projection
+// existed. P5 (`lib/processing/`) built that real projection into DB_PUBLIC,
+// and P6 replaced this constant as the Header's runtime Services data
+// source: `app/[locale]/layout.tsx` now calls
+// `listPublicProcessingGroups(locale)` (`lib/processing/public-repository.ts`)
+// and passes the result to `SiteHeader` as a `serviceGroups` prop, exactly
+// mirroring how `productFamilies` already flows in from the real Product
+// Catalog projection. Deleted entirely rather than kept as a fallback —
+// "No fake/hardcoded fallback service groups" (P6 §6/§7): if DB_PUBLIC ever
+// returns zero groups, the Header must degrade to a plain `/services` link
+// (already the existing, generic, no-children behavior of
+// `HeaderNavDisclosure`/`MobileNavDrawer` — see `SiteHeader.tsx`), never
+// silently resurrect this old static list.

@@ -5,8 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown, Phone, X } from "lucide-react";
 import { locales, localeConfig, localizedPath, type Locale } from "@/config/locales";
-import type { NavLink, HeaderServiceGroup } from "@/lib/content/nav";
+import type { NavLink } from "@/lib/content/nav";
 import type { HeaderProductFamilyShortcut } from "@/lib/catalog/editorial-repository";
+import type { PublicProcessingGroup } from "@/lib/processing/public-repository";
 import { CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 import { stripLocalePrefix } from "@/components/layout/header-language-selector";
 import { cn } from "@/lib/utils";
@@ -45,7 +46,7 @@ export function MobileNavDrawer({
   triggerRef: React.RefObject<HTMLButtonElement | null>;
   links: NavLink[];
   productFamilies: HeaderProductFamilyShortcut[];
-  serviceGroups: HeaderServiceGroup[];
+  serviceGroups: PublicProcessingGroup[];
   viewAllProductsLabel: string;
   viewAllServicesLabel: string;
   phoneSrLabel: string;
@@ -165,12 +166,15 @@ export function MobileNavDrawer({
               if (link.hasDropdown) {
                 const key = link.path === "/products" ? "products" : "services";
                 // Normalized to a single {code, name, href} shape here — the
-                // two source types (HeaderProductFamilyShortcut / HeaderServiceGroup)
-                // are never mixed generically in the JSX below.
+                // two source types (HeaderProductFamilyShortcut / PublicProcessingGroup)
+                // are never mixed generically in the JSX below. Services has
+                // no per-group route yet (P6 §8) — every group links to the
+                // same real `href` (this item's own `/services` link),
+                // matching SiteHeader.tsx's identical desktop-dropdown choice.
                 const items: { code: string; name: string; href: string }[] =
                   key === "products"
                     ? productFamilies.map((f) => ({ code: f.code, name: f.name, href: `${href}?group=${f.code}` })) // see SiteHeader.tsx's comment on the same query-key choice
-                    : serviceGroups.map((g) => ({ code: g.code, name: g.name, href: g.path }));
+                    : serviceGroups.map((g) => ({ code: g.id, name: g.name, href }));
                 const isOpen = openAccordion === key;
                 return (
                   <li key={link.path}>

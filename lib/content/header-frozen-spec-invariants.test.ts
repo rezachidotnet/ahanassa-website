@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { navLinks, primaryCta, headerServiceGroups } from "./nav.ts";
+import { navLinks, primaryCta } from "./nav.ts";
 
 /**
  * AHANASSA_HEADER_FINAL_FROZEN_V2.0.md acceptance-criteria regression
@@ -75,38 +75,50 @@ test("primary CTA: never replaced with the explicitly-rejected alternatives (§4
   }
 });
 
-// --- §26/§58.3: Services frozen grouping, not an invented commercial master ---
+// --- §26/§58.3: Services grouping comes from the real Public Processing
+// Projection (P5/P6), never an invented/hardcoded commercial master ---
+// `nav.ts`'s old `headerServiceGroups` constant (a deliberate, disclosed
+// interim stand-in while no real projection existed) is GONE — content-shape
+// assertions about the actual 3 frozen group names now belong to
+// `lib/processing/sync.test.ts`/the live DB_PUBLIC data, not to this file,
+// since that content is no longer static source code at all. What remains
+// testable here is the DATA-SOURCE invariant: Services must come from a
+// prop, never a hardcoded array — see the two tests below (mirroring the
+// existing Products tests immediately after this block).
 
-test("Services Header grouping matches the frozen 3-item spec content exactly (fa)", () => {
-  const names = headerServiceGroups.fa.map((g) => g.name);
-  assert.deepEqual(names, ["فرآوری ورق", "فرآوری میلگرد، مقاطع و لوله", "ساخت قطعات طبق نقشه"]);
+test("nav.ts no longer defines a hardcoded Services array — headerServiceGroups/HeaderServiceGroup do not exist (P6 §6: deleted, never kept as a fallback)", () => {
+  // stripComments first — nav.ts's own explanatory doc comment legitimately
+  // NAMES the removed constant while explaining why/how it was replaced
+  // (this file's established false-positive-avoidance convention, see
+  // stripComments's own header above).
+  const source = stripComments(readSource("lib/content/nav.ts"));
+  assert.ok(!/\bheaderServiceGroups\b/.test(source), "the old hardcoded Services constant must be fully removed, not merely unused, and not just moved into a comment");
+  assert.ok(!source.includes("export interface HeaderServiceGroup"), "the old Services item type must be fully removed");
 });
 
-test("Services Header grouping never expands into the prohibited full technical-operation list (§27)", () => {
-  const allText = (["fa", "en", "ar"] as const).map((l) => headerServiceGroups[l].map((g) => g.name).join(" ")).join(" ");
-  for (const forbidden of ["CNC", "پانچ", "پلاسما", "لیزر", "رزوه‌کاری با ماشین", "punching", "plasma", "laser", "threading"]) {
-    assert.ok(!allText.includes(forbidden), `Header service groups must never expose the raw operation "${forbidden}"`);
-  }
-  for (const locale of ["fa", "en", "ar"] as const) {
-    assert.equal(headerServiceGroups[locale].length, 3, "exactly 3 frozen groups, no more");
-  }
+test("SiteHeader sources Services data from a prop (server-fetched Public Processing Projection), never a hardcoded array (§26/§52.6/§58.3)", () => {
+  const source = readSource("components/layout/SiteHeader.tsx");
+  assert.match(source, /serviceGroups:\s*PublicProcessingGroup\[\]/, "Services data must arrive as a typed prop from the real projection, not be declared inline");
+  assert.ok(!/const\s+serviceGroups\s*=\s*headerServiceGroups/.test(source), "must never re-derive serviceGroups from the old nav.ts constant");
+  assert.ok(!/const\s+services\s*=\s*\[/.test(source), "no inline hardcoded services array");
 });
 
 // --- §4.2/§58.2: Products must never be a frontend-hardcoded commercial list ---
 
 test("nav.ts contains no hardcoded commercial PRODUCT array (the prohibited pattern from §4.2) — navLinks/primaryCta/headerPhoneLabel never mention a raw product/material name", () => {
   const source = readSource("lib/content/nav.ts");
-  // Scoped to the actual navLinks/primaryCta/headerPhoneLabel declarations,
-  // not the whole file — `headerServiceGroups` legitimately mentions
-  // material names as part of its frozen SERVICE descriptions (e.g.
-  // "فرآوری میلگرد، مقاطع و لوله"), which is not the prohibited pattern.
+  // Scoped from navLinks to end-of-file — the old carve-out for
+  // `headerServiceGroups` legitimately mentioning material names as part of
+  // its frozen SERVICE descriptions no longer applies: that constant is
+  // gone (P6), so nothing after navLinks in this file should mention a raw
+  // material name any more either.
   const navLinksStart = source.indexOf("export const navLinks");
-  const headerServiceGroupsStart = source.indexOf("export const headerServiceGroups");
-  const scoped = source.slice(navLinksStart, headerServiceGroupsStart);
+  const scoped = source.slice(navLinksStart);
   for (const forbidden of ["میلگرد", "تیرآهن", "ورق سیاه", "ورق روغنی"]) {
     assert.ok(!scoped.includes(forbidden), `navLinks/primaryCta/headerPhoneLabel must never hardcode a commercial product name like "${forbidden}"`);
   }
   assert.ok(!/const\s+products\s*=\s*\[/.test(source), "no hardcoded products array of any kind");
+  assert.ok(!/const\s+services\s*=\s*\[/.test(source), "no hardcoded services array of any kind (P6)");
 });
 
 test("SiteHeader sources Products data from a prop (server-fetched Public Product Projection), never a hardcoded array (§58.2)", () => {
@@ -124,12 +136,24 @@ test("the real Header product-family query is gated by the same publication-elig
   assert.match(fnBody, /pv\.is_active = 1 AND pv\.is_public = 1/, "must also gate on the variant's own active/public state");
 });
 
+// --- P6: the real Header service-group query (mirrors the Product test immediately above) ---
+
+test("the real Header service-group query filters to the active, requested-locale rows (lib/processing/public-repository.ts#listPublicProcessingGroups)", () => {
+  const source = readSource("lib/processing/public-repository.ts");
+  const fnStart = source.indexOf("export async function listPublicProcessingGroups");
+  assert.ok(fnStart >= 0, "listPublicProcessingGroups must exist");
+  const fnBody = source.slice(fnStart);
+  assert.match(fnBody, /WHERE locale = \? AND is_active = 1/, "must filter by the requested locale and exclude withdrawn rows");
+  assert.match(fnBody, /ORDER BY sequence ASC, code ASC/, "must use the P5-guaranteed sequence, code ordering — never a Header-local re-sort (P6 §10)");
+});
+
 // --- §52.8/§58.4: no live fetch on dropdown open ---
 
 test("the desktop dropdown component never fetches data itself — items always arrive as a prop", () => {
   const source = readSource("components/layout/header-nav-disclosure.tsx");
   assert.ok(!source.includes("fetch("), "HeaderNavDisclosure must never call fetch()");
   assert.ok(!source.includes("editorial-repository"), "HeaderNavDisclosure must never import the DB-touching catalog repository directly — data comes from props only");
+  assert.ok(!source.includes("public-repository"), "HeaderNavDisclosure must never import the DB-touching processing repository directly either — data comes from props only");
   assert.match(source, /items:\s*NavDisclosureItem\[\]/, "items must be a plain prop");
 });
 
@@ -138,6 +162,33 @@ test("the product-family data fetch happens once, server-side, in the locale lay
   assert.match(layoutSource, /listHeaderProductFamilyShortcuts/, "the layout (server component) must be the one calling the real data source");
   const headerSource = readSource("components/layout/SiteHeader.tsx");
   assert.ok(!headerSource.includes("listHeaderProductFamilyShortcuts("), "SiteHeader itself must never call the data-fetching function — only receive its result as a prop");
+});
+
+test("the service-group data fetch happens once, server-side, in the locale layout — not inside the client Header component tree (P6)", () => {
+  const layoutSource = readSource("app/[locale]/layout.tsx");
+  assert.match(layoutSource, /listPublicProcessingGroups/, "the layout (server component) must be the one calling the real data source");
+  const headerSource = readSource("components/layout/SiteHeader.tsx");
+  assert.ok(!headerSource.includes("listPublicProcessingGroups("), "SiteHeader itself must never call the data-fetching function — only receive its result as a prop");
+  const drawerSource = readSource("components/layout/mobile-nav-drawer.tsx");
+  assert.ok(!drawerSource.includes("listPublicProcessingGroups("), "MobileNavDrawer must never call the data-fetching function either — only receive its result as a prop");
+});
+
+test("neither SiteHeader nor MobileNavDrawer imports an Odoo adapter (Processing or Catalog) — the render path is DB_PUBLIC-repository-only, never Odoo-adapter-direct (P6 §14)", () => {
+  for (const file of ["components/layout/SiteHeader.tsx", "components/layout/mobile-nav-drawer.tsx", "components/layout/header-nav-disclosure.tsx"]) {
+    const source = readSource(file);
+    assert.ok(!/from\s+["'][^"']*odoo-api-client["']/.test(source), `${file} must never import an Odoo API client directly`);
+    assert.ok(!/from\s+["'][^"']*lib\/odoo\/client["']/.test(source), `${file} must never import the generic Odoo RPC client directly`);
+    assert.ok(!/from\s+["'][^"']*processing\/sync-runner["']/.test(source), `${file} must never import the Processing sync orchestrator`);
+    assert.ok(!/from\s+["'][^"']*processing\/scheduled-sync["']/.test(source), `${file} must never import the Processing scheduled-sync coordinator`);
+  }
+});
+
+test("SiteHeader/MobileNavDrawer use no client-side data fetching for Services — no useEffect-driven fetch, no loading state (P6 §15)", () => {
+  for (const file of ["components/layout/SiteHeader.tsx", "components/layout/mobile-nav-drawer.tsx"]) {
+    const source = stripComments(readSource(file));
+    assert.ok(!/useEffect\([^)]*fetch/.test(source), `${file} must not fetch Services data inside a useEffect`);
+    assert.ok(!/(isLoading|loading)\s*[:=]/i.test(source), `${file} must not carry a Services loading state — data always arrives server-rendered`);
+  }
 });
 
 // --- §37.5: WhatsApp is not a Header utility ---
