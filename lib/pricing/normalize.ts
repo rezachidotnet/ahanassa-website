@@ -26,8 +26,8 @@ export type ProviderCurrencyConvention = "IRR" | "IRT";
  */
 const KNOWN_UNITS = new Set(["kg", "ton", "branch", "sheet", "meter", "piece"]);
 
-/** A clock-skew allowance so a source timestamp that's only slightly ahead of server time (clock drift) isn't wrongly rejected — a timestamp materially in the future is still rejected. */
-const FUTURE_TIMESTAMP_SKEW_ALLOWANCE_MS = 5 * 60 * 1000;
+/** A clock-skew allowance so a source timestamp that's only slightly ahead of server time (clock drift) isn't wrongly rejected — a timestamp materially in the future is still rejected. Exported (PRICE-P2) so `lib/pricing/freshness.ts#classifyQuoteFreshness` can apply the identical tolerance defensively, rather than duplicating the magic number — a quote that has already passed this module's own validation should never reach the classifier with a materially-future timestamp at all, but the classifier fails closed on that case too rather than assuming its input was always pre-validated. */
+export const FUTURE_TIMESTAMP_SKEW_ALLOWANCE_MS = 5 * 60 * 1000;
 
 export type NormalizeResult = { ok: true; quote: NormalizedPriceQuote } | { ok: false; rejectedReason: string };
 

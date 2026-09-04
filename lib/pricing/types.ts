@@ -58,14 +58,37 @@ export interface NormalizedPriceQuote {
   sourceUrl?: string;
 }
 
-/** The homepage price strip's own read-model output shape — the only thing `components/home/price-strip.tsx` ever sees. Never a raw provider payload or `provider_title`. */
+/**
+ * The definitive PRICE-P2 freshness classification
+ * (lib/pricing/freshness.ts#classifyQuoteFreshness). Defined here — the
+ * existing central domain-types module — rather than in `freshness.ts`
+ * itself, so `freshness.ts` (which depends on `normalize.ts`, which
+ * already imports its own types from this file) can import this type
+ * without creating a circular module dependency.
+ */
+export type FreshnessState = "fresh" | "aging" | "stale" | "unavailable";
+
+/**
+ * The homepage price strip's own read-model output shape — the only thing
+ * `components/home/price-strip.tsx` ever sees. Never a raw provider
+ * payload or `provider_title`.
+ *
+ * PRICE-P2: the legacy boolean `isStale` is retired from this type — a
+ * winning quote's freshness is now always exactly `"fresh"` or `"aging"`
+ * (`lib/pricing/freshness.ts#FreshnessState`), since
+ * `lib/pricing/quote-selection.ts#selectWinningQuote` never returns a
+ * STALE or UNAVAILABLE candidate as a Homepage winner at all — there is
+ * structurally nothing else for this field to hold once an item reaches
+ * this shape.
+ */
 export interface PublicPriceStripItem {
   displayPriceId: string;
   title: string;
   /** Exact Toman integer for display — already truncated from `price_amount_irr` (lib/pricing/money.ts). */
   priceToman: number;
   unit: string;
-  isStale: boolean;
+  /** Always `"fresh"` or `"aging"` in practice — the winning-quote selection never returns a `"stale"`/`"unavailable"` candidate (PRICE-P2). Typed as the full `FreshnessState` union rather than a narrower `"fresh" | "aging"` alias so the UI's exhaustiveness checking stays honest about the domain type, without asserting an invariant this file can't itself enforce. */
+  freshnessState: FreshnessState;
   /** The winning quote's effective timestamp (source_timestamp, falling back to synced_at only when the provider supplied no source_timestamp) — for the "last updated" label. */
   effectiveTimestamp: string;
   /** `/products/{slug}` when a catalog match exists, else a category-slug fallback, else undefined (not linked). */

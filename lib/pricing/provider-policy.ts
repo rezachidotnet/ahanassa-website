@@ -165,3 +165,73 @@ export function countExpectedPublicationDaysBetween(policy: ProviderPublicationP
 
   return count;
 }
+
+// --- Generic missed-expected-cycle counting (PRICE-P2) ---------------------
+//
+// `countMissedExpectedCycles` is the single entry point
+// `lib/pricing/freshness.ts#classifyQuoteFreshness` calls — it dispatches on
+// `policy.cadenceIntervalUnit` (never `policy.cadenceKind`, and never
+// `policy.providerId` — no provider-specific branch anywhere in this file).
+// `cadenceKind` remains a purely descriptive/audit label (its own frozen
+// concept, distinct from "interval/count" — PRICE-P1's own design note);
+// `cadenceIntervalUnit` is what actually determines the arithmetic, so a
+// policy's `cadenceKind` need not perfectly correspond to it for the
+// classification to remain correct.
+//
+//   'hours' / 'weeks' -> a genuinely fixed-length cycle (N hours, N weeks) —
+//     plain elapsed-time division is exact and correct; a weekday
+//     restriction is deliberately NOT applied here (task §10: "Do not apply
+//     business-day calendar rules in a way that breaks valid intraday
+//     behavior" — the same reasoning extends to weekly).
+//   'days' -> reuses `countExpectedPublicationDaysBetween` (the
+//     weekday-aware day-stepping walk above) — the one unit where a
+//     `publicationWeekdays` restriction is meaningful and honored.
+//   'months' -> genuine CALENDAR-month stepping (task §11: "do not
+//     approximate one month as an arbitrary fixed 30-day constant") — counts
+//     how many calendar-month boundaries, in the policy's own timezone, fall
+//     between `from` and `to`, divided by `cadenceIntervalCount`. Crossing
+//     from the last day of one month into the first day of the next counts
+//     as one elapsed month even though only ~24h of wall-clock time passed —
+//     intentional, matching how a real "published once per calendar month"
+//     source actually behaves, not a duration approximation.
+//
+// Returns `null` (never a fabricated number) for an unrecognized
+// `cadenceIntervalUnit` — defensive; `validateProviderPublicationPolicy`
+// already rejects this before a policy can ever reach here, but the
+// classifier fails closed on `null` (UNAVAILABLE) rather than assuming its
+// input was always pre-validated, matching the same discipline applied to
+// timestamp parsing throughout this module.
+export function countMissedExpectedCycles(policy: ProviderPublicationPolicy, from: Date, to: Date): number | null {
+  if (to.getTime() <= from.getTime()) return 0;
+
+  switch (policy.cadenceIntervalUnit) {
+    case "days":
+      return countExpectedPublicationDaysBetween(policy, from, to);
+    case "hours":
+      return countFixedLengthCyclesBetween(from, to, policy.cadenceIntervalCount * 60 * 60 * 1000);
+    case "weeks":
+      return countFixedLengthCyclesBetween(from, to, policy.cadenceIntervalCount * 7 * 24 * 60 * 60 * 1000);
+    case "months":
+      return countCalendarMonthCyclesBetween(policy, from, to);
+    default:
+      return null;
+  }
+}
+
+function countFixedLengthCyclesBetween(from: Date, to: Date, cycleLengthMs: number): number {
+  return Math.floor((to.getTime() - from.getTime()) / cycleLengthMs);
+}
+
+function yearMonthInTimezone(date: Date, timeZone: string): { year: number; month: number } {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "numeric" }).formatToParts(date);
+  const year = Number(parts.find((p) => p.type === "year")?.value);
+  const month = Number(parts.find((p) => p.type === "month")?.value); // 1-12
+  return { year, month };
+}
+
+function countCalendarMonthCyclesBetween(policy: ProviderPublicationPolicy, from: Date, to: Date): number {
+  const fromYm = yearMonthInTimezone(from, policy.timezone);
+  const toYm = yearMonthInTimezone(to, policy.timezone);
+  const monthsElapsed = (toYm.year * 12 + toYm.month) - (fromYm.year * 12 + fromYm.month);
+  return Math.floor(Math.max(0, monthsElapsed) / policy.cadenceIntervalCount);
+}

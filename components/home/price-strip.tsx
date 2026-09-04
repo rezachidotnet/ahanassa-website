@@ -50,7 +50,14 @@ export function PriceStrip({ locale, items }: { locale: Locale; items: PublicPri
                   <span className="text-muted-foreground ms-1 text-xs font-medium">/{item.unit}</span>
                 </p>
                 <p className="text-muted-foreground mt-2 text-[11px]">
-                  {item.isStale && <span className="text-[var(--aa-color-warning-800)] font-semibold">{t.staleLabel} · </span>}
+                  {/* PRICE-P2: the winning-quote selection never returns a
+                      STALE/UNAVAILABLE candidate at all (lib/pricing/quote-selection.ts),
+                      so `freshnessState` here is always "fresh" or "aging" —
+                      this check is the minimal swap from the retired
+                      `isStale` boolean, not a redesign; the AGING-specific
+                      "آخرین قیمت ثبت‌شده" wording direction (frozen spec §24.2)
+                      remains a later phase's copy work, not done here. */}
+                  {item.freshnessState === "aging" && <span className="text-[var(--aa-color-warning-800)] font-semibold">{t.staleLabel} · </span>}
                   {t.updatedPrefix} {formatUpdatedAt(item.effectiveTimestamp, locale)}
                 </p>
               </div>
