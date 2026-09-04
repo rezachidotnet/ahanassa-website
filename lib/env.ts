@@ -59,6 +59,32 @@ export function getOdooCatalogApiBaseUrl(): string | undefined {
   return process.env.ODOO_BASE_URL || undefined;
 }
 
+/**
+ * Public Processing API base URL — same Odoo host as `ODOO_BASE_URL`,
+ * mirroring `getOdooCatalogApiBaseUrl()`'s own reasoning exactly (P5,
+ * "Website — DB_PUBLIC Processing read model + background sync").
+ *
+ * IMPORTANT — unverified contract: unlike the Catalog API (whose shapes were
+ * verified live and cross-checked against docs/integrations/odoo/catalog-v1/),
+ * no `docs/integrations/odoo/processing-v1/` contract exists in this
+ * repository at the time this was written. `GET /api/v1/processing/groups`
+ * is implemented here strictly against the JSON shape given to this task
+ * (`{ data: [{ id, name, sequence, active, updated_at }], meta: { total } }`),
+ * treated as an unverified interface to build the website-side sync path
+ * against — never as a confirmed-live contract. The client fails closed
+ * (never partially applies) on anything that doesn't match, exactly as it
+ * would for a genuine live-verified contract that later drifted.
+ *
+ * Assumed `auth=public` (unauthenticated), matching the task's own §15
+ * instruction to state this explicitly rather than invent a credential —
+ * this has not been independently verified either (no processing-v1 docs
+ * exist to confirm it), and should be confirmed before this is ever pointed
+ * at a real Odoo deployment.
+ */
+export function getOdooProcessingApiBaseUrl(): string | undefined {
+  return process.env.ODOO_BASE_URL || undefined;
+}
+
 export interface OdooRfqApiConfig {
   baseUrl: string;
   token: string;

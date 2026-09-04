@@ -2,6 +2,7 @@ import vinextHandler from "vinext/server/fetch-handler";
 import { handleOdooSyncBatch, type QueueBatchLike, type QueueMessageLike } from "@/lib/queue/consumer";
 import { dispatchPendingOutboxEvents } from "@/lib/queue/outbox";
 import { runScheduledCatalogSync } from "@/lib/catalog/scheduled-sync";
+import { runScheduledProcessingSync } from "@/lib/processing/scheduled-sync";
 
 /**
  * Custom Worker entry. Delegates all HTTP traffic to vinext unchanged
@@ -53,7 +54,23 @@ export default {
   async scheduled(event: ScheduledController, _env: CloudflareEnv, ctx: ExecutionContext): Promise<void> {
     switch (event.cron) {
       case CATALOG_INCREMENTAL_CRON:
+        // Processing Groups sync (P5 — Website DB_PUBLIC Processing read
+        // model + background sync) deliberately piggybacks on this
+        // already-registered trigger rather than getting its own new Cron
+        // Trigger — see lib/processing/scheduled-sync.ts's file header for
+        // why (the account's Workers Free plan 5-trigger cap, already at 3
+        // in production). Processing sync has no separate incremental/full
+        // distinction of its own (its upstream contract has no
+        // `updated_since` filter — every run is inherently a full pull,
+        // made cheap by ETag/304), so wiring it only into this every-3-hours
+        // trigger (not also the once-daily full-reconciliation one below)
+        // is a sufficient cadence for a handful of rarely-changing rows.
+        // Two independent `ctx.waitUntil` calls (never `Promise.all` into
+        // one) so a throw from either job can never prevent the other from
+        // running or being awaited — failure isolation between the two
+        // unrelated sync domains (task §14/§25).
         ctx.waitUntil(runScheduledCatalogSync("incremental"));
+        ctx.waitUntil(runScheduledProcessingSync());
         return;
       case CATALOG_FULL_RECONCILIATION_CRON:
         ctx.waitUntil(runScheduledCatalogSync("full"));
