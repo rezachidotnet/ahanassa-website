@@ -28,16 +28,23 @@ class FakeD1 {
   batchCalls: unknown[][] = [];
   runCalls: string[] = [];
   private failOn: (sql: string) => boolean;
+  /** Optional per-query canned response for `.first()`, keyed by matching the SQL text and the bound args — used by the PRICE-P1 variant-integrity tests below, which need `resolveProductMapping`/`resolveAndValidateVariant` to return specific fixture rows rather than the default `null`. */
+  private firstHandler: (sql: string, args: unknown[]) => unknown;
 
-  constructor(failOn: (sql: string) => boolean = () => false) {
+  constructor(failOn: (sql: string) => boolean = () => false, firstHandler: (sql: string, args: unknown[]) => unknown = () => null) {
     this.failOn = failOn;
+    this.firstHandler = firstHandler;
   }
 
   prepare(sql: string): FakeStatement {
     const self = this;
+    let boundArgs: unknown[] = [];
     const statement: FakeStatement = {
       sql,
-      bind: () => statement,
+      bind(...args: unknown[]) {
+        boundArgs = args;
+        return statement;
+      },
       async run() {
         self.runCalls.push(sql);
         if (self.failOn(sql)) throw new Error(`FakeD1: forced failure for: ${sql.slice(0, 40)}`);
@@ -50,7 +57,7 @@ class FakeD1 {
       },
       async first<T>() {
         if (self.failOn(sql)) throw new Error(`FakeD1: forced failure for: ${sql.slice(0, 40)}`);
-        return null as T | null;
+        return self.firstHandler(sql, boundArgs) as T | null;
       },
     };
     return statement;
@@ -233,4 +240,87 @@ test("runScheduledPriceSync with zero enabled providers is a safe no-op, never t
   };
   await assert.doesNotReject(() => runScheduledPriceSync({ ENABLED_PRICE_PROVIDERS: "" } as unknown as CloudflareEnv, deps));
   assert.equal(getDbCalled, false);
+});
+
+// --- PRICE-P1 — variant identity integrity (task §5/§21) ---
+
+function oneQuoteFetch(): Promise<PriceProviderFetchResult> {
+  return Promise.resolve({
+    quotes: [{ providerProductRef: "ref-1", amount: 100, unit: "kg", sourceTimestamp: new Date().toISOString() }],
+    mode: "full_snapshot",
+    complete: true,
+    fetchedAt: new Date().toISOString(),
+  });
+}
+
+test("a mapping with NO variant_key (template-only) still resolves and persists normally — backward compatibility (task §6)", async () => {
+  const originalLog = console.log;
+  const infoLogs: unknown[][] = [];
+  console.log = (...args: unknown[]) => infoLogs.push(args);
+  try {
+    const fakeDb = new FakeD1(undefined, (sql) => {
+      if (sql.includes("price_product_mappings")) return { product_key: "tmpl-a", variant_key: null };
+      return null;
+    });
+    const deps: SyncOneProviderDeps = { getDb: () => fakeDb as unknown as D1Database, registry: { odoo: fakeProvider("odoo", oneQuoteFetch) }, getPolicy: permissivePolicy };
+
+    await syncOneProvider({} as CloudflareEnv, "odoo", deps);
+
+    assert.equal(fakeDb.batchCalls.length, 1, "the template-only record must still be upserted");
+    const insertStatement = fakeDb.batchCalls[0][0] as { sql: string };
+    assert.match(insertStatement.sql, /INSERT INTO public_price_quotes/);
+
+    const successLog = infoLogs.find((call) => JSON.parse(call[1] as string).providerId === "odoo");
+    assert.ok(successLog);
+    assert.equal(JSON.parse(successLog![1] as string).rejected, 0, "a template-only mapping is not a rejection");
+  } finally {
+    console.log = originalLog;
+  }
+});
+
+test("a variant_key that resolves to a DIFFERENT template than the mapping's own product_key is rejected, fail-closed, never persisted (task §5/§21 point 4)", async () => {
+  const originalLog = console.log;
+  const infoLogs: unknown[][] = [];
+  console.log = (...args: unknown[]) => infoLogs.push(args);
+  try {
+    const fakeDb = new FakeD1(undefined, (sql) => {
+      if (sql.includes("price_product_mappings")) return { product_key: "tmpl-a", variant_key: "variant-x" };
+      // The curated variant genuinely exists, but under a DIFFERENT template than the mapping declares.
+      if (sql.includes("product_variants")) return { template_xid: "tmpl-DIFFERENT" };
+      return null;
+    });
+    const deps: SyncOneProviderDeps = { getDb: () => fakeDb as unknown as D1Database, registry: { odoo: fakeProvider("odoo", oneQuoteFetch) }, getPolicy: permissivePolicy };
+
+    await syncOneProvider({} as CloudflareEnv, "odoo", deps);
+
+    assert.equal(fakeDb.batchCalls.length, 0, "no statements at all — the only incoming record was rejected, nothing valid remains to upsert");
+    const successLog = infoLogs.find((call) => JSON.parse(call[1] as string).providerId === "odoo");
+    assert.ok(successLog);
+    assert.equal(JSON.parse(successLog![1] as string).rejected, 1, "the mismatched variant/template record must count as rejected");
+    assert.equal(JSON.parse(successLog![1] as string).upserted, 0);
+  } finally {
+    console.log = originalLog;
+  }
+});
+
+test("a variant_key that does not resolve to any real variant at all is rejected the same way (never silently downgraded to template-only)", async () => {
+  const originalLog = console.log;
+  const infoLogs: unknown[][] = [];
+  console.log = (...args: unknown[]) => infoLogs.push(args);
+  try {
+    const fakeDb = new FakeD1(undefined, (sql) => {
+      if (sql.includes("price_product_mappings")) return { product_key: "tmpl-a", variant_key: "variant-does-not-exist" };
+      if (sql.includes("product_variants")) return null; // no such variant
+      return null;
+    });
+    const deps: SyncOneProviderDeps = { getDb: () => fakeDb as unknown as D1Database, registry: { odoo: fakeProvider("odoo", oneQuoteFetch) }, getPolicy: permissivePolicy };
+
+    await syncOneProvider({} as CloudflareEnv, "odoo", deps);
+
+    assert.equal(fakeDb.batchCalls.length, 0);
+    const successLog = infoLogs.find((call) => JSON.parse(call[1] as string).providerId === "odoo");
+    assert.equal(JSON.parse(successLog![1] as string).rejected, 1);
+  } finally {
+    console.log = originalLog;
+  }
 });

@@ -1,7 +1,8 @@
 import { PROVIDER_REGISTRY } from "./provider-registry.ts";
 import { getEnabledProviderIds, getReconciliationPolicy, type ReconciliationPolicy } from "./provider-config.ts";
 import { normalizePriceQuote } from "./normalize.ts";
-import { resolveProductKey } from "./product-mapping.ts";
+import { resolveProductMapping } from "./product-mapping.ts";
+import { resolveAndValidateVariant } from "./variant-integrity.ts";
 import { computeQuoteKey } from "./quote-key.ts";
 import { evaluateReconciliationGate } from "./sync-safety.ts";
 import { reasonCodeForStage, safeErrorMessage, type PriceSyncFailureReasonCode, type SyncStage } from "./failure-reason.ts";
@@ -136,15 +137,32 @@ export async function syncOneProvider(env: CloudflareEnv, providerId: string, de
       normalized.push(result.quote);
     }
 
-    const mapped: Array<{ quote: NormalizedPriceQuote; productKey: string; quoteKey: string }> = [];
+    const mapped: Array<{ quote: NormalizedPriceQuote; productKey: string; variantKey: string | null; quoteKey: string }> = [];
     for (const quote of normalized) {
-      const productKey = await resolveProductKey(db, providerId, quote.providerProductRef);
-      if (!productKey) {
+      const mapping = await resolveProductMapping(db, providerId, quote.providerProductRef);
+      if (!mapping) {
         rejectedRecordCount += 1;
         continue;
       }
+
+      // Variant integrity (PRICE-P1 §5): a curated variant_key must
+      // resolve to a real, active variant belonging to THIS mapping's own
+      // template — never trusted merely because a string is present. A
+      // mismatch/dangling reference is treated exactly like any other
+      // rejected record (never silently downgraded to "template-only" —
+      // that would mask a real data-integrity problem in the curated
+      // mapping itself, which the sync's own rejectedRecordCount-driven
+      // reconciliation gate (sync-safety.ts) needs to see).
+      if (mapping.variantKey) {
+        const validVariant = await resolveAndValidateVariant(db, mapping.variantKey, mapping.productKey);
+        if (!validVariant) {
+          rejectedRecordCount += 1;
+          continue;
+        }
+      }
+
       const quoteKey = await computeQuoteKey(quote);
-      mapped.push({ quote, productKey, quoteKey });
+      mapped.push({ quote, productKey: mapping.productKey, variantKey: mapping.variantKey, quoteKey });
     }
 
     const previousActiveKeys = await getActiveQuoteKeys(db, providerId);
@@ -162,7 +180,7 @@ export async function syncOneProvider(env: CloudflareEnv, providerId: string, de
     });
 
     stage = "persistence";
-    const statements = mapped.map(({ quote, productKey, quoteKey }) => buildUpsertStatement(db, quoteKey, providerId, productKey, quote, now));
+    const statements = mapped.map(({ quote, productKey, variantKey, quoteKey }) => buildUpsertStatement(db, quoteKey, providerId, productKey, variantKey, quote, now));
 
     if (gate.shouldReconcile && missingKeys.length > 0) {
       for (const key of missingKeys) {
@@ -214,18 +232,19 @@ function buildUpsertStatement(
   quoteKey: string,
   providerId: string,
   productKey: string,
+  variantKey: string | null,
   quote: NormalizedPriceQuote,
   now: string,
 ): D1PreparedStatement {
   return db
     .prepare(
       `INSERT INTO public_price_quotes (
-         quote_key, provider_id, provider_product_ref, product_key, provider_title,
+         quote_key, provider_id, provider_product_ref, product_key, variant_key, provider_title,
          price_amount_irr, currency, unit, market_or_location, delivery_basis,
          source_timestamp, synced_at, source_url, status, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
        ON CONFLICT (quote_key) DO UPDATE SET
-         product_key = excluded.product_key, provider_title = excluded.provider_title,
+         product_key = excluded.product_key, variant_key = excluded.variant_key, provider_title = excluded.provider_title,
          price_amount_irr = excluded.price_amount_irr, currency = excluded.currency,
          unit = excluded.unit, market_or_location = excluded.market_or_location,
          delivery_basis = excluded.delivery_basis, source_timestamp = excluded.source_timestamp,
@@ -237,6 +256,7 @@ function buildUpsertStatement(
       providerId,
       quote.providerProductRef,
       productKey,
+      variantKey,
       quote.providerTitle ?? null,
       quote.priceAmountIrr,
       quote.currency,
