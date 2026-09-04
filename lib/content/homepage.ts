@@ -56,10 +56,14 @@ export interface HomepageCopy {
     cta: string;
   };
   priceStrip: {
+    /** Frozen V2.1 §6 preferred heading — "منتخب" (selected/curated) is intentional: the Homepage never exposes the full commercial catalog. */
     heading: string;
-    /** "Updated <relative time>" label prefix — components/home/price-strip.tsx appends the formatted value. */
+    /** Frozen V2.1 §48.1 buyer guidance — visible plain-language text, never hover/tooltip/icon-only (§48.2). */
+    guidance: string;
+    /** FRESH-state prefix, e.g. "به‌روزرسانی 10:42" (Frozen V2.1 §36.8) — components/home/price-strip.tsx appends the formatted timestamp. */
     updatedPrefix: string;
-    staleLabel: string;
+    /** AGING-state prefix, e.g. "آخرین قیمت ثبت‌شده · 12 شهریور، 14:10" (Frozen V2.1 §24.2/§36.8) — replaces the retired "قیمت قدیمی"/"stale" wording; never implies the price is invalid, only that it is the latest recorded one. */
+    agingPrefix: string;
   };
 }
 
@@ -121,9 +125,10 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
       cta: "جزئیات دامنه فعالیت",
     },
     priceStrip: {
-      heading: "آخرین قیمت‌ها",
-      updatedPrefix: "به‌روزرسانی:",
-      staleLabel: "قیمت قدیمی",
+      heading: "آخرین قیمت‌های منتخب",
+      guidance: "این قیمت‌ها راهنمای بازار هستند؛ قیمت نهایی به مشخصات، مقدار و شرایط تحویل بستگی دارد.",
+      updatedPrefix: "به‌روزرسانی",
+      agingPrefix: "آخرین قیمت ثبت‌شده",
     },
   },
   en: {
@@ -183,9 +188,10 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
       cta: "Scope of activity details",
     },
     priceStrip: {
-      heading: "Latest prices",
-      updatedPrefix: "Updated:",
-      staleLabel: "Older price",
+      heading: "Latest selected prices",
+      guidance: "These are market reference prices — the final price depends on specification, quantity, and delivery terms.",
+      updatedPrefix: "Updated",
+      agingPrefix: "Last recorded price",
     },
   },
   ar: {
@@ -245,9 +251,10 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
       cta: "تفاصيل نطاق النشاط",
     },
     priceStrip: {
-      heading: "أحدث الأسعار",
-      updatedPrefix: "آخر تحديث:",
-      staleLabel: "سعر قديم",
+      heading: "أحدث الأسعار المختارة",
+      guidance: "هذه أسعار إرشادية للسوق؛ يعتمد السعر النهائي على المواصفات والكمية وشروط التسليم.",
+      updatedPrefix: "آخر تحديث",
+      agingPrefix: "آخر سعر مسجل",
     },
   },
 };
