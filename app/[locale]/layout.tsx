@@ -7,6 +7,7 @@ import { siteConfig } from "@/lib/metadata/site";
 import { SkipLink } from "@/components/layout/SkipLink";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
+import { listHeaderProductFamilyShortcuts, type HeaderProductFamilyShortcut } from "@/lib/catalog/editorial-repository";
 
 export function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
@@ -44,11 +45,26 @@ export default async function LocaleLayout({
   const locale = rawLocale;
   const direction = getDirection(locale);
 
+  // Real Odoo -> Public Product Projection -> Header data source
+  // (AHANASSA_HEADER_FINAL_FROZEN_V2.0.md §4.3/§58.2), fetched once per
+  // request here (server-rendered, never on Header dropdown open/hover —
+  // §52.8/§58.4) and passed down as a prop. A query failure must never
+  // break every page on the site (this layout wraps all of them) — falls
+  // back to an empty list, which the Header itself already renders
+  // gracefully (the Products label stays a plain functional link, no empty
+  // dropdown — §52.10/§58.11).
+  let productFamilies: HeaderProductFamilyShortcut[] = [];
+  try {
+    productFamilies = await listHeaderProductFamilyShortcuts(locale);
+  } catch (error) {
+    console.error("HEADER_PRODUCT_FAMILIES_READ_ERROR", JSON.stringify({ message: error instanceof Error ? error.message : String(error) }));
+  }
+
   return (
     <html lang={locale} dir={direction} className={estedad.variable}>
       <body>
         <SkipLink label={skipLinkLabel[locale]} />
-        <SiteHeader locale={locale} />
+        <SiteHeader locale={locale} productFamilies={productFamilies} />
         <main id="main-content">{children}</main>
         <SiteFooter locale={locale} />
       </body>

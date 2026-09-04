@@ -1,4 +1,5 @@
 import { siteConfig } from "@/lib/metadata/site";
+import { CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 
 /**
  * Foundation-level structured data only: Organization, WebSite, BreadcrumbList.
@@ -8,6 +9,16 @@ import { siteConfig } from "@/lib/metadata/site";
  * Fields are limited to what Phase 1 actually renders. Structured data must
  * describe visible, verified content (CLAUDE.md §14) — do not add
  * address/telephone/sameAs here until the UI actually displays them.
+ *
+ * `contactPoint.telephone` added as part of the Header accessibility/SEO
+ * hardening addendum (§6, "keep aligned with the Central Verified Business
+ * Identity source") — this file's own rule above ("until the UI actually
+ * displays it") is now satisfied, since the Header itself displays this
+ * exact verified number. Reuses `CONTACT_PHONE_E164` directly — no new
+ * value invented, no divergence from the Header/contact-page source.
+ * `BreadcrumbList` remains explicitly out of Header scope (§6) — it belongs
+ * to the page-level Breadcrumb architecture (see `breadcrumbListSchema`
+ * below, called from individual pages, never from the Header).
  */
 
 export function organizationId(): string {
@@ -33,6 +44,13 @@ export function organizationSchema() {
       streetAddress: "خیابان هزارجریب، کوی آزادگان",
       addressLocality: "اصفهان",
       addressCountry: "IR",
+    },
+    // Same verified number the Header/contact page render — no separate value.
+    contactPoint: {
+      "@type": "ContactPoint",
+      telephone: CONTACT_PHONE_E164,
+      contactType: "sales",
+      areaServed: "IR",
     },
   };
 }

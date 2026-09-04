@@ -1,0 +1,349 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+import { navLinks, primaryCta, headerServiceGroups } from "./nav.ts";
+
+/**
+ * AHANASSA_HEADER_FINAL_FROZEN_V2.0.md acceptance-criteria regression
+ * coverage. `lib/content/nav.ts` is plain data (no `cloudflare:workers`
+ * dependency) so it's directly unit-testable; the component files
+ * (SiteHeader.tsx and friends) are JSX/Next.js and pinned as source-text
+ * invariants instead, matching this repo's established convention (no
+ * React render-testing framework exists here — see
+ * `lib/catalog/homepage-source-isolation.test.ts` for the same reasoning
+ * applied elsewhere).
+ */
+
+const REPO_ROOT = path.resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
+function readSource(relativePath: string): string {
+  return readFileSync(path.join(REPO_ROOT, relativePath), "utf8");
+}
+
+/**
+ * Strips /* * / block comments and // line comments before a "must not
+ * contain X" assertion runs — several of this file's own explanatory doc
+ * comments legitimately NAME the forbidden pattern (to explain why it's
+ * avoided), which otherwise produces a false-positive match against the
+ * literal code-level check. Naive (doesn't understand strings containing
+ * "//"), which is fine for this file's actual source inputs.
+ */
+function stripComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+}
+
+// --- §58.1: frozen routes ---
+
+test("frozen routes: products/services/industries/about/contact resolve exactly as specified, for every locale", () => {
+  for (const locale of ["fa", "en", "ar"] as const) {
+    const links = navLinks[locale];
+    const byPath = new Map(links.map((l) => [l.path, l]));
+    assert.ok(byPath.has("/products"));
+    assert.ok(byPath.has("/services"));
+    assert.ok(byPath.has("/industries"));
+    assert.ok(byPath.has("/about"));
+    assert.ok(byPath.has("/contact"));
+    assert.ok(!byPath.has("/markets"), "the primary nav must no longer target /markets — superseded by /industries");
+    assert.equal(links.length, 5, "no new top-level navigation item may be introduced without a new approved architecture decision (§58.1)");
+  }
+});
+
+test("frozen hybrid gate: only Products and Services carry hasDropdown — Industries/About/Contact remain plain direct links (§32.4/§34.2/§37.2)", () => {
+  for (const locale of ["fa", "en", "ar"] as const) {
+    const links = navLinks[locale];
+    for (const link of links) {
+      const shouldHaveDropdown = link.path === "/products" || link.path === "/services";
+      assert.equal(Boolean(link.hasDropdown), shouldHaveDropdown, `${locale} ${link.path}: hasDropdown mismatch`);
+    }
+  }
+});
+
+// --- §40.1-40.2: primary CTA ---
+
+test("primary CTA: Persian text is frozen exactly as ارسال لیست خرید, route is /request", () => {
+  assert.equal(primaryCta.fa.full, "ارسال لیست خرید");
+  assert.notEqual(primaryCta.fa.full, "ارسال فاکتور یا لیست خرید", "the pre-frozen-spec CTA text must not remain");
+});
+
+test("primary CTA: never replaced with the explicitly-rejected alternatives (§40.1)", () => {
+  for (const locale of ["fa", "en", "ar"] as const) {
+    const text = `${primaryCta[locale].full} ${primaryCta[locale].compact}`;
+    assert.ok(!text.includes("درخواست قیمت"));
+    assert.ok(!text.includes("ثبت سفارش"));
+    assert.ok(!text.includes("ثبت درخواست"));
+  }
+});
+
+// --- §26/§58.3: Services frozen grouping, not an invented commercial master ---
+
+test("Services Header grouping matches the frozen 3-item spec content exactly (fa)", () => {
+  const names = headerServiceGroups.fa.map((g) => g.name);
+  assert.deepEqual(names, ["فرآوری ورق", "فرآوری میلگرد، مقاطع و لوله", "ساخت قطعات طبق نقشه"]);
+});
+
+test("Services Header grouping never expands into the prohibited full technical-operation list (§27)", () => {
+  const allText = (["fa", "en", "ar"] as const).map((l) => headerServiceGroups[l].map((g) => g.name).join(" ")).join(" ");
+  for (const forbidden of ["CNC", "پانچ", "پلاسما", "لیزر", "رزوه‌کاری با ماشین", "punching", "plasma", "laser", "threading"]) {
+    assert.ok(!allText.includes(forbidden), `Header service groups must never expose the raw operation "${forbidden}"`);
+  }
+  for (const locale of ["fa", "en", "ar"] as const) {
+    assert.equal(headerServiceGroups[locale].length, 3, "exactly 3 frozen groups, no more");
+  }
+});
+
+// --- §4.2/§58.2: Products must never be a frontend-hardcoded commercial list ---
+
+test("nav.ts contains no hardcoded commercial PRODUCT array (the prohibited pattern from §4.2) — navLinks/primaryCta/headerPhoneLabel never mention a raw product/material name", () => {
+  const source = readSource("lib/content/nav.ts");
+  // Scoped to the actual navLinks/primaryCta/headerPhoneLabel declarations,
+  // not the whole file — `headerServiceGroups` legitimately mentions
+  // material names as part of its frozen SERVICE descriptions (e.g.
+  // "فرآوری میلگرد، مقاطع و لوله"), which is not the prohibited pattern.
+  const navLinksStart = source.indexOf("export const navLinks");
+  const headerServiceGroupsStart = source.indexOf("export const headerServiceGroups");
+  const scoped = source.slice(navLinksStart, headerServiceGroupsStart);
+  for (const forbidden of ["میلگرد", "تیرآهن", "ورق سیاه", "ورق روغنی"]) {
+    assert.ok(!scoped.includes(forbidden), `navLinks/primaryCta/headerPhoneLabel must never hardcode a commercial product name like "${forbidden}"`);
+  }
+  assert.ok(!/const\s+products\s*=\s*\[/.test(source), "no hardcoded products array of any kind");
+});
+
+test("SiteHeader sources Products data from a prop (server-fetched Public Product Projection), never a hardcoded array (§58.2)", () => {
+  const source = readSource("components/layout/SiteHeader.tsx");
+  assert.match(source, /productFamilies:\s*HeaderProductFamilyShortcut\[\]/, "Products data must arrive as a typed prop from the real projection, not be declared inline");
+  assert.ok(!/const\s+products\s*=\s*\[/.test(source), "no inline hardcoded products array");
+});
+
+test("the real Header product-family query is gated by the same publication-eligibility conditions every other public catalog read uses", () => {
+  const source = readSource("lib/catalog/editorial-repository.ts");
+  const fnStart = source.indexOf("export async function listHeaderProductFamilyShortcuts");
+  assert.ok(fnStart >= 0, "listHeaderProductFamilyShortcuts must exist");
+  const fnBody = source.slice(fnStart, source.indexOf("\nexport ", fnStart + 10));
+  assert.match(fnBody, /TEMPLATE_PUBLICATION_WHERE_CONDITIONS/, "must reuse the shared publication gate, never a separately duplicated condition");
+  assert.match(fnBody, /pv\.is_active = 1 AND pv\.is_public = 1/, "must also gate on the variant's own active/public state");
+});
+
+// --- §52.8/§58.4: no live fetch on dropdown open ---
+
+test("the desktop dropdown component never fetches data itself — items always arrive as a prop", () => {
+  const source = readSource("components/layout/header-nav-disclosure.tsx");
+  assert.ok(!source.includes("fetch("), "HeaderNavDisclosure must never call fetch()");
+  assert.ok(!source.includes("editorial-repository"), "HeaderNavDisclosure must never import the DB-touching catalog repository directly — data comes from props only");
+  assert.match(source, /items:\s*NavDisclosureItem\[\]/, "items must be a plain prop");
+});
+
+test("the product-family data fetch happens once, server-side, in the locale layout — not inside the client Header component tree", () => {
+  const layoutSource = readSource("app/[locale]/layout.tsx");
+  assert.match(layoutSource, /listHeaderProductFamilyShortcuts/, "the layout (server component) must be the one calling the real data source");
+  const headerSource = readSource("components/layout/SiteHeader.tsx");
+  assert.ok(!headerSource.includes("listHeaderProductFamilyShortcuts("), "SiteHeader itself must never call the data-fetching function — only receive its result as a prop");
+});
+
+// --- §37.5: WhatsApp is not a Header utility ---
+
+test("SiteHeader never actually USES WhatsApp — no import/href, even though explanatory comments may name it (§37.5)", () => {
+  const source = readSource("components/layout/SiteHeader.tsx");
+  assert.ok(!/import.*WhatsApp/.test(source), "must not import a WhatsApp component");
+  assert.ok(!source.includes("wa.me"), "must not link to a wa.me URL");
+  assert.ok(!/href=\{?["'`].*whatsapp/i.test(source), "must not construct a WhatsApp href");
+});
+
+test("the mobile drawer never links to WhatsApp/email/search either", () => {
+  const source = readSource("components/layout/mobile-nav-drawer.tsx");
+  assert.ok(!source.includes("wa.me"));
+  assert.ok(!/mailto:/.test(source));
+});
+
+// --- §43.3/§58.8: no country flags in the language selector ---
+
+test("the language selector never renders an <img>/flag asset — labels are text only (comments may name the rule; no such element/class exists in code)", () => {
+  const source = readSource("components/layout/header-language-selector.tsx");
+  assert.ok(!/<img/.test(source), "no <img> at all in the language selector — labels are text only");
+  assert.ok(!/className=(\{|")[^}"]*flag/i.test(source), "no flag-icon CSS class applied to any element");
+});
+
+// --- §55.2/§58.17: mobile drawer geometry + safety ---
+
+test("mobile drawer target width is exactly min(88vw, 360px)", () => {
+  const source = readSource("components/layout/mobile-nav-drawer.tsx");
+  assert.ok(source.includes("w-[min(88vw,360px)]"));
+});
+
+test("mobile drawer implements scroll lock, Escape close, and focus restoration to the trigger", () => {
+  const source = readSource("components/layout/mobile-nav-drawer.tsx");
+  assert.match(source, /document\.body\.style\.overflow\s*=\s*"hidden"/);
+  assert.match(source, /e\.key === "Escape"/);
+  assert.match(source, /triggerRef\.current\?\.focus\(\)/);
+});
+
+test("mobile drawer uses a single-open accordion for Products/Services (§55.6) — one shared openAccordion state, not two independent booleans", () => {
+  const source = readSource("components/layout/mobile-nav-drawer.tsx");
+  assert.match(source, /useState<"products" \| "services" \| null>/, "a single tri-state value structurally guarantees only one of Products/Services can be open at once");
+});
+
+test("mobile drawer exposes at most one child navigation level — no nested sub-accordion inside a Products/Services item", () => {
+  const source = readSource("components/layout/mobile-nav-drawer.tsx");
+  // The accordion item list renders a flat <li> of {name, href} pairs with
+  // no further expandable control — pinned by asserting no second
+  // aria-expanded exists anywhere inside the per-item list rendering.
+  const itemsBlockStart = source.indexOf("items.map((item) => (");
+  const itemsBlockEnd = source.indexOf("))}", itemsBlockStart);
+  const itemsBlock = source.slice(itemsBlockStart, itemsBlockEnd);
+  assert.ok(!itemsBlock.includes("aria-expanded"), "no nested disclosure control is allowed inside a Products/Services child item");
+});
+
+// --- §58.29: semantic HTML ---
+
+test("SiteHeader uses semantic <header>/<nav>, never a clickable generic <div> in place of navigation links", () => {
+  const source = readSource("components/layout/SiteHeader.tsx");
+  assert.match(source, /<header/);
+  assert.match(source, /<nav aria-label/);
+});
+
+// --- §43.9/§58.7: one shared Header implementation ---
+
+test("SiteHeader is a single shared component — no locale-conditional divergent Header trees (e.g. separate fa/en/ar branches)", () => {
+  const source = readSource("components/layout/SiteHeader.tsx");
+  assert.ok(!/locale === "fa" \? \(/.test(source), "must not branch into locale-specific alternate Header markup (the pattern this task explicitly supersedes)");
+});
+
+// --- Accessibility/SEO hardening addendum (post-freeze) ---
+
+test("addendum §1: no ARIA menu-widget roles anywhere in the Header component tree", () => {
+  for (const file of [
+    "components/layout/SiteHeader.tsx",
+    "components/layout/header-nav-disclosure.tsx",
+    "components/layout/header-language-selector.tsx",
+    "components/layout/mobile-nav-drawer.tsx",
+  ]) {
+    const source = stripComments(readSource(file));
+    assert.ok(!/role=["']menu["']|role=["']menubar["']|role=["']menuitem["']/.test(source), `${file} must never use role="menu"/"menubar"/"menuitem" — this is Disclosure Navigation, not a menu widget`);
+  }
+});
+
+test("addendum §1: aria-haspopup is never used as a blanket convention on the Header's disclosure controls", () => {
+  for (const file of ["components/layout/header-nav-disclosure.tsx", "components/layout/header-language-selector.tsx", "components/layout/mobile-nav-drawer.tsx"]) {
+    const source = stripComments(readSource(file));
+    assert.ok(!source.includes("aria-haspopup"), `${file} must not add aria-haspopup merely by convention — only if justified by an actually-implemented menu/listbox pattern, which this Header does not use`);
+  }
+});
+
+test("addendum §1: the Products/Services disclosure label is always a real <Link>, with a separate adjacent chevron <button> exposing aria-expanded/aria-controls/an accessible name", () => {
+  const source = readSource("components/layout/header-nav-disclosure.tsx");
+  assert.match(source, /<Link[\s\S]{0,80}href=\{href\}/, "the top-level label must be a real link to its landing page");
+  assert.match(source, /aria-expanded=\{open\}/);
+  assert.match(source, /aria-controls=\{panelId\}/);
+  assert.match(source, /aria-label=\{label\}/);
+});
+
+test("addendum §2: the dropdown item list never disables the global focus indicator (outline-none) — a background-tint-only focus cue was a real ~1.05:1 contrast failure", () => {
+  const source = stripComments(readSource("components/layout/header-nav-disclosure.tsx"));
+  assert.ok(!source.includes("outline-none"), "dropdown items must keep the site-wide :focus-visible copper outline (~5.4:1) as their focus indicator — no code path may disable it");
+});
+
+test("addendum §2: every Header-authored hover state uses the darker, WCAG-passing accent token — never the lighter copper-400 tint (~3.2:1, fails 4.5:1)", () => {
+  for (const file of ["components/layout/SiteHeader.tsx", "components/layout/header-nav-disclosure.tsx", "components/layout/mobile-nav-drawer.tsx"]) {
+    const source = stripComments(readSource(file));
+    assert.ok(!source.includes("hover:bg-copper-400"), `${file} must not use the lighter hover:bg-copper-400 (fails 4.5:1 normal-text contrast)`);
+    assert.ok(!source.includes("hover:text-copper-400"), `${file} must not use the lighter hover:text-copper-400 (fails 4.5:1 normal-text contrast)`);
+  }
+  const cta = readSource("components/layout/SiteHeader.tsx");
+  assert.ok(cta.includes("hover:bg-[var(--aa-color-action-accent-bg-hover)]"), "the desktop CTA must use the darker, verified-contrast hover token");
+});
+
+test("addendum §8: aria-current precision — isCurrentPage (exact match) and isActiveSection (exact-or-prefix) are computed as two separate booleans, never conflated into one", () => {
+  for (const file of ["components/layout/SiteHeader.tsx", "components/layout/mobile-nav-drawer.tsx"]) {
+    const source = readSource(file);
+    assert.match(source, /const isCurrentPage = pathname === href;/, `${file} must compute an exact-match-only isCurrentPage`);
+  }
+  const headerSource = readSource("components/layout/SiteHeader.tsx");
+  assert.match(headerSource, /const isActiveSection = isCurrentPage \|\| pathname\.startsWith\(`\$\{href\}\/`\);/, "isActiveSection (prefix match) must remain a distinct boolean from isCurrentPage, driving only visual styling");
+  const disclosureSource = readSource("components/layout/header-nav-disclosure.tsx");
+  assert.match(disclosureSource, /isCurrentPage:\s*boolean;/, "HeaderNavDisclosure must accept isCurrentPage and isActiveSection as two distinct props");
+  assert.match(disclosureSource, /isActiveSection:\s*boolean;/);
+  assert.ok(!disclosureSource.includes("active:"), "the old single conflated `active` prop must not remain");
+});
+
+test("addendum §4: navigation landmarks are never labeled solely by device class (e.g. 'Desktop navigation'/'Mobile navigation')", () => {
+  // header-nav-disclosure.tsx and mobile-nav-drawer.tsx are checked with
+  // their comment prose still intact for THIS one — the substring check
+  // below is deliberately loose (menuLabel.nav below is the actual
+  // authoritative check); comments naming the forbidden pattern to explain
+  // why it's avoided are expected and fine here.
+  const headerSource = readSource("components/layout/SiteHeader.tsx");
+  const mapMatch = headerSource.match(/const menuLabel: Record<Locale, \{[\s\S]*?\n\};/);
+  assert.ok(mapMatch, "menuLabel map must exist in SiteHeader.tsx");
+  for (const forbidden of ["Desktop navigation", "Mobile navigation", "ناوبری دسکتاپ", "ناوبری موبایل", "منوی موبایل", "Mobile menu"]) {
+    assert.ok(!mapMatch![0].includes(forbidden), `the actual menuLabel data (not comments) must not label a nav landmark by device class ("${forbidden}")`);
+  }
+  const navSource = readSource("lib/content/nav.ts");
+  assert.ok(!/mobileNav/.test(navSource), "the old device-class-named mobileNav field must not remain in nav.ts");
+});
+
+test("addendum §4: the drawer's own modal label (drawerLabel) is distinct from the shared <nav> landmark label (navLabel) it contains, since both are simultaneously exposed while the drawer is open", () => {
+  const headerSource = readSource("components/layout/SiteHeader.tsx");
+  // Pull the actual label object out of SiteHeader.tsx's own menuLabel map.
+  const mapMatch = headerSource.match(/const menuLabel: Record<Locale, \{[\s\S]*?\n\};/);
+  assert.ok(mapMatch, "menuLabel map must exist in SiteHeader.tsx");
+  const mapSource = mapMatch![0];
+  for (const locale of ["fa", "en", "ar"] as const) {
+    const rowMatch = mapSource.match(new RegExp(`${locale}:\\s*\\{([^}]*)\\}`));
+    assert.ok(rowMatch, `menuLabel.${locale} row must exist`);
+    const navFieldMatch = rowMatch![1].match(/nav:\s*"([^"]*)"/);
+    const drawerFieldMatch = rowMatch![1].match(/drawer:\s*"([^"]*)"/);
+    assert.ok(navFieldMatch && drawerFieldMatch, `${locale} must define both nav and drawer labels`);
+    assert.notEqual(navFieldMatch![1], drawerFieldMatch![1], `${locale}: nav and drawer labels must be distinguishable, not identical`);
+  }
+});
+
+test("addendum §7: mobile drawer exposes native modal semantics (role=dialog, aria-modal=true) tied to a distinct aria-label", () => {
+  const source = readSource("components/layout/mobile-nav-drawer.tsx");
+  assert.match(source, /role="dialog"/);
+  assert.match(source, /aria-modal="true"/);
+  assert.match(source, /aria-label=\{drawerLabel\}/, "the dialog's own name must come from the distinct drawerLabel prop, not the inner nav's navLabel");
+});
+
+test("addendum §7: background content (<main>, <footer>, the Header shell itself) is marked inert while the drawer is open, and un-inerted when closed", () => {
+  const source = readSource("components/layout/SiteHeader.tsx");
+  assert.match(source, /getElementById\("main-content"\)/);
+  assert.match(source, /querySelector\("footer"\)/);
+  assert.match(source, /main\?\.setAttribute\("inert", ""\)/);
+  assert.match(source, /footer\?\.setAttribute\("inert", ""\)/);
+  assert.match(source, /main\?\.removeAttribute\("inert"\)/);
+  assert.match(source, /footer\?\.removeAttribute\("inert"\)/);
+  assert.match(source, /inert=\{mobileOpen\}/, "the <header> element itself must also become inert while its own drawer is open");
+});
+
+test("addendum §3: a global SkipLink exists, targets #main-content, and is mounted before the Header on every locale page", () => {
+  const skipSource = readSource("components/layout/SkipLink.tsx");
+  assert.match(skipSource, /href="#main-content"/);
+  const layoutSource = readSource("app/[locale]/layout.tsx");
+  const skipIdx = layoutSource.indexOf("<SkipLink");
+  const headerIdx = layoutSource.indexOf("<SiteHeader");
+  const mainIdx = layoutSource.indexOf('id="main-content"');
+  assert.ok(skipIdx >= 0 && headerIdx >= 0 && mainIdx >= 0, "SkipLink, SiteHeader, and #main-content must all be present in the shared locale layout");
+  assert.ok(skipIdx < headerIdx, "the SkipLink must be mounted before the Header, so it is reachable first via Tab");
+  assert.ok(mainIdx > headerIdx, "the SkipLink's #main-content target must exist, wrapping the actual page content");
+});
+
+test("addendum §6: Organization structured data's contactPoint reuses the single centralized phone constant — never a separately hardcoded number", () => {
+  const source = readSource("lib/seo/schema.ts");
+  assert.match(source, /import \{ CONTACT_PHONE_E164 \} from ["']@\/lib\/content\/contact-channels["'];/);
+  assert.match(source, /telephone:\s*CONTACT_PHONE_E164/, "contactPoint.telephone must reference the centralized constant, not a literal string");
+  assert.ok(!/telephone:\s*["']\+?\d/.test(source), "no separately hardcoded phone literal may be introduced for contactPoint");
+  assert.match(source, /"@type":\s*"ContactPoint"/);
+  assert.match(source, /"@type":\s*"PostalAddress"/, "the pre-existing verified PostalAddress must remain untouched");
+});
+
+test("addendum §6: BreadcrumbList remains a separate, page-level schema helper — never invoked from the Header component tree", () => {
+  for (const file of ["components/layout/SiteHeader.tsx", "components/layout/header-nav-disclosure.tsx", "components/layout/mobile-nav-drawer.tsx", "components/layout/header-language-selector.tsx"]) {
+    const source = readSource(file);
+    assert.ok(!source.includes("breadcrumbListSchema"), `${file} must never call breadcrumbListSchema — Breadcrumb architecture is out of Header scope`);
+  }
+});
+
+test("addendum §5: x-default hreflang resolution is already authoritative (points at the default locale's unprefixed root) — this addendum does not invent a new destination", () => {
+  const source = readSource("lib/metadata/resolve.ts");
+  assert.match(source, /x-default/, "an x-default entry must be produced by the existing language-alternates builder");
+});

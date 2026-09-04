@@ -904,6 +904,44 @@ export async function getPublicCatalogFilterFacets(locale: Locale, activeFilters
   return computeConditionalFacets(rows, activeFilters);
 }
 
+// --- Header Product Family shortcuts (AHANASSA_HEADER_FINAL_FROZEN_V2.0.md §3-4) ---
+
+export interface HeaderProductFamilyShortcut {
+  /** `product_variants.group_code` — this codebase's existing "stable Product Master classification" concept (see `RfqCatalogSelection.groupCode`'s own doc comment) — used here as the Header's "Product Family" navigation level, never SKU/variant/size/grade. */
+  code: string;
+  name: string;
+}
+
+/**
+ * Real Odoo -> Public Product Projection -> Header data source (frozen
+ * spec §4.3/§58.2) — deliberately NOT a frontend-hardcoded commercial list.
+ * Derives the DISTINCT group classification among variants belonging to
+ * currently publication-eligible templates only (the exact same
+ * `TEMPLATE_PUBLICATION_WHERE_CONDITIONS` gate every other public read
+ * uses), so the Header can never link to/imply a family with zero real
+ * published products behind it. Group name is read per-locale is not
+ * modeled today (group_name is a single Odoo-sourced string, not yet
+ * localized per (fa/en/ar) — same limitation `RfqCatalogSelection` already
+ * has); documented as a real, pre-existing gap, not invented here.
+ */
+export async function listHeaderProductFamilyShortcuts(locale: Locale): Promise<HeaderProductFamilyShortcut[]> {
+  const db = getPublicDb();
+  const where = TEMPLATE_PUBLICATION_WHERE_CONDITIONS;
+  const result = await db
+    .prepare(
+      `SELECT DISTINCT pv.group_code as group_code, pv.group_name as group_name
+       FROM product_variants pv
+       JOIN catalog_products cp ON cp.id = pv.product_id
+       JOIN product_seo_contents s ON s.entity_type = 'product' AND s.entity_id = cp.id
+       WHERE pv.is_active = 1 AND pv.is_public = 1 AND pv.group_code IS NOT NULL AND ${where.join(" AND ")}
+       ORDER BY pv.group_name ASC`,
+    )
+    .bind(locale)
+    .all<{ group_code: string; group_name: string | null }>();
+
+  return (result.results ?? []).filter((r) => r.group_name).map((r) => ({ code: r.group_code, name: r.group_name! }));
+}
+
 // --- Sitemap boundary (docs/CATALOG_PUBLIC_ROUTES.md §Sitemap) ---
 
 export interface IndexableCatalogUrl {

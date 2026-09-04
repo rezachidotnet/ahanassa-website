@@ -167,6 +167,56 @@ export const marketsCopy: Record<Locale, MarketsCopy> = {
   },
 };
 
+/**
+ * `/industries` — supersedes `/markets` as the primary-nav destination for
+ * this intent (AHANASSA_HEADER_FINAL_FROZEN_V2.0.md §32). Conceptually
+ * distinct from Markets: "for what industry/project/use case?" rather than
+ * geographic/export coverage (§32.3, §32.7) — `/markets`'s own geographic
+ * framing (`scopeTitle`/`scopeBody` above) is deliberately NOT reused here.
+ *
+ * The industries list itself is NOT new/invented content — it reuses the
+ * exact, already-real `industries` array from `marketsCopy` above
+ * verbatim, promoted to its own properly-separated page rather than
+ * fabricated to populate navigation (the frozen spec's own explicit
+ * prohibition, §32.4: "Placeholder or thin industry pages must not be
+ * created merely to populate navigation").
+ */
+export interface IndustriesCopy {
+  hero: { eyebrow: string; title: string; body: string };
+  listTitle: string;
+  industries: string[];
+}
+
+export const industriesCopy: Record<Locale, IndustriesCopy> = {
+  fa: {
+    hero: {
+      eyebrow: "صنایع",
+      title: "برای چه صنایع و پروژه‌هایی مناسب هستیم؟",
+      body: "آهن آسا درخواست‌های خرید تیم‌های فنی و خرید را در صنایع مختلف بررسی می‌کند؛ فهرست کامل موارد کاربرد به‌زودی تکمیل می‌شود.",
+    },
+    listTitle: "صنایعی که درخواست‌های آن‌ها بررسی می‌شود",
+    industries: ["ساخت‌وساز و زیرساخت", "کارخانه‌های نورد مجدد", "ریخته‌گری و کارگاه‌های ذوب", "ساخت‌وساز و سازه‌های فلزی", "خودروسازی و ماشین‌آلات"],
+  },
+  en: {
+    hero: {
+      eyebrow: "Industries",
+      title: "Which industries and projects are we suited for?",
+      body: "Ahan Asa reviews purchase requests from technical and purchasing teams across a range of industries; a fuller list of use cases will be published soon.",
+    },
+    listTitle: "Industries whose requests are reviewed",
+    industries: ["Construction & infrastructure", "Re-rolling mills", "Foundries & melt shops", "Steel & metal fabrication", "Automotive & machinery"],
+  },
+  ar: {
+    hero: {
+      eyebrow: "الصناعات",
+      title: "لأي الصناعات والمشاريع نحن مناسبون؟",
+      body: "يراجع آهن آسا طلبات الشراء من الفرق الفنية وفرق الشراء في مجموعة من الصناعات؛ ستُنشَر قائمة أوسع لحالات الاستخدام قريبًا.",
+    },
+    listTitle: "الصناعات التي تُراجَع طلباتها",
+    industries: ["البناء والبنية التحتية", "مصانع إعادة الدرفلة", "المسابك وورش الصهر", "التصنيع الفولاذي والمعدني", "صناعة السيارات والآلات"],
+  },
+};
+
 export interface FaqCopy {
   eyebrow: string;
   title: string;
