@@ -4,6 +4,7 @@ import type { Locale } from "../../config/locales.ts";
 import { canPublish, canSubmitForReview, isValidContentStatusTransition } from "./editorial.ts";
 import { buildTemplateFilterConditions, computeConditionalFacets, type CatalogFilterInput, type CatalogFilterFacets, type ClassificationRow } from "./catalog-filters.ts";
 import { resolveCatalogMedia, type ResolvedCatalogMedia } from "./media-registry.ts";
+import { formatCompactVariantSpecification } from "./specification-presenter.ts";
 import { computeHomepageScore, sortByHomepageScore, type HomepageRankingMode } from "../ranking/score.ts";
 import { HOMEPAGE_PRODUCT_DISPLAY_COUNT } from "./homepage-config.ts";
 import type { CatalogProduct, ProductSeoContent, ProductVariant, ContentQualityStatus, IndexStatus, HomepageProductCandidate } from "./types.ts";
@@ -737,6 +738,66 @@ export async function getPublishedCatalogTemplateTitleByXid(locale: Locale, temp
     .first<{ title: string; slug: string }>();
 
   return row ? { title: row.title, slug: row.slug } : null;
+}
+
+// --- Price Strip Exact Variant Anchor (PRICE-P3) ---
+
+export interface PublicPriceStripVariantAnchor {
+  title: string;
+  slug: string;
+  specification: string;
+}
+
+/**
+ * Resolves the Homepage Price Strip's exact-variant anchor (PRICE-P3,
+ * frozen spec V2.1 exact-variant benchmark rule). A curated
+ * `price_display_products` row's `(product_key, variant_key)` pair is only
+ * ever a valid Homepage benchmark when ALL of these hold simultaneously:
+ * the variant is commercially active AND explicitly public; it genuinely
+ * belongs to `templateXid` (enforced structurally by the JOIN + `WHERE
+ * cp.template_xid = ?` condition below — a variant belonging to a
+ * different template can never match, never a separate application-layer
+ * comparison after the fact); and the OWNING TEMPLATE is itself currently
+ * publication-eligible for `locale` — the exact same
+ * `TEMPLATE_PUBLICATION_WHERE_CONDITIONS` array every other public catalog
+ * read in this file uses (task §5: never a second, independently-drifting
+ * definition of "published"). Returns `null` for any failure of any of
+ * these — the caller (lib/pricing/repository.ts via
+ * lib/pricing/price-strip-item.ts) treats `null` identically to "this
+ * benchmark is not eligible right now," never a partial/guessed result.
+ *
+ * `title`/`slug` come from the template's own published editorial content —
+ * never `provider_title` (which this function's return type doesn't even
+ * carry). `specification` is built only from DB_PUBLIC's own Odoo-sourced
+ * `grade_code`/`commercial_size`/`section_size`/`sku` columns
+ * (lib/catalog/specification-presenter.ts#formatCompactVariantSpecification)
+ * — never a provider's free text.
+ */
+export async function resolvePublicPriceStripVariantAnchor(templateXid: string, variantXid: string, locale: Locale): Promise<PublicPriceStripVariantAnchor | null> {
+  const db = getPublicDb();
+  const row = await db
+    .prepare(
+      `SELECT v.grade_code, v.grade_name, v.commercial_size, v.section_size, v.sku, s.h1 as title, s.slug as slug
+       FROM product_variants v
+       JOIN catalog_products cp ON cp.id = v.product_id
+       JOIN product_seo_contents s ON s.entity_type = 'product' AND s.entity_id = cp.id
+       WHERE v.xid = ? AND cp.template_xid = ? AND v.is_active = 1 AND v.is_public = 1 AND ${TEMPLATE_PUBLICATION_WHERE_CONDITIONS.join(" AND ")}`,
+    )
+    .bind(variantXid, templateXid, locale)
+    .first<{ grade_code: string | null; grade_name: string | null; commercial_size: string | null; section_size: string | null; sku: string; title: string; slug: string }>();
+
+  if (!row) return null;
+
+  return {
+    title: row.title,
+    slug: row.slug,
+    specification: formatCompactVariantSpecification({
+      grade: { code: row.grade_code, name: row.grade_name },
+      commercialSize: row.commercial_size,
+      sectionSize: row.section_size,
+      sku: row.sku,
+    }),
+  };
 }
 
 // --- Homepage Product Projection (this task's §4-10, §13-26) ---

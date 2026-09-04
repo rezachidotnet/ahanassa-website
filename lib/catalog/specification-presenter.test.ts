@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeVariantDimensions, normalizeVariantNominalWeight, normalizeVariantSpecifications } from "./specification-presenter.ts";
+import { normalizeVariantDimensions, normalizeVariantNominalWeight, normalizeVariantSpecifications, formatCompactVariantSpecification } from "./specification-presenter.ts";
 
 /**
  * Fixtures mirror real dimensions_json/nominal_weight_json shapes verified
@@ -113,4 +113,44 @@ test("normalizeVariantSpecifications returns both dimensions and nominalWeight t
 test("normalizeVariantSpecifications handles a variant with neither dimensions nor nominal weight (never assume both are present)", () => {
   const result = normalizeVariantSpecifications({ dimensions: null, nominalWeight: null }, "en");
   assert.deepEqual(result, { dimensions: [], nominalWeight: [] });
+});
+
+// --- formatCompactVariantSpecification (PRICE-P3) ---
+// Fixtures mirror real DB_PUBLIC commercial_size/grade_code values verified
+// live 2026-09-04 (rebar AJ340, SHS/RHS/BEAMS with no grade, seamless pipe
+// with SCH suffix, plate) — never touches D1/network.
+
+test("REBAR: grade prefix + Ø-prefixed commercial size", () => {
+  const spec = formatCompactVariantSpecification({ grade: { code: "AJ340", name: "AJ340" }, commercialSize: "Ø16", sectionSize: null, sku: "AA-RB-AJ340-D16-L12" });
+  assert.equal(spec, "AJ340 · Ø16");
+});
+
+test("SHS: no grade -> bare commercial size, no fabricated unit suffix", () => {
+  const spec = formatCompactVariantSpecification({ grade: { code: null, name: null }, commercialSize: "40×40×3", sectionSize: null, sku: "AA-PF-SHS-S40X40X3-L6" });
+  assert.equal(spec, "40×40×3");
+});
+
+test("BEAMS: no grade -> bare commercial size (already includes the form prefix from Odoo, e.g. IPN)", () => {
+  const spec = formatCompactVariantSpecification({ grade: { code: null, name: null }, commercialSize: "IPN 100", sectionSize: "100", sku: "AA-BM-INP-S100-L12" });
+  assert.equal(spec, "IPN 100");
+});
+
+test("SEAMLESS_PIPE: grade prefix + SCH-suffixed commercial size — never appends a guessed 'mm' that would corrupt the SCH token", () => {
+  const spec = formatCompactVariantSpecification({ grade: { code: "A106_GR_B", name: "ASTM A106 Grade B" }, commercialSize: "114.3×6.02 SCH40", sectionSize: null, sku: "AA-PP-SMLS-A106B-S114P3X6P02-L6" });
+  assert.equal(spec, "A106_GR_B · 114.3×6.02 SCH40");
+});
+
+test("falls back to sectionSize when commercialSize is null", () => {
+  const spec = formatCompactVariantSpecification({ grade: { code: null, name: null }, commercialSize: null, sectionSize: "100", sku: "AA-BM-INP-S100-L12" });
+  assert.equal(spec, "100");
+});
+
+test("falls back to sku when both commercialSize and sectionSize are null", () => {
+  const spec = formatCompactVariantSpecification({ grade: { code: null, name: null }, commercialSize: null, sectionSize: null, sku: "AA-SOME-SKU" });
+  assert.equal(spec, "AA-SOME-SKU");
+});
+
+test("locale-invariant by construction: the function accepts no locale parameter at all, so a technical size/grade token can never be mistranslated", () => {
+  const spec = formatCompactVariantSpecification({ grade: { code: "S235JR", name: "S235JR" }, commercialSize: "35×2000×6000", sectionSize: null, sku: "AA-SH-HR-S235JR-S35X2000X6000" });
+  assert.equal(spec, "S235JR · 35×2000×6000");
 });

@@ -1,5 +1,5 @@
 import type { Locale } from "@/config/locales";
-import type { ProductVariant } from "./types";
+import type { ClassificationRef, ProductVariant } from "./types";
 
 /**
  * Typed presenter between DB_PUBLIC's polymorphic `dimensions_json`/
@@ -113,4 +113,40 @@ export function normalizeVariantSpecifications(variant: Pick<ProductVariant, "di
     dimensions: normalizeVariantDimensions(variant, locale),
     nominalWeight: normalizeVariantNominalWeight(variant, locale),
   };
+}
+
+export interface CompactVariantSpecInput {
+  grade: ClassificationRef;
+  commercialSize: string | null;
+  sectionSize: string | null;
+  sku: string;
+}
+
+/**
+ * A single-line, deterministic commercial spec label for contexts that need
+ * one compact string rather than the full dimension/weight table above
+ * (PRICE-P3, Homepage Price Strip benchmark cards). Deliberately generic —
+ * no per-family/per-group branching — built only from the same two
+ * always-Odoo-sourced fields `lib/catalog/editorial-repository.ts`'s
+ * `RfqCatalogSelection.variantSpecLabel` already treats as the canonical
+ * compact size descriptor (`commercialSize`, falling back to `sectionSize`,
+ * falling back to `sku` — verified live: `commercial_size` is populated for
+ * all 237 current DB_PUBLIC variants across every product group, so the
+ * fallbacks are defense-in-depth, not the common case), prefixed with the
+ * grade code only when the variant actually has one (grade is null for
+ * ungraded forms like SHS/RHS/BEAMS — verified live). Never reads
+ * `dimensions_json` directly and never invents a unit suffix — a family's
+ * `commercial_size` string is already Odoo's own authoritative, correctly
+ * unit-formatted commercial descriptor (e.g. "Ø10", "IPN 100", "100×100×4",
+ * "114.3×6.02 SCH40"); appending a guessed "mm" here would be wrong for the
+ * SCH-suffixed pipe case. Locale-invariant by construction (no translation
+ * attempted) — `grade_code`/`commercial_size` are single Odoo-sourced
+ * strings, not per-locale, same known limitation `variantSpecLabel`/
+ * `group_name` already document; technical tokens are therefore preserved
+ * verbatim across fa/en/ar automatically, satisfying the "never invent a
+ * fa/ar translation for a technical code" rule by simply never attempting one.
+ */
+export function formatCompactVariantSpecification(variant: CompactVariantSpecInput): string {
+  const sizeLabel = variant.commercialSize ?? variant.sectionSize ?? variant.sku;
+  return variant.grade.code ? `${variant.grade.code} · ${sizeLabel}` : sizeLabel;
 }

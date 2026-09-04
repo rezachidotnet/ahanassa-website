@@ -71,26 +71,43 @@ export type FreshnessState = "fresh" | "aging" | "stale" | "unavailable";
 /**
  * The homepage price strip's own read-model output shape — the only thing
  * `components/home/price-strip.tsx` ever sees. Never a raw provider
- * payload or `provider_title`.
+ * payload, `provider_id`, `quote_key`, `provider_title`, or any other
+ * internal provenance field (PRICE-P3 §15/§25 — see
+ * `lib/pricing/price-strip-item.test.ts`'s explicit field-allowlist
+ * contract test).
  *
- * PRICE-P2: the legacy boolean `isStale` is retired from this type — a
- * winning quote's freshness is now always exactly `"fresh"` or `"aging"`
- * (`lib/pricing/freshness.ts#FreshnessState`), since
- * `lib/pricing/quote-selection.ts#selectWinningQuote` never returns a
- * STALE or UNAVAILABLE candidate as a Homepage winner at all — there is
- * structurally nothing else for this field to hold once an item reaches
- * this shape.
+ * PRICE-P2: the legacy boolean `isStale` is retired from this type.
+ * PRICE-P3: every item is now anchored to an EXACT Product Variant
+ * (`templateXid`/`variantXid`, frozen spec V2.1) rather than a
+ * template-only match — a curated `price_display_products` row with no
+ * `variant_key` is simply excluded before this type is ever produced
+ * (lib/pricing/repository.ts). `freshnessState` is narrowed here to just
+ * `"fresh" | "aging"` (rather than the full domain `FreshnessState`) since
+ * `lib/pricing/quote-selection.ts#selectWinningQuote` structurally never
+ * returns a `"stale"`/`"unavailable"` winner — `lib/pricing/price-strip-item.ts`
+ * asserts this invariant at the boundary where the domain type is narrowed
+ * into this public one, rather than merely hoping it holds.
  */
 export interface PublicPriceStripItem {
   displayPriceId: string;
+  /** `catalog_products.template_xid` — the Product Template this benchmark's exact variant belongs to. */
+  templateXid: string;
+  /** `product_variants.xid` — the exact Product Variant this benchmark is commercially anchored to (PRICE-P1/P3; never a template-only match). */
+  variantXid: string;
+  /** The published template's editorial title for `locale` — never `provider_title`. */
   title: string;
+  /** Compact, deterministic commercial spec label (grade + size), derived only from catalog data — never a provider's free text (lib/catalog/specification-presenter.ts#formatCompactVariantSpecification). */
+  specification: string;
   /** Exact Toman integer for display — already truncated from `price_amount_irr` (lib/pricing/money.ts). */
   priceToman: number;
   unit: string;
-  /** Always `"fresh"` or `"aging"` in practice — the winning-quote selection never returns a `"stale"`/`"unavailable"` candidate (PRICE-P2). Typed as the full `FreshnessState` union rather than a narrower `"fresh" | "aging"` alias so the UI's exhaustiveness checking stays honest about the domain type, without asserting an invariant this file can't itself enforce. */
-  freshnessState: FreshnessState;
+  /** Carried through from the winning quote's configured basis when materially set — never silently dropped (PRICE-P3 §10). */
+  marketOrLocation?: string;
+  deliveryBasis?: string;
+  /** Always `"fresh"` or `"aging"` — a STALE/UNAVAILABLE winner can never reach this type (PRICE-P2/P3). */
+  freshnessState: "fresh" | "aging";
   /** The winning quote's effective timestamp (source_timestamp, falling back to synced_at only when the provider supplied no source_timestamp) — for the "last updated" label. */
   effectiveTimestamp: string;
-  /** `/products/{slug}` when a catalog match exists, else a category-slug fallback, else undefined (not linked). */
+  /** `/products/{template-slug}?variant={variant-xid}` — the same `?variant=` convention `app/[locale]/products/[slug]/page.tsx` already consumes for variant highlighting (never a new route). `undefined` only if no valid destination exists — never fabricated (PRICE-P3 §9). */
   href?: string;
 }
