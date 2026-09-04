@@ -43,6 +43,8 @@ Lineage confirmed present in history: Contact/RFQ fix (`06921a2`), Frozen Header
 
 Analysis below uses the V2.1 requirements as stated in the audit task's own context, exactly as instructed. Not created here.
 
+> **Provenance update (2026-09-04, added during the subsequent Spec Reconciliation task — historical finding above left unaltered):** the real owner-approved artifact was located and committed at `docs/pricing/AHANASSA_PRICE_STRIP_FINAL_FROZEN_V2.1.md` after this gate ran. The statement above was accurate at the time this gate executed — the file genuinely did not exist in the repo yet — and is preserved as historical record, not corrected in place.
+
 # CURRENT PRICE IDENTITY
 
 Exact chain, verified against real source:
