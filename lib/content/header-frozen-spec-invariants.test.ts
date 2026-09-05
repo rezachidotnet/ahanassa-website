@@ -6,14 +6,18 @@ import path from "node:path";
 import { navLinks, primaryCta, dropdownDisclosureAccessibleName } from "./nav.ts";
 
 /**
- * docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md acceptance-criteria regression
- * coverage. `lib/content/nav.ts` is plain data (no `cloudflare:workers`
- * dependency) so it's directly unit-testable; the component files
- * (SiteHeader.tsx and friends) are JSX/Next.js and pinned as source-text
- * invariants instead, matching this repo's established convention (no
- * React render-testing framework exists here — see
- * `lib/catalog/homepage-source-isolation.test.ts` for the same reasoning
- * applied elsewhere).
+ * docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.2.md acceptance-criteria
+ * regression coverage (current authority — incorporates all non-superseded
+ * rules from docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md).
+ * `lib/content/nav.ts` is plain data (no `cloudflare:workers` dependency)
+ * so it's directly unit-testable; the component files (SiteHeader.tsx and
+ * friends) are JSX/Next.js and pinned as source-text invariants instead,
+ * matching this repo's established convention (no React render-testing
+ * framework exists here — see `lib/catalog/homepage-source-isolation.test.ts`
+ * for the same reasoning applied elsewhere). Primary CTA Button
+ * geometry/interaction coverage lives in `components/ui/button.test.ts`
+ * (Shared Button Component V1.0), not here — this file only proves the
+ * Header consumes it rather than a local implementation.
  */
 
 const REPO_ROOT = path.resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
@@ -299,13 +303,16 @@ test("addendum §2: the dropdown item list never disables the global focus indic
 });
 
 test("addendum §2: every Header-authored hover state uses the darker, WCAG-passing accent token — never the lighter copper-400 tint (~3.2:1, fails 4.5:1)", () => {
+  // Header V2.2: the desktop/drawer Primary CTA's hover token is no longer
+  // Header-authored at all — it moved to the Shared Button Component's
+  // `primary` variant (navy hover token, verified in button.test.ts). This
+  // check now covers only the Header-authored copper accents that remain
+  // (e.g. the dropdown "view all" link), not the CTA.
   for (const file of ["components/layout/SiteHeader.tsx", "components/layout/header-nav-disclosure.tsx", "components/layout/mobile-nav-drawer.tsx"]) {
     const source = stripComments(readSource(file));
     assert.ok(!source.includes("hover:bg-copper-400"), `${file} must not use the lighter hover:bg-copper-400 (fails 4.5:1 normal-text contrast)`);
     assert.ok(!source.includes("hover:text-copper-400"), `${file} must not use the lighter hover:text-copper-400 (fails 4.5:1 normal-text contrast)`);
   }
-  const cta = readSource("components/layout/SiteHeader.tsx");
-  assert.ok(cta.includes("hover:bg-[var(--aa-color-action-accent-bg-hover)]"), "the desktop CTA must use the darker, verified-contrast hover token");
 });
 
 test("addendum §8: aria-current precision — isCurrentPage (exact match) and isActiveSection (exact-or-prefix) are computed as two separate booleans, never conflated into one", () => {
@@ -543,5 +550,30 @@ test("NAV-P1.1 (V2.1 §69): the Header still does not independently emit Organiz
   for (const file of ["components/layout/SiteHeader.tsx", "components/layout/header-nav-disclosure.tsx", "components/layout/mobile-nav-drawer.tsx", "components/layout/header-language-selector.tsx"]) {
     const source = readSource(file);
     assert.ok(!/organizationSchema|jsonLdGraph|"@type":\s*"Organization"/.test(source), `${file} must not independently emit Organization structured data`);
+  }
+});
+
+// --- Header V2.2: Shared Button Component adoption (§83-87) ---
+
+test("Header V2.2 §83.1: the desktop Primary CTA consumes the Shared Button Component (ButtonLink variant=\"primary\"), not a local implementation", () => {
+  const source = readSource("components/layout/SiteHeader.tsx");
+  const ctaMatch = source.match(/<ButtonLink\s+href=\{localizedPath\(locale, "\/request"\)\}\s+variant="primary"\s+size="button"[^>]*>/);
+  assert.ok(ctaMatch, "desktop CTA must render via ButtonLink variant=\"primary\" size=\"button\"");
+  assert.ok(!ctaMatch[0].includes("bg-copper"), "the CTA's own className must not keep a copper fill — Header V2.2 §84 supersedes the copper Primary CTA");
+});
+
+test("Header V2.2 §85.2: the mobile drawer Primary CTA consumes the same Shared Button Component, width:100% only", () => {
+  const source = readSource("components/layout/mobile-nav-drawer.tsx");
+  assert.match(source, /<ButtonLink\s+href=\{localizedPath\(locale, "\/request"\)\}\s+variant="primary"\s+size="button"\s+className="w-full"/, "drawer CTA must render via ButtonLink variant=\"primary\" size=\"button\" className=\"w-full\"");
+  assert.ok(!source.includes("bg-copper"), "mobile-nav-drawer.tsx must not keep a copper-filled CTA");
+});
+
+test("Header V2.2 §86: the phone utility never adopts the shared Primary/Secondary Button variant", () => {
+  for (const file of ["components/layout/SiteHeader.tsx", "components/layout/mobile-nav-drawer.tsx"]) {
+    const source = readSource(file);
+    const phoneAnchors = source.match(/<a\s+href=\{`tel:\$\{CONTACT_PHONE_E164\}`\}[\s\S]*?>/g) ?? [];
+    for (const anchor of phoneAnchors) {
+      assert.ok(!/variant="primary"|variant="secondary"|buttonVariants\(/.test(anchor), `${file}: phone utility anchor must not use the shared Button variant`);
+    }
   }
 });

@@ -12,6 +12,7 @@ import { CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 import { HeaderNavDisclosure } from "@/components/layout/header-nav-disclosure";
 import { HeaderLanguageSelector } from "@/components/layout/header-language-selector";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
+import { ButtonLink } from "@/components/ui/button";
 import type { HeaderProductFamilyShortcut } from "@/lib/catalog/editorial-repository";
 import type { PublicProcessingGroup } from "@/lib/processing/public-repository";
 import { cn } from "@/lib/utils";
@@ -37,9 +38,13 @@ const menuLabel: Record<Locale, { open: string; close: string; nav: string; draw
 };
 
 /**
- * Global site Header — implements docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md
- * (Version 2.1, fully frozen). One shared implementation for fa/ar (RTL)
- * and en (LTR), §43.9/§58.7 — no locale-specific Header variants.
+ * Global site Header — implements docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.2.md
+ * (current authority), which incorporates all non-superseded rules from
+ * docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md unchanged; V2.2
+ * changes only Primary CTA Button ownership, now the Shared Button
+ * Component (docs/design-system/AHANASSA_BUTTON_COMPONENT_FINAL_FROZEN_V1.0.md).
+ * One shared implementation for fa/ar (RTL) and en (LTR), §43.9/§58.7 — no
+ * locale-specific Header variants.
  *
  * `productFamilies`/`serviceGroups` are both fetched server-side
  * (`app/[locale]/layout.tsx` — Public Product Projection §4.3/§58.2 and
@@ -229,28 +234,16 @@ export function SiteHeader({
               <HeaderLanguageSelector locale={locale} srLabel={t.language} />
             </div>
 
-            {/* Addendum §2 (contrast gate): the codebase's own established
-                hover:bg-copper-400 (a LIGHTER tint, ~3.2:1 white-text
-                contrast) fails WCAG 2.2 AA's 4.5:1 normal-text requirement
-                — verified by computing the actual color-mix result, not
-                assumed. That pattern predates this task (components/ui/button.tsx's
-                own "default" variant, and several pre-existing site
-                components) and is out of this Header-scoped task's blast
-                radius to fix globally; see the implementation report for
-                that as a separate sitewide follow-up. Locally, within the
-                3 spots this task authored (this CTA, the mobile drawer's
-                CTA, and the dropdown "view all" link), a DARKER hover
-                value is used instead — the same
-                --aa-color-action-accent-bg-hover token already defined in
-                styles/tokens.css (7:1 vs white, comfortably passes) — which
-                also happens to increase, not decrease, contrast on hover,
-                unlike the lighter tint. */}
-            <Link
-              href={localizedPath(locale, "/request")}
-              className="bg-copper hover:bg-[var(--aa-color-action-accent-bg-hover)] hidden h-12 items-center px-5 text-[13px] font-semibold tracking-wide text-white transition-colors lg:inline-flex"
-            >
+            {/* Header V2.2 §83.1: the Primary CTA now consumes the Shared
+                Button Component (docs/design-system/AHANASSA_BUTTON_COMPONENT_FINAL_FROZEN_V1.0.md)
+                — Header owns only placement/visibility (`hidden ... lg:inline-flex`),
+                not height/radius/padding/font/hover/focus/fill, which are
+                the shared `primary` variant's job. This is an intentional
+                V2.2 color change: the CTA was copper before (§84 supersedes
+                that), it is navy now. */}
+            <ButtonLink href={localizedPath(locale, "/request")} variant="primary" size="button" className="hidden lg:inline-flex">
               {primaryCta[locale].full}
-            </Link>
+            </ButtonLink>
 
             <button
               ref={menuTriggerRef}

@@ -8,15 +8,20 @@ import { primaryCta } from "./nav.ts";
 import { CONTACT_PHONE_E164 } from "./contact-channels.ts";
 
 /**
- * docs/hero/AHANASSA_HERO_FINAL_FROZEN_V2.3.md acceptance-criteria
- * regression coverage (HERO-P1). `lib/content/homepage.ts`/`nav.ts`/
+ * docs/hero/AHANASSA_HERO_FINAL_FROZEN_V2.4.md acceptance-criteria
+ * regression coverage (current authority — incorporates all non-superseded
+ * rules from docs/hero/AHANASSA_HERO_FINAL_FROZEN_V2.3.md). `lib/content/homepage.ts`/`nav.ts`/
  * `contact-channels.ts` are plain data (no `cloudflare:workers`/`next/*`
  * dependency) so they're directly unit-testable; `components/home/hero.tsx`
  * imports `next/link` and cannot be rendered under plain `node --test` in
  * this repo (no real `next` package — only `vinext`), so it is pinned as
  * source-text invariants instead, matching this repo's established
  * convention (see `lib/content/header-frozen-spec-invariants.test.ts`,
- * `lib/pricing/price-strip-static.test.ts`).
+ * `lib/pricing/price-strip-static.test.ts`). Button geometry/interaction
+ * (height/radius/padding/font/hover/active/focus-visible/forced-colors)
+ * coverage lives in `components/ui/button.test.ts` (Shared Button
+ * Component V1.0), not here — this file only proves Hero consumes it
+ * rather than a local implementation (V2.4 §2).
  */
 
 const REPO_ROOT = path.resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
@@ -142,13 +147,20 @@ test("Temporary safe media state renders more than a single decorative element (
   assert.ok(lineCount >= 2, "expected multiple line cues (checklist rows + steel cross-section)");
 });
 
-// --- §53.3: Primary CTA color contract (HERO-P1.1 fix #2) ---
+// --- V2.4 §2/§5/§6: Shared Button Component adoption ---
 
-test("Primary CTA is a literal solid navy fill (no white/inverse workaround)", () => {
-  const primaryMatch = HERO_CODE.match(/href=\{localizedPath\(locale, "\/request"\)\}[\s\S]*?className="([^"]*)"/);
-  assert.ok(primaryMatch, "expected to find the Primary CTA's className");
-  assert.match(primaryMatch[1], /\bbg-navy\b/, "Primary CTA must use a solid navy fill per §53.3");
-  assert.ok(!/\bbg-white\b/.test(primaryMatch[1]), "Primary CTA must not use the white/inverse fill from HERO-P1");
+test("Hero Primary CTA consumes the Shared Button Component (ButtonLink variant=\"primary\"), not a local fill", () => {
+  assert.match(HERO_CODE, /<ButtonLink\s+href=\{localizedPath\(locale, "\/request"\)\}\s+variant="primary"\s+size="button"/, "Primary CTA must render via ButtonLink variant=\"primary\" size=\"button\"");
+  assert.ok(!/\bbg-navy\b|\bbg-white\b/.test(HERO_CODE.match(/<ButtonLink[\s\S]*?<\/ButtonLink>/)?.[0] ?? ""), "Primary CTA must not locally redefine its fill — that's the Shared Button's job (V2.4 §2)");
+});
+
+test("Hero Secondary CTA consumes the Shared Button Component (buttonVariants variant=\"secondary\"), not a local border/fill", () => {
+  assert.match(HERO_CODE, /buttonVariants\(\{\s*variant:\s*"secondary",\s*size:\s*"button"\s*\}\)/, "Secondary CTA must render via buttonVariants({ variant: \"secondary\", size: \"button\" })");
+});
+
+test("Hero does not duplicate a local .hero-cta Button token set (V2.4 §2 — Hero no longer owns Button geometry)", () => {
+  assert.ok(!HERO_CODE.includes("hero-cta"), "hero.tsx must not reference a Hero-local Button class any more");
+  assert.ok(!CSS_CODE.includes(".hero-cta"), "theme-extensions.css must not keep a Hero-local Button class any more — superseded by .aa-button in button.tsx's shared variants");
 });
 
 // --- §6: brand line theme alignment (HERO-P1.1 fix #3) ---
@@ -191,24 +203,6 @@ test("Hero performs no client-side Odoo/commercial data fetch", () => {
   for (const pattern of [/fetch\(/, /odoo/i, /useEffect/, /useState/]) {
     assert.ok(!pattern.test(HERO_CODE), `Hero must remain a static server component — found ${pattern}`);
   }
-});
-
-// --- §56/§57: forced-colors + focus-visible CSS contract ---
-
-test(":focus-visible is used for the Hero CTA focus treatment, not a blanket :focus{outline:none}", () => {
-  assert.ok(CSS_CODE.includes(".hero-cta:focus-visible"));
-  assert.ok(!/\.hero-cta\s*:focus\s*\{[^}]*outline:\s*none/.test(CSS_CODE));
-});
-
-test("forced-colors support exists for Hero CTAs and does not use forced-color-adjust:none", () => {
-  const heroCtaBlockMatch = CSS_CODE.match(/@media \(forced-colors: active\)[\s\S]*?\.hero-cta[\s\S]*?\}\s*\}/);
-  assert.ok(heroCtaBlockMatch, "expected an @media (forced-colors: active) block covering .hero-cta");
-  assert.ok(!CSS_CODE.includes("forced-color-adjust: none"), "Hero must not fight the user's forced-colors palette (§56.2)");
-});
-
-test("Hero CTA active/pressed state is capped at scale(0.98), no bounce/overshoot", () => {
-  assert.ok(CSS_CODE.includes("scale(0.98)"));
-  assert.ok(!/scale\(1\.\d/.test(CSS_CODE.match(/\.hero-cta[\s\S]*?\}/)?.[0] ?? ""), "no overshoot scale on .hero-cta");
 });
 
 // --- §17/§22.2: mobile content order (statically verifiable via source order) ---

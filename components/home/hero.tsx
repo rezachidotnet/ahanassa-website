@@ -1,27 +1,30 @@
-import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { localizedPath, type Locale } from "@/config/locales";
 import { homepageCopy } from "@/lib/content/homepage";
 import { primaryCta } from "@/lib/content/nav";
 import { CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
+import { ButtonLink, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 /**
- * Hero — Homepage Hero, aligned with Hero Frozen V2.3
- * (docs/hero/AHANASSA_HERO_FINAL_FROZEN_V2.3.md), refined per HERO-P1.1.
+ * Hero — Homepage Hero, aligned with Hero Frozen V2.4
+ * (docs/hero/AHANASSA_HERO_FINAL_FROZEN_V2.4.md), which incorporates all
+ * non-superseded V2.3 rules (docs/hero/AHANASSA_HERO_FINAL_FROZEN_V2.3.md).
  * Desktop is a real logical split (copy ~55% / visual ~45%, inline-start/
  * inline-end via a plain `flex` row — flex's "row" main axis already
  * follows the container's text direction, so FA/AR naturally render
  * copy-right/visual-left and EN copy-left/visual-right with no
  * order/tabindex hacks). Mobile stacks in the same DOM order (§17/§22.2).
  *
- * Surface: HERO-P1's first pass kept the pre-existing full-navy Hero
- * surface and inverted the Primary CTA to white-on-navy to stay visible
- * against it. HERO-P1.1 instead puts a light warm content card
- * (`--aa-color-bg-warm`) on top of the navy section — the navy now reads
- * as an ambient frame — so the Primary CTA can use the frozen §53.3
- * literal "solid brand navy fill" without inversion, and the copper brand
- * line/eyebrow read at their normal (non-tinted) site-wide contrast
- * instead of the dark-surface-only tint HERO-P1 needed.
+ * Surface: the HERO-P1.1 light warm content card (`--aa-color-bg-warm`)
+ * on top of the navy section remains — navy reads as an ambient frame.
+ *
+ * Button ownership (V2.4 §2): Hero no longer owns Button visual/interaction
+ * geometry at all — both CTAs consume the Shared Button Component
+ * (docs/design-system/AHANASSA_BUTTON_COMPONENT_FINAL_FROZEN_V1.0.md) via
+ * `components/ui/button.tsx`'s `primary`/`secondary` variants at
+ * size="button". Hero owns only width/composition (min-width on desktop,
+ * full-width on mobile) and CTA order/spacing.
  *
  * Hero visual: the previous `hero-steel-mill.png` depicted an active
  * production line with workers — a false factory-ownership implication
@@ -57,17 +60,16 @@ export function Hero({ locale }: { locale: Locale }) {
               <p className="text-muted-foreground mt-7 max-w-xl text-lg leading-relaxed">{t.body}</p>
 
               <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-                <Link
+                <ButtonLink
                   href={localizedPath(locale, "/request")}
-                  className="hero-cta group bg-navy w-full text-white shadow-[var(--aa-shadow-sm)] hover:bg-[var(--aa-color-action-primary-bg-hover)] active:bg-[var(--aa-color-action-primary-bg-active)] sm:w-auto sm:min-w-[180px]"
+                  variant="primary"
+                  size="button"
+                  className="group w-full sm:w-auto sm:min-w-[180px]"
                 >
                   {primaryCta[locale].full}
                   <ArrowRight className="size-4 rtl:-scale-x-100 transition-transform group-hover:translate-x-1 rtl:group-hover:-translate-x-1" />
-                </Link>
-                <a
-                  href={`tel:${CONTACT_PHONE_E164}`}
-                  className="hero-cta border-navy/60 text-navy hover:border-navy hover:bg-navy/5 w-full border bg-transparent sm:w-auto"
-                >
+                </ButtonLink>
+                <a href={`tel:${CONTACT_PHONE_E164}`} className={cn(buttonVariants({ variant: "secondary", size: "button" }), "w-full sm:w-auto")}>
                   {t.secondaryCta}
                 </a>
               </div>

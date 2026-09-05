@@ -92,73 +92,44 @@
 }
 
 /**
- * Hero CTA structural contract (Hero Frozen V2.3 §53/§56/§57/§58) — scoped
- * to the Homepage Hero only, deliberately not merged into the shared
- * `buttonVariants` (components/ui/button.tsx), which also backs the Header
- * CTA (frozen V2.1, do not reopen) and other unrelated pages. Color/fill is
- * still expressed via ordinary Tailwind utility classes at the call site;
- * this class only fixes shape/height/font/focus/motion/forced-colors, which
- * V2.3 requires identically for Primary and Secondary.
+ * Shared Button forced-colors + focus-visible contract
+ * (AHANASSA_BUTTON_COMPONENT_FINAL_FROZEN_V1.0.md §13/§14) — the ONE
+ * authoritative Primary/Secondary implementation for Header (V2.2), Hero
+ * (V2.4), and the mobile drawer (components/ui/button-variants.ts's
+ * `primary`/`secondary` variants at size="button" apply this class via a
+ * compoundVariant). Height/radius/padding/font/hover/active are plain
+ * Tailwind utility classes on that same compoundVariant; focus-visible and
+ * forced-colors need raw CSS instead:
+ *
+ * - focus-visible: the base cva string's `focus-visible:outline-2
+ *   focus-visible:outline-offset-2 focus-visible:outline-[...]` relies on
+ *   Tailwind's split outline-style/-width/-color custom-property
+ *   mechanism (`--tw-outline-style` etc.) — measured live (real keyboard
+ *   Tab focus, getComputedStyle on Header/Hero's Primary/Secondary CTA)
+ *   to resolve `outline-style: none`, i.e. no visible ring at all, for
+ *   this compound variant. The plain shorthand below sidesteps that
+ *   custom-property cascade entirely and was verified working.
+ * - forced-colors: `border-color`/`outline-color` under
+ *   `@media (forced-colors: active)` must still win against the
+ *   unconditional `border-navy/60` (Secondary) Tailwind utility class,
+ *   which otherwise wins the cascade by appearing later in the compiled
+ *   stylesheet — measured live, without `!important` the forced-colors
+ *   border computed to 0px (invisible).
+ *
+ * Per Button V1.0 §14: do not fight the user's forced-colors palette with
+ * `forced-color-adjust: none` — only guarantee a visible boundary/focus
+ * ring; text/fill colors are left to the browser's own neutralization.
  */
 @layer utilities {
-  .hero-cta {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.625rem;
-    height: 3.25rem; /* 52px — within the frozen 48–52px desktop range and >=48px mobile */
-    padding-inline: 1.75rem; /* 28px — within the frozen 24–32px range */
-    border-radius: var(--aa-radius-sm); /* 8px — within the frozen 6–8px range */
-    font-size: var(--aa-text-body-md); /* 16px — within the frozen 15–16px range */
-    font-weight: var(--aa-font-weight-semibold);
-    line-height: 1;
-    white-space: nowrap;
-    transition:
-      background-color var(--aa-motion-fast) var(--aa-ease-standard),
-      border-color var(--aa-motion-fast) var(--aa-ease-standard),
-      transform var(--aa-motion-instant) var(--aa-ease-standard);
-  }
-  .hero-cta:active {
-    transform: scale(0.98);
-  }
-  .hero-cta:focus-visible {
-    /* The standard site-wide copper focus-ring token. HERO-P1's first pass
-       used white here because the CTAs then sat directly on Hero's navy
-       section background, where copper measures only ~2.8:1 (below the
-       required 3:1). HERO-P1.1 moved the CTAs onto the light warm content
-       card (--aa-color-bg-warm) instead, where copper measures ~5:1 — so
-       the normal token is correct again and no longer needs a dark-surface
-       override. */
+  .aa-button:focus-visible {
     outline: 2px solid var(--aa-color-focus-ring);
     outline-offset: 3px;
   }
-}
-
-@layer utilities {
-  @media (prefers-reduced-motion: reduce) {
-    .hero-cta {
-      transition: none;
-    }
-    .hero-cta:active {
-      transform: none;
-    }
-  }
-}
-
-@layer utilities {
-  /* Per Hero V2.3 §56.2: do not fight the user's forced-colors palette with
-     `forced-color-adjust: none` — only guarantee a visible boundary/focus
-     ring; text/fill colors are left to the browser's own neutralization.
-     `!important` here is deliberate: at equal specificity this rule must
-     still beat the unconditional `border-white/45`/`border` Tailwind
-     utility classes on the same elements, which otherwise win the cascade
-     by appearing later in the compiled stylesheet — measured live, without
-     `!important` the forced-colors border computed to 0px (invisible). */
   @media (forced-colors: active) {
-    .hero-cta {
+    .aa-button {
       border: 2px solid ButtonBorder !important;
     }
-    .hero-cta:focus-visible {
+    .aa-button:focus-visible {
       outline: 2px solid Highlight;
       outline-offset: 3px;
     }

@@ -10,12 +10,16 @@ import type { HeaderProductFamilyShortcut } from "@/lib/catalog/editorial-reposi
 import type { PublicProcessingGroup } from "@/lib/processing/public-repository";
 import { CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 import { stripLocalePrefix } from "@/components/layout/header-language-selector";
+import { ButtonLink } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
- * Mobile navigation drawer — docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md §55.
+ * Mobile navigation drawer — docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md §55
+ * (unchanged by V2.2 — the drawer's own Primary CTA now consumes the
+ * Shared Button Component per docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.2.md
+ * §85.2, everything else below is still V2.1).
  * Direction-aware (RTL opens from the right, LTR from the left, §55.1),
  * `min(88vw, 360px)` target width (§55.2), frozen content order (Logo/Close
  * → Primary Navigation → Phone → Language → Primary CTA, §55.3), single-open
@@ -251,10 +255,12 @@ export function MobileNavDrawer({
         </nav>
 
         <div className="border-border shrink-0 border-t p-4">
-          {/* Darker hover token, not the lighter copper-400 tint — see SiteHeader.tsx's comment on the same WCAG contrast fix. */}
-          <Link href={localizedPath(locale, "/request")} className="bg-copper hover:bg-[var(--aa-color-action-accent-bg-hover)] flex min-h-11 items-center justify-center px-6 py-3.5 text-center text-sm font-semibold tracking-wide text-white transition-colors">
+          {/* Header V2.2 §85.2: the drawer Primary CTA uses the same Shared
+              Button primitive as the desktop CTA — width:100% is the only
+              composition difference allowed. */}
+          <ButtonLink href={localizedPath(locale, "/request")} variant="primary" size="button" className="w-full">
             {ctaLabel}
-          </Link>
+          </ButtonLink>
         </div>
       </div>
     </>
