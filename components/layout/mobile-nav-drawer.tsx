@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
- * Mobile navigation drawer — AHANASSA_HEADER_FINAL_FROZEN_V2.0.md §55.
+ * Mobile navigation drawer — docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md §55.
  * Direction-aware (RTL opens from the right, LTR from the left, §55.1),
  * `min(88vw, 360px)` target width (§55.2), frozen content order (Logo/Close
  * → Primary Navigation → Phone → Language → Primary CTA, §55.3), single-open
@@ -33,6 +33,7 @@ export function MobileNavDrawer({
   serviceGroups,
   viewAllProductsLabel,
   viewAllServicesLabel,
+  disclosureAccessibleName,
   phoneSrLabel,
   languageSrLabel,
   ctaLabel,
@@ -49,6 +50,8 @@ export function MobileNavDrawer({
   serviceGroups: PublicProcessingGroup[];
   viewAllProductsLabel: string;
   viewAllServicesLabel: string;
+  /** NAV-P1.1 (V2.1 §63.4) — the accordion toggle's own accessible name, distinct from the adjacent link's visible text. */
+  disclosureAccessibleName: { products: string; services: string };
   phoneSrLabel: string;
   languageSrLabel: string;
   ctaLabel: string;
@@ -186,7 +189,7 @@ export function MobileNavDrawer({
                         <button
                           type="button"
                           aria-expanded={isOpen}
-                          aria-label={link.label}
+                          aria-label={key === "products" ? disclosureAccessibleName.products : disclosureAccessibleName.services}
                           onClick={() => setOpenAccordion(isOpen ? null : key)}
                           className="text-muted-foreground flex min-w-11 items-center justify-center"
                         >

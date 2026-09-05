@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { Menu, Phone } from "lucide-react";
 import { localizedPath, type Locale } from "@/config/locales";
 import { siteConfig } from "@/lib/metadata/site";
-import { navLinks, primaryCta, headerPhoneLabel, dropdownViewAllLabel } from "@/lib/content/nav";
+import { navLinks, primaryCta, headerPhoneLabel, dropdownViewAllLabel, dropdownDisclosureAccessibleName } from "@/lib/content/nav";
 import { CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 import { HeaderNavDisclosure } from "@/components/layout/header-nav-disclosure";
 import { HeaderLanguageSelector } from "@/components/layout/header-language-selector";
@@ -37,8 +37,8 @@ const menuLabel: Record<Locale, { open: string; close: string; nav: string; draw
 };
 
 /**
- * Global site Header — implements AHANASSA_HEADER_FINAL_FROZEN_V2.0.md
- * (Version 2.0, fully frozen). One shared implementation for fa/ar (RTL)
+ * Global site Header — implements docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md
+ * (Version 2.1, fully frozen). One shared implementation for fa/ar (RTL)
  * and en (LTR), §43.9/§58.7 — no locale-specific Header variants.
  *
  * `productFamilies`/`serviceGroups` are both fetched server-side
@@ -63,6 +63,7 @@ export function SiteHeader({
   const t = menuLabel[locale];
   const links = navLinks[locale];
   const viewAllLabels = dropdownViewAllLabel[locale];
+  const disclosureNames = dropdownDisclosureAccessibleName[locale];
 
   useEffect(() => {
     // A modest scroll threshold before the compact state activates (§49.2:
@@ -129,12 +130,12 @@ export function SiteHeader({
         // still lands on a focusable trigger.
         inert={mobileOpen}
         className={cn(
-          "bg-background sticky top-0 z-50 border-b transition-[height,box-shadow] duration-200 motion-reduce:transition-none",
+          "bg-background sticky top-0 z-50 border-b transition-[height,box-shadow] duration-[180ms] motion-reduce:transition-none",
           scrolled ? "border-border shadow-[0_2px_8px_-4px_rgba(11,37,69,0.12)]" : "border-border/60",
         )}
       >
         {/* Header shell height: 80px default / ~68px compact scrolled (desktop, §46.1/§46.3/§58.5); 72px fixed on mobile (§46.2, below `lg`). */}
-        <div className={cn("container-x flex items-center justify-between gap-4 transition-[height] duration-200 motion-reduce:transition-none", "h-[72px] lg:h-20", scrolled && "lg:h-[68px]")}>
+        <div className={cn("container-x flex items-center justify-between gap-4 transition-[height] duration-[180ms] motion-reduce:transition-none", "h-[72px] lg:h-20", scrolled && "lg:h-[68px]")}>
           <Link href={localizedPath(locale, "/")} aria-label={siteConfig.name} className="flex shrink-0 items-center gap-2.5">
             {/* No official horizontal lockup asset exists in this repository yet
                 (verified: only a square mark, public/brand/ahan-asa-mark.jpg —
@@ -153,7 +154,7 @@ export function SiteHeader({
               width={40}
               height={40}
               priority
-              className={cn("rounded-[var(--aa-radius-xs)] transition-[width,height] duration-200 motion-reduce:transition-none", scrolled ? "lg:size-9" : "lg:size-10")}
+              className={cn("rounded-[var(--aa-radius-xs)] transition-[width,height] duration-[180ms] motion-reduce:transition-none", scrolled ? "lg:size-9" : "lg:size-10")}
             />
             <span className="text-navy hidden text-[15px] font-extrabold tracking-[0.06em] sm:inline">{siteConfig.name}</span>
           </Link>
@@ -172,11 +173,13 @@ export function SiteHeader({
               if (link.hasDropdown) {
                 const items = link.path === "/products" ? productItems : serviceItems;
                 const viewAllLabel = link.path === "/products" ? viewAllLabels.products : viewAllLabels.services;
+                const disclosureLabel = link.path === "/products" ? disclosureNames.products : disclosureNames.services;
                 return (
                   <HeaderNavDisclosure
                     key={link.path}
                     href={href}
                     label={link.label}
+                    disclosureLabel={disclosureLabel}
                     isCurrentPage={isCurrentPage}
                     isActiveSection={isActiveSection}
                     items={items}
@@ -274,6 +277,7 @@ export function SiteHeader({
         serviceGroups={serviceGroups}
         viewAllProductsLabel={viewAllLabels.products}
         viewAllServicesLabel={viewAllLabels.services}
+        disclosureAccessibleName={disclosureNames}
         phoneSrLabel={headerPhoneLabel[locale].srLabel}
         languageSrLabel={t.language}
         ctaLabel={primaryCta[locale].full}

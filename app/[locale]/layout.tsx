@@ -47,7 +47,7 @@ export default async function LocaleLayout({
   const direction = getDirection(locale);
 
   // Real Odoo -> Public Product Projection -> Header data source
-  // (AHANASSA_HEADER_FINAL_FROZEN_V2.0.md §4.3/§58.2), fetched once per
+  // (docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md §4.3/§58.2), fetched once per
   // request here (server-rendered, never on Header dropdown open/hover —
   // §52.8/§58.4) and passed down as a prop. A query failure must never
   // break every page on the site (this layout wraps all of them) — falls
@@ -62,7 +62,7 @@ export default async function LocaleLayout({
   }
 
   // Real Odoo -> Public Processing Projection -> Header data source (P5/P6,
-  // AHANASSA_HEADER_FINAL_FROZEN_V2.0.md §26/§52.6/§58.3) — same
+  // docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md §26/§52.6/§58.3) — same
   // fetched-once-per-request/server-rendered/graceful-empty-fallback
   // pattern as `productFamilies` immediately above, deliberately not
   // consolidated into one call: the two read models are independent

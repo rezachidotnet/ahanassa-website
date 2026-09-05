@@ -13,7 +13,7 @@ export interface NavDisclosureItem {
 }
 
 /**
- * Desktop hybrid Products/Services control — AHANASSA_HEADER_FINAL_FROZEN_V2.0.md
+ * Desktop hybrid Products/Services control — docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md
  * §49.7/§58.9: the label is always a real `<Link>` to its landing page; the
  * adjacent chevron `<button>` independently opens/closes a compact floating
  * panel (never a full-width mega menu, §52.1). If the label ever became
@@ -44,6 +44,7 @@ export interface NavDisclosureItem {
 export function HeaderNavDisclosure({
   href,
   label,
+  disclosureLabel,
   isCurrentPage,
   isActiveSection,
   items,
@@ -52,6 +53,8 @@ export function HeaderNavDisclosure({
 }: {
   href: string;
   label: string;
+  /** NAV-P1.1 (V2.1 §63.4) — the chevron's own accessible name, distinct from `label`. */
+  disclosureLabel: string;
   isCurrentPage: boolean;
   isActiveSection: boolean;
   items: NavDisclosureItem[];
@@ -85,7 +88,10 @@ export function HeaderNavDisclosure({
 
   function scheduleClose() {
     cancelClose();
-    closeTimer.current = setTimeout(() => setOpen(false), 150);
+    // Frozen V2.1 §71.3 pointer-exit tolerance — ~180ms, never delaying
+    // Escape/click/focus/route-driven close (all of which call setOpen(false)
+    // directly, bypassing this timer entirely).
+    closeTimer.current = setTimeout(() => setOpen(false), 180);
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
@@ -128,7 +134,7 @@ export function HeaderNavDisclosure({
           type="button"
           aria-expanded={open}
           aria-controls={panelId}
-          aria-label={label}
+          aria-label={disclosureLabel}
           onClick={() => setOpen((v) => !v)}
           className="text-muted-foreground hover:text-navy flex size-8 shrink-0 items-center justify-center transition-colors"
         >

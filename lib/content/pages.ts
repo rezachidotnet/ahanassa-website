@@ -169,7 +169,7 @@ export const marketsCopy: Record<Locale, MarketsCopy> = {
 
 /**
  * `/industries` — supersedes `/markets` as the primary-nav destination for
- * this intent (AHANASSA_HEADER_FINAL_FROZEN_V2.0.md §32). Conceptually
+ * this intent (docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md §32). Conceptually
  * distinct from Markets: "for what industry/project/use case?" rather than
  * geographic/export coverage (§32.3, §32.7) — `/markets`'s own geographic
  * framing (`scopeTitle`/`scopeBody` above) is deliberately NOT reused here.

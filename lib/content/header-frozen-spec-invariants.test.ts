@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { navLinks, primaryCta } from "./nav.ts";
+import { navLinks, primaryCta, dropdownDisclosureAccessibleName } from "./nav.ts";
 
 /**
- * AHANASSA_HEADER_FINAL_FROZEN_V2.0.md acceptance-criteria regression
+ * docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md acceptance-criteria regression
  * coverage. `lib/content/nav.ts` is plain data (no `cloudflare:workers`
  * dependency) so it's directly unit-testable; the component files
  * (SiteHeader.tsx and friends) are JSX/Next.js and pinned as source-text
@@ -285,7 +285,12 @@ test("addendum §1: the Products/Services disclosure label is always a real <Lin
   assert.match(source, /<Link[\s\S]{0,80}href=\{href\}/, "the top-level label must be a real link to its landing page");
   assert.match(source, /aria-expanded=\{open\}/);
   assert.match(source, /aria-controls=\{panelId\}/);
-  assert.match(source, /aria-label=\{label\}/);
+  // NAV-P1.1 (V2.1 §63.4): the chevron's accessible name must be a DISTINCT
+  // prop from the adjacent link's own visible text, never the same string
+  // announced twice — see the dedicated NAV-P1.1 test below for the exact
+  // localized-copy assertion.
+  assert.match(source, /aria-label=\{disclosureLabel\}/);
+  assert.ok(!/aria-label=\{label\}/.test(source), "the chevron must not reuse the adjacent link's own label as its accessible name");
 });
 
 test("addendum §2: the dropdown item list never disables the global focus indicator (outline-none) — a background-tint-only focus cue was a real ~1.05:1 contrast failure", () => {
@@ -467,5 +472,76 @@ test("NAV-P1: the 5 frozen top-level items, their order, and the Products/Servic
     assert.equal(links[2].path, "/industries");
     assert.equal(links[3].path, "/about");
     assert.equal(links[4].path, "/contact");
+  }
+});
+
+// --- NAV-P1.1: Header V2.1 final implementation reconciliation ---
+
+test("NAV-P1.1 (V2.1 §63.4): the chevron accessible-name copy is defined per locale, distinct from the plain link label, and never empty", () => {
+  for (const locale of ["fa", "en", "ar"] as const) {
+    const names = dropdownDisclosureAccessibleName[locale];
+    const linkLabel = navLinks[locale].find((l) => l.path === "/products")!.label;
+    assert.ok(names.products.length > 0 && names.services.length > 0);
+    assert.notEqual(names.products, linkLabel, `${locale}: the chevron's accessible name must not be identical to the adjacent link's own visible text`);
+    assert.notEqual(names.products, names.services, `${locale}: Products and Services must have distinguishable disclosure names`);
+  }
+});
+
+test("NAV-P1.1 (V2.1 §63.4): both HeaderNavDisclosure (desktop) and MobileNavDrawer (accordion) consume the distinct disclosureLabel, never re-deriving it from the plain link label", () => {
+  const disclosureSource = readSource("components/layout/header-nav-disclosure.tsx");
+  assert.match(disclosureSource, /disclosureLabel:\s*string;/, "HeaderNavDisclosure must accept disclosureLabel as its own distinct prop");
+  const drawerSource = readSource("components/layout/mobile-nav-drawer.tsx");
+  assert.match(drawerSource, /disclosureAccessibleName:\s*\{\s*products:\s*string;\s*services:\s*string\s*\}/, "MobileNavDrawer must accept the same distinct accessible-name pair");
+  assert.ok(!/aria-label=\{link\.label\}/.test(stripComments(drawerSource)), "the mobile accordion toggle must not reuse the plain link label as its own accessible name");
+});
+
+test("NAV-P1.1 (V2.1 §71.3): desktop dropdown pointer-exit tolerance is ~180ms, not the prior 150ms", () => {
+  const source = readSource("components/layout/header-nav-disclosure.tsx");
+  assert.match(source, /setTimeout\(\(\)\s*=>\s*setOpen\(false\),\s*180\)/);
+  assert.ok(!/setTimeout\(\(\)\s*=>\s*setOpen\(false\),\s*150\)/.test(source), "the pre-V2.1 150ms value must not remain");
+});
+
+test("NAV-P1.1: the pointer-exit timer never delays Escape/click/route-change close — all three call setOpen(false) directly, never through scheduleClose", () => {
+  const source = stripComments(readSource("components/layout/header-nav-disclosure.tsx"));
+  assert.match(source, /if \(e\.key === "Escape" && open\) \{[\s\S]{0,80}setOpen\(false\);/, "Escape must close immediately, not via the pointer-exit timer");
+  assert.match(source, /useEffect\(\(\) => setOpen\(false\), \[pathname\]\);/, "route change must close immediately");
+});
+
+test("NAV-P1.1 (V2.1 §71.2): Header compact-state transitions target ~180ms, not the prior 200ms", () => {
+  const source = readSource("components/layout/SiteHeader.tsx");
+  const durationMatches = source.match(/duration-\S+/g) ?? [];
+  assert.ok(durationMatches.length > 0, "expected at least one transition-duration utility in SiteHeader.tsx");
+  for (const match of durationMatches) {
+    assert.equal(match, "duration-[180ms]", `unexpected transition duration utility: ${match}`);
+  }
+});
+
+test("NAV-P1.1 (V2.1 §71.1): compact-state activation threshold remains exactly 24px (unchanged, re-confirmed)", () => {
+  const source = readSource("components/layout/SiteHeader.tsx");
+  assert.match(source, /window\.scrollY > 24/);
+});
+
+test("NAV-P1.1 (V2.1 §72.1): the Services dropdown is capped at a named MAX_HEADER_SERVICE_SHORTCUTS = 8 constant, mirroring Products — never hardcoded to today's actual group count", () => {
+  const source = readSource("lib/processing/public-repository.ts");
+  assert.match(source, /export const MAX_HEADER_SERVICE_SHORTCUTS = 8;/);
+  assert.match(source, /\.slice\(0, MAX_HEADER_SERVICE_SHORTCUTS\)/);
+});
+
+test("NAV-P1.1 (V2.1 §70): a site-level sticky-Header anchor-offset rule exists, applied broadly via [id], not as one-off per-section margins", () => {
+  const source = readSource("styles/base.css");
+  assert.match(source, /\[id\]\s*\{[\s\S]{0,120}scroll-margin-block-start/, "must apply scroll-margin-block-start broadly via an [id] selector");
+});
+
+test("NAV-P1.1 (V2.1 §78): opening the mobile drawer never manipulates browser history to intercept Back", () => {
+  for (const file of ["components/layout/SiteHeader.tsx", "components/layout/mobile-nav-drawer.tsx"]) {
+    const source = readSource(file);
+    assert.ok(!/history\.pushState|history\.replaceState|popstate/.test(source), `${file} must not manipulate browser history for drawer open/close`);
+  }
+});
+
+test("NAV-P1.1 (V2.1 §69): the Header still does not independently emit Organization/ContactPoint/PostalAddress structured data (regression, re-confirmed)", () => {
+  for (const file of ["components/layout/SiteHeader.tsx", "components/layout/header-nav-disclosure.tsx", "components/layout/mobile-nav-drawer.tsx", "components/layout/header-language-selector.tsx"]) {
+    const source = readSource(file);
+    assert.ok(!/organizationSchema|jsonLdGraph|"@type":\s*"Organization"/.test(source), `${file} must not independently emit Organization structured data`);
   }
 });

@@ -7,7 +7,7 @@ interface PageProps {
 
 /**
  * `/request` — the frozen primary Header CTA destination
- * (AHANASSA_HEADER_FINAL_FROZEN_V2.0.md §40.2, §58.1). The actual RFQ/
+ * (docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md §40.2, §58.1). The actual RFQ/
  * purchase-list form implementation lives at `/contact`
  * (`app/[locale]/contact/page.tsx`) — redesigning the RFQ form/its own
  * dedicated entry experience is explicitly out of this Header task's scope

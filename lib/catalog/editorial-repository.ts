@@ -965,7 +965,7 @@ export async function getPublicCatalogFilterFacets(locale: Locale, activeFilters
   return computeConditionalFacets(rows, activeFilters);
 }
 
-// --- Header Product Family shortcuts (AHANASSA_HEADER_FINAL_FROZEN_V2.0.md §3-4) ---
+// --- Header Product Family shortcuts (docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md §3-4) ---
 
 export interface HeaderProductFamilyShortcut {
   /** `product_variants.group_code` — this codebase's existing "stable Product Master classification" concept (see `RfqCatalogSelection.groupCode`'s own doc comment) — used here as the Header's "Product Family" navigation level, never SKU/variant/size/grade. */

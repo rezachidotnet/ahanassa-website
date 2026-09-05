@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 /**
  * Industries — supersedes `/markets` as the canonical primary-nav
- * destination (AHANASSA_HEADER_FINAL_FROZEN_V2.0.md §32). `/markets` itself
+ * destination (docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md §32). `/markets` itself
  * is untouched and still reachable; this page reuses its real industries
  * list content, promoted to a properly separated, conceptually distinct
  * route rather than left duplicated only inside the geographic Markets page.

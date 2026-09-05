@@ -1,7 +1,7 @@
 import type { Locale } from "@/config/locales";
 
 /**
- * Primary Header navigation — AHANASSA_HEADER_FINAL_FROZEN_V2.0.md §58.1.
+ * Primary Header navigation — docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md §58.1.
  * Frozen routes: محصولات→/products, خدمات→/services, صنایع→/industries,
  * درباره ما→/about, تماس با ما→/contact. Products/Services are hybrid
  * (real link + separate disclosure control, §49.7/§58.9); Industries/About/
@@ -51,6 +51,21 @@ export const dropdownViewAllLabel: Record<Locale, { products: string; services: 
   fa: { products: "مشاهده همه محصولات", services: "مشاهده همه خدمات" },
   en: { products: "View all products", services: "View all services" },
   ar: { products: "مشاهدة جميع المنتجات", services: "مشاهدة جميع الخدمات" },
+};
+
+/**
+ * NAV-P1.1 (Header V2.1 §63.4) — the icon-only disclosure chevron's own
+ * accessible name, deliberately DISTINCT from the adjacent link's visible
+ * text ("محصولات"/"خدمات") so a screen-reader user hears two different
+ * announcements for two different controls, not the same word twice.
+ * Never a literal word-for-word translation across locales — matches
+ * V2.1's own "localized equivalent" allowance, not an exact FA→AR/EN
+ * mirror.
+ */
+export const dropdownDisclosureAccessibleName: Record<Locale, { products: string; services: string }> = {
+  fa: { products: "گزینه‌های بیشتر محصولات", services: "گزینه‌های بیشتر خدمات" },
+  en: { products: "More product navigation", services: "More service navigation" },
+  ar: { products: "خيارات تنقل المنتجات", services: "خيارات تنقل الخدمات" },
 };
 
 /**

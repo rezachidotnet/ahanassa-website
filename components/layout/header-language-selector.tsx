@@ -8,7 +8,7 @@ import { locales, localeConfig, localizedPath, type Locale } from "@/config/loca
 import { cn } from "@/lib/utils";
 
 /**
- * Desktop compact language selector — AHANASSA_HEADER_FINAL_FROZEN_V2.0.md
+ * Desktop compact language selector — docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md
  * §43.2/§46.14/§58.8: a text utility ("فارسی ▾"), never a pill/button
  * competing with the primary CTA, no country flags. Preserves the current
  * page across languages via `localizedPath` + the pathname stripped of its
