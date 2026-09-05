@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 import { localizedPath, type Locale } from "@/config/locales";
 import { homepageCopy } from "@/lib/content/homepage";
@@ -26,18 +27,22 @@ import { cn } from "@/lib/utils";
  * size="button". Hero owns only width/composition (min-width on desktop,
  * full-width on mobile) and CTA order/spacing.
  *
- * Hero visual: the previous `hero-steel-mill.png` depicted an active
- * production line with workers — a false factory-ownership implication
- * forbidden by §8/§32 (see docs/hero/HERO_P0_CURRENT_IMPLEMENTATION_AUDIT.md).
- * No compliant "Steel + Procurement Evidence" photograph exists in the
- * repository yet (every candidate under public/images/products/* is the
- * same kind of factory-floor/storage-yard photography with visible
- * workers). This remains a TEMPORARY SAFE MEDIA STATE: a pure CSS/SVG
- * panel (no photograph, so it cannot produce a broken-image state)
- * layering a stacked sheet/plate cue, a procurement-checklist cue, and a
- * steel cross-section cue — no readable commercial data, no ownership
- * implication. Replace with owner-approved photography when supplied;
- * nothing else in this component needs to change to do so.
+ * Hero visual: `public/images/hero-steel-procurement.png` — the earlier
+ * `hero-steel-mill.png` (an active production line with workers, a false
+ * factory-ownership implication forbidden by §8/§32, see
+ * docs/hero/HERO_P0_CURRENT_IMPLEMENTATION_AUDIT.md) and the CSS/SVG
+ * temporary placeholder that replaced it are both superseded by this
+ * owner-supplied photo: rebar/IPE/tube/sheet stock, a procurement
+ * clipboard + checklist, rolled drawings, and a faint background
+ * construction-site silhouette — the "Steel + Procurement Evidence"
+ * concept, no owned-factory implication, no readable commercial data in
+ * the image itself. Native 4:3 (1448×1086), matching the visual column's
+ * own aspect-ratio exactly, so `object-cover` shows the image undistorted
+ * with no cropping. Decorative relative to the Hero's own text content
+ * (which already carries every real claim), so it follows this
+ * homepage's established decorative-image convention — empty `alt`, the
+ * column `aria-hidden` — the same pattern `components/home/assurance.tsx`
+ * uses for its own supporting photo.
  *
  * Content note (owner-directed change, post-dates Hero V2.3/V2.4): the
  * static 3-point trust micro-layer those frozen documents specify has
@@ -99,43 +104,21 @@ export function Hero({ locale }: { locale: Locale }) {
                 </a>
               </div>
 
-              <p className="text-muted-foreground mt-6 max-w-xl text-sm leading-relaxed">{t.reassurance}</p>
+              <p className="text-muted-foreground mt-6 max-w-xl text-xs leading-relaxed font-normal">{t.reassurance}</p>
 
               <p className="text-copper mt-8 text-base font-semibold">{t.brandLine}</p>
             </div>
 
             <div className="lg:w-[45%]" aria-hidden="true">
-              <div
-                className="bg-navy relative mx-auto w-full max-w-md overflow-hidden rounded-2xl shadow-[var(--aa-shadow-md)] lg:mx-0"
-                style={{
-                  aspectRatio: "4 / 3",
-                  backgroundImage: "radial-gradient(120% 120% at 18% 12%, var(--aa-color-action-primary-bg-hover) 0%, var(--aa-color-brand-navy-900) 65%)",
-                }}
-              >
-                <div className="hairline-grid absolute inset-0 opacity-40" />
-                <svg viewBox="0 0 400 300" className="absolute inset-0 h-full w-full" focusable="false">
-                  {/* stacked sheet/plate cue */}
-                  <g fill="rgb(255 255 255 / 0.06)">
-                    <rect x="36" y="172" width="220" height="88" rx="10" transform="rotate(-4 146 216)" />
-                    <rect x="58" y="188" width="220" height="88" rx="10" transform="rotate(3 168 232)" />
-                  </g>
-                  {/* procurement checklist / specification-review cue */}
-                  <g stroke="rgb(255 255 255 / 0.5)" strokeWidth="2.5">
-                    <rect x="44" y="54" width="12" height="12" rx="2" />
-                    <rect x="44" y="84" width="12" height="12" rx="2" />
-                    <rect x="44" y="114" width="12" height="12" rx="2" />
-                  </g>
-                  <g stroke="rgb(255 255 255 / 0.3)" strokeWidth="3" strokeLinecap="round">
-                    <line x1="72" y1="60" x2="248" y2="60" />
-                    <line x1="72" y1="90" x2="284" y2="90" />
-                    <line x1="72" y1="120" x2="212" y2="120" />
-                  </g>
-                  {/* steel cross-section cue */}
-                  <g stroke="var(--aa-color-brand-copper-600)" strokeWidth="7" strokeLinecap="round" opacity="0.75">
-                    <line x1="336" y1="176" x2="336" y2="256" />
-                    <line x1="360" y1="176" x2="360" y2="256" />
-                  </g>
-                </svg>
+              <div className="bg-navy relative mx-auto w-full max-w-md overflow-hidden rounded-2xl shadow-[var(--aa-shadow-md)] lg:mx-0" style={{ aspectRatio: "4 / 3" }}>
+                <Image
+                  src="/images/hero-steel-procurement.png"
+                  alt=""
+                  fill
+                  priority
+                  sizes="(min-width: 1024px) 400px, 100vw"
+                  className="object-cover"
+                />
               </div>
             </div>
           </div>

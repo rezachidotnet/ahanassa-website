@@ -57,7 +57,7 @@ test("Hero FA content matches the current owner-directed baseline exactly", () =
   const t = homepageCopy.fa.hero;
   assert.equal(t.eyebrow, "مدیریت تأمین فولاد پروژه");
   assert.equal(t.title, "تأمین فولاد پروژه‌ها");
-  assert.equal(t.body, "آهن آسا مشخصات، گزینه‌های تأمین و شرایط تجاری را بررسی می‌کند تا مسیر خرید شفاف‌ و قابل‌کنترل‌ باشد.");
+  assert.equal(t.body, "آهن آسا مسیر خرید آهن شما را آسان، شفاف و قابل‌کنترل می‌کند.");
   assert.equal(t.secondaryCta, "درخواست قیمت تلفنی");
   assert.equal(t.reassurance, "ارسال لیست خرید برای شما تعهدی ایجاد نمی‌کند.");
   assert.ok(!t.reassurance.includes("ابتدا نیاز شما بررسی می‌شود"), "the dropped reassurance clause must not remain");
@@ -153,22 +153,32 @@ test("Primary CTA is real navigation: no modal/setTimeout/animation-end gating b
 
 // --- §8/§32: visual integrity ---
 
-test("Hero no longer references the removed false-ownership steel-mill image", () => {
-  assert.ok(!HERO_CODE.includes("hero-steel-mill"));
-  assert.ok(!HERO_CODE.includes("next/image"), "the temporary safe media state is pure CSS/SVG — no <Image> dependency, so it cannot produce a broken-image state");
+test("Hero no longer references the removed false-ownership steel-mill image, and uses the real approved photo", () => {
+  assert.ok(!HERO_CODE.includes("hero-steel-mill"), "the false-ownership photo must never be referenced again");
+  assert.ok(HERO_CODE.includes("/images/hero-steel-procurement.png"), "expected the approved Hero photo to be referenced");
 });
 
-test("Hero has no <img> element at all in its current (temporary safe media state) form", () => {
-  assert.ok(!/<img\b/i.test(HERO_CODE));
+test("Hero image is a real next/image <Image>, decorative (empty alt, aria-hidden column), sized/prioritized correctly", () => {
+  const imgMatch = HERO_CODE.match(/<Image\b[\s\S]*?\/>/);
+  assert.ok(imgMatch, "expected a real <Image> element for the Hero photo");
+  const img = imgMatch[0];
+  assert.match(img, /alt=""/, "decorative image (Hero's own text already carries every real claim) — alt must be empty, matching assurance.tsx's convention");
+  assert.match(img, /\bfill\b/, "expected fill layout to match the aspect-ratio-reserving wrapper (no CLS)");
+  assert.match(img, /\bpriority\b/, "Hero photo is above-the-fold — expected priority loading");
+  assert.match(img, /sizes=/, "expected a sizes attribute for responsive delivery");
+  // the column wrapping the image must still be aria-hidden, since the image itself has no unique content
+  const wrapperIndex = HERO_CODE.indexOf('<div className="lg:w-[45%]" aria-hidden="true">');
+  const imageIndex = HERO_CODE.indexOf("<Image");
+  assert.ok(wrapperIndex !== -1 && imageIndex !== -1 && wrapperIndex < imageIndex, "expected the Image to remain inside the aria-hidden visual column");
 });
 
-test("Temporary safe media state renders more than a single decorative element (HERO-P1.1: must not feel empty)", () => {
-  const svgMatch = HERO_CODE.match(/<svg[\s\S]*?<\/svg>/);
-  assert.ok(svgMatch, "expected an inline SVG for the temporary media state");
-  const rectCount = (svgMatch[0].match(/<rect/g) ?? []).length;
-  const lineCount = (svgMatch[0].match(/<line/g) ?? []).length;
-  assert.ok(rectCount >= 2, "expected stacked-plate + checklist rect cues, not a single flat shape");
-  assert.ok(lineCount >= 2, "expected multiple line cues (checklist rows + steel cross-section)");
+test("Hero image cannot produce a broken-image state that hides real content — copy/CTAs are DOM siblings, not dependent on the image", () => {
+  // The image column is a sibling of the copy column (both children of the
+  // same flex row), not a wrapper around it — verified structurally: the
+  // copy column's closing tag appears before the image column opens.
+  const copyColumnEnd = HERO_CODE.indexOf("{t.brandLine}");
+  const imageColumnStart = HERO_CODE.indexOf('<div className="lg:w-[45%]"');
+  assert.ok(copyColumnEnd !== -1 && imageColumnStart !== -1 && copyColumnEnd < imageColumnStart, "copy column must fully precede the image column in the DOM, not wrap it");
 });
 
 // --- V2.4 §2/§5/§6: Shared Button Component adoption ---
@@ -185,6 +195,21 @@ test("Hero Secondary CTA consumes the Shared Button Component (buttonVariants va
 test("Hero does not duplicate a local .hero-cta Button token set (V2.4 §2 — Hero no longer owns Button geometry)", () => {
   assert.ok(!HERO_CODE.includes("hero-cta"), "hero.tsx must not reference a Hero-local Button class any more");
   assert.ok(!CSS_CODE.includes(".hero-cta"), "theme-extensions.css must not keep a Hero-local Button class any more — superseded by .aa-button in button.tsx's shared variants");
+});
+
+// --- reassurance: reduced prominence, still always visible (never hover/tooltip-only) ---
+
+test("Reassurance is subordinate styling (smaller than supporting copy, muted, no bold/border/background/icon) but always visible", () => {
+  const reassuranceMatch = HERO_CODE.match(/className="([^"]*)">\{t\.reassurance\}/);
+  assert.ok(reassuranceMatch, "expected to find the reassurance paragraph's className");
+  const cls = reassuranceMatch[1];
+  assert.match(cls, /\btext-muted-foreground\b/, "must use the existing muted semantic token, not a new color");
+  assert.match(cls, /\btext-xs\b/, "must be smaller than supporting copy (text-lg) and the process labels (text-sm)");
+  assert.ok(!/font-(bold|semibold|extrabold)/.test(cls), "must not be bold");
+  assert.ok(!/\bborder\b|\bbg-(?!transparent)/.test(cls), "must not have its own border or background box");
+  // it must not be hidden behind hover/focus-only visibility or a <details>/tooltip pattern
+  assert.ok(!/\bhidden\b|group-hover:|peer-hover:|hover:opacity|focus:opacity/.test(cls), "reassurance must be visible without interaction on desktop, mobile, keyboard, or touch");
+  assert.ok(!/<details|role="tooltip"|title=\{t\.reassurance\}/.test(HERO_CODE), "reassurance must not be implemented as a tooltip/disclosure");
 });
 
 // --- §6: brand line theme alignment ---
