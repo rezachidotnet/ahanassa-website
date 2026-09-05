@@ -1,0 +1,197 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+import { homepageCopy } from "./homepage.ts";
+import { primaryCta } from "./nav.ts";
+import { CONTACT_PHONE_E164 } from "./contact-channels.ts";
+
+/**
+ * docs/hero/AHANASSA_HERO_FINAL_FROZEN_V2.3.md acceptance-criteria
+ * regression coverage (HERO-P1). `lib/content/homepage.ts`/`nav.ts`/
+ * `contact-channels.ts` are plain data (no `cloudflare:workers`/`next/*`
+ * dependency) so they're directly unit-testable; `components/home/hero.tsx`
+ * imports `next/link` and cannot be rendered under plain `node --test` in
+ * this repo (no real `next` package — only `vinext`), so it is pinned as
+ * source-text invariants instead, matching this repo's established
+ * convention (see `lib/content/header-frozen-spec-invariants.test.ts`,
+ * `lib/pricing/price-strip-static.test.ts`).
+ */
+
+const REPO_ROOT = path.resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
+function readSource(relativePath: string): string {
+  return readFileSync(path.join(REPO_ROOT, relativePath), "utf8");
+}
+
+const HERO_SOURCE = readSource("components/home/hero.tsx");
+const CSS_SOURCE = readSource("styles/theme-extensions.css");
+
+/**
+ * Strips /* * / block comments and // line comments before a "must not
+ * contain X" assertion runs — this file's own explanatory comments
+ * legitimately NAME the forbidden/removed patterns (to explain why they
+ * were avoided/removed), which otherwise produces a false-positive match
+ * against the literal code-level check (same reasoning as
+ * header-frozen-spec-invariants.test.ts's stripComments helper).
+ */
+function stripComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+}
+const HERO_CODE = stripComments(HERO_SOURCE);
+const CSS_CODE = stripComments(CSS_SOURCE);
+
+// --- §2-6: frozen FA content ---
+
+test("Hero FA content matches the frozen V2.3 baseline exactly", () => {
+  const t = homepageCopy.fa.hero;
+  assert.equal(t.eyebrow, "مدیریت تأمین فولاد پروژه");
+  assert.equal(t.title, "تأمین فولاد پروژه، با بررسی فنی و تجاری پیش از خرید.");
+  assert.equal(
+    t.body,
+    "لیست خرید یا نیاز پروژه را ارسال کنید؛ آهن آسا مشخصات، گزینه‌های تأمین و شرایط تجاری را بررسی می‌کند تا مسیر خرید شفاف‌تر و قابل‌کنترل‌تر باشد.",
+  );
+  assert.equal(t.secondaryCta, "درخواست قیمت تلفنی");
+  assert.equal(t.reassurance, "ارسال لیست خرید برای شما تعهدی ایجاد نمی‌کند؛ ابتدا نیاز شما بررسی می‌شود.");
+  assert.deepEqual(t.trust, ["بررسی فنی نیاز", "مقایسه گزینه‌های تأمین", "هماهنگی خرید"]);
+  assert.equal(t.brandLine, "ما مراقب سرمایه شما هستیم.");
+  assert.equal(primaryCta.fa.full, "ارسال لیست خرید");
+});
+
+test("Hero trust micro-layer is exactly 3 points for every locale (§5/§31 max-3 rule)", () => {
+  for (const locale of ["fa", "en", "ar"] as const) {
+    assert.equal(homepageCopy[locale].hero.trust.length, 3, `${locale}: trust must have exactly 3 points`);
+  }
+});
+
+test("Hero reassurance/brandLine/secondaryCta are non-empty, distinct strings for every locale", () => {
+  for (const locale of ["fa", "en", "ar"] as const) {
+    const t = homepageCopy[locale].hero;
+    assert.ok(t.reassurance.length > 0);
+    assert.ok(t.brandLine.length > 0);
+    assert.ok(t.secondaryCta.length > 0);
+    assert.notEqual(t.reassurance, t.body);
+    assert.notEqual(t.brandLine, t.title);
+  }
+});
+
+test("Hero en/ar copy never reuses Persian text (real localized equivalents, not FA fallbacks)", () => {
+  const fa = homepageCopy.fa.hero;
+  for (const locale of ["en", "ar"] as const) {
+    const t = homepageCopy[locale].hero;
+    assert.notEqual(t.title, fa.title);
+    assert.notEqual(t.body, fa.body);
+    assert.notEqual(t.eyebrow, fa.eyebrow);
+  }
+  // en/ar must not be identical to each other either
+  assert.notEqual(homepageCopy.en.hero.title, homepageCopy.ar.hero.title);
+});
+
+test("Hero copy never overclaims (no guarantee/best-price/fastest-delivery language) in any locale", () => {
+  const forbidden = [/guarantee/i, /best price/i, /fastest delivery/i, /100%/, /تضمین/, /بهترین قیمت/, /ضمانت/, /ضمان/, /أفضل سعر/];
+  for (const locale of ["fa", "en", "ar"] as const) {
+    const t = homepageCopy[locale].hero;
+    const text = [t.eyebrow, t.title, t.body, t.reassurance, t.brandLine, t.secondaryCta, ...t.trust].join(" ");
+    for (const pattern of forbidden) {
+      assert.ok(!pattern.test(text), `${locale}: Hero copy must not match forbidden claim pattern ${pattern}`);
+    }
+  }
+});
+
+// --- §30.1/§30.2: CTA integrity ---
+
+test("Secondary CTA phone source is the centralized Central Verified Business Identity number, not a Hero-local hardcode", () => {
+  assert.match(CONTACT_PHONE_E164, /^\+\d{6,15}$/);
+  assert.ok(HERO_CODE.includes("CONTACT_PHONE_E164"), "hero.tsx must import the shared phone constant");
+  assert.ok(!/tel:\+\d{6,15}/.test(HERO_CODE), "hero.tsx must not hardcode a raw tel: number — it must build the href from CONTACT_PHONE_E164");
+});
+
+test("Secondary CTA uses a real tel: action for every locale (no WhatsApp fallback)", () => {
+  assert.ok(!HERO_CODE.includes("WHATSAPP"), "Hero must not reference a WhatsApp channel — §30.2 requires phone for every locale");
+  assert.ok(!HERO_CODE.includes("wa.me"));
+});
+
+test("Primary CTA points at /request, never /contact", () => {
+  assert.ok(/localizedPath\(locale,\s*"\/request"\)/.test(HERO_CODE), "Primary CTA href must resolve via localizedPath(locale, \"/request\")");
+  assert.ok(!/localizedPath\(locale,\s*"\/contact"\)/.test(HERO_CODE), "Hero must not route its Primary CTA to /contact");
+});
+
+test("Primary CTA is real navigation: no modal/setTimeout/animation-end gating before it fires (§9/§58)", () => {
+  assert.ok(!/setTimeout/.test(HERO_CODE));
+  assert.ok(!/animationend/i.test(HERO_CODE));
+  assert.ok(!/onClick/.test(HERO_CODE), "Hero CTAs must be plain <Link>/<a> elements with no click-intercepting handler");
+});
+
+// --- §8/§32: visual integrity ---
+
+test("Hero no longer references the removed false-ownership steel-mill image", () => {
+  assert.ok(!HERO_CODE.includes("hero-steel-mill"));
+  assert.ok(!HERO_CODE.includes("next/image"), "the temporary safe media state is pure CSS/SVG — no <Image> dependency, so it cannot produce a broken-image state");
+});
+
+test("Hero has no <img> element at all in its current (temporary safe media state) form", () => {
+  assert.ok(!/<img\b/i.test(HERO_CODE));
+});
+
+// --- §11/§16/§19/§25: layout/motion prohibitions ---
+
+test("Hero never forces 100vh as its default height", () => {
+  assert.ok(!/100vh/.test(HERO_CODE));
+});
+
+test("Hero contains no carousel/slider/autoplay/parallax markup", () => {
+  for (const pattern of [/carousel/i, /slider/i, /autoplay/i, /parallax/i, /<video/i]) {
+    assert.ok(!pattern.test(HERO_CODE), `Hero must not contain ${pattern}`);
+  }
+});
+
+test("Hero content is not hidden behind opacity:0 pending JS (progressive-enhancement baseline)", () => {
+  assert.ok(!/opacity-0\b/.test(HERO_CODE) && !/opacity:\s*0/.test(HERO_CODE));
+  assert.ok(!HERO_CODE.includes('"use client"'), "Hero must remain a server component — no client-side reveal dependency");
+});
+
+// --- §22/§27/§28: trust/claim + structured-data boundary ---
+
+test("Hero contains no fake metric/claim patterns (counters, tonnage, reviews, guarantees, logos)", () => {
+  for (const pattern of [/\d+[,.]?\d*\s*(tons?|customers?|years?)/i, /★/, /trustpilot/i, /testimonial/i, /verified purchase/i]) {
+    assert.ok(!pattern.test(HERO_CODE), `Hero must not contain ${pattern}`);
+  }
+  assert.ok(!/application\/ld\+json/.test(HERO_CODE), "Hero must not emit its own structured data from decorative content");
+});
+
+test("Hero performs no client-side Odoo/commercial data fetch", () => {
+  for (const pattern of [/fetch\(/, /odoo/i, /useEffect/, /useState/]) {
+    assert.ok(!pattern.test(HERO_CODE), `Hero must remain a static server component — found ${pattern}`);
+  }
+});
+
+// --- §56/§57: forced-colors + focus-visible CSS contract ---
+
+test(":focus-visible is used for the Hero CTA focus treatment, not a blanket :focus{outline:none}", () => {
+  assert.ok(CSS_CODE.includes(".hero-cta:focus-visible"));
+  assert.ok(!/\.hero-cta\s*:focus\s*\{[^}]*outline:\s*none/.test(CSS_CODE));
+});
+
+test("forced-colors support exists for Hero CTAs and does not use forced-color-adjust:none", () => {
+  const heroCtaBlockMatch = CSS_CODE.match(/@media \(forced-colors: active\)[\s\S]*?\.hero-cta[\s\S]*?\}\s*\}/);
+  assert.ok(heroCtaBlockMatch, "expected an @media (forced-colors: active) block covering .hero-cta");
+  assert.ok(!CSS_CODE.includes("forced-color-adjust: none"), "Hero must not fight the user's forced-colors palette (§56.2)");
+});
+
+test("Hero CTA active/pressed state is capped at scale(0.98), no bounce/overshoot", () => {
+  assert.ok(CSS_CODE.includes("scale(0.98)"));
+  assert.ok(!/scale\(1\.\d/.test(CSS_CODE.match(/\.hero-cta[\s\S]*?\}/)?.[0] ?? ""), "no overshoot scale on .hero-cta");
+});
+
+// --- §17/§22.2: mobile content order (statically verifiable via source order) ---
+
+test("Hero copy elements appear in the frozen order in source: eyebrow, H1, body, primary CTA, secondary CTA, reassurance, trust, brand line", () => {
+  const markers = ["eyebrow", "<h1", "t.body", 'href={localizedPath(locale, "/request")', "tel:${CONTACT_PHONE_E164}", "t.reassurance", "t.trust.map", "t.brandLine"];
+  let lastIndex = -1;
+  for (const marker of markers) {
+    const index = HERO_CODE.indexOf(marker);
+    assert.ok(index !== -1, `expected to find "${marker}" in hero.tsx`);
+    assert.ok(index > lastIndex, `"${marker}" must appear after the previous frozen-order element`);
+    lastIndex = index;
+  }
+});

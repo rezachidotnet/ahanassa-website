@@ -90,3 +90,73 @@
     }
   }
 }
+
+/**
+ * Hero CTA structural contract (Hero Frozen V2.3 §53/§56/§57/§58) — scoped
+ * to the Homepage Hero only, deliberately not merged into the shared
+ * `buttonVariants` (components/ui/button.tsx), which also backs the Header
+ * CTA (frozen V2.1, do not reopen) and other unrelated pages. Color/fill is
+ * still expressed via ordinary Tailwind utility classes at the call site;
+ * this class only fixes shape/height/font/focus/motion/forced-colors, which
+ * V2.3 requires identically for Primary and Secondary.
+ */
+@layer utilities {
+  .hero-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.625rem;
+    height: 3.25rem; /* 52px — within the frozen 48–52px desktop range and >=48px mobile */
+    padding-inline: 1.75rem; /* 28px — within the frozen 24–32px range */
+    border-radius: var(--aa-radius-sm); /* 8px — within the frozen 6–8px range */
+    font-size: var(--aa-text-body-md); /* 16px — within the frozen 15–16px range */
+    font-weight: var(--aa-font-weight-semibold);
+    line-height: 1;
+    white-space: nowrap;
+    transition:
+      background-color var(--aa-motion-fast) var(--aa-ease-standard),
+      border-color var(--aa-motion-fast) var(--aa-ease-standard),
+      transform var(--aa-motion-instant) var(--aa-ease-standard);
+  }
+  .hero-cta:active {
+    transform: scale(0.98);
+  }
+  .hero-cta:focus-visible {
+    /* White, not the usual copper focus-ring token: measured against Hero's
+       navy surface, copper (#B04A2F) on navy (#0B2545) computes to ~2.8:1,
+       below the required 3:1 non-text contrast — white clears ~15:1. */
+    outline: 2px solid var(--aa-color-white);
+    outline-offset: 3px;
+  }
+}
+
+@layer utilities {
+  @media (prefers-reduced-motion: reduce) {
+    .hero-cta {
+      transition: none;
+    }
+    .hero-cta:active {
+      transform: none;
+    }
+  }
+}
+
+@layer utilities {
+  /* Per Hero V2.3 §56.2: do not fight the user's forced-colors palette with
+     `forced-color-adjust: none` — only guarantee a visible boundary/focus
+     ring; text/fill colors are left to the browser's own neutralization.
+     `!important` here is deliberate: at equal specificity this rule must
+     still beat the unconditional `border-white/45`/`border` Tailwind
+     utility classes on the same elements, which otherwise win the cascade
+     by appearing later in the compiled stylesheet — measured live, without
+     `!important` the forced-colors border computed to 0px (invisible). */
+  @media (forced-colors: active) {
+    .hero-cta {
+      border: 2px solid ButtonBorder !important;
+    }
+    .hero-cta:focus-visible {
+      outline: 2px solid Highlight;
+      outline-offset: 3px;
+    }
+  }
+}

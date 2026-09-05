@@ -18,10 +18,12 @@ export interface HomepageCopy {
     eyebrow: string;
     title: string;
     body: string;
+    /** Frozen Hero V2.3 §4 — low-risk reassurance shown after the CTA pair. */
+    reassurance: string;
+    /** Frozen Hero V2.3 §5 — exactly 3 short, text-first trust points (no badges/icons/counters). */
+    trust: string[];
     brandLine: string;
     secondaryCta: string;
-    /** Replaces v0's fabricated stat rail with the four protection controls, unitless. */
-    rail: { title: string; body: string }[];
   };
   productShowcase: {
     eyebrow: string;
@@ -70,17 +72,13 @@ export interface HomepageCopy {
 export const homepageCopy: Record<Locale, HomepageCopy> = {
   fa: {
     hero: {
-      eyebrow: "مدیریت تأمین و خرید پروژه‌ای فولاد",
-      title: "خرید آهن را به یک تصمیم مطمئن تبدیل کنید.",
-      body: "فاکتور یا لیست خریدتان را بفرستید؛ آهن آسا نیاز پروژه، گزینه‌های تأمین و مسیر خرید را با نگاه فنی و تجاری بررسی و هماهنگ می‌کند.",
+      eyebrow: "مدیریت تأمین فولاد پروژه",
+      title: "تأمین فولاد پروژه، با بررسی فنی و تجاری پیش از خرید.",
+      body: "لیست خرید یا نیاز پروژه را ارسال کنید؛ آهن آسا مشخصات، گزینه‌های تأمین و شرایط تجاری را بررسی می‌کند تا مسیر خرید شفاف‌تر و قابل‌کنترل‌تر باشد.",
+      reassurance: "ارسال لیست خرید برای شما تعهدی ایجاد نمی‌کند؛ ابتدا نیاز شما بررسی می‌شود.",
+      trust: ["بررسی فنی نیاز", "مقایسه گزینه‌های تأمین", "هماهنگی خرید"],
       brandLine: "ما مراقب سرمایه شما هستیم.",
       secondaryCta: "درخواست قیمت تلفنی",
-      rail: [
-        { title: "شفافیت در نیاز", body: "مشخصات و زمان‌بندی پیش از تعهد نهایی روشن می‌شود" },
-        { title: "کنترل تأمین", body: "گزینه‌های تأمین مقایسه و ارزیابی می‌شوند" },
-        { title: "حفاظت تجاری", body: "نه فقط قیمت واحد — مستندات، زمان‌بندی و شرایط پرداخت هم بررسی می‌شود" },
-        { title: "هماهنگی تحویل", body: "مراحل خرید تا تحویل پیگیری می‌شود" },
-      ],
     },
     productShowcase: {
       eyebrow: "محصولات",
@@ -134,16 +132,12 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
   en: {
     hero: {
       eyebrow: "Project steel procurement management",
-      title: "Turn buying steel into a confident decision.",
-      body: "Send your invoice or purchase list — Ahan Asa reviews the project requirement, sourcing options, and purchasing path with both technical and commercial judgment.",
+      title: "Project steel procurement, reviewed technically and commercially before purchase.",
+      body: "Send your purchase list or project requirement — Ahan Asa reviews the specification, sourcing options, and commercial terms so your purchasing path is clearer and easier to control.",
+      reassurance: "Sending your purchase list creates no commitment — your requirement is reviewed first.",
+      trust: ["Technical requirement review", "Sourcing options compared", "Purchase coordination"],
       brandLine: "We protect your capital.",
-      secondaryCta: "Request a quote on WhatsApp",
-      rail: [
-        { title: "Requirement clarity", body: "Specification and timing clarified before commitment" },
-        { title: "Sourcing control", body: "Sourcing options compared and evaluated" },
-        { title: "Commercial protection", body: "Not unit price alone — documentation, timing, and payment terms too" },
-        { title: "Delivery coordination", body: "Purchasing steps tracked through to delivery" },
-      ],
+      secondaryCta: "Request a phone quote",
     },
     productShowcase: {
       eyebrow: "Products",
@@ -196,17 +190,13 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
   },
   ar: {
     hero: {
-      eyebrow: "إدارة توريد وشراء الصلب للمشاريع",
-      title: "حوّل شراء الحديد إلى قرار مطمئن.",
-      body: "أرسل فاتورتك أو قائمة الشراء الخاصة بك؛ يقوم آهن آسا بمراجعة احتياج المشروع وخيارات التوريد ومسار الشراء بنظرة فنية وتجارية.",
+      eyebrow: "إدارة توريد الصلب للمشاريع",
+      title: "توريد صلب المشاريع، بعد مراجعة فنية وتجارية قبل الشراء.",
+      body: "أرسل قائمة الشراء أو احتياج مشروعك؛ يراجع آهن آسا المواصفات وخيارات التوريد والشروط التجارية ليكون مسار الشراء أكثر وضوحًا وقابلية للتحكم.",
+      reassurance: "إرسال قائمة الشراء لا يُنشئ أي التزام عليك؛ تتم مراجعة احتياجك أولاً.",
+      trust: ["مراجعة الاحتياج الفني", "مقارنة خيارات التوريد", "تنسيق عملية الشراء"],
       brandLine: "نحن نحرص على رأس مالك.",
-      secondaryCta: "طلب سعر عبر واتساب",
-      rail: [
-        { title: "وضوح الاحتياج", body: "توضيح المواصفات والتوقيت قبل الالتزام" },
-        { title: "التحكم في التوريد", body: "مقارنة وتقييم خيارات التوريد" },
-        { title: "الحماية التجارية", body: "ليس السعر فقط — المستندات والتوقيت وشروط الدفع أيضًا" },
-        { title: "تنسيق التسليم", body: "متابعة خطوات الشراء حتى التسليم" },
-      ],
+      secondaryCta: "طلب عرض سعر هاتفيًا",
     },
     productShowcase: {
       eyebrow: "المنتجات",
