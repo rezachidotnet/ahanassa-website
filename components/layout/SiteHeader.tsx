@@ -197,10 +197,21 @@ export function SiteHeader({
                   key={link.path}
                   href={href}
                   aria-current={isCurrentPage ? "page" : undefined}
-                  className={cn("relative px-3.5 py-2 text-sm font-medium transition-colors", isActiveSection ? "text-navy" : "text-muted-foreground hover:text-navy")}
+                  className={cn("group relative px-3.5 py-2 text-sm font-medium transition-colors", isActiveSection ? "text-navy" : "text-muted-foreground hover:text-navy")}
                 >
                   {link.label}
-                  {isActiveSection && <span className="bg-copper absolute inset-x-3.5 -bottom-px h-0.5" aria-hidden="true" />}
+                  {/* Hover/focus underline reuses the same reserved-space
+                      indicator as the persistent active-section underline
+                      (absolute, laid out up front) — only opacity toggles,
+                      so nothing shifts layout and hover/active never fight
+                      each other (active always wins via opacity-100). */}
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "bg-copper pointer-events-none absolute inset-x-3.5 -bottom-px h-0.5 opacity-0 transition-opacity duration-[180ms] motion-reduce:transition-none",
+                      isActiveSection ? "opacity-100" : "group-hover:opacity-100 group-focus-visible:opacity-100",
+                    )}
+                  />
                 </Link>
               );
             })}
@@ -217,16 +228,24 @@ export function SiteHeader({
                 (Nav/Phone-text/Language/CTA) — using a different breakpoint
                 for phone/language than for nav/CTA/hamburger would leave a
                 broken overlapping state in the tablet range. */}
-            <a href={`tel:${CONTACT_PHONE_E164}`} aria-label={headerPhoneLabel[locale].srLabel} className="text-navy inline-flex size-11 items-center justify-center lg:hidden">
-              <Phone className="size-5" aria-hidden="true" />
-            </a>
             <a
               href={`tel:${CONTACT_PHONE_E164}`}
               aria-label={headerPhoneLabel[locale].srLabel}
-              className="text-muted-foreground hover:text-navy hidden items-center gap-1.5 text-sm font-medium transition-colors lg:inline-flex"
+              className="text-copper hover:text-[var(--aa-color-action-accent-bg-hover)] inline-flex size-11 items-center justify-center transition-colors lg:hidden"
+            >
+              <Phone className="size-5" aria-hidden="true" />
+            </a>
+            {/* Icon is deliberately colored on its own (not inherited from
+                the anchor's text color) — the phone number text keeps the
+                existing foreground/hover treatment; only the icon carries
+                the Copper accent, per Contact CTA polish scope. */}
+            <a
+              href={`tel:${CONTACT_PHONE_E164}`}
+              aria-label={headerPhoneLabel[locale].srLabel}
+              className="group text-muted-foreground hover:text-navy hidden items-center gap-1.5 text-sm font-medium transition-colors lg:inline-flex"
               dir="ltr"
             >
-              <Phone className="size-4" aria-hidden="true" />
+              <Phone className="text-copper group-hover:text-[var(--aa-color-action-accent-bg-hover)] size-4 transition-colors" aria-hidden="true" />
               {CONTACT_PHONE_E164}
             </a>
 

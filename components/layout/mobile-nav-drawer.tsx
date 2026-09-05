@@ -233,7 +233,7 @@ export function MobileNavDrawer({
           </ul>
 
           <a href={`tel:${CONTACT_PHONE_E164}`} aria-label={phoneSrLabel} className="text-navy border-border mt-4 flex min-h-11 items-center gap-2 border-t py-4 text-sm font-medium">
-            <Phone className="size-4" aria-hidden="true" />
+            <Phone className="text-copper size-4" aria-hidden="true" />
             {CONTACT_PHONE_E164}
           </a>
 

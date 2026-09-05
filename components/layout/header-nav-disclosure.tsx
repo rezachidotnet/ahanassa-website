@@ -110,10 +110,16 @@ export function HeaderNavDisclosure({
       <Link
         href={href}
         aria-current={isCurrentPage ? "page" : undefined}
-        className={cn("relative px-3.5 py-2 text-sm font-medium transition-colors", isActiveSection ? "text-navy" : "text-muted-foreground hover:text-navy", className)}
+        className={cn("group relative px-3.5 py-2 text-sm font-medium transition-colors", isActiveSection ? "text-navy" : "text-muted-foreground hover:text-navy", className)}
       >
         {label}
-        {isActiveSection && <span className="bg-copper absolute inset-x-3.5 -bottom-px h-0.5" aria-hidden="true" />}
+        <span
+          aria-hidden="true"
+          className={cn(
+            "bg-copper pointer-events-none absolute inset-x-3.5 -bottom-px h-0.5 opacity-0 transition-opacity motion-reduce:transition-none",
+            isActiveSection ? "opacity-100" : "group-hover:opacity-100 group-focus-visible:opacity-100",
+          )}
+        />
       </Link>
     );
   }
@@ -124,10 +130,20 @@ export function HeaderNavDisclosure({
         <Link
           href={href}
           aria-current={isCurrentPage ? "page" : undefined}
-          className={cn("relative py-2 ps-3.5 text-sm font-medium transition-colors", isActiveSection ? "text-navy" : "text-muted-foreground hover:text-navy")}
+          className={cn("group relative py-2 ps-3.5 text-sm font-medium transition-colors", isActiveSection ? "text-navy" : "text-muted-foreground hover:text-navy")}
         >
           {label}
-          {isActiveSection && <span className="bg-copper absolute inset-x-3.5 -bottom-px h-0.5" aria-hidden="true" />}
+          {/* Same reserved-space indicator as SiteHeader.tsx's plain nav
+              links — hover/focus fade it in, active keeps it persistent;
+              the adjacent chevron <button> is a separate sibling element,
+              so this never touches its own hit area or aria state. */}
+          <span
+            aria-hidden="true"
+            className={cn(
+              "bg-copper pointer-events-none absolute inset-x-3.5 -bottom-px h-0.5 opacity-0 transition-opacity motion-reduce:transition-none",
+              isActiveSection ? "opacity-100" : "group-hover:opacity-100 group-focus-visible:opacity-100",
+            )}
+          />
         </Link>
         <button
           ref={chevronRef}
