@@ -974,33 +974,70 @@ export interface HeaderProductFamilyShortcut {
 }
 
 /**
+ * Frozen V2.0 §5 hard cap — the Products dropdown never renders more than
+ * this many direct shortcuts, regardless of how many real groups are
+ * publication-eligible (NAV-P1 §20: a regression guard against future
+ * catalog growth, not a guess at the current count — only 3 groups are
+ * eligible today, but this constant is never "3" or "7"). "View all
+ * products" (a separate, existing link) remains available regardless.
+ */
+export const MAX_HEADER_PRODUCT_SHORTCUTS = 8;
+
+/**
  * Real Odoo -> Public Product Projection -> Header data source (frozen
  * spec §4.3/§58.2) — deliberately NOT a frontend-hardcoded commercial list.
  * Derives the DISTINCT group classification among variants belonging to
  * currently publication-eligible templates only (the exact same
  * `TEMPLATE_PUBLICATION_WHERE_CONDITIONS` gate every other public read
  * uses), so the Header can never link to/imply a family with zero real
- * published products behind it. Group name is read per-locale is not
- * modeled today (group_name is a single Odoo-sourced string, not yet
- * localized per (fa/en/ar) — same limitation `RfqCatalogSelection` already
- * has); documented as a real, pre-existing gap, not invented here.
+ * published products behind it.
+ *
+ * NAV-P1: `name` is now locale-aware. The Odoo Public Catalog API v1
+ * genuinely resolves classification names per `locale=fa|en|ar`
+ * (docs/integrations/odoo/catalog-v1/PUBLIC_CATALOG_API_V1.md), but the
+ * existing full/incremental sync only ever persisted the `fa` result into
+ * `product_variants.group_name` (a single, non-per-locale column) — this
+ * query now prefers the real, per-locale name synced separately into
+ * `catalog_group_labels` (migrations_public/0009,
+ * `lib/catalog/group-label-sync-runner.ts`) via a `LEFT JOIN`, falling
+ * back to the historical single-locale `pv.group_name` column ONLY when no
+ * row has been synced yet for this exact `(group_code, locale)` pair —
+ * never `undefined`/a raw translation key/an empty string (NAV-P1 §17's
+ * fallback policy: requested locale -> this table's authoritative value ->
+ * the historical column as a stable, always-real neutral fallback, never a
+ * fabricated one).
+ *
+ * Ordering is `pv.group_code` (the stable, locale-invariant identity), not
+ * any name — NAV-P1 §19: sorting by a translated label would make the
+ * Products dropdown's visible order silently vary per locale, which the
+ * frozen spec's "controlled navigation ordering" requirement forbids. No
+ * dedicated navigation-sequence field exists for Catalog groups in the
+ * real, currently-fed v1 schema (verified: `sort_order` only exists on the
+ * unrelated, not-fed-by-this-integration `catalog_categories`/
+ * `attribute_definitions`/`attribute_values` tables) — `group_code` is the
+ * smallest correct, already-stable substitute, not a new field invented
+ * for this purpose.
  */
 export async function listHeaderProductFamilyShortcuts(locale: Locale): Promise<HeaderProductFamilyShortcut[]> {
   const db = getPublicDb();
   const where = TEMPLATE_PUBLICATION_WHERE_CONDITIONS;
   const result = await db
     .prepare(
-      `SELECT DISTINCT pv.group_code as group_code, pv.group_name as group_name
+      `SELECT DISTINCT pv.group_code as group_code, COALESCE(l.name, pv.group_name) as group_name
        FROM product_variants pv
        JOIN catalog_products cp ON cp.id = pv.product_id
        JOIN product_seo_contents s ON s.entity_type = 'product' AND s.entity_id = cp.id
+       LEFT JOIN catalog_group_labels l ON l.group_code = pv.group_code AND l.locale = ?
        WHERE pv.is_active = 1 AND pv.is_public = 1 AND pv.group_code IS NOT NULL AND ${where.join(" AND ")}
-       ORDER BY pv.group_name ASC`,
+       ORDER BY pv.group_code ASC`,
     )
-    .bind(locale)
+    .bind(locale, locale)
     .all<{ group_code: string; group_name: string | null }>();
 
-  return (result.results ?? []).filter((r) => r.group_name).map((r) => ({ code: r.group_code, name: r.group_name! }));
+  return (result.results ?? [])
+    .filter((r) => r.group_name)
+    .map((r) => ({ code: r.group_code, name: r.group_name! }))
+    .slice(0, MAX_HEADER_PRODUCT_SHORTCUTS);
 }
 
 // --- Sitemap boundary (docs/CATALOG_PUBLIC_ROUTES.md §Sitemap) ---

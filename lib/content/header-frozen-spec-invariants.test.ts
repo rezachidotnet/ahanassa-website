@@ -398,3 +398,74 @@ test("addendum §5: x-default hreflang resolution is already authoritative (poin
   const source = readSource("lib/metadata/resolve.ts");
   assert.match(source, /x-default/, "an x-default entry must be produced by the existing language-alternates builder");
 });
+
+// --- NAV-P1: Product group label localization ---
+// listHeaderProductFamilyShortcuts touches D1 (cloudflare:workers) and
+// cannot be imported under plain node --test — pinned as source-text
+// invariants here, matching this file's own established convention; the
+// actual query BEHAVIOR (fa/en/ar resolution, fallback, stable order) was
+// verified live against local D1 as part of NAV-P1 (see
+// docs/navigation/NAV_P1_PRODUCT_GROUP_LOCALIZATION_REPORT.md).
+
+test("NAV-P1: the Header product-family query prefers the real, per-locale catalog_group_labels row, falling back to the historical single-locale column — never a raw translation key or empty string", () => {
+  const source = readSource("lib/catalog/editorial-repository.ts");
+  const fnStart = source.indexOf("export async function listHeaderProductFamilyShortcuts");
+  const fnBody = source.slice(fnStart, source.indexOf("\nexport ", fnStart + 10));
+  assert.match(fnBody, /LEFT JOIN catalog_group_labels l ON l\.group_code = pv\.group_code AND l\.locale = \?/, "must LEFT JOIN the real per-locale labels table, never an inner join that would exclude ungrouped rows");
+  assert.match(fnBody, /COALESCE\(l\.name, pv\.group_name\)/, "must fall back to the historical column, never to undefined/null/a placeholder");
+});
+
+test("NAV-P1: Header product-family ordering is by the stable, locale-invariant group_code — never by the (now-translated) name, which would silently reshuffle the dropdown per locale", () => {
+  const source = readSource("lib/catalog/editorial-repository.ts");
+  const fnStart = source.indexOf("export async function listHeaderProductFamilyShortcuts");
+  const fnBody = source.slice(fnStart, source.indexOf("\nexport ", fnStart + 10));
+  assert.match(fnBody, /ORDER BY pv\.group_code ASC/);
+  assert.ok(!/ORDER BY pv\.group_name/.test(fnBody), "must never sort by the translated display name");
+});
+
+test("NAV-P1: the returned shortcut's stable `code` always comes from group_code, never derived from the localized `name` — route/identity stability across locales", () => {
+  const source = readSource("lib/catalog/editorial-repository.ts");
+  const fnStart = source.indexOf("export async function listHeaderProductFamilyShortcuts");
+  const fnBody = source.slice(fnStart, source.indexOf("\nexport ", fnStart + 10));
+  assert.match(fnBody, /code:\s*r\.group_code/, "the shortcut's stable identity must be the untranslated group_code");
+});
+
+test("NAV-P1: SiteHeader builds the Products dropdown href from the stable code, never the localized name — a translated label can never change where a link points", () => {
+  const source = stripComments(readSource("components/layout/SiteHeader.tsx"));
+  assert.match(source, /\?group=\$\{f\.code\}/, "the ?group= query value must come from f.code");
+  assert.ok(!/\?group=\$\{f\.name\}/.test(source), "must never build the filter query from the translated name");
+});
+
+test("NAV-P1: max 8 Product shortcuts is an explicit, named constant — never a magic number, never hardcoded to today's actual count (3)", () => {
+  const source = readSource("lib/catalog/editorial-repository.ts");
+  assert.match(source, /export const MAX_HEADER_PRODUCT_SHORTCUTS = 8;/);
+  const fnStart = source.indexOf("export async function listHeaderProductFamilyShortcuts");
+  const fnBody = source.slice(fnStart);
+  assert.match(fnBody, /\.slice\(0, MAX_HEADER_PRODUCT_SHORTCUTS\)/, "the result must actually be capped by the named constant");
+});
+
+test("NAV-P1: no Header-local/frontend-hardcoded commercial group-name translation map was introduced anywhere in the fix", () => {
+  for (const file of ["lib/catalog/editorial-repository.ts", "lib/catalog/group-label-sync.ts", "lib/catalog/group-label-sync-runner.ts", "components/layout/SiteHeader.tsx", "components/layout/mobile-nav-drawer.tsx"]) {
+    const source = stripComments(readSource(file));
+    assert.ok(!/const\s+\w*[Gg]roup\w*\s*[:=]\s*\{/.test(source), `${file} must not define an inline object literal mapping group codes to hardcoded translated names`);
+  }
+});
+
+test("NAV-P1: View all products / View all services remain present and unchanged, still pointing at /products and /services respectively", () => {
+  const source = readSource("lib/content/nav.ts");
+  assert.match(source, /dropdownViewAllLabel/);
+  const headerSource = readSource("components/layout/SiteHeader.tsx");
+  assert.match(headerSource, /viewAllLabel/);
+});
+
+test("NAV-P1: the 5 frozen top-level items, their order, and the Products/Services hybrid gate are unchanged after the localization fix", () => {
+  for (const locale of ["fa", "en", "ar"] as const) {
+    const links = navLinks[locale];
+    assert.equal(links.length, 5);
+    assert.equal(links[0].path, "/products");
+    assert.equal(links[1].path, "/services");
+    assert.equal(links[2].path, "/industries");
+    assert.equal(links[3].path, "/about");
+    assert.equal(links[4].path, "/contact");
+  }
+});

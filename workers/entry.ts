@@ -2,6 +2,7 @@ import vinextHandler from "vinext/server/fetch-handler";
 import { handleOdooSyncBatch, type QueueBatchLike, type QueueMessageLike } from "@/lib/queue/consumer";
 import { dispatchPendingOutboxEvents } from "@/lib/queue/outbox";
 import { runScheduledCatalogSync } from "@/lib/catalog/scheduled-sync";
+import { runGroupLabelSync } from "@/lib/catalog/group-label-sync-runner";
 import { runScheduledProcessingSync } from "@/lib/processing/scheduled-sync";
 
 /**
@@ -74,6 +75,15 @@ export default {
         return;
       case CATALOG_FULL_RECONCILIATION_CRON:
         ctx.waitUntil(runScheduledCatalogSync("full"));
+        // Product group label sync (NAV-P1 — Header Products-dropdown
+        // localization) piggybacks on this already-registered once-daily
+        // trigger rather than getting its own new Cron Trigger, matching
+        // Processing sync's own reasoning above. Group taxonomy changes far
+        // less often than individual variant data, so daily is a
+        // sufficient cadence. An independent `ctx.waitUntil` (never
+        // `Promise.all`'d with the catalog sync above) so one job's
+        // failure can never prevent or delay the other's.
+        ctx.waitUntil(runGroupLabelSync());
         return;
       case RFQ_OUTBOX_CRON:
       default:

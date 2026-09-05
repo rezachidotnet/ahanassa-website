@@ -2,6 +2,8 @@ import { getPublicDb } from "@/lib/db/public";
 import { ulid } from "@/lib/rfq/ulid";
 import type { ClassificationRef, ProductVariant } from "./types";
 import type { VariantCommercialPatch, VariantCreateInput } from "./sync";
+import type { CatalogLocale } from "./odoo-api-client";
+import type { GroupLabel } from "./group-label-sync";
 
 /**
  * DB_PUBLIC-backed repository for the commercial sync path ONLY
@@ -260,4 +262,27 @@ export async function deactivateVariants(ids: string[]): Promise<void> {
 function isUniqueConstraintError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
   return /UNIQUE constraint failed/i.test(message);
+}
+
+/**
+ * NAV-P1 — upserts one locale's real, upstream-fetched Product group
+ * labels (`lib/catalog/group-label-sync.ts#fetchGroupLabelsForLocale`)
+ * into `catalog_group_labels` (migrations_public/0009). Never invents or
+ * translates a name itself — `labels` must already be real API data.
+ * `group_code` is the stable identity; only `name` varies by `locale`
+ * here, matching the migration's own `PRIMARY KEY (group_code, locale)`.
+ */
+export async function upsertCatalogGroupLabels(locale: CatalogLocale, labels: GroupLabel[]): Promise<void> {
+  if (labels.length === 0) return;
+  const db = getPublicDb();
+  const now = new Date().toISOString();
+  const statements = labels.map((label) =>
+    db
+      .prepare(
+        `INSERT INTO catalog_group_labels (group_code, locale, name, updated_at) VALUES (?, ?, ?, ?)
+         ON CONFLICT(group_code, locale) DO UPDATE SET name = excluded.name, updated_at = excluded.updated_at`,
+      )
+      .bind(label.code, locale, label.name, now),
+  );
+  await db.batch(statements);
 }
