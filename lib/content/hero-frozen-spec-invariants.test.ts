@@ -10,13 +10,18 @@ import { CONTACT_PHONE_E164 } from "./contact-channels.ts";
 /**
  * docs/hero/AHANASSA_HERO_FINAL_FROZEN_V2.4.md acceptance-criteria
  * regression coverage (current authority — incorporates all non-superseded
- * rules from docs/hero/AHANASSA_HERO_FINAL_FROZEN_V2.3.md). `lib/content/homepage.ts`/`nav.ts`/
- * `contact-channels.ts` are plain data (no `cloudflare:workers`/`next/*`
- * dependency) so they're directly unit-testable; `components/home/hero.tsx`
- * imports `next/link` and cannot be rendered under plain `node --test` in
- * this repo (no real `next` package — only `vinext`), so it is pinned as
- * source-text invariants instead, matching this repo's established
- * convention (see `lib/content/header-frozen-spec-invariants.test.ts`,
+ * rules from docs/hero/AHANASSA_HERO_FINAL_FROZEN_V2.3.md), EXCEPT for the
+ * H1/process/trust-layer content, which was revised by direct owner
+ * instruction after V2.4 was written (see components/home/hero.tsx's own
+ * "Content note" doc comment) — the static 3-point trust micro-layer those
+ * documents specify no longer exists; it was replaced by a 4-step process
+ * rail. `lib/content/homepage.ts`/`nav.ts`/`contact-channels.ts` are plain
+ * data (no `cloudflare:workers`/`next/*` dependency) so they're directly
+ * unit-testable; `components/home/hero.tsx` imports `next/link` and
+ * cannot be rendered under plain `node --test` in this repo (no real
+ * `next` package — only `vinext`), so it is pinned as source-text
+ * invariants instead, matching this repo's established convention (see
+ * `lib/content/header-frozen-spec-invariants.test.ts`,
  * `lib/pricing/price-strip-static.test.ts`). Button geometry/interaction
  * (height/radius/padding/font/hover/active/focus-visible/forced-colors)
  * coverage lives in `components/ui/button.test.ts` (Shared Button
@@ -48,24 +53,43 @@ const CSS_CODE = stripComments(CSS_SOURCE);
 
 // --- §2-6: frozen FA content ---
 
-test("Hero FA content matches the frozen V2.3 baseline exactly", () => {
+test("Hero FA content matches the current owner-directed baseline exactly", () => {
   const t = homepageCopy.fa.hero;
   assert.equal(t.eyebrow, "مدیریت تأمین فولاد پروژه");
-  assert.equal(t.title, "تأمین فولاد پروژه، با بررسی فنی و تجاری پیش از خرید.");
-  assert.equal(
-    t.body,
-    "لیست خرید یا نیاز پروژه را ارسال کنید؛ آهن آسا مشخصات، گزینه‌های تأمین و شرایط تجاری را بررسی می‌کند تا مسیر خرید شفاف‌تر و قابل‌کنترل‌تر باشد.",
-  );
+  assert.equal(t.title, "تأمین فولاد پروژه‌ها");
+  assert.equal(t.body, "آهن آسا مشخصات، گزینه‌های تأمین و شرایط تجاری را بررسی می‌کند تا مسیر خرید شفاف‌ و قابل‌کنترل‌ باشد.");
   assert.equal(t.secondaryCta, "درخواست قیمت تلفنی");
-  assert.equal(t.reassurance, "ارسال لیست خرید برای شما تعهدی ایجاد نمی‌کند؛ ابتدا نیاز شما بررسی می‌شود.");
-  assert.deepEqual(t.trust, ["بررسی فنی نیاز", "مقایسه گزینه‌های تأمین", "هماهنگی خرید"]);
+  assert.equal(t.reassurance, "ارسال لیست خرید برای شما تعهدی ایجاد نمی‌کند.");
+  assert.ok(!t.reassurance.includes("ابتدا نیاز شما بررسی می‌شود"), "the dropped reassurance clause must not remain");
+  assert.deepEqual(t.process, ["ارسال لیست درخواست", "بررسی فنی", "بررسی تجاری", "خرید"]);
   assert.equal(t.brandLine, "ما مراقب سرمایه شما هستیم.");
   assert.equal(primaryCta.fa.full, "ارسال لیست خرید");
 });
 
-test("Hero trust micro-layer is exactly 3 points for every locale (§5/§31 max-3 rule)", () => {
+test("Hero process rail is exactly 4 steps for every locale, distinct per locale", () => {
   for (const locale of ["fa", "en", "ar"] as const) {
-    assert.equal(homepageCopy[locale].hero.trust.length, 3, `${locale}: trust must have exactly 3 points`);
+    assert.equal(homepageCopy[locale].hero.process.length, 4, `${locale}: process must have exactly 4 steps`);
+    for (const step of homepageCopy[locale].hero.process) {
+      assert.ok(step.length > 0, `${locale}: process step must not be empty`);
+    }
+  }
+  assert.notDeepEqual(homepageCopy.en.hero.process, homepageCopy.ar.hero.process);
+});
+
+test("Process rail is a real semantic <ol>/<li> list, positioned with CSS logical properties (RTL/LTR-safe, no direction-specific classes)", () => {
+  assert.match(HERO_CODE, /<ol\b[\s\S]*?\{t\.process\.map/, "expected the process rail to be a real <ol> containing t.process.map");
+  assert.match(HERO_CODE, /<li\b[\s\S]*?key=\{step\}/, "expected each process step to be a real <li>");
+  const railBlock = HERO_CODE.match(/<ol\b[\s\S]*?<\/ol>/)?.[0] ?? "";
+  assert.match(railBlock, /inset-inline-start/, "the step connector must use a logical (inline-start), not physical (left/right), position");
+  assert.ok(!/\brtl:|:\s*ltr:/.test(railBlock), "the process rail must not need any rtl:/ltr: override — logical properties + flex row already handle direction");
+});
+
+test("Hero no longer exposes an old trust field or old trust copy anywhere", () => {
+  for (const locale of ["fa", "en", "ar"] as const) {
+    assert.ok(!("trust" in homepageCopy[locale].hero), `${locale}: hero.trust must not exist any more`);
+  }
+  for (const oldPoint of ["بررسی فنی نیاز", "مقایسه گزینه‌های تأمین", "هماهنگی خرید"]) {
+    assert.ok(!HERO_CODE.includes(oldPoint), `hero.tsx must not render the removed trust point "${oldPoint}"`);
   }
 });
 
@@ -96,7 +120,7 @@ test("Hero copy never overclaims (no guarantee/best-price/fastest-delivery langu
   const forbidden = [/guarantee/i, /best price/i, /fastest delivery/i, /100%/, /تضمین/, /بهترین قیمت/, /ضمانت/, /ضمان/, /أفضل سعر/];
   for (const locale of ["fa", "en", "ar"] as const) {
     const t = homepageCopy[locale].hero;
-    const text = [t.eyebrow, t.title, t.body, t.reassurance, t.brandLine, t.secondaryCta, ...t.trust].join(" ");
+    const text = [t.eyebrow, t.title, t.body, t.reassurance, t.brandLine, t.secondaryCta, ...t.process].join(" ");
     for (const pattern of forbidden) {
       assert.ok(!pattern.test(text), `${locale}: Hero copy must not match forbidden claim pattern ${pattern}`);
     }
@@ -163,13 +187,13 @@ test("Hero does not duplicate a local .hero-cta Button token set (V2.4 §2 — H
   assert.ok(!CSS_CODE.includes(".hero-cta"), "theme-extensions.css must not keep a Hero-local Button class any more — superseded by .aa-button in button.tsx's shared variants");
 });
 
-// --- §6: brand line theme alignment (HERO-P1.1 fix #3) ---
+// --- §6: brand line theme alignment ---
 
-test("Brand line uses the theme copper accent, remains text-sm (not louder than H1/CTA)", () => {
+test("Brand line uses the unchanged theme copper accent color, at a modestly larger (but still restrained) size", () => {
   const brandLineMatch = HERO_CODE.match(/className="([^"]*)">\{t\.brandLine\}/);
   assert.ok(brandLineMatch, "expected to find the brand line's className");
-  assert.match(brandLineMatch[1], /\btext-copper\b/);
-  assert.match(brandLineMatch[1], /\btext-sm\b/);
+  assert.match(brandLineMatch[1], /\btext-copper\b/, "brand line color must remain exactly text-copper — not changed by this task");
+  assert.match(brandLineMatch[1], /\btext-base\b/, "expected the one-step size increase from text-sm to text-base");
   assert.ok(!/text-(lg|xl|2xl|3xl|4xl)/.test(brandLineMatch[1]), "brand line must not become a headline-scale element");
 });
 
@@ -207,13 +231,13 @@ test("Hero performs no client-side Odoo/commercial data fetch", () => {
 
 // --- §17/§22.2: mobile content order (statically verifiable via source order) ---
 
-test("Hero copy elements appear in the frozen order in source: eyebrow, H1, body, primary CTA, secondary CTA, reassurance, trust, brand line", () => {
-  const markers = ["eyebrow", "<h1", "t.body", 'href={localizedPath(locale, "/request")', "tel:${CONTACT_PHONE_E164}", "t.reassurance", "t.trust.map", "t.brandLine"];
+test("Hero copy elements appear in the current order in source: eyebrow, H1, process rail, body, primary CTA, secondary CTA, reassurance, brand line", () => {
+  const markers = ["eyebrow", "<h1", "t.process.map", "t.body", 'href={localizedPath(locale, "/request")', "tel:${CONTACT_PHONE_E164}", "t.reassurance", "t.brandLine"];
   let lastIndex = -1;
   for (const marker of markers) {
     const index = HERO_CODE.indexOf(marker);
     assert.ok(index !== -1, `expected to find "${marker}" in hero.tsx`);
-    assert.ok(index > lastIndex, `"${marker}" must appear after the previous frozen-order element`);
+    assert.ok(index > lastIndex, `"${marker}" must appear after the previous order element`);
     lastIndex = index;
   }
 });

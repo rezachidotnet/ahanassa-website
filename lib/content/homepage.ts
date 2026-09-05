@@ -18,10 +18,17 @@ export interface HomepageCopy {
     eyebrow: string;
     title: string;
     body: string;
-    /** Frozen Hero V2.3 §4 — low-risk reassurance shown after the CTA pair. */
+    /**
+     * 4-step procurement process rail, rendered between H1 and the
+     * supporting copy: submit request list → technical review →
+     * commercial review → purchase. Replaces the previous static 3-point
+     * trust micro-layer (owner-directed content change) — that field is
+     * intentionally removed, not merely unused, to avoid duplicating the
+     * same "what we check" information in two places on the same Hero.
+     */
+    process: string[];
+    /** Low-risk reassurance shown after the CTA pair. */
     reassurance: string;
-    /** Frozen Hero V2.3 §5 — exactly 3 short, text-first trust points (no badges/icons/counters). */
-    trust: string[];
     brandLine: string;
     secondaryCta: string;
   };
@@ -73,10 +80,10 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
   fa: {
     hero: {
       eyebrow: "مدیریت تأمین فولاد پروژه",
-      title: "تأمین فولاد پروژه، با بررسی فنی و تجاری پیش از خرید.",
-      body: "لیست خرید یا نیاز پروژه را ارسال کنید؛ آهن آسا مشخصات، گزینه‌های تأمین و شرایط تجاری را بررسی می‌کند تا مسیر خرید شفاف‌تر و قابل‌کنترل‌تر باشد.",
-      reassurance: "ارسال لیست خرید برای شما تعهدی ایجاد نمی‌کند؛ ابتدا نیاز شما بررسی می‌شود.",
-      trust: ["بررسی فنی نیاز", "مقایسه گزینه‌های تأمین", "هماهنگی خرید"],
+      title: "تأمین فولاد پروژه‌ها",
+      process: ["ارسال لیست درخواست", "بررسی فنی", "بررسی تجاری", "خرید"],
+      body: "آهن آسا مشخصات، گزینه‌های تأمین و شرایط تجاری را بررسی می‌کند تا مسیر خرید شفاف‌ و قابل‌کنترل‌ باشد.",
+      reassurance: "ارسال لیست خرید برای شما تعهدی ایجاد نمی‌کند.",
       brandLine: "ما مراقب سرمایه شما هستیم.",
       secondaryCta: "درخواست قیمت تلفنی",
     },
@@ -132,10 +139,10 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
   en: {
     hero: {
       eyebrow: "Project steel procurement management",
-      title: "Project steel procurement, reviewed technically and commercially before purchase.",
-      body: "Send your purchase list or project requirement — Ahan Asa reviews the specification, sourcing options, and commercial terms so your purchasing path is clearer and easier to control.",
-      reassurance: "Sending your purchase list creates no commitment — your requirement is reviewed first.",
-      trust: ["Technical requirement review", "Sourcing options compared", "Purchase coordination"],
+      title: "Steel procurement for projects",
+      process: ["Submit request list", "Technical review", "Commercial review", "Purchase"],
+      body: "Ahan Asa reviews the specification, sourcing options, and commercial terms so your purchasing path is clearer and easier to control.",
+      reassurance: "Sending your purchase list creates no commitment.",
       brandLine: "We protect your capital.",
       secondaryCta: "Request a phone quote",
     },
@@ -191,10 +198,10 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
   ar: {
     hero: {
       eyebrow: "إدارة توريد الصلب للمشاريع",
-      title: "توريد صلب المشاريع، بعد مراجعة فنية وتجارية قبل الشراء.",
-      body: "أرسل قائمة الشراء أو احتياج مشروعك؛ يراجع آهن آسا المواصفات وخيارات التوريد والشروط التجارية ليكون مسار الشراء أكثر وضوحًا وقابلية للتحكم.",
-      reassurance: "إرسال قائمة الشراء لا يُنشئ أي التزام عليك؛ تتم مراجعة احتياجك أولاً.",
-      trust: ["مراجعة الاحتياج الفني", "مقارنة خيارات التوريد", "تنسيق عملية الشراء"],
+      title: "توريد الصلب للمشاريع",
+      process: ["إرسال قائمة الطلب", "المراجعة الفنية", "المراجعة التجارية", "الشراء"],
+      body: "يراجع آهن آسا المواصفات وخيارات التوريد والشروط التجارية ليكون مسار الشراء أكثر وضوحًا وقابلية للتحكم.",
+      reassurance: "إرسال قائمة الشراء لا يُنشئ أي التزام عليك.",
       brandLine: "نحن نحرص على رأس مالك.",
       secondaryCta: "طلب عرض سعر هاتفيًا",
     },

@@ -38,6 +38,14 @@ import { cn } from "@/lib/utils";
  * steel cross-section cue — no readable commercial data, no ownership
  * implication. Replace with owner-approved photography when supplied;
  * nothing else in this component needs to change to do so.
+ *
+ * Content note (owner-directed change, post-dates Hero V2.3/V2.4): the
+ * static 3-point trust micro-layer those frozen documents specify has
+ * been removed and replaced by a 4-step process rail (submit → technical
+ * review → commercial review → purchase), rendered between H1 and the
+ * supporting copy. This is a deliberate content/positioning revision, not
+ * a silent drift — the frozen spec documents have not been updated to
+ * match and should be reconciled in a future documentation pass.
  */
 export function Hero({ locale }: { locale: Locale }) {
   const t = homepageCopy[locale].hero;
@@ -57,7 +65,24 @@ export function Hero({ locale }: { locale: Locale }) {
 
               <h1 className="text-navy mt-7 text-4xl leading-[1.05] font-extrabold sm:text-5xl lg:text-[4rem]">{t.title}</h1>
 
-              <p className="text-muted-foreground mt-7 max-w-xl text-lg leading-relaxed">{t.body}</p>
+              <ol className="mt-8 grid grid-cols-2 gap-x-6 gap-y-5 lg:mt-10 lg:flex lg:gap-0">
+                {t.process.map((step, index) => (
+                  <li key={step} className="relative flex items-center gap-2.5 lg:flex-1 lg:ps-5">
+                    {index > 0 && (
+                      <span
+                        aria-hidden="true"
+                        className="bg-navy/20 absolute inset-inline-start-0 top-1/2 hidden h-px w-5 -translate-y-1/2 lg:block"
+                      />
+                    )}
+                    <span className="text-copper border-copper/30 inline-flex size-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold tabular-nums">
+                      {index + 1}
+                    </span>
+                    <span className="text-navy text-sm font-semibold leading-snug">{step}</span>
+                  </li>
+                ))}
+              </ol>
+
+              <p className="text-muted-foreground mt-8 max-w-xl text-lg leading-relaxed">{t.body}</p>
 
               <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                 <ButtonLink
@@ -76,15 +101,7 @@ export function Hero({ locale }: { locale: Locale }) {
 
               <p className="text-muted-foreground mt-6 max-w-xl text-sm leading-relaxed">{t.reassurance}</p>
 
-              <ul className="text-muted-foreground mt-5 flex flex-wrap gap-x-2 gap-y-1.5 text-sm">
-                {t.trust.map((point, index) => (
-                  <li key={point} className={index > 0 ? "before:text-navy/30 before:me-2 before:content-['•']" : ""}>
-                    {point}
-                  </li>
-                ))}
-              </ul>
-
-              <p className="text-copper mt-8 text-sm font-semibold">{t.brandLine}</p>
+              <p className="text-copper mt-8 text-base font-semibold">{t.brandLine}</p>
             </div>
 
             <div className="lg:w-[45%]" aria-hidden="true">
