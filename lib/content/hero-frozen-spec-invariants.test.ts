@@ -133,6 +133,34 @@ test("Hero has no <img> element at all in its current (temporary safe media stat
   assert.ok(!/<img\b/i.test(HERO_CODE));
 });
 
+test("Temporary safe media state renders more than a single decorative element (HERO-P1.1: must not feel empty)", () => {
+  const svgMatch = HERO_CODE.match(/<svg[\s\S]*?<\/svg>/);
+  assert.ok(svgMatch, "expected an inline SVG for the temporary media state");
+  const rectCount = (svgMatch[0].match(/<rect/g) ?? []).length;
+  const lineCount = (svgMatch[0].match(/<line/g) ?? []).length;
+  assert.ok(rectCount >= 2, "expected stacked-plate + checklist rect cues, not a single flat shape");
+  assert.ok(lineCount >= 2, "expected multiple line cues (checklist rows + steel cross-section)");
+});
+
+// --- §53.3: Primary CTA color contract (HERO-P1.1 fix #2) ---
+
+test("Primary CTA is a literal solid navy fill (no white/inverse workaround)", () => {
+  const primaryMatch = HERO_CODE.match(/href=\{localizedPath\(locale, "\/request"\)\}[\s\S]*?className="([^"]*)"/);
+  assert.ok(primaryMatch, "expected to find the Primary CTA's className");
+  assert.match(primaryMatch[1], /\bbg-navy\b/, "Primary CTA must use a solid navy fill per §53.3");
+  assert.ok(!/\bbg-white\b/.test(primaryMatch[1]), "Primary CTA must not use the white/inverse fill from HERO-P1");
+});
+
+// --- §6: brand line theme alignment (HERO-P1.1 fix #3) ---
+
+test("Brand line uses the theme copper accent, remains text-sm (not louder than H1/CTA)", () => {
+  const brandLineMatch = HERO_CODE.match(/className="([^"]*)">\{t\.brandLine\}/);
+  assert.ok(brandLineMatch, "expected to find the brand line's className");
+  assert.match(brandLineMatch[1], /\btext-copper\b/);
+  assert.match(brandLineMatch[1], /\btext-sm\b/);
+  assert.ok(!/text-(lg|xl|2xl|3xl|4xl)/.test(brandLineMatch[1]), "brand line must not become a headline-scale element");
+});
+
 // --- §11/§16/§19/§25: layout/motion prohibitions ---
 
 test("Hero never forces 100vh as its default height", () => {

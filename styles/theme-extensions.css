@@ -122,10 +122,14 @@
     transform: scale(0.98);
   }
   .hero-cta:focus-visible {
-    /* White, not the usual copper focus-ring token: measured against Hero's
-       navy surface, copper (#B04A2F) on navy (#0B2545) computes to ~2.8:1,
-       below the required 3:1 non-text contrast — white clears ~15:1. */
-    outline: 2px solid var(--aa-color-white);
+    /* The standard site-wide copper focus-ring token. HERO-P1's first pass
+       used white here because the CTAs then sat directly on Hero's navy
+       section background, where copper measures only ~2.8:1 (below the
+       required 3:1). HERO-P1.1 moved the CTAs onto the light warm content
+       card (--aa-color-bg-warm) instead, where copper measures ~5:1 — so
+       the normal token is correct again and no longer needs a dark-surface
+       override. */
+    outline: 2px solid var(--aa-color-focus-ring);
     outline-offset: 3px;
   }
 }
