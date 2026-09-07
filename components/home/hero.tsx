@@ -32,11 +32,10 @@ import { cn } from "@/lib/utils";
  * factory-ownership implication forbidden by §8/§32, see
  * docs/hero/HERO_P0_CURRENT_IMPLEMENTATION_AUDIT.md) and the CSS/SVG
  * temporary placeholder that replaced it are both superseded by this
- * owner-supplied photo: rebar/IPE/tube/sheet stock, a procurement
- * clipboard + checklist, rolled drawings, and a faint background
- * construction-site silhouette — the "Steel + Procurement Evidence"
+ * owner-supplied photo: a natural photographic stockyard shot of stacked
+ * steel stock (tube, bar, sheet) — the "Steel + Procurement Evidence"
  * concept, no owned-factory implication, no readable commercial data in
- * the image itself. Native 4:3 (1448×1086), matching the visual column's
+ * the image itself. Delivered at 4:3 (1448×1086), matching the visual column's
  * own aspect-ratio exactly, so `object-cover` shows the image undistorted
  * with no cropping. Decorative relative to the Hero's own text content
  * (which already carries every real claim), so it follows this
