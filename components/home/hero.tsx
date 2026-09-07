@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
  * size="button". Hero owns only width/composition (min-width on desktop,
  * full-width on mobile) and CTA order/spacing.
  *
- * Hero visual: `public/images/hero-steel-procurement.png` — the earlier
+ * Hero visual: `public/images/hero-steel-procurement.jpg` — the earlier
  * `hero-steel-mill.png` (an active production line with workers, a false
  * factory-ownership implication forbidden by §8/§32, see
  * docs/hero/HERO_P0_CURRENT_IMPLEMENTATION_AUDIT.md) and the CSS/SVG
@@ -112,7 +112,7 @@ export function Hero({ locale }: { locale: Locale }) {
             <div className="lg:w-[45%]" aria-hidden="true">
               <div className="bg-navy relative mx-auto w-full max-w-md overflow-hidden rounded-2xl shadow-[var(--aa-shadow-md)] lg:mx-0" style={{ aspectRatio: "4 / 3" }}>
                 <Image
-                  src="/images/hero-steel-procurement.png"
+                  src="/images/hero-steel-procurement.jpg"
                   alt=""
                   fill
                   priority

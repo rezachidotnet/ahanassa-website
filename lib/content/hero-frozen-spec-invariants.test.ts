@@ -155,7 +155,7 @@ test("Primary CTA is real navigation: no modal/setTimeout/animation-end gating b
 
 test("Hero no longer references the removed false-ownership steel-mill image, and uses the real approved photo", () => {
   assert.ok(!HERO_CODE.includes("hero-steel-mill"), "the false-ownership photo must never be referenced again");
-  assert.ok(HERO_CODE.includes("/images/hero-steel-procurement.png"), "expected the approved Hero photo to be referenced");
+  assert.ok(HERO_CODE.includes("/images/hero-steel-procurement.jpg"), "expected the approved Hero photo to be referenced");
 });
 
 test("Hero image is a real next/image <Image>, decorative (empty alt, aria-hidden column), sized/prioritized correctly", () => {
