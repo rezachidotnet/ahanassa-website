@@ -1,0 +1,37 @@
+-- Migration: 0010_homepage_eligibility
+-- Database: DB_PUBLIC
+--
+-- Product Showcase V2.0 P1-2: a distinct "Homepage eligible?" decision,
+-- separate from plain public-catalog publication
+-- (docs/product-showcase/AHANASSA_PRODUCT_SHOWCASE_FINAL_FROZEN_V2.0.md §5's
+-- "Publicly published? -> Homepage eligible? -> Homepage display priority"
+-- chain, and §68.1/§69/§75's `show_on_homepage` concept).
+--
+-- Before this migration there was no way to keep a product published on
+-- /products while deliberately keeping it off the Homepage: every publicly
+-- published template was automatically a Homepage candidate, curated only by
+-- ranking plus a hard LIMIT. That fallback stops working entirely whenever
+-- the published count is at or below HOMEPAGE_PRODUCT_DISPLAY_COUNT.
+--
+-- STRICTLY ADDITIVE — a single ALTER TABLE ... ADD COLUMN. No table is
+-- dropped, rewritten, or recreated, and no existing row's data is touched,
+-- per the standing guardrail against ever repeating migration 0002's
+-- DROP-and-recreate pattern now that real data exists (same discipline as
+-- 0003/0004/0005).
+--
+-- DEFAULT 1 is the backward-compatibility guarantee: every homepage_product_rank
+-- row that already exists becomes explicitly eligible, so applying this
+-- migration cannot make a single currently-visible product silently vanish
+-- from the Homepage. The complementary case — a published template with NO
+-- homepage_product_rank row at all, which is the normal state (the table is
+-- a sparse overlay, LEFT JOINed) — is handled in the query layer, where
+-- `hpr.show_on_homepage IS NULL` is read as ELIGIBLE, never as excluded.
+-- See lib/catalog/editorial-repository.ts#HOMEPAGE_ELIGIBILITY_WHERE_CONDITION.
+--
+-- This column is WEBSITE MERCHANDISING METADATA ONLY. It is never written by
+-- the Odoo catalog sync, never derived from price or inventory, and never
+-- read back into Odoo — Odoo remains the system of record for commercial
+-- truth (CLAUDE.md §5). Zero stock must never affect it (V2.0 §21.2/§74/§81.1).
+
+ALTER TABLE homepage_product_rank
+  ADD COLUMN show_on_homepage INTEGER NOT NULL DEFAULT 1 CHECK (show_on_homepage IN (0, 1));

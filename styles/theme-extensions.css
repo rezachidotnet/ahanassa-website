@@ -63,16 +63,66 @@
 }
 
 @layer utilities {
-  .reveal {
-    opacity: 0;
-    transform: translateY(14px);
-    transition:
-      opacity var(--aa-motion-reveal) var(--aa-ease-enter),
-      transform var(--aa-motion-reveal) var(--aa-ease-enter);
+  /**
+   * Progressive-enhancement baseline (P0-1 fix — Product Showcase V2.0
+   * §64.11/§77/§82: "JavaScript failure must never hide Product Families").
+   *
+   * `.reveal` on its own is VISIBLE. The hidden pre-reveal state lives
+   * exclusively on `[data-reveal="armed"]`, an attribute only
+   * `components/ui/reveal.tsx` can add, and only from inside `useEffect`
+   * after it has mounted AND confirmed the element is off-screen. Server-
+   * rendered HTML carries no `data-reveal` attribute at all, so a browser
+   * that never runs the JS never encounters the hidden state — no
+   * `<noscript>` duplicate of the content is needed, and none exists.
+   *
+   * Do NOT reintroduce an unconditional `opacity: 0` here.
+   */
+  /**
+   * `.reveal` declares NOTHING that could hide the element — no opacity, no
+   * transform, no transition. It exists purely as the hook the entrance
+   * animation attaches to. This is the P0-1 fix: the server-rendered
+   * baseline is, and stays, fully visible.
+   *
+   * The transparent appearance lives ONLY inside the keyframes below, so it
+   * can never be a resting state. If animations are disabled, frozen (e.g. a
+   * background tab), unsupported, or simply never triggered because the JS
+   * never ran, no fill is applied and the element keeps its normal,
+   * fully-visible appearance.
+   *
+   * Do NOT reintroduce an `opacity: 0` resting state here, and do not give
+   * the animation a `backwards`/`both` fill — either change would make
+   * "enhancement did not complete" indistinguishable from "content is gone"
+   * (§64.11/§77: JavaScript failure must never hide Product Families).
+   */
+  .reveal[data-reveal="revealed"] {
+    animation: aa-reveal 200ms var(--aa-ease-enter) forwards;
   }
-  .reveal[data-visible="true"] {
-    opacity: 1;
-    transform: none;
+
+  /**
+   * The frozen spec's own numbers (§64.3: "opacity ~0.92 -> 1, translateY
+   * ~4-6px -> 0, duration ~180-220ms"). The starting opacity is 0.92, NOT 0
+   * — that is a deliberate, load-bearing detail, not a rounding choice:
+   *
+   *   - It is what §64.3 actually specifies. The previous implementation's
+   *     `opacity: 0` was already off-spec.
+   *   - It makes the entrance physically incapable of hiding anything. Even
+   *     if the animation never advances past its first frame — verified live
+   *     that a background/hidden tab freezes CSS animations outright — the
+   *     content sits at 92% opacity: fully legible and usable.
+   *
+   * Do not lower the `from` opacity toward 0. Combined with a running-but-
+   * stalled animation it would reintroduce exactly the P0-1 failure this
+   * whole change exists to remove (§64.11/§77).
+   */
+  @keyframes aa-reveal {
+    from {
+      opacity: 0.92;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
   .hairline-grid {
     background-image: linear-gradient(to right, rgb(255 255 255 / 0.06) 1px, transparent 1px),
@@ -83,10 +133,119 @@
 
 @layer utilities {
   @media (prefers-reduced-motion: reduce) {
-    .reveal {
+    /* Neutralise the armed state too — a reduced-motion user must never see
+       the pre-reveal hidden state even once enhancement has armed it. */
+    .reveal,
+    .reveal[data-reveal="revealed"] {
       opacity: 1;
       transform: none;
       transition: none;
+      animation: none;
+    }
+  }
+}
+
+/**
+ * Homepage Product Showcase — count-aware composition
+ * (docs/product-showcase/AHANASSA_PRODUCT_SHOWCASE_FINAL_FROZEN_V2.0.md
+ * §25/§26/§27/§28/§29/§30/§31/§36/§73).
+ *
+ * Mechanism: the component sets `data-count` on the <ul>; each breakpoint
+ * maps that count to `--aa-showcase-columns`, the number of cards per FULL
+ * row. Cards are fixed-basis flex items in a `justify-content: center`
+ * container, so a partial trailing row centres itself and the frozen
+ * compositions (5 -> 3+2, 7 -> 4+3) fall out of ordinary wrapping rather
+ * than nth-child arithmetic. `lib/catalog/homepage-showcase-layout.ts` is
+ * the canonical table these media queries mirror; the pairing is pinned by
+ * lib/catalog/homepage-showcase-layout.test.ts, which fails if the two
+ * drift apart.
+ *
+ * Deliberately NOT dynamically-generated Tailwind class strings (e.g.
+ * `lg:grid-cols-${n}`) — those are unreachable to Tailwind's scanner and
+ * would be purged from the compiled stylesheet.
+ *
+ * Every declaration below is written at the same `.aa-showcase-grid[data-count]`
+ * specificity so later breakpoints always win over earlier ones, instead of
+ * relying on source order against a lower-specificity class selector.
+ */
+@layer components {
+  .aa-showcase-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    /* Narrow mobile baseline — one column before content becomes cramped. */
+    --aa-showcase-columns: 1;
+  }
+
+  /* Hairlines live entirely on the card so a centred partial row keeps a
+     complete outline; the negative margins collapse shared edges back to a
+     single 1px line, preserving the existing hairline-grid appearance. */
+  .aa-showcase-grid > li {
+    flex: 0 0 auto;
+    width: calc(100% / var(--aa-showcase-columns));
+    margin-inline-start: -1px;
+    margin-block-start: -1px;
+  }
+
+  /* Normal mobile — 2 columns while a card stays comfortably readable (§31).
+     380px is set from measured content fit, not a framework default
+     (§28: "Breakpoints are based on actual content fit"). Forcing the
+     2-column track and measuring a long realistic FA title
+     ("ورق سیاه گرم نوردیده st37") gave:
+        320px -> 144px card,  98px image, title wraps to 4 lines  (cramped)
+        360px -> 164px card, 111px image, title wraps to 3 lines  (cramped)
+        375px -> 172px card, 117px image, title wraps to 2 lines  (ok)
+        390px -> 179px card, 122px image, title wraps to 2 lines  (ok)
+        430px -> 199px card, 135px image, title wraps to 2 lines  (comfortable)
+     So the switch to one column happens below ~375px, before image
+     recognition and title readability degrade. 380px keeps the spec's
+     390/430 validation widths on 2 columns and 320/360 on 1. */
+  @media (min-width: 380px) {
+    .aa-showcase-grid,
+    .aa-showcase-grid[data-count] {
+      --aa-showcase-columns: 2;
+    }
+    .aa-showcase-grid[data-count="1"] {
+      --aa-showcase-columns: 1;
+    }
+  }
+
+  /* Tablet — max 2 columns (§30). A lone card keeps standard card width. */
+  @media (min-width: 640px) {
+    .aa-showcase-grid,
+    .aa-showcase-grid[data-count] {
+      --aa-showcase-columns: 2;
+    }
+  }
+
+  /* Medium — max 3 columns (§28), uniformly.
+     Deliberately NOT dropping 4 cards to a 2-column 2+2: measured live, that
+     inflates each card to ~481px, i.e. roughly half the container, which is
+     the exact "stretched to fill space" shape §26 prohibits. 3+1 keeps every
+     card at the standard 321px and centres the lone final card, which §30
+     explicitly sanctions ("A lone final card remains standard card width and
+     centered"). §29's balance preference is about row grouping at a constant
+     card width, not about widening cards. */
+  @media (min-width: 1024px) {
+    .aa-showcase-grid,
+    .aa-showcase-grid[data-count] {
+      --aa-showcase-columns: 3;
+    }
+  }
+
+  /* Wide desktop — max 4 columns (§27), applied only where the frozen
+     matrix calls for it: 4 -> one row, 7 -> 4+3, 8 -> 4+4. Counts 1/2/3/5/6
+     stay on the 3-column track so card width remains stable (§26) and
+     5 composes as 3+2 rather than 4+1. */
+  @media (min-width: 1280px) {
+    .aa-showcase-grid,
+    .aa-showcase-grid[data-count] {
+      --aa-showcase-columns: 3;
+    }
+    .aa-showcase-grid[data-count="4"],
+    .aa-showcase-grid[data-count="7"],
+    .aa-showcase-grid[data-count="8"] {
+      --aa-showcase-columns: 4;
     }
   }
 }

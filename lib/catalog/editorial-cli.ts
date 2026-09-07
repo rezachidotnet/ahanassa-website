@@ -217,6 +217,40 @@ export function buildSetTemplatePublicationFlagSql(catalogProductId: string, isP
   return `UPDATE catalog_products SET is_public = ${sqliteLiteral(isPublic)}, updated_at = ${sqliteLiteral(now)} WHERE id = ${sqliteLiteral(catalogProductId)};`;
 }
 
+export interface SetHomepageEligibilityInput {
+  /** ULID for the row, used only when no `homepage_product_rank` row exists yet. */
+  id: string;
+  catalogProductId: string;
+  showOnHomepage: boolean;
+  now: string;
+}
+
+/**
+ * Homepage merchandising eligibility (Product Showcase V2.0 §5/§68.1/§75's
+ * `show_on_homepage`), so an operator can keep a product published on
+ * /products while deliberately excluding it from the Homepage — without a
+ * raw D1 write.
+ *
+ * An UPSERT, because `homepage_product_rank` is a sparse overlay: most
+ * templates have no row at all until something writes one. `ON CONFLICT
+ * (catalog_product_id)` resolves against
+ * `uq_homepage_product_rank_catalog_product_id` (migration 0005), and the
+ * DO UPDATE branch touches ONLY `show_on_homepage`/`updated_at` — an
+ * existing row's `base_priority`, `manual_boost`, `demand_score`, and
+ * `demand_computed_at` are preserved exactly, so toggling Homepage
+ * visibility can never wipe a curated ordering or a computed demand score.
+ *
+ * Writes a website-owned merchandising column only — never an Odoo-owned
+ * commercial column, never anything price- or inventory-derived.
+ */
+export function buildSetHomepageEligibilitySql(input: SetHomepageEligibilityInput): string {
+  return (
+    `INSERT INTO homepage_product_rank (id, catalog_product_id, base_priority, manual_boost, demand_score, show_on_homepage, created_at, updated_at) ` +
+    `VALUES (${sqliteLiteral(input.id)}, ${sqliteLiteral(input.catalogProductId)}, 0, 0, 0, ${sqliteLiteral(input.showOnHomepage)}, ${sqliteLiteral(input.now)}, ${sqliteLiteral(input.now)}) ` +
+    `ON CONFLICT(catalog_product_id) DO UPDATE SET show_on_homepage = excluded.show_on_homepage, updated_at = excluded.updated_at;`
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Error classification (mirrors editorial-repository.ts#isUniqueConstraintError)
 // ---------------------------------------------------------------------------

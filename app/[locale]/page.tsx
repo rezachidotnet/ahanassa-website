@@ -67,9 +67,28 @@ export default async function HomePage({ params }: PageProps) {
   // never throws) — unlike the price strip, this section is never fully
   // disabled by a flag; the flag only controls whether demand ranking
   // layers on top of the deterministic base order.
-  const { listHomepageProductCandidates } = await import("@/lib/catalog/editorial-repository");
-  const homepageRankingMode = resolveHomepageRankingMode(env.HOMEPAGE_RANKING_MODE);
-  const homepageProducts: HomepageProductCandidate[] = await listHomepageProductCandidates(locale, { mode: homepageRankingMode });
+  //
+  // Failure isolation (Product Showcase V2.0 §80.2: "If Public Product
+  // Family Projection cannot be safely read -> Product Showcase omitted,
+  // Homepage remains healthy ... must not return 500 because of Product
+  // Showcase failure"). The catch is scoped tightly to this ONE read: an
+  // empty candidate list makes `ProductShowcase` omit its own section while
+  // the Hero, Price Strip, and every other Homepage section render normally.
+  // Nothing else on this page is inside the try, so an unrelated Homepage
+  // error still propagates instead of being silently swallowed.
+  //
+  // Same logging convention as the Header's own projection reads in
+  // app/[locale]/layout.tsx (HEADER_PRODUCT_FAMILIES_READ_ERROR /
+  // HEADER_SERVICE_GROUPS_READ_ERROR): one greppable tag plus a JSON message,
+  // no PII, no request/user data.
+  let homepageProducts: HomepageProductCandidate[] = [];
+  try {
+    const { listHomepageProductCandidates } = await import("@/lib/catalog/editorial-repository");
+    const homepageRankingMode = resolveHomepageRankingMode(env.HOMEPAGE_RANKING_MODE);
+    homepageProducts = await listHomepageProductCandidates(locale, { mode: homepageRankingMode });
+  } catch (error) {
+    console.error("HOMEPAGE_PRODUCT_SHOWCASE_READ_ERROR", JSON.stringify({ message: error instanceof Error ? error.message : String(error) }));
+  }
 
   return (
     <>

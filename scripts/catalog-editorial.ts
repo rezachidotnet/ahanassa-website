@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import {
   buildContentQualityStatusSql,
   buildPublishSql,
+  buildSetHomepageEligibilitySql,
   buildSetIndexStatusSql,
   buildSetTemplatePublicationFlagSql,
   buildSetVariantPublicationFlagSql,
@@ -568,6 +569,45 @@ function cmdSetVariantPublic(positional: string[], flags: ReturnType<typeof pars
   printAudit({ timestamp: nowIso(), environment: envResult.env, entityXid: variant.xid, locale: null, action: isPublic ? "set-variant-public" : "unset-variant-public", previousState: String(variant.isPublic), resultingState: String(isPublic) });
 }
 
+/**
+ * Homepage merchandising eligibility (Product Showcase V2.0 §5/§68.1/§75).
+ * Separate from `set-public`/`unset-public`: excluding a template here keeps
+ * it fully published on /products and keeps its detail page resolvable — it
+ * only stops the Homepage Product Showcase from considering it a candidate.
+ */
+function cmdSetHomepageEligibility(positional: string[], flags: ReturnType<typeof parseArgs>["flags"], showOnHomepage: boolean): void {
+  const envResult = resolveWriteEnvironment(flags);
+  if (!envResult.ok) throw new Error(describeEnvironmentError(envResult));
+  const templateXid = positional[0];
+  const command = showOnHomepage ? "include-on-homepage" : "exclude-from-homepage";
+  if (!templateXid) throw new Error(`usage: ${command} <template-xid> --env <env> [--confirm-production] [--dry-run]`);
+  const template = resolveTemplate(envResult.env, templateXid);
+  const dryRun = flagBoolean(flags, "dry-run");
+
+  // A missing row is the normal, expected state (sparse overlay) and reads
+  // as eligible — the same NULL-safe rule the runtime query applies.
+  const existing = runD1<{ show_on_homepage: number }>(
+    envResult.env,
+    `SELECT show_on_homepage FROM homepage_product_rank WHERE catalog_product_id = ${sqliteLiteral(template.id)};`,
+  );
+  const currentState = existing.length === 0 ? "eligible (no ranking row yet)" : existing[0].show_on_homepage === 1 ? "eligible" : "excluded";
+
+  printPreview(`Proposed ${command}: ${template.templateXid}`, {
+    env: envResult.env,
+    template: template.commercialTemplateName,
+    currentHomepageEligibility: currentState,
+    proposedHomepageEligibility: showOnHomepage ? "eligible" : "excluded",
+    note: "affects the Homepage Product Showcase only — /products publication is unchanged",
+    dryRun,
+  });
+  if (dryRun) {
+    console.log("  (dry run — no write performed)");
+    return;
+  }
+  runD1(envResult.env, buildSetHomepageEligibilitySql({ id: ulid(), catalogProductId: template.id, showOnHomepage, now: nowIso() }));
+  printAudit({ timestamp: nowIso(), environment: envResult.env, entityXid: template.templateXid, locale: null, action: command, previousState: currentState, resultingState: showOnHomepage ? "eligible" : "excluded" });
+}
+
 function cmdBatch(positional: string[], flags: ReturnType<typeof parseArgs>["flags"]): void {
   const envResult = resolveWriteEnvironment(flags);
   if (!envResult.ok) throw new Error(describeEnvironmentError(envResult));
@@ -619,7 +659,13 @@ Ahan Asa Catalog editorial operator CLI (docs/CATALOG_EDITORIAL_OPERATIONS.md)
   unset-public <template-xid> --env <env> [--confirm-production] [--dry-run]
   set-variant-public <variant-xid> --env <env> [--confirm-production] [--dry-run]
   unset-variant-public <variant-xid> --env <env> [--confirm-production] [--dry-run]
+  include-on-homepage <template-xid> --env <env> [--confirm-production] [--dry-run]
+  exclude-from-homepage <template-xid> --env <env> [--confirm-production] [--dry-run]
   batch <path.json> --env <env> [--dry-run]
+
+include/exclude-from-homepage control the Homepage Product Showcase ONLY.
+An excluded template stays published on /products and keeps a working
+detail page — use unset-public to actually unpublish it.
 
 --env is REQUIRED for every write command (local|staging|production).
 --env production additionally requires --confirm-production.
@@ -661,6 +707,10 @@ function main(): void {
         return cmdSetVariantPublic(positional, flags, true);
       case "unset-variant-public":
         return cmdSetVariantPublic(positional, flags, false);
+      case "include-on-homepage":
+        return cmdSetHomepageEligibility(positional, flags, true);
+      case "exclude-from-homepage":
+        return cmdSetHomepageEligibility(positional, flags, false);
       case "batch":
         return cmdBatch(positional, flags);
       default:

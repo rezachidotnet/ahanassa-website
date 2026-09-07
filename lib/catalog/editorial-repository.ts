@@ -647,6 +647,28 @@ function filterConditions(filters: CatalogFilterInput, params: unknown[]): strin
 const TEMPLATE_PUBLICATION_WHERE_CONDITIONS = ["cp.is_active = 1", "cp.is_public = 1", "s.locale = ?", "s.content_quality_status = 'approved'", "s.published_at IS NOT NULL", "s.h1 IS NOT NULL"];
 
 /**
+ * The Homepage-ONLY merchandising gate (Product Showcase V2.0 §5's distinct
+ * "Homepage eligible?" step, §68.1/§69/§75's `show_on_homepage`), added by
+ * migration `migrations_public/0010_homepage_eligibility.sql`.
+ *
+ * Deliberately NOT part of `TEMPLATE_PUBLICATION_WHERE_CONDITIONS` above:
+ * that constant is shared verbatim with `listPublishedCatalogTemplates` and
+ * `getPublishedCatalogTemplateBySlug`, and excluding a product from the
+ * Homepage must never remove it from /products or 404 its detail page. This
+ * condition is appended by `listHomepageProductCandidates` alone.
+ *
+ * NULL-SAFE BY CONSTRUCTION. `homepage_product_rank` is a sparse overlay
+ * reached through a LEFT JOIN, so a template that has never been ranked has
+ * no row at all and every `hpr.*` column reads NULL. `show_on_homepage IS
+ * NULL` therefore means "no explicit decision recorded", which is treated as
+ * ELIGIBLE — the pre-migration behaviour, preserved exactly. Writing this as
+ * a bare `hpr.show_on_homepage = 1` would silently convert the LEFT JOIN
+ * into an INNER JOIN and hide every unranked product, which is the specific
+ * regression this comment exists to prevent.
+ */
+const HOMEPAGE_ELIGIBILITY_WHERE_CONDITION = "(hpr.show_on_homepage IS NULL OR hpr.show_on_homepage = 1)";
+
+/**
  * The catalog listing's data source: every template with an approved+published
  * `entity_type='product'` row for `locale`, itself commercially active+public.
  * Structurally cannot return a template merely because one of its variants
@@ -837,6 +859,11 @@ export interface HomepageProductCandidateOptions {
  * sample-catalog value (this task's own root defect this function exists to
  * fix).
  *
+ * On top of that shared gate it applies ONE extra, Homepage-only condition,
+ * `HOMEPAGE_ELIGIBILITY_WHERE_CONDITION` — a strict narrowing, so the "can
+ * never 404" guarantee above still holds. Excluding a product from the
+ * Homepage never unpublishes it from /products.
+ *
  * Media (`lib/catalog/media-registry.ts`) and ranking
  * (`lib/ranking/score.ts`) are overlays only (this task's §34) — they never
  * influence which templates are eligible, only how the eligible set is
@@ -853,7 +880,10 @@ export async function listHomepageProductCandidates(locale: Locale, options: Hom
   const db = getPublicDb();
   const limit = options.limit ?? HOMEPAGE_PRODUCT_DISPLAY_COUNT;
   const mode = options.mode ?? "base";
-  const where = TEMPLATE_PUBLICATION_WHERE_CONDITIONS;
+  // Shared publication gate + the Homepage-only merchandising gate. The
+  // shared constant is spread, never mutated — /products must keep seeing
+  // the identical publication rule.
+  const where = [...TEMPLATE_PUBLICATION_WHERE_CONDITIONS, HOMEPAGE_ELIGIBILITY_WHERE_CONDITION];
 
   const result = await db
     .prepare(

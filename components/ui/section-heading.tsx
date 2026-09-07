@@ -7,6 +7,7 @@ export function SectionHeading({
   invert = false,
   align = "start",
   className,
+  headingId,
 }: {
   eyebrow: string;
   title: string;
@@ -14,6 +15,13 @@ export function SectionHeading({
   invert?: boolean;
   align?: "start" | "center";
   className?: string;
+  /**
+   * Optional id placed on the rendered <h2>, so a section can point at it
+   * with `aria-labelledby` (Product Showcase V2.0 §72.1's preferred
+   * structure). Omitted by default — existing callers are unaffected and no
+   * id is emitted unless one is asked for.
+   */
+  headingId?: string;
 }) {
   return (
     <div
@@ -33,6 +41,7 @@ export function SectionHeading({
         {eyebrow}
       </p>
       <h2
+        id={headingId}
         className={cn(
           "mt-5 text-3xl leading-[1.1] font-bold sm:text-4xl lg:text-[2.75rem]",
           invert ? "text-white" : "text-navy",
