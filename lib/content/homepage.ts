@@ -2,9 +2,13 @@ import type { Locale } from "@/config/locales";
 
 /**
  * Homepage copy. Section composition follows the approved v0 implementation
- * (hero → product showcase → capabilities → assurance → process → reach →
- * final CTA — PROJECT_OVERRIDES.md §8b / DOCUMENT_AUDIT_REPORT.md DAR-021),
- * not the older HOMEPAGE_SPEC-driven 9-section layout. Copy itself still
+ * as hardened by the frozen component specs (hero → price strip → product
+ * showcase → evaluation/assurance → process → reach → final CTA —
+ * PROJECT_OVERRIDES.md §8b / DOCUMENT_AUDIT_REPORT.md DAR-021, sequence per
+ * Evaluation/Assurance V2.1 §2), not the older HOMEPAGE_SPEC-driven
+ * 9-section layout. The v0-era `capabilities` and `assurance` sections that
+ * used to sit between Product Showcase and Process are retired; see the
+ * `evaluationAssurance` field below. Copy itself still
  * draws only from approved/confirmed sources (HOMEPAGE_SPEC.md's working
  * copy direction, CTA_STRATEGY.md §5, confirmed product truth) — v0's own
  * fabricated statistics, certifications, and named-partner claims are not
@@ -38,18 +42,37 @@ export interface HomepageCopy {
     body: string;
     cta: string;
   };
-  capabilities: {
-    eyebrow: string;
+  /**
+   * Evaluation / Assurance — the frozen V2.1 component
+   * (docs/evaluation-assurance/AHANASSA_EVALUATION_ASSURANCE_FINAL_FROZEN_V2.1.md).
+   *
+   * Replaces BOTH v0-baseline sections that previously occupied this slot:
+   * `capabilities` ("آنچه ما انجام می‌دهیم" / "What we do") and `assurance`
+   * ("روش ارزیابی" / "Evaluation method"). Neither one's copy was migrated —
+   * §15 forbids reintroducing a "what we do" list inside this component, and
+   * §4.1 names "روش ارزیابی" first among the six generic headings it must not
+   * use. This is a clean replacement, not a repurposing.
+   *
+   * There is deliberately NO `eyebrow` field. §29's frozen semantic structure
+   * is `<h2>` + `<p>` + `<ul>` with no eyebrow, and every natural Persian
+   * eyebrow for this concept sits on §4.1's forbidden list — so inventing one
+   * would mean inventing exactly the copy the spec bans. The component
+   * therefore renders a bare `<h2 id>` (the shape components/home/price-strip.tsx
+   * already uses on this same page) rather than SectionHeading, whose
+   * `eyebrow` prop is required.
+   *
+   * `axes` is exactly four entries in every locale (§6: "A fifth top-level
+   * axis must not be added"), in the frozen order Technical Conformity →
+   * Sourcing Feasibility → Commercial Conditions → Delivery. The visible
+   * 01–04 indexes are decorative and derived per locale at render time
+   * (lib/content/evaluation-assurance.ts), never stored as content here.
+   */
+  evaluationAssurance: {
+    /** Frozen FA H2 (§4.1); EN/AR are the approved transcreations (§33). */
     title: string;
+    /** Frozen FA supporting copy (§5). */
     body: string;
-  };
-  assurance: {
-    eyebrow: string;
-    title: string;
-    body: string;
-    /** Short label for the image-overlay badge — distinct from `title`, not a statistic. */
-    badge: string;
-    points: string[];
+    axes: { title: string; body: string }[];
   };
   process: {
     eyebrow: string;
@@ -93,20 +116,26 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
       body: "هر گروه کالایی بخشی از خدمت مدیریت خرید آهن آساست — بررسی، مقایسه تأمین و هماهنگی تا تحویل.",
       cta: "همه محصولات",
     },
-    capabilities: {
-      eyebrow: "آنچه ما انجام می‌دهیم",
-      title: "یک مدیر خرید، تنها زمانی ارزشمند است که مسئولیت را بپذیرد.",
-      body: "بررسی نیاز، ارزیابی تأمین، تصمیم‌گیری و هماهنگی تحویل بر عهده ماست. شما یک نقطه تماس و یک مسیر شفاف تا نتیجه دارید.",
-    },
-    assurance: {
-      eyebrow: "روش ارزیابی",
-      title: "هر بررسی، مستند و قابل پیگیری است.",
-      body: "پیش از اینکه گزینه‌ای به شما پیشنهاد شود، در برابر معیارهای مشخصی سنجیده می‌شود؛ نتیجه هر بررسی برای شما قابل توضیح است.",
-      badge: "شفاف و مستند",
-      points: [
-        "مقایسه مکتوب گزینه‌های تأمین در برابر نیاز پروژه",
-        "بررسی مستندات و قابلیت ردیابی پیش از تأیید",
-        "ثبت و قابل‌پیگیری‌بودن هر درخواست از ارسال تا تحویل",
+    evaluationAssurance: {
+      title: "پیش از ارائه پیشنهاد، چه چیزهایی بررسی می‌شود؟",
+      body: "هر درخواست از نظر مشخصات فنی، امکان تأمین، شرایط تجاری و الزامات تحویل بررسی می‌شود تا مبنای پیشنهاد برای شما روشن باشد.",
+      axes: [
+        {
+          title: "انطباق فنی",
+          body: "محصول، ابعاد، گرید، استاندارد و سایر مشخصات ضروری درخواست بررسی می‌شود. در صورت نیاز پروژه، الزامات مدارک فنی و کیفی نیز لحاظ می‌شود.",
+        },
+        {
+          title: "امکان تأمین",
+          body: "امکان تهیه مورد درخواست و محدودیت‌های مؤثر بر آن بررسی می‌شود.",
+        },
+        {
+          title: "شرایط تجاری",
+          body: "مقدار و واحد، قیمت پیشنهادی، شرایط پرداخت و مدت اعتبار پیشنهاد به‌صورت روشن مشخص می‌شود.",
+        },
+        {
+          title: "تحویل",
+          body: "مقصد، زمان موردنیاز، شرایط حمل و مبنای تحویل در صورت اثرگذاری بر پیشنهاد بررسی می‌شود.",
+        },
       ],
     },
     process: {
@@ -152,20 +181,26 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
       body: "Every category is part of Ahan Asa's purchasing-management service — review, sourcing comparison, and coordination through to delivery.",
       cta: "All products",
     },
-    capabilities: {
-      eyebrow: "What we do",
-      title: "A purchasing manager is only worth having if they take on the responsibility.",
-      body: "Requirement review, sourcing evaluation, decision-making, and delivery coordination are on us. You get one point of contact and a clear path to the outcome.",
-    },
-    assurance: {
-      eyebrow: "Evaluation method",
-      title: "Every review is documented and traceable.",
-      body: "Before an option is proposed to you, it is measured against defined criteria — and the outcome of every review is explainable to you.",
-      badge: "Transparent & documented",
-      points: [
-        "A written comparison of sourcing options against the project requirement",
-        "Documentation and traceability checked before confirmation",
-        "Every request is logged and traceable from submission to delivery",
+    evaluationAssurance: {
+      title: "What is reviewed before a proposal is presented?",
+      body: "Each request is reviewed for technical specifications, sourcing feasibility, commercial conditions, and delivery requirements so the basis of the proposal is clear to you.",
+      axes: [
+        {
+          title: "Technical conformity",
+          body: "The product, dimensions, grade, standard, and other essential request specifications are reviewed. Where required by the project, technical and quality documentation requirements are also considered.",
+        },
+        {
+          title: "Sourcing feasibility",
+          body: "The feasibility of sourcing the requested item and the constraints that materially affect it are reviewed.",
+        },
+        {
+          title: "Commercial conditions",
+          body: "The quantity and unit, proposed price, payment terms, and proposal validity period are stated clearly.",
+        },
+        {
+          title: "Delivery",
+          body: "Destination, required timing, transport conditions, and delivery basis are reviewed when they affect the proposal.",
+        },
       ],
     },
     process: {
@@ -211,20 +246,26 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
       body: "كل فئة جزء من خدمة إدارة الشراء لدى آهن آسا — المراجعة ومقارنة التوريد والتنسيق حتى التسليم.",
       cta: "كل المنتجات",
     },
-    capabilities: {
-      eyebrow: "ما نقوم به",
-      title: "مدير الشراء ذو قيمة فقط عندما يتحمل المسؤولية.",
-      body: "مراجعة الاحتياج وتقييم التوريد واتخاذ القرار وتنسيق التسليم على عاتقنا. لديك نقطة تواصل واحدة ومسار واضح حتى النتيجة.",
-    },
-    assurance: {
-      eyebrow: "منهجية التقييم",
-      title: "كل مراجعة موثقة وقابلة للتتبع.",
-      body: "قبل اقتراح أي خيار عليك، يُقاس مقابل معايير محددة؛ ونتيجة كل مراجعة قابلة للتوضيح لك.",
-      badge: "شفاف وموثق",
-      points: [
-        "مقارنة مكتوبة لخيارات التوريد مقابل احتياج المشروع",
-        "مراجعة المستندات وإمكانية التتبع قبل التأكيد",
-        "تسجيل كل طلب وإمكانية تتبعه من الإرسال حتى التسليم",
+    evaluationAssurance: {
+      title: "ما الذي تتم مراجعته قبل تقديم العرض؟",
+      body: "تتم مراجعة كل طلب من حيث المواصفات الفنية، وإمكانية التوريد، والشروط التجارية، ومتطلبات التسليم، بحيث يكون أساس العرض واضحًا لكم.",
+      axes: [
+        {
+          title: "المطابقة الفنية",
+          body: "تتم مراجعة المنتج والأبعاد والدرجة والمواصفة القياسية وسائر المواصفات الأساسية للطلب. وعند حاجة المشروع، تؤخذ متطلبات الوثائق الفنية ووثائق الجودة في الاعتبار أيضًا.",
+        },
+        {
+          title: "إمكانية التوريد",
+          body: "تتم مراجعة إمكانية توفير الصنف المطلوب والقيود المؤثرة في إمكانية توريده.",
+        },
+        {
+          title: "الشروط التجارية",
+          body: "يتم توضيح الكمية والوحدة والسعر المقترح وشروط الدفع ومدة صلاحية العرض بصورة واضحة.",
+        },
+        {
+          title: "التسليم",
+          body: "تتم مراجعة الوجهة والموعد المطلوب وشروط النقل وأساس التسليم عندما تكون مؤثرة في العرض.",
+        },
       ],
     },
     process: {

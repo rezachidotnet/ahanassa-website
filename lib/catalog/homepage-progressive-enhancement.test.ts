@@ -188,7 +188,6 @@ test("every Reveal consumer inherits the fix — none reimplements a hiding base
   // Reveal is shared. These are its actual consumers, verified by grep.
   const consumers = [
     "components/home/product-showcase.tsx",
-    "components/home/capabilities.tsx",
     "components/home/reach.tsx",
     "components/home/process.tsx",
     "app/[locale]/services/page.tsx",

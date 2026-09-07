@@ -7,8 +7,7 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { Hero } from "@/components/home/hero";
 import { PriceStrip } from "@/components/home/price-strip";
 import { ProductShowcase } from "@/components/home/product-showcase";
-import { Capabilities } from "@/components/home/capabilities";
-import { Assurance } from "@/components/home/assurance";
+import { EvaluationAssurance } from "@/components/home/evaluation-assurance";
 import { Process } from "@/components/home/process";
 import { Reach } from "@/components/home/reach";
 import { CtaBand } from "@/components/ui/cta-band";
@@ -95,8 +94,7 @@ export default async function HomePage({ params }: PageProps) {
       <Hero locale={locale} />
       <PriceStrip locale={locale} items={priceStripItems} />
       <ProductShowcase locale={locale} items={homepageProducts} />
-      <Capabilities locale={locale} />
-      <Assurance locale={locale} />
+      <EvaluationAssurance locale={locale} />
       <Process locale={locale} />
       <Reach locale={locale} />
       <CtaBand locale={locale} />
