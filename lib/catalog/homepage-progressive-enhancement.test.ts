@@ -186,10 +186,17 @@ test("no <noscript> duplicate of the Showcase markup was introduced as the fix",
 
 test("every Reveal consumer inherits the fix — none reimplements a hiding baseline of its own", () => {
   // Reveal is shared. These are its actual consumers, verified by grep.
+  //
+  // components/home/process.tsx was on this list until Purchase Process V2.0
+  // was implemented; that spec's §28 targets "0 dedicated interaction JS", so
+  // the component now renders with no Reveal at all and SSR, JS-off, and
+  // reduced-motion are the same render. It is deliberately absent here rather
+  // than re-added — see
+  // lib/content/purchase-process-frozen-spec-invariants.test.ts, which asserts
+  // it must NOT import Reveal.
   const consumers = [
     "components/home/product-showcase.tsx",
     "components/home/reach.tsx",
-    "components/home/process.tsx",
     "app/[locale]/services/page.tsx",
   ];
 

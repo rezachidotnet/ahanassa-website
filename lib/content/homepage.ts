@@ -74,6 +74,64 @@ export interface HomepageCopy {
     body: string;
     axes: { title: string; body: string }[];
   };
+  /**
+   * Purchase Process — the frozen V2.0 component
+   * (docs/purchase-process/AHANASSA_PURCHASE_PROCESS_FINAL_FROZEN_V2.0.md).
+   *
+   * Exactly four customer-facing steps in every locale (§6), in the frozen
+   * order ارسال درخواست -> بررسی درخواست -> دریافت پیشنهاد -> تأیید و پیگیری
+   * سفارش. It answers "چه اتفاقی می‌افتد و به چه ترتیب؟" (§3) — what happens
+   * and in what sequence — while `evaluationAssurance` above answers "چه
+   * چیزهایی بررسی می‌شود؟". §3 requires those two responsibilities to stay
+   * separate, which is why no grade/standard/sourcing-feasibility/payment-term
+   * /Incoterm/delivery-criteria detail appears here (§8.3).
+   *
+   * There is deliberately NO `eyebrow`, NO `body`, and NO `cta` field:
+   *
+   * - `body`: §5 freezes the structure as `H2 -> 4-step process`, explicitly
+   *   NOT `H2 -> generic explanatory paragraph -> 4-step process`, and §39's
+   *   Final Acceptance Matrix repeats "Supporting paragraph | None by default".
+   *   (§17's illustrative markup snippet does show a `<p>`; that tension was
+   *   found and resolved in the P0 audit's Consistency Note A in favour of the
+   *   explicit content rule and the acceptance matrix.)
+   * - `eyebrow`: no eyebrow copy is approved, and every natural Persian
+   *   candidate is drawn from the five generic headings §4 names as forbidden
+   *   ("روند خرید", "مراحل همکاری", "فرآیند ما", "نحوه کار ما", "مسیر تأمین").
+   *   The component therefore renders a bare `<h2 id>` rather than
+   *   SectionHeading, whose `eyebrow` prop is required — the same shape
+   *   components/home/evaluation-assurance.tsx already uses on this page.
+   * - `cta`: §23 "For V2.0: CTA = none". The page's Header, Hero, and Final
+   *   CTA already own conversion; §23 warns specifically against adding a
+   *   button "merely because the component ends with Step 04".
+   *
+   * The visible 01–04 indexes are decorative and derived per locale at render
+   * time (lib/content/purchase-process.ts), never stored as content here (§32).
+   */
+  purchaseProcess: {
+    /** Frozen FA H2 (§4); EN/AR are the owner-approved transcreations. */
+    title: string;
+    steps: { title: string; body: string }[];
+  };
+  /**
+   * LEGACY six-stage procurement narrative — NOT the Homepage Purchase
+   * Process. It is retained solely because `app/[locale]/services/page.tsx`
+   * and `app/[locale]/contact/page.tsx` still read it; the Homepage no longer
+   * renders any of it (components/home/process.tsx consumes `purchaseProcess`
+   * above).
+   *
+   * This field is OUT OF SCOPE for Purchase Process V2.0, which governs the
+   * Homepage component only. It is left byte-for-byte unchanged rather than
+   * reshaped, because reshaping it would have forced either an invented
+   * eyebrow/supporting paragraph for /services (SectionHeading requires
+   * `eyebrow`) or a structural rewrite of a page this task is not authorised
+   * to touch. Its `input`/`activity`/`output` framing and its sourcing-
+   * comparison and supplier-communication wording are exactly what V2.0 §12
+   * and §13 forbid on the Homepage, so it must NOT be reintroduced there.
+   *
+   * Follow-up: /services and /contact need their own approved copy so this
+   * field can be retired outright — tracked in
+   * docs/purchase-process/PURCHASE_PROCESS_P1_V2_0_IMPLEMENTATION_REPORT.md.
+   */
   process: {
     eyebrow: string;
     title: string;
@@ -135,6 +193,27 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
         {
           title: "تحویل",
           body: "مقصد، زمان موردنیاز، شرایط حمل و مبنای تحویل در صورت اثرگذاری بر پیشنهاد بررسی می‌شود.",
+        },
+      ],
+    },
+    purchaseProcess: {
+      title: "از ارسال درخواست تا خرید چه اتفاقی می‌افتد؟",
+      steps: [
+        {
+          title: "ارسال درخواست",
+          body: "لیست خرید یا مشخصات نیاز خود را ارسال می‌کنید.",
+        },
+        {
+          title: "بررسی درخواست",
+          body: "درخواست بررسی می‌شود و اگر اطلاعاتی برای تکمیل آن لازم باشد، با شما هماهنگ می‌کنیم.",
+        },
+        {
+          title: "دریافت پیشنهاد",
+          body: "پیشنهاد و شرایط مرتبط برای بررسی و تصمیم‌گیری شما ارائه می‌شود.",
+        },
+        {
+          title: "تأیید و پیگیری سفارش",
+          body: "پس از تأیید پیشنهاد، سفارش بر اساس شرایط توافق‌شده وارد مرحله اجرا و پیگیری می‌شود.",
         },
       ],
     },
@@ -203,6 +282,27 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
         },
       ],
     },
+    purchaseProcess: {
+      title: "What happens from request submission through to purchase?",
+      steps: [
+        {
+          title: "Submit a request",
+          body: "You send your purchase list or the specifications of what you need.",
+        },
+        {
+          title: "Request review",
+          body: "We review your request and, if any information is needed to complete it, we coordinate with you.",
+        },
+        {
+          title: "Receive a proposal",
+          body: "A proposal and the related terms are presented for your review and decision.",
+        },
+        {
+          title: "Approval and order follow-up",
+          body: "After you approve the proposal, the order moves into execution and follow-up based on the agreed terms.",
+        },
+      ],
+    },
     process: {
       eyebrow: "Purchasing process",
       title: "From request to delivery coordination, in six stages.",
@@ -265,6 +365,27 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
         {
           title: "التسليم",
           body: "تتم مراجعة الوجهة والموعد المطلوب وشروط النقل وأساس التسليم عندما تكون مؤثرة في العرض.",
+        },
+      ],
+    },
+    purchaseProcess: {
+      title: "ماذا يحدث من إرسال الطلب حتى الشراء؟",
+      steps: [
+        {
+          title: "إرسال الطلب",
+          body: "ترسل قائمة مشترياتك أو مواصفات احتياجك.",
+        },
+        {
+          title: "مراجعة الطلب",
+          body: "تتم مراجعة طلبك، وإذا كانت هناك معلومات لازمة لاستكماله، نتواصل معك لاستكمالها.",
+        },
+        {
+          title: "استلام العرض",
+          body: "يُقدَّم لك العرض والشروط المرتبطة به لمراجعته واتخاذ القرار.",
+        },
+        {
+          title: "التأكيد ومتابعة الطلب",
+          body: "بعد تأكيدك للعرض، ينتقل الطلب إلى مرحلة التنفيذ والمتابعة وفقًا للشروط المتفق عليها.",
         },
       ],
     },
