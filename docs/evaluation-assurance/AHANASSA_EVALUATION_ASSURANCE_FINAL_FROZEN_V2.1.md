@@ -1,3 +1,36 @@
+> ## ⚠ STATUS NOTICE — SUPERSEDED FOR HOMEPAGE
+>
+> **Status as of 2026-09-08: `SUPERSEDED FOR HOMEPAGE — replaced by Buyer Value / Service Promise V1.0`.**
+>
+> This component no longer renders on the Homepage. It was removed from
+> `app/[locale]/page.tsx` by the Homepage HP-R1 reconciliation and replaced in
+> that slot by `components/home/buyer-value.tsx`.
+>
+> Authority for this change:
+> - `docs/homepage/AHANASSA_HOMEPAGE_COMPOSITION_AND_CUSTOMER_JOURNEY_FREEZE_V1.0.md` §8, §16.5, §19.5
+> - `docs/buyer-value/AHANASSA_BUYER_VALUE_SERVICE_PROMISE_COMPONENT_FREEZE_V1.0.md` §21
+>
+> **Nothing below has been deleted or edited.** The body of this document is
+> retained in full as decision history, exactly as frozen on 2026-09-07, per
+> Composition Freeze §8: "Historical specifications and files SHOULD NOT be
+> deleted solely because they are no longer active."
+>
+> Also retained and untouched, and asserted to still exist by
+> `lib/content/evaluation-assurance-frozen-spec-invariants.test.ts`:
+> - `components/home/evaluation-assurance.tsx`
+> - `lib/content/evaluation-assurance.ts`
+> - the `evaluationAssurance` field of `lib/content/homepage.ts`
+>
+> Scope of the supersession: **Homepage placement only.** Every content,
+> semantic, accessibility and claim-safety rule below remains a valid record of
+> the approved V2.1 decision. This document is simply no longer authoritative
+> for what the Homepage renders.
+>
+> Implementation record: `docs/homepage/HOMEPAGE_HP_R1_RECONCILIATION_IMPLEMENTATION_REPORT.md`.
+> Register: `docs/homepage/HOMEPAGE_SUPERSESSION_REGISTER.md`.
+
+---
+
 # AHAN ASA HOMEPAGE — EVALUATION / ASSURANCE
 ## FINAL FROZEN V2.1
 

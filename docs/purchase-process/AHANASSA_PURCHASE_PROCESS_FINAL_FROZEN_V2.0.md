@@ -1,3 +1,43 @@
+> ## ⚠ STATUS NOTICE — RETAINED OUTSIDE HOMEPAGE
+>
+> **Status as of 2026-09-08: `RETAINED OUTSIDE HOMEPAGE — reserved for the dedicated /process page`.**
+>
+> **This document is NOT superseded.** It is *relocated*: the component no
+> longer renders as an independent Homepage section, and the specification is
+> reserved for the future dedicated `/process` page. The Buyer Value freeze
+> states this explicitly (§21): "Purchase Process remains a separate retained
+> specification for the future /process page and is not superseded by this
+> component."
+>
+> Authority for the relocation:
+> - `docs/homepage/AHANASSA_HOMEPAGE_COMPOSITION_AND_CUSTOMER_JOURNEY_FREEZE_V1.0.md` §8, §12, §16.6, §19.6
+> - `docs/buyer-value/AHANASSA_BUYER_VALUE_SERVICE_PROMISE_COMPONENT_FREEZE_V1.0.md` §21
+>
+> **Nothing below has been deleted or edited.** The body of this document is
+> retained in full, exactly as frozen on 2026-09-07, and remains the governing
+> specification for this component wherever it is next rendered.
+>
+> Also retained and untouched, and asserted to still exist by
+> `lib/content/purchase-process-frozen-spec-invariants.test.ts`:
+> - `components/home/process.tsx`
+> - `lib/content/purchase-process.ts`
+> - the `purchaseProcess` field of `lib/content/homepage.ts`
+>
+> **No `/process` route exists yet.** Creating it is a separate, future phase.
+> Until it exists, nothing links to it — Composition Freeze §12 permits a
+> contextual link but the implementation checklist is explicit that a link must
+> not be added to a nonexistent route, and a test enforces that.
+>
+> What changed on the Homepage: the Hero remains the sole owner of the short
+> four-step purchase summary (Composition §6.1/§7); detailed process education
+> is reserved for `/process` (§12) rather than being told a second time on the
+> Homepage.
+>
+> Implementation record: `docs/homepage/HOMEPAGE_HP_R1_RECONCILIATION_IMPLEMENTATION_REPORT.md`.
+> Register: `docs/homepage/HOMEPAGE_SUPERSESSION_REGISTER.md`.
+
+---
+
 # AHAN ASA HOMEPAGE — PURCHASE PROCESS
 ## FINAL FROZEN V2.0
 
