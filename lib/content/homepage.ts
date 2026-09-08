@@ -75,6 +75,50 @@ export interface HomepageCopy {
     axes: { title: string; body: string }[];
   };
   /**
+   * Buyer Value / Service Promise — the frozen V1.0 component
+   * (docs/buyer-value/AHANASSA_BUYER_VALUE_SERVICE_PROMISE_COMPONENT_FREEZE_V1.0.md),
+   * placed on the Homepage by
+   * docs/homepage/AHANASSA_HOMEPAGE_COMPOSITION_AND_CUSTOMER_JOURNEY_FREEZE_V1.0.md §4.
+   *
+   * Answers exactly one buyer question (§1): "Why should I place my steel
+   * request with Ahan Asa?" — supplier selection. It owns human
+   * accountability, coordinated handling of diverse requested items, equal
+   * seriousness for small and bulk requests, and follow-up through agreed
+   * delivery obligations (§2).
+   *
+   * For the HOMEPAGE it supersedes `evaluationAssurance` below (§21). That
+   * field, its component, and its spec are all deliberately RETAINED — the
+   * Homepage simply no longer renders them. Nothing was deleted.
+   *
+   * Unlike `evaluationAssurance` and `purchaseProcess`, this component DOES
+   * have an approved `eyebrow` (§3.1/§4/§5) and an approved supporting
+   * statement (§3.3/§4/§5), so both are stored here. There is deliberately NO
+   * `cta` field: §14 "no component-level primary CTA", §22.4 "It does not
+   * contain a CTA" — conversion stays owned by Header, Hero and Final CTA.
+   *
+   * Every string below is the freeze's canonical copy character-for-character
+   * (§3 Persian, §4 English, §5 Arabic). It must never be re-translated,
+   * paraphrased, or "improved": §6's claim-safety rules are carried by exact
+   * wording — `تعهدات توافق‌شده` rather than an unlimited "all commitments"
+   * claim, `در صورت نیاز و توافق` for loading/transport, and equal QUALITY OF
+   * ATTENTION (never identical commercial terms) for small versus bulk
+   * requests. lib/content/buyer-value-frozen-spec-invariants.test.ts pins each
+   * string against the imported freeze document itself.
+   *
+   * The visible 01–04 markers are decorative and derived per locale at render
+   * time (lib/content/buyer-value.ts), never stored as content here (§7).
+   */
+  buyerValue: {
+    /** Frozen FA eyebrow (§3.1); EN §4, AR §5. Secondary to the H2 (§7). */
+    eyebrow: string;
+    /** Frozen FA H2 (§3.2/§22.1); EN §4, AR §5. */
+    title: string;
+    /** Frozen FA supporting statement (§3.3); EN §4, AR §5. Exactly one. */
+    body: string;
+    /** Exactly four promises in the frozen order (§3.4–§3.7 / §19.3). */
+    promises: { title: string; body: string }[];
+  };
+  /**
    * Purchase Process — the frozen V2.0 component
    * (docs/purchase-process/AHANASSA_PURCHASE_PROCESS_FINAL_FROZEN_V2.0.md).
    *
@@ -196,6 +240,29 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
         },
       ],
     },
+    buyerValue: {
+      eyebrow: "همراهی در خرید",
+      title: "آهن آسا چگونه خرید آهن را برای شما آسان می‌کند؟",
+      body: "از زمان ارسال درخواست تا انجام تعهدات توافق‌شده، بررسی، هماهنگی و پیگیری خرید شما در یک مسیر مشخص ادامه پیدا می‌کند.",
+      promises: [
+        {
+          title: "یک کارشناس واقعی، همراه خرید شماست",
+          body: "درخواست شما صرفاً یک فرم یا شماره پیگیری نیست؛ یک کارشناس از زمان ارسال درخواست تا انجام تعهدات توافق‌شده، پاسخ‌گو و پیگیر آن است.",
+        },
+        {
+          title: "اقلام متنوع، در یک مسیر هماهنگ",
+          body: "فرقی نمی‌کند درخواست شما یک قلم مشخص باشد یا فهرستی از محصولات با مشخصات و شرایط متفاوت؛ بررسی و هماهنگی آن‌ها در یک مسیر منسجم انجام می‌شود.",
+        },
+        {
+          title: "کوچک یا عمده، درخواست شما جدی است",
+          body: "حجم سفارش، معیار کیفیت توجه ما نیست؛ هر درخواست با استاندارد مشخصی از بررسی، شفافیت و پیگیری دنبال می‌شود.",
+        },
+        {
+          title: "پیگیری تا تحویل کالا ادامه دارد",
+          body: "کار ما با تأیید پیشنهاد تمام نمی‌شود؛ سفارش تا انجام تعهدات توافق‌شده پیگیری می‌شود و در صورت نیاز و توافق، هماهنگی بارگیری و حمل نیز انجام خواهد شد.",
+        },
+      ],
+    },
     purchaseProcess: {
       title: "از ارسال درخواست تا خرید چه اتفاقی می‌افتد؟",
       steps: [
@@ -282,6 +349,29 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
         },
       ],
     },
+    buyerValue: {
+      eyebrow: "Support throughout your purchase",
+      title: "How does Ahan Asa make buying steel easier for you?",
+      body: "From submitting your request through completion of the agreed commitments, your purchase follows a clear path of review, coordination, and follow-up.",
+      promises: [
+        {
+          title: "A real specialist stays with your request",
+          body: "Your request is more than a form or tracking number. A specialist remains available to answer questions and follow it through completion of the agreed commitments.",
+        },
+        {
+          title: "Diverse items, one coordinated path",
+          body: "Whether you need one specific item or a list of products with different specifications and conditions, their review and coordination are handled through one consistent path.",
+        },
+        {
+          title: "Small or bulk, your request matters",
+          body: "Order volume does not determine the quality of our attention. Every request follows a defined standard of review, clarity, and follow-up.",
+        },
+        {
+          title: "Follow-up continues through delivery",
+          body: "Our work does not end when you approve the proposal. We follow the order through the agreed commitments and, when needed and agreed, coordinate loading and transport as well.",
+        },
+      ],
+    },
     purchaseProcess: {
       title: "What happens from request submission through to purchase?",
       steps: [
@@ -365,6 +455,29 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
         {
           title: "التسليم",
           body: "تتم مراجعة الوجهة والموعد المطلوب وشروط النقل وأساس التسليم عندما تكون مؤثرة في العرض.",
+        },
+      ],
+    },
+    buyerValue: {
+      eyebrow: "مرافقة خلال رحلة الشراء",
+      title: "كيف تجعل آهن آسا شراء الحديد أسهل بالنسبة إليك؟",
+      body: "من إرسال الطلب حتى تنفيذ الالتزامات المتفق عليها، تستمر مراجعة عملية الشراء وتنسيقها ومتابعتها ضمن مسار واضح.",
+      promises: [
+        {
+          title: "خبير حقيقي يرافق طلبك",
+          body: "طلبك ليس مجرد نموذج أو رقم متابعة؛ يبقى خبير متاحاً للإجابة عن استفساراتك ومتابعة الطلب حتى تنفيذ الالتزامات المتفق عليها.",
+        },
+        {
+          title: "أصناف متنوعة ضمن مسار منسّق",
+          body: "سواء كان طلبك لصنف واحد محدد أو لقائمة منتجات بمواصفات وشروط مختلفة، تتم مراجعتها وتنسيقها ضمن مسار واحد ومنسجم.",
+        },
+        {
+          title: "صغيراً كان أم بالجملة، يؤخذ طلبك بجدية",
+          body: "حجم الطلب لا يحدد مستوى اهتمامنا؛ فكل طلب يخضع لمعيار واضح من المراجعة والشفافية والمتابعة.",
+        },
+        {
+          title: "تستمر المتابعة حتى استلام البضاعة",
+          body: "لا ينتهي دورنا عند موافقتك على العرض؛ نتابع الطلب حتى تنفيذ الالتزامات المتفق عليها، وعند الحاجة وبالاتفاق، ننسق التحميل والنقل أيضاً.",
         },
       ],
     },

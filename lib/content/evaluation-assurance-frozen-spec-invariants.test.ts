@@ -112,22 +112,47 @@ test("the shared servicesCopy module survives — only Capabilities' usage of it
 });
 
 // ---------------------------------------------------------------------------
-// Homepage sequence — V2.1 §2
+// Homepage sequence — V2.1 §2, SUPERSEDED FOR THE HOMEPAGE
+//
+// V2.1 §2 placed this component on the Homepage between Product Showcase and
+// Purchase Process. That placement — and only that placement — is superseded
+// by docs/homepage/AHANASSA_HOMEPAGE_COMPOSITION_AND_CUSTOMER_JOURNEY_FREEZE_V1.0.md
+// §8 ("Evaluation / Assurance V2.1 | Removed and replaced by Buyer Value /
+// Service Promise | SUPERSEDED FOR HOMEPAGE") and §19.5, together with
+// docs/buyer-value/AHANASSA_BUYER_VALUE_SERVICE_PROMISE_COMPONENT_FREEZE_V1.0.md
+// §21.
+//
+// Everything else in V2.1 — its content, its <ul> semantics, its claim-safety
+// rules, its zero-I/O guarantee — remains fully in force and is still asserted
+// by every other test in this file. The component, its copy and its spec are
+// all deliberately retained (§8: historical specifications "SHOULD NOT be
+// deleted solely because they are no longer active"), so the assertions below
+// pin the SUPERSESSION rather than deleting the coverage: the Homepage must
+// not render it, and the file must not be quietly removed either.
 // ---------------------------------------------------------------------------
 
-test("exactly one Evaluation/Assurance section renders on the Homepage", () => {
-  const rendered = PAGE_CODE.match(/<EvaluationAssurance[\s/>]/g) ?? [];
-  assert.equal(rendered.length, 1, "there must be exactly one Evaluation/Assurance component in this role");
+test("the Homepage no longer renders Evaluation/Assurance (Composition V1.0 §8/§19.5)", () => {
+  assert.ok(!/<EvaluationAssurance[\s/>]/.test(PAGE_CODE), "Buyer Value replaced it — Composition §16.5: it must not appear as an independent Homepage section");
+  assert.ok(!/from "@\/components\/home\/evaluation-assurance"/.test(PAGE_CODE), "the superseded Homepage import must be gone");
 });
 
-test("Homepage order is Product Showcase -> Evaluation/Assurance -> Purchase Process (§2)", () => {
-  const showcase = PAGE_CODE.indexOf("<ProductShowcase");
-  const evaluation = PAGE_CODE.indexOf("<EvaluationAssurance");
-  const process = PAGE_CODE.indexOf("<Process");
+test("supersession is removal-from-Homepage only — the component and its content survive", () => {
+  // Composition §8: "Historical specifications and files SHOULD NOT be deleted
+  // solely because they are no longer active." This is the executable half of
+  // that rule; the durable status notice is the documentation half.
+  assert.ok(existsSync(path.join(REPO_ROOT, COMPONENT)), `${COMPONENT} must NOT be deleted — it is superseded for the Homepage, not retired`);
+  assert.ok(existsSync(path.join(REPO_ROOT, "docs/evaluation-assurance/AHANASSA_EVALUATION_ASSURANCE_FINAL_FROZEN_V2.1.md")), "the frozen V2.1 spec must be retained as decision history");
+  for (const locale of LOCALES) {
+    assert.ok("evaluationAssurance" in (homepageCopy[locale] as unknown as Record<string, unknown>), `${locale}: the retained copy must not be deleted either`);
+  }
+});
 
-  assert.ok(showcase > -1 && evaluation > -1 && process > -1, "all three sections must render");
-  assert.ok(showcase < evaluation, "Evaluation/Assurance must follow Product Showcase");
-  assert.ok(evaluation < process, "Evaluation/Assurance must precede Purchase Process");
+test("Buyer Value took over this Homepage slot, directly after Product Showcase (Composition §4)", () => {
+  const showcase = PAGE_CODE.indexOf("<ProductShowcase");
+  const buyerValue = PAGE_CODE.indexOf("<BuyerValue");
+
+  assert.ok(showcase > -1 && buyerValue > -1, "both sections must render");
+  assert.ok(showcase < buyerValue, "Composition §4/§16.4: Buyer Value appears after product exploration");
 });
 
 // ---------------------------------------------------------------------------
@@ -425,12 +450,15 @@ test("zero data dependency: no Odoo, DB_PUBLIC, projections, or pricing (§36)",
   assert.deepEqual(imports.sort(), ["@/config/locales", "@/lib/content/evaluation-assurance", "@/lib/content/homepage"]);
 });
 
-test("the Homepage renders the section unconditionally — it has no data-driven omission path", () => {
+test("the component has no data-driven omission path — its removal was a composition decision, not a data failure", () => {
   // Unlike Product Showcase (§35 "0 cards -> Section hidden") and the Price
-  // Strip, this component is editorial: there is no state in which it should
-  // vanish, and no `return null` that a future data change could trigger.
-  assert.ok(!/return null/.test(COMPONENT_CODE), "the section must always render");
-  assert.match(PAGE_CODE, /<EvaluationAssurance locale=\{locale\} \/>/, "rendered directly, with no conditional wrapper");
+  // Strip, this component is editorial: there is no state in which it could
+  // vanish by itself, and no `return null` that a future data change could
+  // trigger. That distinction is exactly what Composition §17 requires
+  // validation to keep separate — "component intentionally excluded by this
+  // architecture" versus "component absent because of data/sync state". This
+  // one is the former, provably: nothing about data can hide it.
+  assert.ok(!/return null/.test(COMPONENT_CODE), "the section has no self-omission path");
 });
 
 // ---------------------------------------------------------------------------

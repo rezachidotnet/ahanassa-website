@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { homepageCopy } from "./homepage.ts";
@@ -247,28 +247,56 @@ test("the legacy `process` field is intentionally retained for /services and /co
 });
 
 // ---------------------------------------------------------------------------
-// Homepage sequence — §3
+// Homepage sequence — §3, SUPERSEDED FOR THE HOMEPAGE
+//
+// V2.0 §3 placed this component on the Homepage after Evaluation/Assurance.
+// That placement — and ONLY that placement — is superseded by
+// docs/homepage/AHANASSA_HOMEPAGE_COMPOSITION_AND_CUSTOMER_JOURNEY_FREEZE_V1.0.md
+// §8, which records Purchase Process V2.0 as "RETAINED OUTSIDE HOMEPAGE" for
+// the future dedicated /process page, and §19.6.
+//
+// "Retained outside the Homepage" is deliberately NOT "globally superseded":
+// Composition §12 assigns detailed process education to /process, and the
+// Buyer Value freeze §21 says in terms that "Purchase Process remains a
+// separate retained specification for the future /process page and is not
+// superseded by this component." Every other assertion in this file — the
+// frozen four steps, the <ol> semantics, the no-2x2 layout proof, the
+// claim-safety rules — therefore remains fully in force and untouched.
 // ---------------------------------------------------------------------------
 
-test("exactly one Purchase Process section renders on the Homepage", () => {
-  const rendered = PAGE_CODE.match(/<Process[\s/>]/g) ?? [];
-  assert.equal(rendered.length, 1, "there must be exactly one Purchase Process component in this role");
-  assert.match(PAGE_CODE, /<Process locale=\{locale\} \/>/, "rendered directly, with no conditional wrapper and the unchanged prop contract");
+test("the Homepage no longer renders Purchase Process as an independent section (Composition V1.0 §8/§19.6)", () => {
+  assert.ok(!/<Process[\s/>]/.test(PAGE_CODE), "Composition §16.6: Purchase Process must not appear as an independent Homepage section");
+  assert.ok(!/from "@\/components\/home\/process"/.test(PAGE_CODE), "the superseded Homepage import must be gone");
 });
 
-test("Process sits after Evaluation/Assurance and before the later sections and Final CTA (§3)", () => {
-  // The `Evaluation/Assurance -> Process` half is already asserted by
-  // lib/content/evaluation-assurance-frozen-spec-invariants.test.ts and is not
-  // duplicated here; what this adds is the tail of §3's sequence.
-  const evaluation = PAGE_CODE.indexOf("<EvaluationAssurance");
-  const process = PAGE_CODE.indexOf("<Process");
+test("RETAINED OUTSIDE HOMEPAGE — the component, its copy and its spec all survive intact", () => {
+  // Composition §8: historical specifications and files "SHOULD NOT be deleted
+  // solely because they are no longer active", and this one is not even
+  // historical — it is reserved for /process. Deleting any of it would be the
+  // over-deletion this test exists to prevent.
+  assert.ok(existsSync(path.join(REPO_ROOT, COMPONENT)), `${COMPONENT} must NOT be deleted — it is reserved for the future /process page`);
+  assert.ok(existsSync(path.join(REPO_ROOT, "docs/purchase-process/AHANASSA_PURCHASE_PROCESS_FINAL_FROZEN_V2.0.md")), "the frozen V2.0 spec must be retained, not removed");
+  for (const locale of LOCALES) {
+    assert.ok("purchaseProcess" in (homepageCopy[locale] as unknown as Record<string, unknown>), `${locale}: the retained four-step copy must survive for /process`);
+  }
+});
+
+test("no link to a /process route is invented while that route does not exist (§12)", () => {
+  // Composition §12 permits a contextual link to /process, but the
+  // implementation checklist is explicit: "Do not add links to a nonexistent
+  // route." No such route exists in this repository yet.
+  assert.ok(!existsSync(path.join(REPO_ROOT, "app/[locale]/process")), "if /process is ever created, this guard must be revisited deliberately");
+  assert.ok(!/["'`]\/process["'`]/.test(PAGE_CODE), "the Homepage must not link to a route that does not exist");
+});
+
+test("the tail of the Homepage sequence is preserved: Buyer Value -> Industries -> Final CTA (Composition §4)", () => {
+  const buyerValue = PAGE_CODE.indexOf("<BuyerValue");
   const reach = PAGE_CODE.indexOf("<Reach");
   const finalCta = PAGE_CODE.indexOf("<CtaBand");
 
-  assert.ok(evaluation > -1 && process > -1 && reach > -1 && finalCta > -1, "all four sections must render");
-  assert.ok(evaluation < process, "§3: Purchase Process follows Evaluation/Assurance");
-  assert.ok(process < reach, "§3: later conditional sections follow Purchase Process");
-  assert.ok(reach < finalCta, "§3: the Final CTA is last");
+  assert.ok(buyerValue > -1 && reach > -1 && finalCta > -1, "all three sections must render");
+  assert.ok(buyerValue < reach, "§4: conditional Industries follows Buyer Value");
+  assert.ok(reach < finalCta, "§4/§16.14: the Final CTA closes the content journey");
 });
 
 // ---------------------------------------------------------------------------

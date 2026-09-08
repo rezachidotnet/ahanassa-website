@@ -7,14 +7,71 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { Hero } from "@/components/home/hero";
 import { PriceStrip } from "@/components/home/price-strip";
 import { ProductShowcase } from "@/components/home/product-showcase";
-import { EvaluationAssurance } from "@/components/home/evaluation-assurance";
-import { Process } from "@/components/home/process";
+import { BuyerValue } from "@/components/home/buyer-value";
 import { Reach } from "@/components/home/reach";
 import { CtaBand } from "@/components/ui/cta-band";
 import type { PublicPriceStripItem } from "@/lib/pricing/types";
 import type { HomepageProductCandidate } from "@/lib/catalog/types";
 import { resolveHomepageRankingMode } from "@/lib/ranking/score";
 
+/**
+ * HOMEPAGE COMPOSITION — frozen by
+ * docs/homepage/AHANASSA_HOMEPAGE_COMPOSITION_AND_CUSTOMER_JOURNEY_FREEZE_V1.0.md §4:
+ *
+ *   Header -> Hero -> Price Strip [conditional] -> Product Showcase ->
+ *   Buyer Value -> Verified Evidence [conditional] ->
+ *   Industries / Use Cases [conditional] -> Final CTA -> Footer
+ *
+ * Header and Footer are the global shell, rendered by app/[locale]/layout.tsx;
+ * everything between them is rendered by `HomePage` below. Each section owns
+ * exactly one buyer question, and §7's duplication gate forbids a later
+ * section from restating an earlier one's job with different wording. The
+ * order may not be changed without a versioned supersession of that freeze
+ * (§18) — and §18 is explicit that "An implementation bug, missing local data,
+ * or temporary deployment state MUST NOT be recorded as an architecture
+ * change."
+ *
+ * CONDITIONAL SECTIONS fail independently (§9). Each decides its own
+ * visibility and renders nothing at all when ineligible, so an omission drops
+ * the ENTIRE semantic section — no empty heading, no skeleton, no blank band —
+ * and can never suppress a sibling:
+ *
+ *   Price Strip        omitted unless PRICE_STRIP_ENABLED is on AND eligible,
+ *                      attributable, current data exists. Read on its own code
+ *                      path, ahead of and outside the Showcase's failure
+ *                      boundary, so neither can take the other down.
+ *   Verified Evidence  NOT RENDERED AT ALL in this phase, which is the correct
+ *                      state rather than an oversight. §6.5 requires at least
+ *                      100 ELIGIBLE operational records plus the data-quality
+ *                      gates before any speed/evidence figure may be
+ *                      published, and no evidence metric, calculation window,
+ *                      freshness gate or publication contract exists anywhere
+ *                      in this repository yet. §6.5 is explicit that "A
+ *                      marketing substitute MUST NOT be rendered in its
+ *                      place", so there is deliberately no component, no
+ *                      placeholder, and no invented metric here.
+ *   Industries         `Reach`. Its list is the already-approved,
+ *                      non-fabricated industries content shared with
+ *                      /industries and /markets (lib/content/pages.ts), so it
+ *                      is eligible and renders.
+ *
+ * SUPERSEDED FOR THE HOMEPAGE (§8) — dropped from this render, NOT deleted:
+ *
+ *   EvaluationAssurance  components/home/evaluation-assurance.tsx, replaced
+ *                        here by BuyerValue. Its component, content and frozen
+ *                        V2.1 spec are all retained unchanged; §8 requires
+ *                        historical specifications be marked superseded rather
+ *                        than removed.
+ *   Process              components/home/process.tsx, RETAINED OUTSIDE THE
+ *                        HOMEPAGE and reserved for a future dedicated
+ *                        /process page (§12). It is NOT globally superseded.
+ *                        No /process route exists yet and §12 forbids linking
+ *                        to one that does not, so nothing links to it.
+ *
+ * The Hero is deliberately untouched: §6.1 makes it the SOLE owner of the
+ * short four-step purchase path, and no later section — BuyerValue very much
+ * included — may repeat that journey.
+ */
 interface PageProps {
   params: Promise<{ locale: string }>;
 }
@@ -94,8 +151,7 @@ export default async function HomePage({ params }: PageProps) {
       <Hero locale={locale} />
       <PriceStrip locale={locale} items={priceStripItems} />
       <ProductShowcase locale={locale} items={homepageProducts} />
-      <EvaluationAssurance locale={locale} />
-      <Process locale={locale} />
+      <BuyerValue locale={locale} />
       <Reach locale={locale} />
       <CtaBand locale={locale} />
 
