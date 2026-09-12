@@ -2,6 +2,7 @@
 
 **Status:** ACTIVE
 **Established:** 2026-09-08 (Homepage HP-R1 reconciliation)
+**Last updated:** 2026-09-12 (Industries / Use Cases V1.0, IND-P1)
 **Governing authority:** `docs/homepage/AHANASSA_HOMEPAGE_COMPOSITION_AND_CUSTOMER_JOURNEY_FREEZE_V1.0.md` §8
 **Implementation record:** `docs/homepage/HOMEPAGE_HP_R1_RECONCILIATION_IMPLEMENTATION_REPORT.md`
 
@@ -22,6 +23,7 @@ retired or relocated components be *marked*, never deleted:
 | `docs/homepage/AHANASSA_HOMEPAGE_COMPOSITION_AND_CUSTOMER_JOURNEY_FREEZE_V1.0.md` | Section presence, order, message ownership, conditional rendering, removal/relocation |
 | `docs/homepage/AHANASSA_HOMEPAGE_VISUAL_SYSTEM_AND_MOTION_FREEZE_V1.0.md` | Colors, surfaces, spacing, geometry, motion, progressive enhancement |
 | `docs/buyer-value/AHANASSA_BUYER_VALUE_SERVICE_PROMISE_COMPONENT_FREEZE_V1.0.md` | Buyer Value copy, semantics, layout, claim safety, accessibility |
+| `docs/industries/AHANASSA_INDUSTRIES_USE_CASES_COMPONENT_FREEZE_V1.0.md` | Industries / Use Cases copy, sector order, semantics, layout, image policy, publication gate |
 | `docs/homepage/AHANASSA_HOMEPAGE_IMPLEMENTATION_PROMPT_AND_CHECKLIST_V1.0.md` | **Procedural only** — sequence and verification. It MUST NOT redefine the three freezes above. |
 
 Site-wide baselines that continue to apply and were not reopened:
@@ -43,7 +45,8 @@ Global Header                       always present   app/[locale]/layout.tsx
   Product Showcase      required architecture        components/home/product-showcase.tsx
   Buyer Value           always present               components/home/buyer-value.tsx
   Verified Evidence     [conditional]                — not implemented, correctly omitted
-  Industries / Use Cases[conditional]                components/home/reach.tsx
+  Industries / Use Cases[conditional]                components/home/industries.tsx
+                                                     (implemented; omitted — no reviewed imagery)
   Final CTA             always present               components/ui/cta-band.tsx
 Global Footer                       always present   app/[locale]/layout.tsx
 ```
@@ -59,6 +62,7 @@ Rendered by `app/[locale]/page.tsx`. Order is asserted by
 |---|---|---|---|
 | Evaluation / Assurance V2.1 | Removed; replaced by Buyer Value | **SUPERSEDED FOR HOMEPAGE** | `components/home/evaluation-assurance.tsx`, `lib/content/evaluation-assurance.ts`, `homepageCopy.*.evaluationAssurance`, `docs/evaluation-assurance/**` |
 | Purchase Process V2.0 | Removed as an independent Homepage section | **RETAINED OUTSIDE HOMEPAGE** — reserved for `/process`. *Not* globally superseded. | `components/home/process.tsx`, `lib/content/purchase-process.ts`, `homepageCopy.*.purchaseProcess`, `docs/purchase-process/**` |
+| Reach ("markets" band) | Removed; replaced in the Industries slot by Industries / Use Cases V1.0 | **SUPERSEDED FOR HOMEPAGE** — *not* globally superseded: the industry lists it renders still serve `/industries` and `/markets` | `components/home/reach.tsx`, `homepageCopy.*.reach`, `marketsCopy`/`industriesCopy` in `lib/content/pages.ts` |
 | ProcessSteps (legacy) | Not reintroduced separately | Covered by the Hero micro-journey and the future `/process` | No file exists; retired in an earlier phase |
 | RiskGrid (legacy) | Excluded | Historical only | No file exists |
 | RoleComparison (legacy) | Excluded | Historical only | No file exists |
@@ -67,10 +71,14 @@ Rendered by `app/[locale]/page.tsx`. Order is asserted by
 | SuitabilityFaq (legacy) | Removed from the Homepage | Belongs on contextual detail pages or `/process` | No file exists |
 | Capabilities / old Assurance | Retired in the Evaluation V2.1 phase | Historical only | Deleted in that earlier, separately-authorised phase |
 
-Verified 2026-09-08: none of the legacy names above appears anywhere in
-`app/`, `components/`, `lib/`, `styles/` or `config/`. Both the absence of the
-rendering and the absence of the files are asserted by
-`lib/content/homepage-composition-invariants.test.ts`.
+Verified 2026-09-08, re-verified 2026-09-12 (IND-P1): none of the legacy names
+above appears anywhere in `app/`, `components/`, `lib/`, `styles/` or
+`config/`. Both the absence of the rendering and the absence of the files are
+asserted by `lib/content/homepage-composition-invariants.test.ts`.
+
+Reach is the one entry in the table above whose files are RETAINED rather than
+absent — it joined the register in IND-P1 on the same terms as Evaluation /
+Assurance and Purchase Process before it.
 
 **Supersession never means deletion.** Two tests exist specifically to fail if
 a future change deletes a retained file:
@@ -102,7 +110,7 @@ each component's own frozen-spec invariants file.
 |---|---|---|
 | Price Strip | **OMITTED** | `PRICE_STRIP_ENABLED` is not `"true"`, so no DB code path runs at all. Provider-agnostic architecture untouched; no real-price provider was activated. |
 | Verified Evidence | **OMITTED — no contract exists** | No evidence metric, calculation window, exclusion rule, freshness gate, sample-size gate or publication threshold exists anywhere in the repository. §6.5 forbids a marketing substitute, so nothing was invented to fill the slot. |
-| Industries / Use Cases | **ELIGIBLE — renders** | `components/home/reach.tsx` renders the already-approved, non-fabricated industries list shared verbatim with `/industries` and `/markets` (`lib/content/pages.ts`). No invented projects, customers, volumes, logos or case studies. |
+| Industries / Use Cases | **OMITTED — implemented, awaiting reviewed imagery** | `components/home/industries.tsx` implements the frozen V1.0 three-sector composition with complete FA/EN/AR copy. Industries V1.0 §10 gates publication on approved scope + complete localized copy + **reviewed imagery** + a server-side enable state. The first two are met and pinned by tests; no asset in the repository depicts a construction site, a petrochemical/oil/gas facility or a fabrication workshop, and none carries recorded provenance (`01-sources/MEDIA_GUIDELINES.md`: "Unknown provenance defaults to `restricted`"; `restricted` "Must not be published"). §8 forbids shipping with missing initial image assets, so the section omits itself entirely. See §5.2 below. |
 | Product Showcase | **Required architecture; data-driven** | Renders when the public projection returns eligible candidates; fails closed to full omission otherwise. Its absence is a data state, never an architecture change (§6.3, §18). |
 
 ### 5.1 Verified Evidence — the active threshold
@@ -126,13 +134,40 @@ hidden without blocking other sections.
 
 ---
 
+### 5.2 Industries / Use Cases — the outstanding image gate
+
+The ONLY thing standing between the implemented component and publication is
+three reviewed, provenanced photographs. To publish, supply them in
+`INDUSTRY_SECTOR_IMAGES` (`lib/content/industries.ts`) and update the
+current-state assertion in `lib/content/industries-frozen-spec-invariants.test.ts`:
+
+| Slot | Required subject (V1.0 §8) | Must not be |
+|---|---|---|
+| `construction` | A building site, structural steel erection or reinforcement context | A steel yard or logistics scene |
+| `petrochemical-oil-gas` | An industrial process facility / piping context | A **steel mill** — that is a different sector |
+| `manufacturing-fabrication` | A workshop, steel fabrication or production line context | A storage warehouse |
+
+All three must be natural industrial photography with consistent treatment,
+restrained saturation, comparable light/contrast, 4:3, a verified focal point,
+and a retained internal licence/provenance record. None may be a Hero image, a
+product packshot, a collage, an icon illustration, or carry a visible customer
+logo, and none may be captioned or described as a real Ahan Asa project
+(§8; `01-sources/MEDIA_GUIDELINES.md` §4.4 and §29).
+
+Rejected during IND-P1, deliberately: substituting a near-miss repository
+photograph, fabricating provenance, hotlinking an external image, and shipping
+a gradient placeholder. Full inventory and reasoning:
+`docs/industries/INDUSTRIES_P1_V1_0_IMPLEMENTATION_REPORT.md`.
+
+---
+
 ## 6. Pending / not done in this phase
 
 | Item | Status |
 |---|---|
 | `migrations_public/0010_homepage_eligibility.sql` | **PENDING remote application.** Applied to a local disposable D1 only, for diagnosis. Must not be marked applied. |
 | Verified Evidence component + publication contract | Not started. Deliberately deferred. |
-| Industries / Use Cases redesign | Not started. Current safe output preserved as-is. |
+| Industries / Use Cases redesign | **Done (IND-P1).** Frozen V1.0 implemented and wired; publication blocked only by the three image assets in §5.2. |
 | Final CTA redesign | Not started. Present and compliant; no redesign was required. |
 | Footer redesign | Not started. Two known defects recorded in the GEO-G0 audit remain open — see the implementation report's FOOTER FOLLOW-UP. |
 | `/process` route and page | Not created. Purchase Process V2.0 is reserved for it. |
