@@ -155,7 +155,7 @@ each component's own frozen-spec invariants file.
 |---|---|---|
 | Price Strip | **OMITTED** | `PRICE_STRIP_ENABLED` is not `"true"`, so no DB code path runs at all. Provider-agnostic architecture untouched; no real-price provider was activated. |
 | Verified Evidence | **OMITTED — no contract exists** | No evidence metric, calculation window, exclusion rule, freshness gate, sample-size gate or publication threshold exists anywhere in the repository. §6.5 forbids a marketing substitute, so nothing was invented to fill the slot. |
-| Industries / Use Cases | **OMITTED — implemented, awaiting reviewed imagery** | `components/home/industries.tsx` implements the frozen V1.0 three-sector composition with complete FA/EN/AR copy. Industries V1.0 §10 gates publication on approved scope + complete localized copy + **reviewed imagery** + a server-side enable state. The first two are met and pinned by tests; no asset in the repository depicts a construction site, a petrochemical/oil/gas facility or a fabrication workshop, and none carries recorded provenance (`01-sources/MEDIA_GUIDELINES.md`: "Unknown provenance defaults to `restricted`"; `restricted` "Must not be published"). §8 forbids shipping with missing initial image assets, so the section omits itself entirely. See §5.2 below. |
+| Industries / Use Cases | **PUBLISHED — gate closed 2026-09-12** | `components/home/industries.tsx` implements the frozen V1.0 three-sector composition with complete FA/EN/AR copy. Industries V1.0 §10 gates publication on approved scope + complete localized copy + **reviewed imagery** + a server-side enable state. All four are now met: the owner supplied and approved three sector images on 2026-09-12, and they were imported under `public/images/industries/` with full provenance records in `lib/media/provenance-registry.ts` — this repository's first media registry (`01-sources/MEDIA_GUIDELINES.md` §27). That registry is what unblocked publication: the section was never short of pictures, it was short of *provenance*, and §5's "Unknown provenance defaults to `restricted`" made every unrecorded asset unpublishable. The section now renders in fa/en/ar. See §5.2 below. |
 | Product Showcase | **Required architecture; data-driven** | Renders when the public projection returns eligible candidates; fails closed to full omission otherwise. Its absence is a data state, never an architecture change (§6.3, §18). |
 
 ### 5.1 Verified Evidence — the active threshold
@@ -179,30 +179,52 @@ hidden without blocking other sections.
 
 ---
 
-### 5.2 Industries / Use Cases — the outstanding image gate
+### 5.2 Industries / Use Cases — the image gate, now CLOSED
 
-The ONLY thing standing between the implemented component and publication is
-three reviewed, provenanced photographs. To publish, supply them in
-`INDUSTRY_SECTOR_IMAGES` (`lib/content/industries.ts`) and update the
-current-state assertion in `lib/content/industries-frozen-spec-invariants.test.ts`:
+**Status: RESOLVED 2026-09-12.** The gate described here through IND-P1 is
+closed; the section publishes. Kept as history, not as an outstanding item.
 
-| Slot | Required subject (V1.0 §8) | Must not be |
-|---|---|---|
-| `construction` | A building site, structural steel erection or reinforcement context | A steel yard or logistics scene |
-| `petrochemical-oil-gas` | An industrial process facility / piping context | A **steel mill** — that is a different sector |
-| `manufacturing-fabrication` | A workshop, steel fabrication or production line context | A storage warehouse |
+The owner supplied three approved sector images. Each was visually inspected
+against its V1.0 §8 slot subject, copied (never moved) from the owner's
+originals, renamed descriptively, and recorded in the provenance registry:
 
-All three must be natural industrial photography with consistent treatment,
-restrained saturation, comparable light/contrast, 4:3, a verified focal point,
-and a retained internal licence/provenance record. None may be a Hero image, a
-product packshot, a collage, an icon illustration, or carry a visible customer
-logo, and none may be captioned or described as a real Ahan Asa project
-(§8; `01-sources/MEDIA_GUIDELINES.md` §4.4 and §29).
+| Slot | Required subject (V1.0 §8) | Must not be | Asset now published |
+|---|---|---|---|
+| `construction` | A building site, structural steel erection or reinforcement context | A steel yard or logistics scene | `/images/industries/construction-site.png` — steel-frame building under construction, rebar and stock sections in the foreground |
+| `petrochemical-oil-gas` | An industrial process facility / piping context | A **steel mill** — that is a different sector | `/images/industries/petrochemical-facility.png` — process towers and elevated pipe racks; **not** a steel mill |
+| `manufacturing-fabrication` | A workshop, steel fabrication or production line context | A storage warehouse | `/images/industries/fabrication-workshop.png` — radial drill press working a steel I-beam; **not** storage |
 
-Rejected during IND-P1, deliberately: substituting a near-miss repository
-photograph, fabricating provenance, hotlinking an external image, and shipping
-a gradient placeholder. Full inventory and reasoning:
-`docs/industries/INDUSTRIES_P1_V1_0_IMPLEMENTATION_REPORT.md`.
+All three are natively 1448×1086 = exactly 4:3, so the `object-cover` treatment
+crops nothing and no focal-point override was needed. None is a Hero image, a
+product packshot, a collage or an icon illustration; none carries a visible
+customer logo or any legible text; all render with empty `alt` as decorative
+sector illustration; and none is captioned or described as a real Ahan Asa
+project (§8; `01-sources/MEDIA_GUIDELINES.md` §4.4 and §29). Each registry
+record carries `notAhanAsaProjectEvidence: true` as an explicit, test-enforced
+flag rather than prose.
+
+**What actually unblocked it was the registry, not the pictures.** IND-P1 was
+blocked because NO asset anywhere in this repository carried recorded
+provenance, and §5 states "Unknown provenance defaults to `restricted`" while
+`restricted` media "Must not be published". `lib/media/provenance-registry.ts`
+is the repository's first implementation of `MEDIA_GUIDELINES.md` §27, and it
+enforces that §5 default in code: unknown provenance, restricted rights or a
+non-approved status resolve to `restricted` regardless of the truth class a
+record claims for itself. The three assets are classified `conceptual` — the
+conservative floor, because nothing supplied with them establishes whether they
+are photographs or generated imagery, and asserting `verified-context` without
+evidence would itself be fabricated provenance.
+
+The IND-P1 rejections still stand and must not be revisited: substituting a
+near-miss repository photograph, fabricating provenance, hotlinking an external
+image, and shipping a gradient placeholder. Full inventory and reasoning:
+`docs/industries/INDUSTRIES_P1_V1_0_IMPLEMENTATION_REPORT.md`; the unblock
+itself: `docs/industries/INDUSTRIES_MEDIA_UNBLOCK_AND_P2_FREEZE_REPORT.md`.
+
+The ~21 pre-existing images under `public/images/` remain **unregistered and
+therefore still unclassified**. Publishing them into any new surface requires
+recording their provenance first; their absence from the registry is the honest
+state and does not retroactively bless them.
 
 ---
 
@@ -212,7 +234,7 @@ a gradient placeholder. Full inventory and reasoning:
 |---|---|
 | `migrations_public/0010_homepage_eligibility.sql` | **PENDING remote application.** Applied to a local disposable D1 only, for diagnosis. Must not be marked applied. |
 | Verified Evidence component + publication contract | Not started. Deliberately deferred. |
-| Industries / Use Cases redesign | **Done (IND-P1).** Frozen V1.0 implemented and wired; publication blocked only by the three image assets in §5.2. |
+| Industries / Use Cases redesign | **Done and PUBLISHED.** Frozen V1.0 implemented and wired in IND-P1; the image gate in §5.2 was closed on 2026-09-12 and the section now renders in fa/en/ar. |
 | Final CTA redesign | **Done (CTA-P1).** Frozen V1.0 implemented as `components/home/final-cta.tsx` and wired as the last Homepage content section. No eligibility gate, no data dependency, no outstanding asset. See `docs/final-cta/FINAL_CTA_P1_V1_0_IMPLEMENTATION_REPORT.md`. |
 | Footer redesign | Not started. Two known defects recorded in the GEO-G0 audit remain open — see the implementation report's FOOTER FOLLOW-UP. |
 | `/process` route and page | Not created. Purchase Process V2.0 is reserved for it. |
