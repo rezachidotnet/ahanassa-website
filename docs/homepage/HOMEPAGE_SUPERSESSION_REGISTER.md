@@ -2,7 +2,7 @@
 
 **Status:** ACTIVE
 **Established:** 2026-09-08 (Homepage HP-R1 reconciliation)
-**Last updated:** 2026-09-12 (Industries / Use Cases V1.0, IND-P1)
+**Last updated:** 2026-09-12 (Final CTA V1.0, CTA-P1)
 **Governing authority:** `docs/homepage/AHANASSA_HOMEPAGE_COMPOSITION_AND_CUSTOMER_JOURNEY_FREEZE_V1.0.md` §8
 **Implementation record:** `docs/homepage/HOMEPAGE_HP_R1_RECONCILIATION_IMPLEMENTATION_REPORT.md`
 
@@ -24,6 +24,7 @@ retired or relocated components be *marked*, never deleted:
 | `docs/homepage/AHANASSA_HOMEPAGE_VISUAL_SYSTEM_AND_MOTION_FREEZE_V1.0.md` | Colors, surfaces, spacing, geometry, motion, progressive enhancement |
 | `docs/buyer-value/AHANASSA_BUYER_VALUE_SERVICE_PROMISE_COMPONENT_FREEZE_V1.0.md` | Buyer Value copy, semantics, layout, claim safety, accessibility |
 | `docs/industries/AHANASSA_INDUSTRIES_USE_CASES_COMPONENT_FREEZE_V1.0.md` | Industries / Use Cases copy, sector order, semantics, layout, image policy, publication gate |
+| `docs/final-cta/AHANASSA_FINAL_CTA_COMPONENT_FREEZE_V1.0.md` | Final CTA copy, destinations, button hierarchy, Navy surface, Footer boundary, claim safety, accessibility |
 | `docs/homepage/AHANASSA_HOMEPAGE_IMPLEMENTATION_PROMPT_AND_CHECKLIST_V1.0.md` | **Procedural only** — sequence and verification. It MUST NOT redefine the three freezes above. |
 
 Site-wide baselines that continue to apply and were not reopened:
@@ -47,7 +48,8 @@ Global Header                       always present   app/[locale]/layout.tsx
   Verified Evidence     [conditional]                — not implemented, correctly omitted
   Industries / Use Cases[conditional]                components/home/industries.tsx
                                                      (implemented; omitted — no reviewed imagery)
-  Final CTA             always present               components/ui/cta-band.tsx
+  Final CTA             always present               components/home/final-cta.tsx
+                                                     (frozen V1.0; no eligibility gate of any kind)
 Global Footer                       always present   app/[locale]/layout.tsx
 ```
 
@@ -63,6 +65,7 @@ Rendered by `app/[locale]/page.tsx`. Order is asserted by
 | Evaluation / Assurance V2.1 | Removed; replaced by Buyer Value | **SUPERSEDED FOR HOMEPAGE** | `components/home/evaluation-assurance.tsx`, `lib/content/evaluation-assurance.ts`, `homepageCopy.*.evaluationAssurance`, `docs/evaluation-assurance/**` |
 | Purchase Process V2.0 | Removed as an independent Homepage section | **RETAINED OUTSIDE HOMEPAGE** — reserved for `/process`. *Not* globally superseded. | `components/home/process.tsx`, `lib/content/purchase-process.ts`, `homepageCopy.*.purchaseProcess`, `docs/purchase-process/**` |
 | Reach ("markets" band) | Removed; replaced in the Industries slot by Industries / Use Cases V1.0 | **SUPERSEDED FOR HOMEPAGE** — *not* globally superseded: the industry lists it renders still serve `/industries` and `/markets` | `components/home/reach.tsx`, `homepageCopy.*.reach`, `marketsCopy`/`industriesCopy` in `lib/content/pages.ts` |
+| CtaBand (shared closing CTA band) | Removed from the Homepage only; the Final CTA slot is now filled by Final CTA V1.0 | **REPLACED FOR THE HOMEPAGE ONLY — explicitly NOT superseded.** `components/ui/cta-band.tsx` is a SHARED component and remains fully live, unchanged, on six other pages. See §3.1. | `components/ui/cta-band.tsx` and its own `defaults` copy table — untouched |
 | ProcessSteps (legacy) | Not reintroduced separately | Covered by the Hero micro-journey and the future `/process` | No file exists; retired in an earlier phase |
 | RiskGrid (legacy) | Excluded | Historical only | No file exists |
 | RoleComparison (legacy) | Excluded | Historical only | No file exists |
@@ -76,9 +79,51 @@ above appears anywhere in `app/`, `components/`, `lib/`, `styles/` or
 `config/`. Both the absence of the rendering and the absence of the files are
 asserted by `lib/content/homepage-composition-invariants.test.ts`.
 
-Reach is the one entry in the table above whose files are RETAINED rather than
-absent — it joined the register in IND-P1 on the same terms as Evaluation /
-Assurance and Purchase Process before it.
+Reach joined the register in IND-P1 on the same terms as Evaluation / Assurance
+and Purchase Process before it: its files are RETAINED rather than absent.
+CtaBand joined in CTA-P1 on stricter terms still — retained AND still rendering
+elsewhere; see §3.1.
+
+### 3.1 CtaBand — a replacement, NOT a supersession
+
+`components/ui/cta-band.tsx` is the one entry in the table above that is **not**
+superseded in any sense. It is a **shared** component, and rewriting its copy,
+destination or visual treatment in place would silently have changed six pages
+that Final CTA V1.0 does not govern:
+
+```text
+app/[locale]/products/page.tsx
+app/[locale]/products/[slug]/page.tsx
+app/[locale]/industries/page.tsx
+app/[locale]/markets/page.tsx
+app/[locale]/about/page.tsx
+app/[locale]/services/page.tsx
+```
+
+All six still import it and still render `<CtaBand locale={locale} />`
+unchanged, with its own approved copy ("فاکتور یا لیست خرید دارید؟" /
+"Have an invoice or purchase list ready?" / "هل لديك فاتورة أو قائمة شراء
+جاهزة؟"), its own `/contact` destinations and its own photographic Navy-800
+treatment. **Only the Homepage's USE of it was replaced** — the Homepage simply
+stopped importing it, exactly as it stopped importing `reach.tsx` and
+`evaluation-assurance.tsx` before it. Not one byte of `cta-band.tsx` changed in
+CTA-P1.
+
+Final CTA V1.0 §13 ("Reuse the current Final CTA component ... where
+practical; do not create a duplicate section") is satisfied by this reading:
+there is exactly ONE closing conversion block on the Homepage, and the frozen
+V1.0 copy, `/request` destination, `tel:` secondary action, flat Navy surface
+and Cream/outline button hierarchy are all incompatible with what the six other
+pages still need from the shared band. A per-page conditional inside one shared
+component would have been the duplicate-behavior trap, not the avoidance of it.
+
+Both halves are asserted by tests: `lib/content/final-cta-frozen-spec-invariants.test.ts`
+("components/ui/cta-band.tsx is NOT superseded, NOT modified, and still serves
+six other pages") and `lib/content/homepage-composition-invariants.test.ts`
+("the shared CtaBand is no longer the Homepage's closing CTA, but is UNCHANGED
+and still serves six other pages").
+
+---
 
 **Supersession never means deletion.** Two tests exist specifically to fail if
 a future change deletes a retained file:
@@ -168,7 +213,7 @@ a gradient placeholder. Full inventory and reasoning:
 | `migrations_public/0010_homepage_eligibility.sql` | **PENDING remote application.** Applied to a local disposable D1 only, for diagnosis. Must not be marked applied. |
 | Verified Evidence component + publication contract | Not started. Deliberately deferred. |
 | Industries / Use Cases redesign | **Done (IND-P1).** Frozen V1.0 implemented and wired; publication blocked only by the three image assets in §5.2. |
-| Final CTA redesign | Not started. Present and compliant; no redesign was required. |
+| Final CTA redesign | **Done (CTA-P1).** Frozen V1.0 implemented as `components/home/final-cta.tsx` and wired as the last Homepage content section. No eligibility gate, no data dependency, no outstanding asset. See `docs/final-cta/FINAL_CTA_P1_V1_0_IMPLEMENTATION_REPORT.md`. |
 | Footer redesign | Not started. Two known defects recorded in the GEO-G0 audit remain open — see the implementation report's FOOTER FOLLOW-UP. |
 | `/process` route and page | Not created. Purchase Process V2.0 is reserved for it. |
 | Organization/WebSite schema emitted only from the noindex homepage | Known GEO-G0 defect, deliberately not fixed here — see PRE-STAGING GEO FOLLOW-UP in the implementation report. |
