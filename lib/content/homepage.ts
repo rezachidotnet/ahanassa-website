@@ -183,6 +183,62 @@ export interface HomepageCopy {
     cta: string;
     steps: { title: string; input: string; activity: string; output: string }[];
   };
+  /**
+   * Industries / Use Cases — the frozen V1.0 component
+   * (docs/industries/AHANASSA_INDUSTRIES_USE_CASES_COMPONENT_FREEZE_V1.0.md).
+   *
+   * Answers exactly one buyer question (§1, Composition §6.6): "Does Ahan Asa
+   * understand purchases or projects like mine?" — recognition of the buyer's
+   * own field of purchasing. Buyer Value above keeps service promises and
+   * Product Showcase keeps product discovery; §1 requires those boundaries.
+   *
+   * Exactly three sectors in the frozen §2 order — construction ->
+   * petrochemical/oil and gas -> manufacturing and fabrication — in every
+   * locale. The array is NEVER reversed for RTL (§2: "Do not reverse the data
+   * array and also apply RTL"); logical CSS handles reading direction.
+   *
+   * CLAIM SAFETY (§10). This is the owner's declared INTENDED SERVICE SCOPE.
+   * It is not proof of historical projects, vendor-list approval, technical
+   * certification, guaranteed material availability, or guaranteed compliance
+   * with every submitted specification. The qualified wording carries that
+   * distinction and must never be "improved" into a capability claim: every
+   * body ends in a REVIEW verb (بررسی شوند / be reviewed / تُدرس), and the
+   * petrochemical item deliberately says sourcing FEASIBILITY is assessed —
+   * §10: "No claim that all oil/gas grades or standards can be supplied."
+   *
+   * There is deliberately NO `eyebrow`, NO `body` and NO `cta` field:
+   *
+   * - `eyebrow`/`body`: §3 states "No extra eyebrow or introductory paragraph
+   *   is required", and §6 freezes the structure as H2 -> three items. The
+   *   component therefore renders a bare `<h2 id>` rather than SectionHeading,
+   *   whose `eyebrow` prop is required — the same shape buyer-value.tsx and
+   *   process.tsx already use.
+   * - `cta`: §9 "Version 1.0 items are informational, without links, pointer
+   *   cursor, hover lift, buttons or independent RFQ CTA", and warns against
+   *   inventing sector routes or linking every item to one generic page.
+   *
+   * Publication is gated by `lib/content/industries.ts`, not by this module:
+   * complete copy is only one of §10's four requirements, and reviewed imagery
+   * is currently outstanding.
+   */
+  industries: {
+    /** Frozen FA H2 (§3); EN §4, AR §5. */
+    title: string;
+    /** Exactly three sectors in the frozen §2 order (§3-§5). */
+    sectors: { title: string; body: string }[];
+  };
+  /**
+   * LEGACY Homepage "Reach"/markets band — SUPERSEDED FOR THE HOMEPAGE by
+   * `industries` above (Industries V1.0; Composition §8 supersession register,
+   * docs/homepage/HOMEPAGE_SUPERSESSION_REGISTER.md).
+   *
+   * RETAINED, not deleted: §8 requires superseded specifications and files be
+   * marked rather than removed, and `components/home/reach.tsx` may still be
+   * reused for a future `/markets` treatment. Its five generic industry names
+   * live in `marketsCopy`/`industriesCopy` (lib/content/pages.ts) and continue
+   * to serve the real `/industries` and `/markets` pages, which are untouched.
+   * Do NOT delete this field or that component to "tidy up".
+   */
   reach: {
     eyebrow: string;
     title: string;
@@ -298,6 +354,23 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
         { title: "هماهنگی تأمین و تحویل", input: "—", activity: "هماهنگی مستندات، ارتباط با تأمین‌کننده و نقاط عطف تحویل", output: "وضعیت تحویل در چارچوب توافق‌شده پیگیری می‌شود" },
       ],
     },
+    industries: {
+      title: "تأمین آهن و فولاد برای حوزه کاری شما",
+      sectors: [
+        {
+          title: "پروژه‌های ساختمانی",
+          body: "آهن‌آلات موردنیاز پروژه را با مشخصات، مقدار و برنامه تحویل اعلام کنید تا گزینه‌های تأمین متناسب بررسی شوند.",
+        },
+        {
+          title: "پتروشیمی، نفت و گاز",
+          body: "فهرست اقلام را همراه با گرید، استاندارد و الزامات فنی و مدارک موردنیاز ارسال کنید تا امکان تأمین مطابق درخواست بررسی شود.",
+        },
+        {
+          title: "تولید و ساخت",
+          body: "نیاز کارگاه یا خط تولید را با ابعاد، جنس و الزامات ساخت مطرح کنید تا بررسی تأمین بر اساس نیاز مصرف شما انجام شود.",
+        },
+      ],
+    },
     reach: {
       eyebrow: "دامنه فعالیت",
       title: "درخواست‌ها از صنایع مختلف بررسی می‌شود.",
@@ -407,6 +480,23 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
         { title: "Sourcing & delivery coordination", input: "—", activity: "Coordinating documentation, supplier communication, and delivery milestones", output: "Delivery status is tracked within the agreed scope" },
       ],
     },
+    industries: {
+      title: "Iron and steel sourcing for your sector",
+      sectors: [
+        {
+          title: "Construction projects",
+          body: "Share your project’s steel requirements, including specifications, quantities and delivery schedule, so suitable sourcing options can be reviewed.",
+        },
+        {
+          title: "Petrochemical, oil and gas",
+          body: "Send your item list with the required grades, standards, technical requirements and documentation so sourcing feasibility can be assessed against your request.",
+        },
+        {
+          title: "Manufacturing and fabrication",
+          body: "Describe your workshop or production line requirements, including dimensions, material and fabrication requirements, so sourcing can be reviewed for your intended use.",
+        },
+      ],
+    },
     reach: {
       eyebrow: "Scope of activity",
       title: "Requests are reviewed across a range of industries.",
@@ -514,6 +604,23 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
         { title: "العرض والقرار", input: "ملاحظاتك على الخيارات المطروحة", activity: "تقديم ملخص عرض أو قرار ضمن النطاق المتفق عليه", output: "تحصل على عرض فني وتجاري واضح" },
         { title: "تأكيد الشراء", input: "موافقتك النهائية", activity: "إنهاء الشروط والمسؤوليات وإجراءات الشراء", output: "تُؤكَّد شروط الشراء كتابيًا" },
         { title: "تنسيق التوريد والتسليم", input: "—", activity: "تنسيق المستندات والتواصل مع المورد ومحطات التسليم", output: "تُتابَع حالة التسليم ضمن النطاق المتفق عليه" },
+      ],
+    },
+    industries: {
+      title: "تأمين الحديد والصلب لقطاع عملك",
+      sectors: [
+        {
+          title: "مشاريع البناء",
+          body: "أرسل احتياجات المشروع من الحديد والصلب مع المواصفات والكميات وجدول التسليم، لتُدرس خيارات التوريد المناسبة.",
+        },
+        {
+          title: "البتروكيماويات والنفط والغاز",
+          body: "أرسل قائمة الأصناف مع درجات المواد والمعايير والمتطلبات الفنية والمستندات المطلوبة، لتُدرس إمكانية التوريد وفقاً لطلبك.",
+        },
+        {
+          title: "التصنيع والإنتاج",
+          body: "حدّد احتياجات الورشة أو خط الإنتاج، بما في ذلك الأبعاد ونوع المادة ومتطلبات التصنيع، لتُدرس خيارات التوريد وفقاً للاستخدام المقصود.",
+        },
       ],
     },
     reach: {

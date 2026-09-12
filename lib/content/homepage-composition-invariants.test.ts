@@ -53,17 +53,17 @@ const SECTIONS = [
   "components/home/price-strip.tsx",
   "components/home/product-showcase.tsx",
   "components/home/buyer-value.tsx",
-  "components/home/reach.tsx",
+  "components/home/industries.tsx",
   "components/ui/cta-band.tsx",
 ];
 
-/** The two conditional sections that may omit themselves entirely (§9). */
-const CONDITIONAL = ["components/home/price-strip.tsx", "components/home/product-showcase.tsx"];
+/** The three conditional sections that may omit themselves entirely (§9). */
+const CONDITIONAL = ["components/home/price-strip.tsx", "components/home/product-showcase.tsx", "components/home/industries.tsx"];
 
 /**
  * A section "has a heading" if it renders an `<h2>` itself OR delegates to
- * the shared `SectionHeading`, which renders one. Product Showcase and Reach
- * take the delegated route.
+ * the shared `SectionHeading`, which renders one. Product Showcase takes the
+ * delegated route; the rest render their own.
  */
 function headingMarkerIndex(code: string): number {
   const own = code.indexOf("<h2");
@@ -115,7 +115,7 @@ test("the page returns one flat fragment, so source order IS render order", () =
 });
 
 test("the rendered Homepage order matches the frozen composition (§4, §16.1)", () => {
-  const order = ["Hero", "PriceStrip", "ProductShowcase", "BuyerValue", "Reach", "CtaBand"];
+  const order = ["Hero", "PriceStrip", "ProductShowcase", "BuyerValue", "Industries", "CtaBand"];
   const positions = order.map((tag) => ({ tag, at: orderOf(tag) }));
 
   for (const { tag, at } of positions) {
@@ -151,18 +151,35 @@ test("Purchase Process no longer appears as an independent Homepage section (§1
   assert.ok(!PAGE_SOURCE.includes("@/components/home/process"), "the superseded Homepage import must be gone");
 });
 
+test("Reach no longer appears as an independent Homepage section (§16.11)", () => {
+  // Superseded for the Homepage by the frozen Industries V1.0 component. Its
+  // five generic industry names were never wrong — they are simply not the
+  // frozen three-sector composition, and they continue to serve /industries
+  // and /markets.
+  assert.ok(!/<Reach[\s/>]/.test(PAGE_CODE), "§8: SUPERSEDED FOR HOMEPAGE — replaced by Industries");
+  assert.ok(!PAGE_SOURCE.includes("@/components/home/reach"), "the superseded Homepage import must be gone");
+});
+
 test("supersession removed RENDERING only — every superseded file survives (§8)", () => {
   // §8: "Historical specifications and files SHOULD NOT be deleted solely
   // because they are no longer active."
   for (const retained of [
     "components/home/evaluation-assurance.tsx",
     "components/home/process.tsx",
+    "components/home/reach.tsx",
     "lib/content/evaluation-assurance.ts",
     "lib/content/purchase-process.ts",
+    "lib/content/pages.ts",
     "docs/evaluation-assurance/AHANASSA_EVALUATION_ASSURANCE_FINAL_FROZEN_V2.1.md",
     "docs/purchase-process/AHANASSA_PURCHASE_PROCESS_FINAL_FROZEN_V2.0.md",
   ]) {
     assert.ok(existsSync(path.join(REPO_ROOT, retained)), `${retained} must NOT be deleted — it is superseded/relocated, not retired`);
+  }
+
+  // The retained components must survive INTACT, not be gutted into stubs.
+  assert.match(readCode("components/home/reach.tsx"), /m\.industries\.map/, "the retained Reach component must still render its list");
+  for (const locale of ["fa", "en", "ar"] as const) {
+    assert.ok(homepageCopy[locale].reach.title.trim().length > 0, `${locale}: homepageCopy.reach content must survive the supersession`);
   }
 });
 
@@ -325,26 +342,48 @@ test("the active evidence threshold recorded by the freeze is 100 ELIGIBLE recor
 // Industries / Use Cases — §6.6, §16.11, §19.10
 // ---------------------------------------------------------------------------
 
+test("the Industries slot is filled by the frozen V1.0 component (§6.6, §16.11)", () => {
+  // The slot's occupant changed in the Industries V1.0 phase: `Reach`'s five
+  // generic industry names were replaced by the three frozen sectors. Detailed
+  // copy, semantics, layout and image-policy assertions live in
+  // lib/content/industries-frozen-spec-invariants.test.ts; this file asserts
+  // only that the slot is correctly occupied and correctly ordered.
+  assert.ok(existsSync(path.join(REPO_ROOT, "docs/industries/AHANASSA_INDUSTRIES_USE_CASES_COMPONENT_FREEZE_V1.0.md")), "the frozen authority must be imported");
+  assert.ok(orderOf("Industries") > -1, "§4: the Industries slot must be occupied");
+  assert.ok(orderOf("BuyerValue") < orderOf("Industries"), "§4: Industries follows Buyer Value (and, when eligible, Evidence)");
+  assert.ok(orderOf("Industries") < orderOf("CtaBand"), "§4: Industries precedes the Final CTA");
+});
+
 test("the Industries section renders only already-approved, non-fabricated content (§6.6, §16.11)", () => {
   // §6.6 forbids inventing "projects, customers, industries served, volumes,
-  // logos, or case studies". `Reach` renders the same industries array that
-  // /industries and /markets already publish — no separate, unreviewed list.
-  const reach = readCode("components/home/reach.tsx");
-  assert.ok(reach.includes("marketsCopy"), "the Industries content must come from the shared approved copy module");
-  assert.ok(reach.includes("m.industries.map"), "it must render the shared industries list, not a bespoke one");
+  // logos, or case studies". The three sectors are the owner's declared
+  // intended service scope, pinned character-for-character against the frozen
+  // document by the component's own invariants file.
+  const industries = readCode("components/home/industries.tsx");
+  assert.ok(industries.includes("homepageCopy"), "the Industries content must come from the localized content module");
+  assert.ok(industries.includes("t.sectors.map"), "it must render the frozen three-sector array");
+  assert.ok(!/logo/i.test(industries), "§6.6: no customer/supplier logo wall");
+  assert.ok(!/case stud|testimonial|aggregateRating/i.test(industries), "§6.6: no case studies or testimonials");
 
+  // §6.6: "use generic stock-image tiles with no meaningful buyer
+  // information" is also forbidden — every sector carries real localized
+  // guidance text, not a bare captioned tile.
   for (const locale of ["fa", "en", "ar"] as const) {
-    assert.deepEqual(marketsCopy[locale].industries, industriesCopy[locale].industries, `${locale}: the Homepage list must stay identical to the published /industries list`);
-    assert.ok(marketsCopy[locale].industries.length > 0, `${locale}: an empty list would mean the section should be omitted instead`);
+    const sectors = homepageCopy[locale].industries.sectors;
+    assert.equal(sectors.length, 3, `${locale}: the frozen composition is exactly three sectors`);
+    for (const sector of sectors) {
+      assert.ok(sector.body.trim().length > 40, `${locale}: each sector must carry meaningful buyer information, not a bare label`);
+    }
   }
 });
 
-test("no fabricated customer logo, project, volume or case study appears on the Homepage (§6.6)", () => {
-  const reach = readCode("components/home/reach.tsx");
-  // The one image is a decorative operations photograph with an empty alt and
-  // aria-hidden — not a customer logo or a claimed project reference.
-  assert.ok(!/logo/i.test(reach), "§6.6: no customer/supplier logo wall");
-  assert.match(reach, /alt=""\s+aria-hidden="true"/, "the operations image must stay decorative, claiming nothing");
+test("the retained /industries and /markets lists are untouched by the Homepage change (§8)", () => {
+  // The Homepage stopped rendering `Reach`, but the pages that publish these
+  // lists did not change and must stay consistent with each other.
+  for (const locale of ["fa", "en", "ar"] as const) {
+    assert.deepEqual(marketsCopy[locale].industries, industriesCopy[locale].industries, `${locale}: /markets and /industries must keep publishing the same list`);
+    assert.ok(marketsCopy[locale].industries.length > 0, `${locale}: the retained list must not have been emptied`);
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -352,7 +391,7 @@ test("no fabricated customer logo, project, volume or case study appears on the 
 // ---------------------------------------------------------------------------
 
 test("there is exactly one Homepage H1, and it belongs to the Hero (§14)", () => {
-  const sections = ["components/home/hero.tsx", "components/home/price-strip.tsx", "components/home/product-showcase.tsx", "components/home/buyer-value.tsx", "components/home/reach.tsx", "components/ui/cta-band.tsx"];
+  const sections = ["components/home/hero.tsx", "components/home/price-strip.tsx", "components/home/product-showcase.tsx", "components/home/buyer-value.tsx", "components/home/industries.tsx", "components/ui/cta-band.tsx"];
   const withH1 = sections.filter((file) => /<h1[\s>]/.test(readCode(file)));
   assert.deepEqual(withH1, ["components/home/hero.tsx"], "§14: there MUST be exactly one Homepage H1");
 });
@@ -456,7 +495,7 @@ test("Buyer Value reads as a flat Content Section, visually distinct from the ac
 });
 
 test("all Homepage sections align to the one shared container (Visual System §13, §21.12)", () => {
-  for (const file of ["components/home/hero.tsx", "components/home/price-strip.tsx", "components/home/product-showcase.tsx", "components/home/buyer-value.tsx", "components/home/reach.tsx", "components/ui/cta-band.tsx"]) {
+  for (const file of ["components/home/hero.tsx", "components/home/price-strip.tsx", "components/home/product-showcase.tsx", "components/home/buyer-value.tsx", "components/home/industries.tsx", "components/ui/cta-band.tsx"]) {
     assert.ok(readCode(file).includes("container-x"), `${file} must use the shared container/gutter system`);
   }
 });
@@ -466,7 +505,7 @@ test("all Homepage sections align to the one shared container (Visual System §1
 // ---------------------------------------------------------------------------
 
 test("no hidden crawler-only or agent-only content layer exists on the Homepage", () => {
-  for (const file of [PAGE, "components/home/hero.tsx", "components/home/product-showcase.tsx", "components/home/buyer-value.tsx", "components/home/reach.tsx", "components/ui/cta-band.tsx"]) {
+  for (const file of [PAGE, "components/home/hero.tsx", "components/home/product-showcase.tsx", "components/home/buyer-value.tsx", "components/home/industries.tsx", "components/ui/cta-band.tsx"]) {
     const code = readCode(file);
     assert.ok(!/<noscript[\s>]/.test(code), `${file}: no <noscript> content duplicate`);
     assert.ok(!/dangerouslySetInnerHTML/.test(code) || file === PAGE, `${file}: no injected markup`);

@@ -8,7 +8,7 @@ import { Hero } from "@/components/home/hero";
 import { PriceStrip } from "@/components/home/price-strip";
 import { ProductShowcase } from "@/components/home/product-showcase";
 import { BuyerValue } from "@/components/home/buyer-value";
-import { Reach } from "@/components/home/reach";
+import { Industries } from "@/components/home/industries";
 import { CtaBand } from "@/components/ui/cta-band";
 import type { PublicPriceStripItem } from "@/lib/pricing/types";
 import type { HomepageProductCandidate } from "@/lib/catalog/types";
@@ -50,10 +50,24 @@ import { resolveHomepageRankingMode } from "@/lib/ranking/score";
  *                      marketing substitute MUST NOT be rendered in its
  *                      place", so there is deliberately no component, no
  *                      placeholder, and no invented metric here.
- *   Industries         `Reach`. Its list is the already-approved,
- *                      non-fabricated industries content shared with
- *                      /industries and /markets (lib/content/pages.ts), so it
- *                      is eligible and renders.
+ *   Industries         `Industries`, implementing the frozen V1.0 spec
+ *                      (docs/industries/AHANASSA_INDUSTRIES_USE_CASES_COMPONENT_FREEZE_V1.0.md).
+ *                      NOT RENDERED TODAY, and that is the correct state
+ *                      rather than an oversight. Its §10 publication gate
+ *                      requires approved scope, complete localized copy,
+ *                      REVIEWED IMAGERY and a server-side enable state; copy
+ *                      and scope are complete and pinned by tests, but no
+ *                      asset in this repository depicts a construction site, a
+ *                      petrochemical/oil/gas facility or a fabrication
+ *                      workshop, and none carries recorded provenance
+ *                      (01-sources/MEDIA_GUIDELINES.md: "Unknown provenance
+ *                      defaults to `restricted`"). §8 is explicit — "Do not
+ *                      ship the component with missing initial image assets"
+ *                      — so the component returns null before any markup and
+ *                      Buyer Value meets the Final CTA directly, with no gap,
+ *                      heading or placeholder. Supplying three approved assets
+ *                      in lib/content/industries.ts publishes it with no
+ *                      further code change.
  *
  * SUPERSEDED FOR THE HOMEPAGE (§8) — dropped from this render, NOT deleted:
  *
@@ -67,6 +81,14 @@ import { resolveHomepageRankingMode } from "@/lib/ranking/score";
  *                        /process page (§12). It is NOT globally superseded.
  *                        No /process route exists yet and §12 forbids linking
  *                        to one that does not, so nothing links to it.
+ *   Reach                components/home/reach.tsx, which previously filled
+ *                        the Industries slot with five generic industry names.
+ *                        Replaced here by the frozen three-sector Industries
+ *                        component. The file, its `homepageCopy.*.reach`
+ *                        content and the `marketsCopy`/`industriesCopy` lists
+ *                        it reads are ALL retained untouched, and /industries
+ *                        and /markets still publish those lists — the Homepage
+ *                        simply stopped importing it.
  *
  * The Hero is deliberately untouched: §6.1 makes it the SOLE owner of the
  * short four-step purchase path, and no later section — BuyerValue very much
@@ -152,7 +174,7 @@ export default async function HomePage({ params }: PageProps) {
       <PriceStrip locale={locale} items={priceStripItems} />
       <ProductShowcase locale={locale} items={homepageProducts} />
       <BuyerValue locale={locale} />
-      <Reach locale={locale} />
+      <Industries locale={locale} />
       <CtaBand locale={locale} />
 
       <JsonLd data={jsonLdGraph([organizationSchema(), websiteSchema()])} />

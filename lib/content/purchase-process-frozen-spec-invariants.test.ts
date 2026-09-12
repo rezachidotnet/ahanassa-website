@@ -290,13 +290,19 @@ test("no link to a /process route is invented while that route does not exist (�
 });
 
 test("the tail of the Homepage sequence is preserved: Buyer Value -> Industries -> Final CTA (Composition §4)", () => {
+  // The Industries slot's occupant changed in the Industries V1.0 phase:
+  // `<Reach>` was superseded for the Homepage by `<Industries>` (retained, not
+  // deleted — asserted in homepage-composition-invariants.test.ts). What this
+  // test guards is unchanged: Purchase Process must not reappear anywhere in
+  // this tail, and the tail order itself must hold.
   const buyerValue = PAGE_CODE.indexOf("<BuyerValue");
-  const reach = PAGE_CODE.indexOf("<Reach");
+  const industries = PAGE_CODE.indexOf("<Industries");
   const finalCta = PAGE_CODE.indexOf("<CtaBand");
 
-  assert.ok(buyerValue > -1 && reach > -1 && finalCta > -1, "all three sections must render");
-  assert.ok(buyerValue < reach, "§4: conditional Industries follows Buyer Value");
-  assert.ok(reach < finalCta, "§4/§16.14: the Final CTA closes the content journey");
+  assert.ok(buyerValue > -1 && industries > -1 && finalCta > -1, "all three sections must render");
+  assert.ok(buyerValue < industries, "§4: conditional Industries follows Buyer Value");
+  assert.ok(industries < finalCta, "§4/§16.14: the Final CTA closes the content journey");
+  assert.ok(!/<Process[\s/>]/.test(PAGE_CODE.slice(buyerValue)), "Purchase Process must not reappear in the Homepage tail");
 });
 
 // ---------------------------------------------------------------------------
