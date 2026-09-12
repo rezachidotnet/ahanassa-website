@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { homepageCopy } from "./homepage.ts";
 import { INDUSTRIES_SECTOR_COUNT, INDUSTRY_SECTORS, INDUSTRY_SECTOR_IMAGES, isIndustriesCopyComplete, resolveIndustrySectorImages, type IndustrySectorImage } from "./industries.ts";
+import { findMediaRecord, isPublishable } from "../media/provenance-registry.ts";
 
 /**
  * docs/industries/AHANASSA_INDUSTRIES_USE_CASES_COMPONENT_FREEZE_V1.0.md
@@ -368,15 +369,85 @@ test("the copy-completeness half of the gate passes in all three locales (§10)"
   }
 });
 
-test("CURRENT STATE — no reviewed imagery exists, so the section is correctly ineligible (§8, §10)", () => {
-  // This is the honest recorded state, not a placeholder assertion. §8: "Do
-  // not ship the component with missing initial image assets; the fallback
-  // covers runtime failure." When three provenanced assets are supplied in
-  // INDUSTRY_SECTOR_IMAGES this test must be updated deliberately, alongside
-  // the licence record §8 requires — that is exactly the review gate intended.
+test("CURRENT STATE — three reviewed, provenanced assets exist, so the section IS eligible (§8, §10)", () => {
+  // Flipped from the IND-P1 ineligible state on 2026-09-12, when the owner
+  // supplied and approved three sector images and they were given real
+  // provenance records. §8: "Do not ship the component with missing initial
+  // image assets" — they are no longer missing. The gate opening is what this
+  // test now pins; the WHY lives in lib/media/provenance-registry.ts.
   assert.equal(INDUSTRY_SECTOR_IMAGES.length, INDUSTRIES_SECTOR_COUNT, "the manifest always declares all three slots");
-  assert.ok(INDUSTRY_SECTOR_IMAGES.every((image) => image.src === null), "no asset has been approved yet");
-  assert.equal(resolveIndustrySectorImages(), null, "the gate must therefore be closed");
+  assert.ok(
+    INDUSTRY_SECTOR_IMAGES.every((image) => typeof image.src === "string" && image.src.length > 0),
+    "every slot must now carry an approved asset",
+  );
+
+  const resolved = resolveIndustrySectorImages();
+  assert.notEqual(resolved, null, "the gate must therefore be open");
+  assert.equal(resolved?.length, INDUSTRIES_SECTOR_COUNT, "all three sectors resolve");
+  assert.deepEqual(
+    resolved?.map((image) => image.sector),
+    [...INDUSTRY_SECTORS],
+    "§2: the resolved images stay in the frozen sector order",
+  );
+  assert.deepEqual(
+    resolved?.map((image) => image.src),
+    ["/images/industries/construction-site.png", "/images/industries/petrochemical-facility.png", "/images/industries/fabrication-workshop.png"],
+    "each frozen sector is paired with its own approved asset",
+  );
+});
+
+test("every published Industries asset is a local file that really exists on disk (§8)", () => {
+  // A manifest path that 404s would leave three permanently empty neutral boxes
+  // on a published section — the §8 runtime fallback covering a MISSING file
+  // rather than a failed request. Checked against the filesystem, not assumed.
+  for (const image of INDUSTRY_SECTOR_IMAGES) {
+    assert.ok(typeof image.src === "string" && image.src.startsWith("/images/industries/"), `${image.sector}: must be a local public asset under the Industries media directory`);
+    assert.ok(!image.src!.startsWith("//") && !/https?:/.test(image.src!), `${image.sector}: §8 forbids an external host`);
+    assert.ok(existsSync(path.join(REPO_ROOT, "public", image.src!)), `${image.sector}: ${image.src} must exist in public/`);
+  }
+});
+
+test("no published Industries asset may be published without a provenance record (§8, MEDIA_GUIDELINES §5/§27)", () => {
+  // THE RULE THAT KEPT THIS SECTION DARK THROUGH IND-P1, now enforced in the
+  // other direction: "Unknown provenance defaults to `restricted`" and
+  // `restricted` media "Must not be published". An asset added to the manifest
+  // without a registry entry fails here rather than shipping unprovenanced.
+  for (const image of INDUSTRY_SECTOR_IMAGES) {
+    const record = findMediaRecord(image.src!);
+    assert.ok(record, `${image.sector}: ${image.src} has no provenance record — it is \`restricted\` by default and must not be published`);
+    assert.ok(isPublishable(record!), `${image.sector}: its provenance record does not permit publication`);
+    assert.equal(record!.industrySector, image.sector, `${image.sector}: the registry must bind this asset to the same sector as the manifest`);
+    assert.equal(record!.notAhanAsaProjectEvidence, true, `${image.sector}: must be flagged as NOT Ahan Asa project evidence (§8, MEDIA_GUIDELINES §4.4/§29)`);
+    assert.equal(record!.decorative, true, `${image.sector}: §8 renders these with empty alt, so the record must say they are decorative`);
+    assert.equal(record!.aspectRatio, "4:3", `${image.sector}: §8 requires a common 4:3 ratio`);
+  }
+});
+
+test("INDUSTRIES NOW RENDERS — both component guards pass in all three locales (§10)", () => {
+  // components/home/industries.tsx returns null on exactly two conditions:
+  //   1. resolveIndustrySectorImages() === null
+  //   2. !isIndustriesCopyComplete(locale)
+  // There is no React render framework in this repo (see this file's header),
+  // so the honest structural proof that the section renders is that BOTH of the
+  // component's own guards now pass for every locale — nothing else can
+  // suppress it, since the component has no other early return and no I/O.
+  const guardCount = (COMPONENT.match(/return null;/g) ?? []).length;
+  assert.equal(guardCount, 2, "the component still has exactly the two guards this test reasons about");
+
+  assert.notEqual(resolveIndustrySectorImages(), null, "guard 1 (imagery) passes");
+  for (const locale of LOCALES) {
+    assert.equal(isIndustriesCopyComplete(locale), true, `guard 2 (copy) passes for ${locale}`);
+  }
+
+  // And what it renders is still the frozen treatment: three local assets, one
+  // empty alt, 4:3 cover geometry. (Pinned in detail by the §8 tests above;
+  // asserted together here so the published state is checked as a whole.)
+  const resolved = resolveIndustrySectorImages()!;
+  assert.equal(resolved.length, INDUSTRIES_SECTOR_COUNT, "three images render");
+  assert.ok(resolved.every((image) => image.src.startsWith("/images/industries/")), "all three are local assets");
+  assert.deepEqual(COMPONENT.match(/alt=\{?"[^"]*"\}?/g) ?? [], ['alt=""'], "§8: still decorative, empty alt");
+  assert.match(COMPONENT, /\baspect-4\/3\b/, "§8: still 4:3");
+  assert.match(COMPONENT, /\bobject-cover\b/, "§8: still object-fit cover");
 });
 
 test("the component omits the ENTIRE semantic section when ineligible — no shell survives (§10)", () => {

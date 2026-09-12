@@ -29,37 +29,41 @@ import { homepageCopy } from "./homepage.ts";
  * licence to publish with no assets selected. Those are different states and
  * this module keeps them apart.
  *
- * CURRENT STATE — 2026-09-09: NOT ELIGIBLE, blocked on requirement 3 only.
+ * CURRENT STATE — 2026-09-12: ELIGIBLE. All four requirements are now met.
  *
- * Requirements 1 and 2 are satisfied: all three sectors are present, in the
- * frozen order, with complete FA/EN/AR copy pinned character-for-character
- * against the freeze document by
+ * Requirements 1 and 2 were already satisfied: all three sectors are present,
+ * in the frozen order, with complete FA/EN/AR copy pinned character-for-
+ * character against the freeze document by
  * `lib/content/industries-frozen-spec-invariants.test.ts`.
  *
- * Requirement 3 is not. A full inventory of `public/images/` and of every
- * image in the operator's `~/Downloads` import area was carried out (see
- * docs/industries/INDUSTRIES_P1_V1_0_IMPLEMENTATION_REPORT.md, IMAGE
- * INVENTORY) and produced NO asset that depicts any of the three sectors:
+ * Requirement 3 — REVIEWED IMAGERY — was the sole blocker through IND-P1 and is
+ * now satisfied. The owner supplied and approved three sector images on
+ * 2026-09-12. They were visually inspected, imported under
+ * `public/images/industries/`, and — the part that actually matters — given
+ * real provenance records in `lib/media/provenance-registry.ts`, this
+ * repository's implementation of 01-sources/MEDIA_GUIDELINES.md §27.
  *
- *   - the eight existing repo photographs are steel stockholding, port and
- *     yard logistics, QC inspection and a steel mill exterior — Ahan Asa's own
- *     operational context, not a construction site, a petrochemical/oil/gas
- *     facility or a fabrication workshop. Mapping `ops/mill-exterior.png` onto
- *     "Petrochemical, oil and gas" would misdescribe a STEEL plant as a
- *     PETROCHEMICAL one, which is exactly the misleading-media case
- *     01-sources/MEDIA_GUIDELINES.md §4.4 forbids;
- *   - the product photographs are packshots, which §8 excludes outright ("Do
- *     not ... use product-packshot imagery in all three slots");
- *   - the Hero images are excluded by §8 by name;
- *   - none of the existing assets carries any recorded provenance, and
- *     MEDIA_GUIDELINES.md is unambiguous that "Unknown provenance defaults to
- *     `restricted`" and that `restricted` media "Must not be published".
+ * That registry is what unblocked publication. IND-P1 was not blocked by a
+ * shortage of pictures; it was blocked because NO asset in this repository
+ * carried recorded provenance, and §5 is unambiguous that "Unknown provenance
+ * defaults to `restricted`" and `restricted` media "Must not be published".
+ * Three owner-provided assets with recorded provenance, rights basis, approval
+ * date and truth class are therefore publishable where a borrowed near-miss
+ * photograph still would not be.
  *
- * So the honest state is "component complete, assets outstanding". Everything
- * below and in the component is written and tested; the section renders
- * nothing until three reviewed, provenanced assets are added to
- * `INDUSTRY_SECTOR_IMAGES`. Fabricating provenance, hotlinking, substituting a
- * near-miss photograph or shipping a gradient placeholder were all rejected.
+ * The IND-P1 rejections still stand and must not be revisited: the existing
+ * repo photographs are steel stockholding, port/yard logistics, QC inspection
+ * and a steel mill exterior — mapping `ops/mill-exterior.png` onto
+ * "Petrochemical, oil and gas" would misdescribe a STEEL plant as a
+ * PETROCHEMICAL one (the misleading-media case §4.4 forbids); the product
+ * photographs are packshots, which §8 excludes outright; and the Hero images
+ * are excluded by §8 by name. Fabricating provenance, hotlinking and shipping a
+ * gradient placeholder were all rejected then and remain rejected now.
+ *
+ * The three assets are generic SECTOR illustrations. They are not, and must
+ * never be described as, evidence of a real Ahan Asa project, facility,
+ * customer or capability — Industries V1.0 §8, §10 and MEDIA_GUIDELINES.md
+ * §4.4/§29. Each registry record carries that as an explicit flag.
  *
  * ENABLE STATE — requirement 4 — is deliberately content-derived rather than a
  * new environment variable. `INDUSTRY_SECTOR_IMAGES` below IS the server-side
@@ -107,12 +111,15 @@ export interface ResolvedIndustrySectorImage {
 }
 
 /**
- * THE PUBLICATION SWITCH. Three `null`s means the section does not render.
+ * THE PUBLICATION SWITCH — now closed, i.e. the section renders.
  *
- * To publish Industries / Use Cases, a future session must supply three
- * reviewed assets meeting §8 — natural industrial photography, consistent
- * treatment, restrained saturation, comparable light/contrast, 4:3, with a
- * verified focal point and a retained internal licence record — depicting:
+ * Each entry below is an owner-provided, owner-approved sector illustration
+ * with a full provenance record in `lib/media/provenance-registry.ts`
+ * (MEDIA_GUIDELINES.md §27). The registry is the authority on WHY each may be
+ * published; this manifest only binds one approved asset to one frozen sector
+ * slot, in the frozen §2 order.
+ *
+ * Each satisfies its §8 subject requirement:
  *
  *   construction              a building site, structural steel erection or
  *                             reinforcement context;
@@ -121,16 +128,20 @@ export interface ResolvedIndustrySectorImage {
  *   manufacturing-fabrication a workshop, steel fabrication or production line
  *                             context (NOT a storage warehouse).
  *
- * None may be a Hero image, a product packshot, a collage, an icon
- * illustration, or anything carrying a visible customer logo, and none may be
- * captioned or described as a real Ahan Asa project (§8, MEDIA_GUIDELINES.md
- * §4.4 and §29). Adding a path here is the deliberate publication act; it must
- * be accompanied by the licence/provenance record §8 requires.
+ * None is a Hero image, a product packshot, a collage, an icon illustration, or
+ * carries a visible customer logo, and none may be captioned or described as a
+ * real Ahan Asa project (§8, MEDIA_GUIDELINES.md §4.4 and §29).
+ *
+ * BEFORE CHANGING A PATH HERE: add the new asset to the provenance registry
+ * first. An asset with no provenance record is `restricted` by §5 default and
+ * must not be published, no matter how suitable the picture looks. The
+ * invariants test enforces that every path below resolves to a publishable
+ * registry record bound to the same sector.
  */
 export const INDUSTRY_SECTOR_IMAGES: readonly IndustrySectorImage[] = [
-  { sector: "construction", src: null },
-  { sector: "petrochemical-oil-gas", src: null },
-  { sector: "manufacturing-fabrication", src: null },
+  { sector: "construction", src: "/images/industries/construction-site.png" },
+  { sector: "petrochemical-oil-gas", src: "/images/industries/petrochemical-facility.png" },
+  { sector: "manufacturing-fabrication", src: "/images/industries/fabrication-workshop.png" },
 ];
 
 /**
