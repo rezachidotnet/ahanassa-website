@@ -62,7 +62,7 @@ test("the catch is scoped tightly to the Showcase read — it must not swallow u
   const tryBody = page.slice(tryStart, catchStart);
 
   // Anything else failing on the Homepage must still propagate.
-  for (const unrelated of ["getHomepagePriceStrip", "buildPageMetadata", "organizationSchema", "websiteSchema", "<Hero", "<CtaBand"]) {
+  for (const unrelated of ["getHomepagePriceStrip", "buildPageMetadata", "organizationSchema", "websiteSchema", "<Hero", "<FinalCta"]) {
     assert.ok(!tryBody.includes(unrelated), `${unrelated} must stay OUTSIDE the Showcase's catch — otherwise an unrelated failure is silently hidden`);
   }
 

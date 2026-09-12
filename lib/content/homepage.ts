@@ -228,6 +228,59 @@ export interface HomepageCopy {
     sectors: { title: string; body: string }[];
   };
   /**
+   * Final CTA — the frozen V1.0 component
+   * (docs/final-cta/AHANASSA_FINAL_CTA_COMPONENT_FREEZE_V1.0.md), rendered by
+   * `components/home/final-cta.tsx` as the last Homepage content section
+   * (Composition §4/§6.7).
+   *
+   * Answers exactly one buyer question (§1, Composition §6.7): "What is my
+   * next safe and clear action?" Its sole conversion goal is sending a
+   * purchase list / submitting an RFQ; the telephone action is a secondary
+   * alternative toward that SAME goal, never a competing third one.
+   *
+   * There is deliberately NO `eyebrow` field and NO second paragraph field.
+   * §5: "No eyebrow, process steps, product list, testimonials, counters,
+   * contact form, upload widget or additional paragraph in V1.0." The
+   * component therefore renders a bare `<h2 id>` pointed at by
+   * `aria-labelledby` — the same shape buyer-value.tsx, industries.tsx and
+   * price-strip.tsx already use — rather than SectionHeading, whose `eyebrow`
+   * prop is required.
+   *
+   * CLAIM SAFETY (§5). The reassurance is a non-commitment statement, not a
+   * service-level promise. §5 forbids "claims of cheapest/best/fastest,
+   * guaranteed stock, guaranteed response time or automatic fulfillment"
+   * and any claim "that attaching photos, voice messages or spreadsheets is
+   * supported until the actual RFQ flow supports it" — so the copy names
+   * only what the existing flow really does: the buyer sends items, a
+   * specialist reviews and follows up.
+   *
+   * There is also deliberately NO destination/label field here. The primary
+   * destination is resolved in the component from the SAME canonical helper
+   * and route the approved Hero uses (`localizedPath(locale, "/request")`),
+   * and the telephone action from `CONTACT_PHONE_E164` — §7: "do not
+   * hard-code /request or /contact from memory ... Do not invent a number".
+   * Storing either as content would let a future copy edit silently
+   * repoint conversion.
+   *
+   * This copy SUPERSEDES, for the Homepage only, the older invoice/purchase-
+   * list wording in `components/ui/cta-band.tsx`'s own `defaults` table.
+   * That component and its copy are RETAINED untouched and still serve
+   * /products, /products/[slug], /industries, /markets, /about and
+   * /services (Composition §8; docs/homepage/HOMEPAGE_SUPERSESSION_REGISTER.md).
+   */
+  finalCta: {
+    /** Frozen FA H2 (§2); EN §3, AR §4. */
+    title: string;
+    /** Frozen supporting text — exactly one paragraph (§2-§4, §5). */
+    body: string;
+    /** Primary action label; its destination is the Hero's canonical RFQ route (§7). */
+    primaryCta: string;
+    /** Secondary action label; its destination is the verified `tel:` channel (§7). */
+    secondaryCta: string;
+    /** Visible non-commitment reassurance — normal text, never a tooltip or footnote (§5). */
+    reassurance: string;
+  };
+  /**
    * LEGACY Homepage "Reach"/markets band — SUPERSEDED FOR THE HOMEPAGE by
    * `industries` above (Industries V1.0; Composition §8 supersession register,
    * docs/homepage/HOMEPAGE_SUPERSESSION_REGISTER.md).
@@ -371,6 +424,13 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
         },
       ],
     },
+    finalCta: {
+      title: "لیست خرید آهن شما از همین‌جا شروع می‌شود",
+      body: "اقلام موردنیازتان را ارسال کنید تا کارشناس آهن آسا، مشخصات و شرایط درخواست شما را بررسی و پیگیری کند.",
+      primaryCta: "ارسال لیست خرید",
+      secondaryCta: "درخواست قیمت تلفنی",
+      reassurance: "ارسال درخواست، تعهدی برای خرید ایجاد نمی‌کند.",
+    },
     reach: {
       eyebrow: "دامنه فعالیت",
       title: "درخواست‌ها از صنایع مختلف بررسی می‌شود.",
@@ -497,6 +557,13 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
         },
       ],
     },
+    finalCta: {
+      title: "Start your steel purchase request here",
+      body: "Send the items you need so an Ahan Asa specialist can review the specifications and requirements and follow up on your request.",
+      primaryCta: "Send your purchase list",
+      secondaryCta: "Request pricing by phone",
+      reassurance: "Submitting a request does not commit you to a purchase.",
+    },
     reach: {
       eyebrow: "Scope of activity",
       title: "Requests are reviewed across a range of industries.",
@@ -622,6 +689,13 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
           body: "حدّد احتياجات الورشة أو خط الإنتاج، بما في ذلك الأبعاد ونوع المادة ومتطلبات التصنيع، لتُدرس خيارات التوريد وفقاً للاستخدام المقصود.",
         },
       ],
+    },
+    finalCta: {
+      title: "ابدأ طلب شراء الحديد من هنا",
+      body: "أرسل الأصناف التي تحتاجها ليراجع خبير آهن آسا المواصفات ومتطلبات الشراء ويتابع طلبك.",
+      primaryCta: "أرسل قائمة مشترياتك",
+      secondaryCta: "استفسر عن الأسعار هاتفياً",
+      reassurance: "إرسال الطلب لا يلزمك بالشراء.",
     },
     reach: {
       eyebrow: "نطاق النشاط",

@@ -54,7 +54,7 @@ const SECTIONS = [
   "components/home/product-showcase.tsx",
   "components/home/buyer-value.tsx",
   "components/home/industries.tsx",
-  "components/ui/cta-band.tsx",
+  "components/home/final-cta.tsx",
 ];
 
 /** The three conditional sections that may omit themselves entirely (§9). */
@@ -115,7 +115,7 @@ test("the page returns one flat fragment, so source order IS render order", () =
 });
 
 test("the rendered Homepage order matches the frozen composition (§4, §16.1)", () => {
-  const order = ["Hero", "PriceStrip", "ProductShowcase", "BuyerValue", "Industries", "CtaBand"];
+  const order = ["Hero", "PriceStrip", "ProductShowcase", "BuyerValue", "Industries", "FinalCta"];
   const positions = order.map((tag) => ({ tag, at: orderOf(tag) }));
 
   for (const { tag, at } of positions) {
@@ -129,7 +129,7 @@ test("the rendered Homepage order matches the frozen composition (§4, §16.1)",
 test("Hero comes first and precedes Product Showcase, which precedes Buyer Value (§16.1-§16.4)", () => {
   assert.ok(orderOf("Hero") < orderOf("ProductShowcase"), "§16.2");
   assert.ok(orderOf("ProductShowcase") < orderOf("BuyerValue"), "§16.4: Buyer Value appears after product exploration");
-  assert.ok(orderOf("BuyerValue") < orderOf("CtaBand"), "§4: Final CTA closes the journey");
+  assert.ok(orderOf("BuyerValue") < orderOf("FinalCta"), "§4: Final CTA closes the journey");
 });
 
 test("Price Strip sits between Hero and Product Showcase when it renders (§4, §16.2)", () => {
@@ -180,6 +180,33 @@ test("supersession removed RENDERING only — every superseded file survives (§
   assert.match(readCode("components/home/reach.tsx"), /m\.industries\.map/, "the retained Reach component must still render its list");
   for (const locale of ["fa", "en", "ar"] as const) {
     assert.ok(homepageCopy[locale].reach.title.trim().length > 0, `${locale}: homepageCopy.reach content must survive the supersession`);
+  }
+});
+
+test("the shared CtaBand is no longer the Homepage's closing CTA, but is UNCHANGED and still serves six other pages (§8)", () => {
+  // The Final CTA V1.0 phase is a different shape of supersession from the
+  // three above. `components/ui/cta-band.tsx` is a SHARED component: replacing
+  // its content in place would have silently changed six pages this phase does
+  // not govern. So the Homepage stopped importing it and nothing else moved.
+  assert.ok(!/<CtaBand[\s/>]/.test(PAGE_CODE), "the Homepage renders the frozen FinalCta instead");
+  assert.ok(!PAGE_SOURCE.includes("@/components/ui/cta-band"), "the Homepage import must be gone");
+  assert.ok(existsSync(path.join(REPO_ROOT, "components/ui/cta-band.tsx")), "cta-band.tsx must NOT be deleted — it is still live on six other pages");
+
+  // It must survive INTACT, not be gutted, and must still be really used.
+  const ctaBand = readCode("components/ui/cta-band.tsx");
+  assert.match(ctaBand, /export function CtaBand\(/, "the retained component must still export its component");
+  assert.match(ctaBand, /<Link/, "the retained component must still render its own actions");
+  for (const consumer of [
+    "app/[locale]/products/page.tsx",
+    "app/[locale]/products/[slug]/page.tsx",
+    "app/[locale]/industries/page.tsx",
+    "app/[locale]/markets/page.tsx",
+    "app/[locale]/about/page.tsx",
+    "app/[locale]/services/page.tsx",
+  ]) {
+    const source = readSource(consumer);
+    assert.ok(source.includes("@/components/ui/cta-band"), `${consumer} must still import the shared CtaBand`);
+    assert.match(source, /<CtaBand locale=\{locale\} \/>/, `${consumer} must still render the shared CtaBand unchanged`);
   }
 });
 
@@ -251,11 +278,11 @@ test("every conditional section omits itself as a WHOLE semantic section (§9, �
 test("Buyer Value and the Final CTA are unconditional — no data failure can suppress them (§9, §16.14)", () => {
   // §9: an omission "does not change Header, Hero, Buyer Value, Final CTA, or
   // Footer availability".
-  for (const file of ["components/home/buyer-value.tsx", "components/ui/cta-band.tsx", "components/home/hero.tsx"]) {
+  for (const file of ["components/home/buyer-value.tsx", "components/home/final-cta.tsx", "components/home/hero.tsx"]) {
     assert.ok(!/return null/.test(readCode(file)), `${file} must always render — it is an always-present section`);
   }
   assert.match(PAGE_CODE, /<BuyerValue locale=\{locale\} \/>/, "rendered directly, with no conditional wrapper");
-  assert.match(PAGE_CODE, /<CtaBand locale=\{locale\} \/>/, "§16.14: the Final CTA remains present regardless of conditional availability");
+  assert.match(PAGE_CODE, /<FinalCta locale=\{locale\} \/>/, "§16.14: the Final CTA remains present regardless of conditional availability");
 });
 
 test("conditional sections fail INDEPENDENTLY — one failure cannot suppress another (§9, §15)", () => {
@@ -351,7 +378,7 @@ test("the Industries slot is filled by the frozen V1.0 component (§6.6, §16.11
   assert.ok(existsSync(path.join(REPO_ROOT, "docs/industries/AHANASSA_INDUSTRIES_USE_CASES_COMPONENT_FREEZE_V1.0.md")), "the frozen authority must be imported");
   assert.ok(orderOf("Industries") > -1, "§4: the Industries slot must be occupied");
   assert.ok(orderOf("BuyerValue") < orderOf("Industries"), "§4: Industries follows Buyer Value (and, when eligible, Evidence)");
-  assert.ok(orderOf("Industries") < orderOf("CtaBand"), "§4: Industries precedes the Final CTA");
+  assert.ok(orderOf("Industries") < orderOf("FinalCta"), "§4: Industries precedes the Final CTA");
 });
 
 test("the Industries section renders only already-approved, non-fabricated content (§6.6, §16.11)", () => {
@@ -391,7 +418,7 @@ test("the retained /industries and /markets lists are untouched by the Homepage 
 // ---------------------------------------------------------------------------
 
 test("there is exactly one Homepage H1, and it belongs to the Hero (§14)", () => {
-  const sections = ["components/home/hero.tsx", "components/home/price-strip.tsx", "components/home/product-showcase.tsx", "components/home/buyer-value.tsx", "components/home/industries.tsx", "components/ui/cta-band.tsx"];
+  const sections = ["components/home/hero.tsx", "components/home/price-strip.tsx", "components/home/product-showcase.tsx", "components/home/buyer-value.tsx", "components/home/industries.tsx", "components/home/final-cta.tsx"];
   const withH1 = sections.filter((file) => /<h1[\s>]/.test(readCode(file)));
   assert.deepEqual(withH1, ["components/home/hero.tsx"], "§14: there MUST be exactly one Homepage H1");
 });
@@ -427,7 +454,7 @@ test("the Homepage keeps ONE primary conversion goal and no competing third acti
   // primary CTA by default". Evidence/Industries may carry contextual links
   // only. The Hero and Final CTA own conversion.
   assert.ok(!readCode("components/home/buyer-value.tsx").includes("<Link"), "§11: Buyer Value must not add a competing primary CTA");
-  assert.ok(readCode("components/ui/cta-band.tsx").includes("<Link"), "§6.7: the Final CTA must return the buyer to the primary RFQ action");
+  assert.ok(readCode("components/home/final-cta.tsx").includes("<ButtonLink"), "§6.7: the Final CTA must return the buyer to the primary RFQ action");
 });
 
 test("nothing on the Homepage implies checkout or an automatic purchase (§11)", () => {
@@ -453,7 +480,7 @@ test("at least two different section archetypes follow the Hero (Visual System �
   // three distinct archetypes after the Hero, not one repeated card.
   assert.ok(readCode("components/home/product-showcase.tsx").includes("bg-background"), "Product Showcase is a light Content Section");
   assert.ok(readCode("components/home/buyer-value.tsx").includes("--aa-color-bg-warm"), "Buyer Value is a Warm Cream Content Section");
-  assert.ok(readCode("components/ui/cta-band.tsx").includes("bg-navy-800"), "the Final CTA is the Navy high-emphasis surface");
+  assert.ok(/className="[^"]*\bbg-navy\b/.test(readCode("components/home/final-cta.tsx")), "the Final CTA is the Navy high-emphasis surface");
 });
 
 test("no two consecutive heavy Navy sections, even when conditional sections are omitted (Visual System §14, §21.6)", () => {
@@ -463,7 +490,7 @@ test("no two consecutive heavy Navy sections, even when conditional sections are
   // the Final CTA (§9's simplified Navy high-emphasis surface) — and they sit
   // at opposite ends of the page.
   const navy = SECTIONS.filter((file) => /className="[^"]*\bbg-navy(-\d+)?\b/.test(readCode(file)));
-  assert.deepEqual(navy, ["components/home/hero.tsx", "components/ui/cta-band.tsx"], "only the Hero and the Final CTA may be heavy Navy surfaces");
+  assert.deepEqual(navy, ["components/home/hero.tsx", "components/home/final-cta.tsx"], "only the Hero and the Final CTA may be heavy Navy surfaces");
 
   // The load-bearing part: between them sit Buyer Value and the Final CTA's
   // immediate predecessor, BOTH of which are always-present light sections.
@@ -479,7 +506,7 @@ test("no two consecutive heavy Navy sections, even when conditional sections are
   }
   const heroAt = orderOf("Hero");
   const buyerValueAt = orderOf("BuyerValue");
-  const ctaAt = orderOf("CtaBand");
+  const ctaAt = orderOf("FinalCta");
   assert.ok(heroAt < buyerValueAt && buyerValueAt < ctaAt, "the always-present light section must sit between the two Navy surfaces");
 });
 
@@ -495,7 +522,7 @@ test("Buyer Value reads as a flat Content Section, visually distinct from the ac
 });
 
 test("all Homepage sections align to the one shared container (Visual System §13, §21.12)", () => {
-  for (const file of ["components/home/hero.tsx", "components/home/price-strip.tsx", "components/home/product-showcase.tsx", "components/home/buyer-value.tsx", "components/home/industries.tsx", "components/ui/cta-band.tsx"]) {
+  for (const file of ["components/home/hero.tsx", "components/home/price-strip.tsx", "components/home/product-showcase.tsx", "components/home/buyer-value.tsx", "components/home/industries.tsx", "components/home/final-cta.tsx"]) {
     assert.ok(readCode(file).includes("container-x"), `${file} must use the shared container/gutter system`);
   }
 });
@@ -505,7 +532,7 @@ test("all Homepage sections align to the one shared container (Visual System §1
 // ---------------------------------------------------------------------------
 
 test("no hidden crawler-only or agent-only content layer exists on the Homepage", () => {
-  for (const file of [PAGE, "components/home/hero.tsx", "components/home/product-showcase.tsx", "components/home/buyer-value.tsx", "components/home/industries.tsx", "components/ui/cta-band.tsx"]) {
+  for (const file of [PAGE, "components/home/hero.tsx", "components/home/product-showcase.tsx", "components/home/buyer-value.tsx", "components/home/industries.tsx", "components/home/final-cta.tsx"]) {
     const code = readCode(file);
     assert.ok(!/<noscript[\s>]/.test(code), `${file}: no <noscript> content duplicate`);
     assert.ok(!/dangerouslySetInnerHTML/.test(code) || file === PAGE, `${file}: no injected markup`);

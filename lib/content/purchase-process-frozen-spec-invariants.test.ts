@@ -297,7 +297,7 @@ test("the tail of the Homepage sequence is preserved: Buyer Value -> Industries 
   // this tail, and the tail order itself must hold.
   const buyerValue = PAGE_CODE.indexOf("<BuyerValue");
   const industries = PAGE_CODE.indexOf("<Industries");
-  const finalCta = PAGE_CODE.indexOf("<CtaBand");
+  const finalCta = PAGE_CODE.indexOf("<FinalCta");
 
   assert.ok(buyerValue > -1 && industries > -1 && finalCta > -1, "all three sections must render");
   assert.ok(buyerValue < industries, "§4: conditional Industries follows Buyer Value");

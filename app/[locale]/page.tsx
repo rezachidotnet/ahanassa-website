@@ -9,7 +9,7 @@ import { PriceStrip } from "@/components/home/price-strip";
 import { ProductShowcase } from "@/components/home/product-showcase";
 import { BuyerValue } from "@/components/home/buyer-value";
 import { Industries } from "@/components/home/industries";
-import { CtaBand } from "@/components/ui/cta-band";
+import { FinalCta } from "@/components/home/final-cta";
 import type { PublicPriceStripItem } from "@/lib/pricing/types";
 import type { HomepageProductCandidate } from "@/lib/catalog/types";
 import { resolveHomepageRankingMode } from "@/lib/ranking/score";
@@ -81,6 +81,17 @@ import { resolveHomepageRankingMode } from "@/lib/ranking/score";
  *                        /process page (§12). It is NOT globally superseded.
  *                        No /process route exists yet and §12 forbids linking
  *                        to one that does not, so nothing links to it.
+ *   CtaBand              components/ui/cta-band.tsx, which previously filled
+ *                        the Final CTA slot. Replaced here by `FinalCta`,
+ *                        implementing the frozen V1.0 spec
+ *                        (docs/final-cta/AHANASSA_FINAL_CTA_COMPONENT_FREEZE_V1.0.md).
+ *                        CtaBand itself is NOT superseded and was NOT
+ *                        modified — it is a SHARED component that still
+ *                        renders unchanged on /products, /products/[slug],
+ *                        /industries, /markets, /about and /services. Only
+ *                        the HOMEPAGE's use of it was replaced; rewriting it
+ *                        in place would have silently changed six other
+ *                        pages, which this phase does not authorize.
  *   Reach                components/home/reach.tsx, which previously filled
  *                        the Industries slot with five generic industry names.
  *                        Replaced here by the frozen three-sector Industries
@@ -175,7 +186,7 @@ export default async function HomePage({ params }: PageProps) {
       <ProductShowcase locale={locale} items={homepageProducts} />
       <BuyerValue locale={locale} />
       <Industries locale={locale} />
-      <CtaBand locale={locale} />
+      <FinalCta locale={locale} />
 
       <JsonLd data={jsonLdGraph([organizationSchema(), websiteSchema()])} />
     </>
