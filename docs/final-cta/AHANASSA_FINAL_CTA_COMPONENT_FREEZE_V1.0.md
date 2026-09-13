@@ -1,7 +1,7 @@
 # AHANASSA Final CTA Component Freeze V1.0
 
-**Status:** FROZEN — content and design; code and runtime verification not performed.
-**Date:** 2026-09-08
+**Status:** FROZEN — content and design; code and runtime verification not performed. Canonical copy amended 2026-09-14 (HP-CONTENT-P1, owner-approved) — §2-§4 below reflect the current, live copy; layout/design/position remain unchanged from the original 2026-09-08 freeze.
+**Date:** 2026-09-08 (content last amended 2026-09-14)
 **Applies to:** Homepage FA / EN / AR
 
 ## 1. Authority, purpose and position
@@ -17,9 +17,9 @@ Its sole conversion goal is sending a purchase list / submitting an RFQ. Telepho
 
 ## 2. Canonical FA content
 
-H2: لیست خرید آهن شما از همین‌جا شروع می‌شود
+H2: خرید آهن پروژه‌تان را شروع کنید
 
-Supporting text: اقلام موردنیازتان را ارسال کنید تا کارشناس آهن آسا، مشخصات و شرایط درخواست شما را بررسی و پیگیری کند.
+Supporting text: اقلام مورد نیازتان را ارسال کنید تا کارشناس آهن آسا همین حالا با شما تماس بگیرد.
 
 Primary CTA: ارسال لیست خرید
 Secondary CTA: درخواست قیمت تلفنی
@@ -27,9 +27,9 @@ Reassurance: ارسال درخواست، تعهدی برای خرید ایجاد
 
 ## 3. Canonical EN content
 
-H2: Start your steel purchase request here
+H2: Start your project's steel purchase
 
-Supporting text: Send the items you need so an Ahan Asa specialist can review the specifications and requirements and follow up on your request.
+Supporting text: Send the items you need so an Ahan Asa specialist calls you right away.
 
 Primary CTA: Send your purchase list
 Secondary CTA: Request pricing by phone
@@ -37,9 +37,9 @@ Reassurance: Submitting a request does not commit you to a purchase.
 
 ## 4. Canonical AR content
 
-H2: ابدأ طلب شراء الحديد من هنا
+H2: ابدأ شراء الحديد لمشروعك
 
-Supporting text: أرسل الأصناف التي تحتاجها ليراجع خبير آهن آسا المواصفات ومتطلبات الشراء ويتابع طلبك.
+Supporting text: أرسل الأصناف التي تحتاجها ليتصل بك خبير آهن آسا في الحال.
 
 Primary CTA: أرسل قائمة مشترياتك
 Secondary CTA: استفسر عن الأسعار هاتفياً

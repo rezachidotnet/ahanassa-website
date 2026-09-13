@@ -6,9 +6,9 @@
 **Domain:** `https://www.ahanassa.com`
 **ERP:** `https://odoo.ahanassa.com`
 **Document role:** Highest-authority record of confirmed decisions that supersede conflicting statements anywhere in the active `01-sources/` corpus or older historical source-layer references
-**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered; customer account/portal future-phase architecture registered 2026-08-28; Odoo RFQ-path version/mapping verified against the live environment 2026-08-28; production D1 jurisdiction (EU) confirmed and production D1 provisioned 2026-08-29; §7.2 phone status corrected 2026-09-13 to reflect the already-live 2026-09-02 owner confirmation (FOOTER-P1); §10's own stale phone-unconfirmed bullet reconciled 2026-09-13 (CI-CD-P1 governance pass)
-**Version:** 2.4.2
-**Last updated:** 2026-09-13
+**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered; customer account/portal future-phase architecture registered 2026-08-28; Odoo RFQ-path version/mapping verified against the live environment 2026-08-28; production D1 jurisdiction (EU) confirmed and production D1 provisioned 2026-08-29; §7.2 phone status corrected 2026-09-13 to reflect the already-live 2026-09-02 owner confirmation (FOOTER-P1); §10's own stale phone-unconfirmed bullet reconciled 2026-09-13 (CI-CD-P1 governance pass); §7.1/§7.2 updated 2026-09-14 with new owner-confirmed phone (`03135134`, superseding the 2026-09-02 mobile number) and address plaque number (HP-CONTENT-P1, staging-only content patch)
+**Version:** 2.5.0
+**Last updated:** 2026-09-14
 
 ---
 
@@ -175,25 +175,25 @@ White        #FFFFFF
 ### 7.1 Address — OWNER-CONFIRMED
 
 ```text
-ADDRESS_FA (primary/canonical wording) = اصفهان، خیابان هزارجریب، کوی آزادگان
-ADDRESS_EN (reference translation)     = Isfahan, Hezar Jarib Street, Kooy Azadegan
+ADDRESS_FA (primary/canonical wording) = اصفهان، خیابان هزارجریب، کوی آزادگان، پلاک 6
+ADDRESS_EN (reference translation)     = Hezar Jarib Street, Kooy Azadegan, No. 6, Isfahan, Iran
 ```
 
-**Status:** OWNER-CONFIRMED 2026-08-26. Use the Persian form as the primary source wording; the English form is a reference translation for the `en` locale. This closes the address portion of `DOCUMENT_AUDIT_REPORT.md` DAR-001 — the value was previously flagged only as an unverified candidate sourced from a design mockup; the owner has now confirmed it directly.
+**Status:** OWNER-CONFIRMED 2026-08-26; plaque/unit number (پلاک 6) added 2026-09-14 (HP-CONTENT-P1, owner-approved) — same street/alley/city, no other detail invented. Use the Persian form as the primary source wording; the English form is a reference translation for the `en` locale. This closes the address portion of `DOCUMENT_AUDIT_REPORT.md` DAR-001 — the value was previously flagged only as an unverified candidate sourced from a design mockup; the owner has now confirmed it directly.
 
-### 7.2 Phone — OWNER-CONFIRMED 2026-09-02
+### 7.2 Phone — OWNER-CONFIRMED 2026-09-14 (superseding the 2026-09-02 mobile number)
 
 ```text
-CONTACT_PHONE_E164 = +989120656528   (confirmed for production use)
+CONTACT_PHONE_E164 = 03135134   (confirmed for production use, HP-CONTENT-P1)
 ```
 
-**Status:** OWNER-CONFIRMED 2026-09-02, in-session, during an RFQ/UX polish task — recorded directly in `lib/content/contact-channels.ts` at the time. This entry was not updated when that confirmation happened; it still described the number as open until this narrow correction (FOOTER-P1, `docs/footer/FOOTER_P1_RECONCILIATION_IMPLEMENTATION_REPORT.md`), which closes only that documentation-currency gap and changes nothing else in this file.
+**Status:** OWNER-CONFIRMED 2026-09-14 (HP-CONTENT-P1), superseding the previously-confirmed mobile number below. The owner directed this exact value verbatim — a local landline-style number, not E.164 despite the constant's name (kept unrenamed; see `lib/content/contact-channels.ts`). Do not reject, expand, normalize, or reformat it.
 
-**Superseded historical candidate (never confirmed, never published):** `۰۳۱۳۵۱۳۴`, sourced from the same design mockup as the address (§7.1) — an 8-digit fragment (short for a standard Isfahan landline), kept here only as historical context, not as a live value.
+**Superseded value (was live 2026-09-02 -> 2026-09-14):** `+989120656528`, the mobile number confirmed during an RFQ/UX polish task and published via Hero/Header/mobile drawer/Final CTA/Footer/SEO schema throughout that period. No longer live anywhere; verified absent from active Header/Footer content as of this correction. Historical implementation reports referencing it (e.g. `docs/footer/FOOTER_P1_RECONCILIATION_IMPLEMENTATION_REPORT.md`) are left unchanged, as the accurate record of what was true when they were written.
 
-**Single source of truth:** `lib/content/contact-channels.ts` (`CONTACT_PHONE_E164 = "+989120656528"`). Reused — never re-hardcoded — by Hero, Header, the mobile nav drawer, `FinalCta`, and, as of FOOTER-P1, `SiteFooter`. Import the constant; do not duplicate the value.
+**Formerly-flagged historical candidate, now the confirmed value:** the number above was previously recorded here as `۰۳۱۳۵۱۳۴` (Eastern Arabic digits) and described as "a superseded historical candidate, never confirmed, never published... an 8-digit fragment (short for a standard Isfahan landline)." That characterization is now superseded by this section's direct 2026-09-14 owner confirmation of the identical digits (Latin form) as the live number — the owner's explicit, current instruction is the authority here, not the prior candidate-status note.
 
-**Known remaining drift, not resolved by this entry:** §10 below still lists the phone number among "Explicitly NOT confirmed" items. That line is now stale and is left untouched here deliberately — reconciling §10 is a separate, still-open documentation task, out of this narrow correction's scope.
+**Single source of truth:** `lib/content/contact-channels.ts` (`CONTACT_PHONE_E164 = "03135134"`). Reused — never re-hardcoded — by Hero, Header, the mobile nav drawer, `FinalCta`, and `SiteFooter`. Import the constant; do not duplicate the value.
 
 ---
 

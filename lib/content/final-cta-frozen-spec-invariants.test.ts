@@ -213,7 +213,10 @@ test("the resolved RFQ route really exists for every locale, and is a real page 
 test("the telephone action reuses the single verified configured number (§7)", () => {
   // §7: "Secondary MUST reuse the verified telephone-pricing behavior of the
   // Hero ... Do not invent a number, callback modal or business hours."
-  assert.match(CONTACT_PHONE_E164, /^\+\d{6,15}$/, "the shared constant must be a real E.164 number");
+  // HP-CONTENT-P1 (2026-09-14): the owner-supplied number is a local
+  // landline-style value, not E.164 — pin the exact approved value instead
+  // of a generic international-format shape.
+  assert.equal(CONTACT_PHONE_E164, "03135134", "the shared constant must be the exact owner-approved phone number");
   assert.ok(COMPONENT.includes("CONTACT_PHONE_E164"), "the component must import the shared phone constant");
   assert.ok(!/tel:\+\d{6,15}/.test(COMPONENT), "the number must never be hard-coded — the href is built from the constant");
   assert.match(COMPONENT, /href=\{`tel:\$\{CONTACT_PHONE_E164\}`\}/, "the same tel: pattern the Hero, Header and mobile drawer use");

@@ -315,7 +315,7 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
     hero: {
       eyebrow: "مدیریت تأمین فولاد پروژه",
       title: "تأمین فولاد پروژه‌ها",
-      process: ["ارسال لیست درخواست", "بررسی فنی", "بررسی تجاری", "خرید"],
+      process: ["ارسال لیست درخواست", "بررسی فنی", "بررسی تجاری", "تأمین"],
       body: "آهن آسا مسیر خرید آهن شما را آسان، شفاف و قابل‌کنترل می‌کند.",
       reassurance: "ارسال لیست خرید برای شما تعهدی ایجاد نمی‌کند.",
       brandLine: "ما مراقب سرمایه شما هستیم.",
@@ -425,8 +425,8 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
       ],
     },
     finalCta: {
-      title: "لیست خرید آهن شما از همین‌جا شروع می‌شود",
-      body: "اقلام موردنیازتان را ارسال کنید تا کارشناس آهن آسا، مشخصات و شرایط درخواست شما را بررسی و پیگیری کند.",
+      title: "خرید آهن پروژه‌تان را شروع کنید",
+      body: "اقلام مورد نیازتان را ارسال کنید تا کارشناس آهن آسا همین حالا با شما تماس بگیرد.",
       primaryCta: "ارسال لیست خرید",
       secondaryCta: "درخواست قیمت تلفنی",
       reassurance: "ارسال درخواست، تعهدی برای خرید ایجاد نمی‌کند.",
@@ -448,7 +448,7 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
     hero: {
       eyebrow: "Project steel procurement management",
       title: "Steel procurement for projects",
-      process: ["Submit request list", "Technical review", "Commercial review", "Purchase"],
+      process: ["Submit request list", "Technical review", "Commercial review", "Sourcing"],
       body: "Ahan Asa makes your steel purchasing process easier, clearer, and more controllable.",
       reassurance: "Sending your purchase list creates no commitment.",
       brandLine: "We protect your capital.",
@@ -558,8 +558,8 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
       ],
     },
     finalCta: {
-      title: "Start your steel purchase request here",
-      body: "Send the items you need so an Ahan Asa specialist can review the specifications and requirements and follow up on your request.",
+      title: "Start your project's steel purchase",
+      body: "Send the items you need so an Ahan Asa specialist calls you right away.",
       primaryCta: "Send your purchase list",
       secondaryCta: "Request pricing by phone",
       reassurance: "Submitting a request does not commit you to a purchase.",
@@ -581,7 +581,7 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
     hero: {
       eyebrow: "إدارة توريد الصلب للمشاريع",
       title: "توريد الصلب للمشاريع",
-      process: ["إرسال قائمة الطلب", "المراجعة الفنية", "المراجعة التجارية", "الشراء"],
+      process: ["إرسال قائمة الطلب", "المراجعة الفنية", "المراجعة التجارية", "التوريد"],
       body: "يجعل آهن آسا مسار شراء الفولاد أسهل وأوضح وأكثر قابلية للتحكم.",
       reassurance: "إرسال قائمة الشراء لا يُنشئ أي التزام عليك.",
       brandLine: "نحن نحرص على رأس مالك.",
@@ -691,8 +691,8 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
       ],
     },
     finalCta: {
-      title: "ابدأ طلب شراء الحديد من هنا",
-      body: "أرسل الأصناف التي تحتاجها ليراجع خبير آهن آسا المواصفات ومتطلبات الشراء ويتابع طلبك.",
+      title: "ابدأ شراء الحديد لمشروعك",
+      body: "أرسل الأصناف التي تحتاجها ليتصل بك خبير آهن آسا في الحال.",
       primaryCta: "أرسل قائمة مشترياتك",
       secondaryCta: "استفسر عن الأسعار هاتفياً",
       reassurance: "إرسال الطلب لا يلزمك بالشراء.",

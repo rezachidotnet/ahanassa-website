@@ -61,7 +61,8 @@ test("Hero FA content matches the current owner-directed baseline exactly", () =
   assert.equal(t.secondaryCta, "درخواست قیمت تلفنی");
   assert.equal(t.reassurance, "ارسال لیست خرید برای شما تعهدی ایجاد نمی‌کند.");
   assert.ok(!t.reassurance.includes("ابتدا نیاز شما بررسی می‌شود"), "the dropped reassurance clause must not remain");
-  assert.deepEqual(t.process, ["ارسال لیست درخواست", "بررسی فنی", "بررسی تجاری", "خرید"]);
+  // HP-CONTENT-P1 (2026-09-14, owner-approved): step 4 changed from "خرید" to "تأمین".
+  assert.deepEqual(t.process, ["ارسال لیست درخواست", "بررسی فنی", "بررسی تجاری", "تأمین"]);
   assert.equal(t.brandLine, "ما مراقب سرمایه شما هستیم.");
   assert.equal(primaryCta.fa.full, "ارسال لیست خرید");
 });
@@ -130,7 +131,10 @@ test("Hero copy never overclaims (no guarantee/best-price/fastest-delivery langu
 // --- §30.1/§30.2: CTA integrity ---
 
 test("Secondary CTA phone source is the centralized Central Verified Business Identity number, not a Hero-local hardcode", () => {
-  assert.match(CONTACT_PHONE_E164, /^\+\d{6,15}$/);
+  // HP-CONTENT-P1 (2026-09-14): the owner-supplied number is a local
+  // landline-style value, not E.164 — pin the exact approved value instead
+  // of a generic international-format shape.
+  assert.equal(CONTACT_PHONE_E164, "03135134", "the shared constant must be the exact owner-approved phone number");
   assert.ok(HERO_CODE.includes("CONTACT_PHONE_E164"), "hero.tsx must import the shared phone constant");
   assert.ok(!/tel:\+\d{6,15}/.test(HERO_CODE), "hero.tsx must not hardcode a raw tel: number — it must build the href from CONTACT_PHONE_E164");
 });
