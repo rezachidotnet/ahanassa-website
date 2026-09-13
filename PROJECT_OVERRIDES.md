@@ -6,9 +6,9 @@
 **Domain:** `https://www.ahanassa.com`
 **ERP:** `https://odoo.ahanassa.com`
 **Document role:** Highest-authority record of confirmed decisions that supersede conflicting statements anywhere in the active `01-sources/` corpus or older historical source-layer references
-**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered; customer account/portal future-phase architecture registered 2026-08-28; Odoo RFQ-path version/mapping verified against the live environment 2026-08-28; production D1 jurisdiction (EU) confirmed and production D1 provisioned 2026-08-29
-**Version:** 2.4.0
-**Last updated:** 2026-08-29
+**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered; customer account/portal future-phase architecture registered 2026-08-28; Odoo RFQ-path version/mapping verified against the live environment 2026-08-28; production D1 jurisdiction (EU) confirmed and production D1 provisioned 2026-08-29; §7.2 phone status corrected 2026-09-13 to reflect the already-live 2026-09-02 owner confirmation (FOOTER-P1)
+**Version:** 2.4.1
+**Last updated:** 2026-09-13
 
 ---
 
@@ -181,13 +181,19 @@ ADDRESS_EN (reference translation)     = Isfahan, Hezar Jarib Street, Kooy Azade
 
 **Status:** OWNER-CONFIRMED 2026-08-26. Use the Persian form as the primary source wording; the English form is a reference translation for the `en` locale. This closes the address portion of `DOCUMENT_AUDIT_REPORT.md` DAR-001 — the value was previously flagged only as an unverified candidate sourced from a design mockup; the owner has now confirmed it directly.
 
-### 7.2 Phone — STILL OPEN, not production-confirmed
+### 7.2 Phone — OWNER-CONFIRMED 2026-09-02
 
 ```text
-PHONE_CANDIDATE = ۰۳۱۳۵۱۳۴   (NOT confirmed for production use)
+CONTACT_PHONE_E164 = +989120656528   (confirmed for production use)
 ```
 
-**Status:** OPEN. A candidate value exists (`۰۳۱۳۵۱۳۴`), sourced from the same design mockup as the address. The owner has explicitly **not** confirmed this as a final production phone number — it may be incomplete (it is only 8 digits total including the `031` area code; a standard Isfahan landline needs `031` plus 8 further digits). **Do not publish this number anywhere in production** (footer, contact page, structured data, `tel:` links) until the owner supplies the complete number. Keep phone publishing as a genuinely open item.
+**Status:** OWNER-CONFIRMED 2026-09-02, in-session, during an RFQ/UX polish task — recorded directly in `lib/content/contact-channels.ts` at the time. This entry was not updated when that confirmation happened; it still described the number as open until this narrow correction (FOOTER-P1, `docs/footer/FOOTER_P1_RECONCILIATION_IMPLEMENTATION_REPORT.md`), which closes only that documentation-currency gap and changes nothing else in this file.
+
+**Superseded historical candidate (never confirmed, never published):** `۰۳۱۳۵۱۳۴`, sourced from the same design mockup as the address (§7.1) — an 8-digit fragment (short for a standard Isfahan landline), kept here only as historical context, not as a live value.
+
+**Single source of truth:** `lib/content/contact-channels.ts` (`CONTACT_PHONE_E164 = "+989120656528"`). Reused — never re-hardcoded — by Hero, Header, the mobile nav drawer, `FinalCta`, and, as of FOOTER-P1, `SiteFooter`. Import the constant; do not duplicate the value.
+
+**Known remaining drift, not resolved by this entry:** §10 below still lists the phone number among "Explicitly NOT confirmed" items. That line is now stale and is left untouched here deliberately — reconciling §10 is a separate, still-open documentation task, out of this narrow correction's scope.
 
 ---
 
