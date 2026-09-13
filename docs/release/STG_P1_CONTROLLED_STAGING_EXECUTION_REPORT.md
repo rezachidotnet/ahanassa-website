@@ -301,3 +301,90 @@ Not live-re-verified (no new deploy to check against). Unchanged at the code lev
 # READY FOR PRODUCTION RELEASE PREPARATION
 
 **NO.** Staging migrations are complete and verified, but the staging application deploy — and everything that depends on it (functional smoke tests, browser acceptance, RFQ E2E) — has not yet been executed. Production release preparation cannot reasonably begin before staging itself has been deployed to and verified.
+
+---
+---
+
+# CONTINUATION — 2026-09-13 (resume after operator setup)
+
+This section is a continuation of the report above, not a rewrite of it. **FIRST ATTEMPT** (above): stopped cleanly at the operator setup gate — no `staging` GitHub Environment, zero GitHub Actions secrets. **THIS CONTINUATION**: the operator completed that setup; a new, different, previously-undiscovered blocker was found one step later, at the actual deploy dispatch — this section documents it and stops again, for a different reason, pending an owner decision.
+
+## Fresh preflight
+
+```text
+pwd:     /Users/reza/Developer/ahanassa-website
+branch:  feat/header-hero-integrated
+HEAD:    3b6bcf059b8677e017d8fc1e70a10bd4e38eeb91
+status:  clean
+```
+
+HEAD is one commit ahead of the FIRST ATTEMPT's base (`3b6bcf0`, the report commit for that attempt) — no runtime code changed since the CI-verified commit `7bb2c34`.
+
+## Operator setup — re-verified, correctly scoped this time
+
+Per this continuation task's explicit correction, the **Environment-scoped** secret list was checked (not the repository-wide list, which does not show Environment secrets and was the reason the first attempt correctly reported them as absent at that time):
+
+- `GET /repos/rezachidotnet/ahanassa-website/environments` → **`staging` now exists** (id `21847608435`, created `2026-09-13T19:35:48Z`, `protection_rules: []` — recorded honestly, no protection rules configured).
+- `GET /repos/rezachidotnet/ahanassa-website/environments/staging/secrets` → **both required names present**: `CLOUDFLARE_ACCOUNT_ID` (created `2026-09-13T19:54:03Z`), `CLOUDFLARE_API_TOKEN` (created `2026-09-13T19:47:59Z`). Names/timestamps only — no value was requested, returned, or could be returned by this API.
+
+**Operator setup gate: PASS.**
+
+## Migrations — re-verified only, not reapplied
+
+```
+npx wrangler d1 migrations list DB_PUBLIC --env staging --remote  → ✅ No migrations to apply!
+npx wrangler d1 migrations list DB_OPS --env staging --remote     → ✅ No migrations to apply!
+```
+
+Confirms the FIRST ATTEMPT's applied state is unchanged and durable. **No `wrangler d1 migrations apply` command was run in this continuation.**
+
+## Resource re-verification
+
+Re-read directly from `wrangler.jsonc`: `ahanassa-bootstrap-staging` / `ahanassa-ops-staging` (`49bd0aff-...`) / `ahanassa-public-staging` (`35cef70f-...`) — confirmed distinct from `ahanassa-production` / `ahanassa-ops-production` (`7240a6a7-...`) / `ahanassa-public-production` (`73ba6b50-...`). No mismatch.
+
+## CI state
+
+`GET /git/refs/heads/feat/header-hero-integrated` → still exactly `7bb2c347868c9bcc62bdcdce7455583d797296b3` — the same commit CI run `34778222664` already passed. No code changed remotely since that run; per this task's own instruction, that successful result was reused rather than re-run for its own sake.
+
+## Deploy attempt — new blocker found
+
+Attempted, in order:
+
+1. `gh workflow run deploy-staging.yml --ref feat/header-hero-integrated -f confirm=deploy-staging` → **`HTTP 404: workflow deploy-staging.yml not found on the default branch`**.
+2. Direct REST call, `POST /repos/.../actions/workflows/deploy-staging.yml/dispatches` with `ref=feat/header-hero-integrated` and the `confirm` input → **same 404**.
+
+**Diagnosis, confirmed empirically (not guessed):** this is not the commonly-assumed "`workflow_dispatch` requires the target ref to be the default branch" restriction — `workflow_dispatch` itself works perfectly well against a non-default-branch ref. Proof: `gh workflow run CI --ref feat/header-hero-integrated` (a harmless, real dispatch of the already-registered `CI` workflow, tests/build only, no deploy credentials) succeeded immediately → run `34779284965`, `event: "workflow_dispatch"`, `status: completed`, `conclusion: success`, same commit `7bb2c34`.
+
+The actual mechanism: `GET /actions/workflows` still lists **only** `CI` (`total_count: 1`) — `deploy-staging.yml` has never been indexed/registered by GitHub Actions at all. `ci.yml` got indexed automatically because its `push` trigger fired for real on the original push (this is what creates the internal Workflow object). `deploy-staging.yml`'s only trigger is `workflow_dispatch` — by design, per CI-CD-P1's own hardening (no `push`/`pull_request` trigger on the deploy workflow, deliberately) — so no event has ever caused GitHub to register it. A dispatch request that references an **unregistered** workflow by file name can only be resolved by GitHub falling back to reading that path from the **default branch** (`main`) — and `deploy-staging.yml` does not exist there (it exists only on `feat/header-hero-integrated`, never merged). Once a workflow is registered (any trigger, any ref), it becomes dispatchable by name/ID against any ref thereafter — exactly what the `CI` re-dispatch above proves.
+
+**This is a genuine, previously-undiscovered gap in the CI-CD-P1 design**, not a secret/Environment problem (both are now correctly configured) and not a code defect: a `workflow_dispatch`-only workflow that has never existed on the default branch cannot be dispatched by any means available to this session, until either (a) the workflow file exists on `main` at least once (even transiently) to bootstrap indexing, or (b) the repository's default branch setting is changed, or (c) some other GitHub-side mechanism not available to this session's tools is used.
+
+**None of these three resolutions is authorized in this task:** (a) requires touching `main`, explicitly forbidden here ("Do NOT merge to main" — and this repository has an additional, independently-documented reason to be careful with `main`: Vercel's Git integration ties its Production deployment to that exact branch, per `docs/GO_LIVE_CUTOVER_RUNBOOK.md` §8/DAR-048); (b) is a GitHub repository setting change, outside this task's safe scope; (c) is unknown/unverified. Per this task's own explicit instruction ("Do NOT deploy locally unless GitHub Actions is genuinely unavailable and you stop first to report that problem"), execution **stops here** rather than attempting a local `vinext-cloudflare deploy --env staging` as a substitute, and rather than improvising a workaround touching `main` or repository settings on its own authority.
+
+**No deploy was performed by any method — local or GitHub Actions.**
+
+## Result of this continuation
+
+**D — STAGING CONTINUATION STOPPED — DEPLOY GATE OR WORKFLOW FAILURE.** Specifically: a workflow-dispatch-mechanics failure (never-indexed workflow), not a secrets/Environment failure (those now pass) and not a CI or migration failure (those remain green/applied).
+
+## Recommended paths forward (decision needed from the owner — none executed)
+
+1. Push `.github/workflows/ci.yml` and `.github/workflows/deploy-staging.yml` (workflow files only — no application code) directly to `main` in a small, isolated, explicitly-authorized commit, specifically to bootstrap GitHub's indexing of both workflows. This is the smallest change that resolves the gap, but it does touch `main` and needs its own explicit owner authorization plus a decision on the Vercel-Production-tied-to-`main` risk (`docs/GO_LIVE_CUTOVER_RUNBOOK.md` §8) before anyone runs it — most simply by disconnecting or reassigning Vercel's Production Branch first, exactly as that runbook already recommends doing before `main` is ever touched again.
+2. The operator manually runs the deploy from their own machine (`npx vinext-cloudflare deploy --env staging`, after `npm ci && npm test && npx tsc --noEmit && npm run build`) — bypasses the GitHub Actions indexing gap entirely, at the cost of not going through the audited workflow this once.
+3. The operator triggers the workflow through the GitHub web UI, if a path exists there that this session's CLI/API access cannot exercise (unverified from this session; worth the operator's own check before assuming option 1 or 2 is required).
+
+## Production safety (this continuation)
+
+Unchanged from the first attempt: no command in this continuation referenced any production resource, even read-only. `main` was not pushed to, merged, or modified. No GitHub repository setting was changed (only `GET` reads plus the two dispatch attempts, both of which failed with `404` and mutated nothing). No secret value was requested or exposed.
+
+## Remaining gaps (superseding the FIRST ATTEMPT's list)
+
+1. ~~GitHub Environment `staging`~~ — **resolved**, exists now.
+2. ~~`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID`~~ — **resolved**, both present in the `staging` Environment.
+3. **New:** `deploy-staging.yml` cannot be dispatched until it is indexed by GitHub Actions — requires an explicit owner decision among the three paths above.
+4. `TURNSTILE_SECRET_KEY` / `ODOO_RFQ_API_TOKEN` remain unprovisioned on staging (unchanged; RFQ E2E stays a gap regardless of the deploy blocker).
+5. The actual staging deploy, and everything downstream of it (smoke, browser, RFQ E2E), remains entirely outstanding.
+
+## Ready for production release preparation
+
+**NO** — unchanged; if anything, the specific blocker is now more precisely identified than in the first attempt.
