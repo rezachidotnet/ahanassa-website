@@ -41,7 +41,7 @@ export function organizationSchema() {
     // the footer and contact page — safe to add per this file's own rule.
     address: {
       "@type": "PostalAddress",
-      streetAddress: "خیابان هزارجریب، کوی آزادگان",
+      streetAddress: "خیابان هزارجریب، کوی آزادگان، پلاک 6",
       addressLocality: "اصفهان",
       addressCountry: "IR",
     },

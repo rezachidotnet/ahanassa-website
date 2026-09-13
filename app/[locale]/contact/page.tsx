@@ -27,7 +27,7 @@ const copy: Record<
     formTitle: "فرم درخواست",
     formBody: "اطلاعات زیر برای شروع بررسی نیاز پروژه شما استفاده می‌شود.",
     officeTitle: "دفتر مرکزی",
-    addressLines: ["اصفهان، خیابان هزارجریب", "کوی آزادگان"],
+    addressLines: ["اصفهان، خیابان هزارجریب، کوی آزادگان، پلاک 6"],
     nextTitle: "مراحل بعدی",
   },
   en: {
@@ -38,7 +38,7 @@ const copy: Record<
     formTitle: "Request form",
     formBody: "The information below is used to begin reviewing your project requirement.",
     officeTitle: "Head office",
-    addressLines: ["Hezar Jarib Street, Kooy Azadegan", "Isfahan, Iran"],
+    addressLines: ["Hezar Jarib Street, Kooy Azadegan, No. 6, Isfahan, Iran"],
     nextTitle: "Next steps",
   },
   ar: {
@@ -49,7 +49,7 @@ const copy: Record<
     formTitle: "نموذج الطلب",
     formBody: "تُستخدم المعلومات أدناه لبدء مراجعة احتياج مشروعك.",
     officeTitle: "المكتب الرئيسي",
-    addressLines: ["شارع هزار جريب، حي آزادگان", "أصفهان، إيران"],
+    addressLines: ["شارع هزار جريب، حي آزادگان، رقم 6، أصفهان، إيران"],
     nextTitle: "الخطوات التالية",
   },
 };
