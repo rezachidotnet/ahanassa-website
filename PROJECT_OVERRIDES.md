@@ -6,8 +6,8 @@
 **Domain:** `https://www.ahanassa.com`
 **ERP:** `https://odoo.ahanassa.com`
 **Document role:** Highest-authority record of confirmed decisions that supersede conflicting statements anywhere in the active `01-sources/` corpus or older historical source-layer references
-**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered; customer account/portal future-phase architecture registered 2026-08-28; Odoo RFQ-path version/mapping verified against the live environment 2026-08-28; production D1 jurisdiction (EU) confirmed and production D1 provisioned 2026-08-29; §7.2 phone status corrected 2026-09-13 to reflect the already-live 2026-09-02 owner confirmation (FOOTER-P1)
-**Version:** 2.4.1
+**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered; customer account/portal future-phase architecture registered 2026-08-28; Odoo RFQ-path version/mapping verified against the live environment 2026-08-28; production D1 jurisdiction (EU) confirmed and production D1 provisioned 2026-08-29; §7.2 phone status corrected 2026-09-13 to reflect the already-live 2026-09-02 owner confirmation (FOOTER-P1); §10's own stale phone-unconfirmed bullet reconciled 2026-09-13 (CI-CD-P1 governance pass)
+**Version:** 2.4.2
 **Last updated:** 2026-09-13
 
 ---
@@ -308,7 +308,7 @@ This override file controls only the decisions explicitly listed above. For ever
 
 The following remain genuinely unresolved after the 2026-08-26 owner sign-off round. Per `CLAUDE.md`, Claude Code must never invent business facts, contact data, or credentials for any of these:
 
-- Company phone number (candidate exists, not confirmed — §7.2), email, WhatsApp, business hours
+- Company email, WhatsApp, business hours (phone number is confirmed for production use — §7.2 — not listed here)
 - Company legal entity name, registration/tax ID, invoicing identity
 - Board/leadership information
 - Odoo deployed version, installed modules, exact API protocol, exact model/field mapping (§3 — confirmed as an integration-phase gate, not a blocker, but the values themselves remain unknown)

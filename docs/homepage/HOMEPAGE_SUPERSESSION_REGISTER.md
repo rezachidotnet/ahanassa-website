@@ -2,7 +2,7 @@
 
 **Status:** ACTIVE
 **Established:** 2026-09-08 (Homepage HP-R1 reconciliation)
-**Last updated:** 2026-09-12 (Final CTA V1.0, CTA-P1)
+**Last updated:** 2026-09-13 (Footer redesign status corrected to Done, FOOTER-P0/P1 — CI-CD-P1 governance pass; previously 2026-09-12, Final CTA V1.0, CTA-P1)
 **Governing authority:** `docs/homepage/AHANASSA_HOMEPAGE_COMPOSITION_AND_CUSTOMER_JOURNEY_FREEZE_V1.0.md` §8
 **Implementation record:** `docs/homepage/HOMEPAGE_HP_R1_RECONCILIATION_IMPLEMENTATION_REPORT.md`
 
@@ -236,7 +236,7 @@ state and does not retroactively bless them.
 | Verified Evidence component + publication contract | Not started. Deliberately deferred. |
 | Industries / Use Cases redesign | **Done and PUBLISHED.** Frozen V1.0 implemented and wired in IND-P1; the image gate in §5.2 was closed on 2026-09-12 and the section now renders in fa/en/ar. |
 | Final CTA redesign | **Done (CTA-P1).** Frozen V1.0 implemented as `components/home/final-cta.tsx` and wired as the last Homepage content section. No eligibility gate, no data dependency, no outstanding asset. See `docs/final-cta/FINAL_CTA_P1_V1_0_IMPLEMENTATION_REPORT.md`. |
-| Footer redesign | Not started. Two known defects recorded in the GEO-G0 audit remain open — see the implementation report's FOOTER FOLLOW-UP. |
+| Footer redesign | **Done (FOOTER-P0/P1).** Narrow reconciliation complete — stale product links, the EN/AR Persian-category localization leak, verified phone, and heading hierarchy addressed; both defects the GEO-G0 audit and the HP-R1 FOOTER FOLLOW-UP flagged are resolved. See `docs/footer/FOOTER_P1_RECONCILIATION_IMPLEMENTATION_REPORT.md`. |
 | `/process` route and page | Not created. Purchase Process V2.0 is reserved for it. |
 | Organization/WebSite schema emitted only from the noindex homepage | Known GEO-G0 defect, deliberately not fixed here — see PRE-STAGING GEO FOLLOW-UP in the implementation report. |
 
