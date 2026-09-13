@@ -388,3 +388,177 @@ Unchanged from the first attempt: no command in this continuation referenced any
 ## Ready for production release preparation
 
 **NO** — unchanged; if anything, the specific blocker is now more precisely identified than in the first attempt.
+
+---
+---
+
+# FINAL CONTINUATION — 2026-09-13 (one-time controlled local staging deploy)
+
+This is the third and final section of this report, appended in place — the two continuations above are preserved as history, not rewritten. **Owner-authorized deviation from the previous continuation's recommendation:** rather than resolving the GitHub Actions workflow-indexing gap (which would require touching `main`), the owner explicitly authorized a one-time local staging deploy using the exact repository-approved command, run from this session's already-authenticated `wrangler` CLI.
+
+## Local deploy authorization
+
+Explicit, scoped, one-time authorization from the owner to run `npx vinext-cloudflare deploy --env staging` locally, specifically to complete staging verification while the GitHub Actions indexing gap (recorded in the prior continuation) remains unresolved. No other deviation from the hard boundary was authorized or taken.
+
+## Predeploy verification
+
+**Fresh preflight:**
+```text
+branch: feat/header-hero-integrated
+HEAD:   668bb12d8b30e349a9e488fa84ca95e6e15d966a
+status: clean
+```
+
+**Runtime code unchanged since CI:** `git diff --name-status 7bb2c347868c9bcc62bdcdce7455583d797296b3 HEAD` → exactly one file, `docs/release/STG_P1_CONTROLLED_STAGING_EXECUTION_REPORT.md` (added by the second continuation). **Zero application/runtime/build/config files changed** since the commit CI run `34778222664` verified. No fresh CI was required.
+
+**Staging resources reconfirmed** from `wrangler.jsonc`: Worker `ahanassa-bootstrap-staging`; `DB_OPS` = `ahanassa-ops-staging` (`49bd0aff-...`); `DB_PUBLIC` = `ahanassa-public-staging` (`35cef70f-...`) — both confirmed distinct from `ahanassa-production`/`7240a6a7-...`/`73ba6b50-...`.
+
+## Migration state
+
+Read-only re-check, **no migration applied**:
+```
+DB_PUBLIC staging: ✅ No migrations to apply!
+DB_OPS staging:    ✅ No migrations to apply!
+```
+0007–0010 remain exactly as applied in the earlier session — untouched by this continuation.
+
+## Previous Worker version
+
+Freshly re-read (not assumed): `45c44767-0692-4052-be23-3b7d32678e1e` (`2026-09-03T18:33:43.938Z`) — unchanged since every prior check in this task family. This is the confirmed rollback point immediately before deploy.
+
+## Local verification before deploy
+
+```
+npm ci          → PASS (203 packages, clean install)
+npm test        → PASS, 1247/1247, 0 failed
+npx tsc --noEmit → PASS (clean)
+npm run build    → PASS (all routes built, no errors)
+git diff --check → clean
+```
+
+## Local staging deploy
+
+**Command run exactly as specified, unaltered:** `npx vinext-cloudflare deploy --env staging`
+
+Result: **success.** Build completed (5-stage vinext build, RSC/SSR/client), 18 new/modified static assets uploaded (66 total), Worker uploaded and triggers deployed. Bindings on the deployed version, confirmed from the deploy's own printed output — all staging, zero production leakage:
+
+```
+env.DB_OPS (ahanassa-ops-staging)     D1 Database
+env.DB_PUBLIC (ahanassa-public-staging) D1 Database
+env.APP_ENV ("staging")               Environment Variable
+env.PRICE_STRIP_ENABLED ("false")     Environment Variable
+env.ENABLED_PRICE_PROVIDERS ("")      Environment Variable
+env.HOMEPAGE_RANKING_MODE ("base")    Environment Variable
+```
+Deployed to: `https://ahanassa-bootstrap-staging.nova-b1e6f0.workers.dev`
+**New Version ID: `65df028c-b865-4b86-885f-ab64b8f2987c`**
+
+No migration command ran as part of, or alongside, this deploy.
+
+## New Worker version
+
+Confirmed via `npx wrangler deployments list --name ahanassa-bootstrap-staging`: **`65df028c-b865-4b86-885f-ab64b8f2987c` is now 100% active** — genuinely different from the previous `45c44767-0692-4052-be23-3b7d32678e1e`. Active Worker confirmed as `ahanassa-bootstrap-staging` (not production). A read-only check of `ahanassa-production`'s deployments confirms its active version is unchanged at `b07d8697-620c-485c-8fed-21b893ab602c` (`2026-09-03T19:00:45.838Z`) — **production untouched.**
+
+## Homepage smoke
+
+Real HTTP requests (`curl`) against `https://ahanassa-bootstrap-staging.nova-b1e6f0.workers.dev`:
+
+| Locale | Path | Status |
+|---|---|---|
+| fa (default) | `/` | **200** |
+| en | `/en` | **200** |
+| ar | `/ar` | **200** |
+
+All three response bodies inspected directly (not assumed): Header present (`SiteHeader`, real nav), Hero present, Product Showcase heading present, Buyer Value heading present, Industries heading present, Final CTA heading present exactly once (with structural section order confirmed: Final CTA immediately precedes `<footer>`, zero other sections between them), Footer present (`site-footer`, real `<footer>`).
+
+**Price Strip: ABSENT** on all three (no `selected-prices-heading` marker anywhere) — correct, matches `PRICE_STRIP_ENABLED="false"`.
+**Evidence: ABSENT** on all three (no "verified evidence" marker) — correct, deliberately deferred.
+
+**No `no such table` / `no such column` errors found** in any of the four fetched pages (`/`, `/en`, `/ar`, `/contact`) — grepped directly, zero matches. Also checked for `uncaught`, `TypeError`, `ReferenceError`, `undefined is not`, `Cannot read propert*` — zero matches across all four pages.
+
+## Product Showcase
+
+**PASS (fa) / EMPTY-DATA (en, ar) — genuinely distinguished, not assumed.**
+
+On `/` (fa): the section renders with `<ul class="aa-showcase-grid ..." data-count="3">` — **3 real cards**, real Persian product names ("پروفیل مربعی توخالی (SHS)" etc.), real images, real links (`/products/square-hollow-section-shs`, `/products/rebar-aj340`, and a third). This is migration `0010` working end-to-end for the first time on real staging data — before this deploy, this exact query would have thrown `no such column: hpr.show_on_homepage`; now it returns real, correct results.
+
+On `/en` and `/ar`: no `aa-showcase-grid` element exists at all — the section is cleanly omitted, matching the code's own "0 eligible candidates → section hidden" contract, and matching STG-P0's own prior finding that all 3 published templates are `locale='fa'` only. This is a genuine **content gap** (no approved EN/AR editorial content exists yet), **not a query failure** — confirmed by the complete absence of any error marker in either page and by `fa` proving the identical query path works correctly with real data.
+
+## Header data
+
+**Products: PASS** — the "محصولات" (Products) nav item on `/` shows a real dropdown with 3 real, distinct group codes (rendered as "Rebar", "Sheet & Plate", "SHS") linking to `/products?group=REBAR` etc. These labels come from the pre-existing `product_variants.group_name` fallback column, not yet from `catalog_group_labels` (migration `0009` created the table but no label-sync run has populated it with real per-locale translations yet — this is a separate, expected, non-blocking follow-up, not a defect; the migration's own comment anticipates exactly this fallback).
+
+**Services: EMPTY-DATA** — the "خدمات" (Services) nav item renders as a **plain link** (`<a href="/services">`, no dropdown chevron/submenu) — the exact graceful fallback the code implements when `listPublicProcessingGroups` returns zero rows. `public_processing_groups` (migration `0007`) exists and was queried successfully (no error); it simply has zero rows because no Processing sync has run yet (0007 only creates schema, matching its own "no seed rows" comment). Correctly classified as empty data, not a failure.
+
+**No schema error of any kind observed for either path.**
+
+## Route smoke
+
+| Route | Status |
+|---|---|
+| `/` | 200 |
+| `/en` | 200 |
+| `/ar` | 200 |
+| `/products` | 200 |
+| `/en/products` | 200 |
+| `/ar/products` | 200 |
+| `/request` | 308 → `/contact` (200) |
+| `/en/request` | 308 → `/en/contact` |
+| `/ar/request` | 308 |
+| `/services` | 200 |
+| `/industries` | 200 |
+| `/about` | 200 |
+| `/contact` | 200 |
+| `/products/rebar-aj340` (real eligible product) | **200** |
+
+The `/request*` → `/contact*` redirect is a pre-existing, intentional routing decision (the canonical RFQ form lives at `/contact`), not a regression — its target returns `200` and renders correctly.
+
+## FA / EN / AR
+
+**FA: PASS.** **EN: PASS.** **AR: PASS.** (Homepage 200, no errors, all core sections present in all three; the Product Showcase/Header-label content differences between locales are genuine, already-understood content-availability facts, not defects — see above.)
+
+## RFQ E2E
+
+Fresh check against the **new** deployed version (`65df028c-...`): `wrangler versions view` shows only `ODOO_API_KEY` (legacy) as a configured secret. **`TURNSTILE_SECRET_KEY` and `ODOO_RFQ_API_TOKEN` remain absent**, unchanged by this deploy (a deploy never adds/removes secrets).
+
+**RFQ E2E = DEFERRED — STAGING APP SECRET GAP.** Per instruction, this does not block Homepage/functional staging acceptance. No value was fabricated, bypassed, or copied from production.
+
+## Noindex
+
+`<meta name="robots" content="noindex, follow">` confirmed present, identical, on all three fetched homepage responses (`/`, `/en`, `/ar`). **PASS.**
+
+## Browser
+
+**NOT RUN.** A genuine attempt was made: the Claude-in-Chrome browser tools were loaded, and `tabs_context_mcp` was called to begin a real session. It returned: *"Browser extension is not connected. Please ensure the Claude browser extension is installed and running..."* — the extension is not connected in this environment. This is an honest tooling-unavailability report, not a skip; all browser-dependent checks below share the same cause.
+
+## Zoom 200
+
+**NOT RUN** (browser tooling unavailable — see BROWSER above).
+
+## Keyboard / Focus
+
+**NOT RUN** (browser tooling unavailable).
+
+## Reduced motion
+
+**NOT RUN** (browser tooling unavailable).
+
+## Error check
+
+Covered under HOMEPAGE SMOKE above: zero occurrences of `no such table`, `no such column`, `uncaught`, `TypeError`, `ReferenceError`, `undefined is not`, or `Cannot read propert*` across `/`, `/en`, `/ar`, `/contact`. The only known, expected, non-regression gap is the RFQ secret absence (above) — not misclassified as a Homepage defect.
+
+## Rollback
+
+**NOT NEEDED.** No material application regression was found. The new version (`65df028c-...`) remains active at 100%. The previous version (`45c44767-...`) remains available and recorded as the rollback target if ever needed later. No D1 Time Travel restore was performed or considered necessary — migrations `0007`–`0010` remain in place, correctly.
+
+## CI/CD follow-up
+
+Recorded, not solved here (out of this task's scope, per explicit instruction): GitHub's `workflow_dispatch` event requires the target workflow to have been indexed by GitHub Actions at least once, which in turn requires the workflow file to exist on the repository's default branch (`main`) — `deploy-staging.yml` (and initially `ci.yml`, now indexed via its `push` trigger) exists only on `feat/header-hero-integrated`. This deploy was completed locally instead, as explicitly authorized for this one time. **Future infrastructure task** should address, together: disconnecting/reassigning Vercel's Git integration away from `main` (`docs/GO_LIVE_CUTOVER_RUNBOOK.md` §8), placing the approved CI/CD workflow files on the default branch, verifying `workflow_dispatch` genuinely works from GitHub afterward, and keeping production deployment manual throughout.
+
+## Production safety
+
+No production resource was created, deleted, modified, deployed to, or migrated in this continuation. The only production-related action was one read-only `wrangler deployments list --name ahanassa-production` call, confirming its active version is unchanged (`b07d8697-620c-485c-8fed-21b893ab602c`). `main` was not pushed, merged, or modified. No Odoo call was made. No runtime source file was edited (only the deploy build artifacts under the gitignored `dist/`/`.wrangler/` directories were produced locally, as expected).
+
+## Ready for production release preparation
+
+**NO.** Staging is now genuinely deployed and functionally verified (migrations + application code, real HTTP checks, real content inspection) — a substantial step forward from both prior continuations. What remains: real browser/visual acceptance (blocked on tooling availability in this environment, not attempted-and-failed), the RFQ secret gap (pre-existing, independently tracked), and the CI/CD workflow-indexing infrastructure debt (recorded, deferred to its own future task). None of these is a staging application defect.
