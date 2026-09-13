@@ -60,3 +60,22 @@ test("ProductShowcase builds every card href from the candidate's own slug field
   const source = readSource("components/home/product-showcase.tsx");
   assert.ok(source.includes("localizedPath(locale, `/products/${p.slug}`)"), "href must be built from p.slug (the real HomepageProductCandidate field), matching the detail route pattern exactly");
 });
+
+// PS-P3 (docs/homepage/PRODUCT_SHOWCASE_STAGING_DEFECT_FIX_REPORT.md):
+// diagnosed root cause for the EN/AR Homepage Product Showcase being absent
+// in staging was NOT a query defect — `product_seo_contents` genuinely has
+// zero en/ar rows (verified live against staging DB_PUBLIC). The shared
+// publication gate's `s.locale = ?` condition is exactly correct: content is
+// only eligible for a locale once an APPROVED, PUBLISHED row exists for
+// that specific locale. This is a permanent regression guard against a
+// well-intentioned future "fix" that decouples eligibility from locale —
+// doing so would either show unapproved content or silently leak another
+// locale's (Persian) title/text into an EN/AR page, both explicitly
+// forbidden (CLAUDE.md — never fabricate/leak business content).
+test("the shared publication gate requires an approved, published SEO content row for the EXACT requested locale — eligibility must never be decoupled from locale", () => {
+  const source = readSource("lib/catalog/editorial-repository.ts");
+  const match = source.match(/const TEMPLATE_PUBLICATION_WHERE_CONDITIONS = (\[[^\]]*\])/);
+  assert.ok(match, "constant must be found");
+  const arrayLiteral = match![1];
+  assert.ok(arrayLiteral.includes("s.locale = ?"), "eligibility must require product_seo_contents.locale to match the requested locale — removing this would let one locale's content leak into another's page");
+});

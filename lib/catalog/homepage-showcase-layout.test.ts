@@ -85,8 +85,8 @@ test("card width stays stable for small counts — 1 and 2 cards ride the same 3
 // Responsive column contract (§28/§30/§31/§73.2)
 // ---------------------------------------------------------------------------
 
-test("responsive column ceilings per tier: wide 4, medium 3, tablet 2, mobile 2, narrow mobile 1", () => {
-  const ceilings: Record<ShowcaseTier, number> = { wide: 4, medium: 3, tablet: 2, mobile: 2, narrowMobile: 1 };
+test("responsive column ceilings per tier (PS-P3): wide 4, every narrower tier 1", () => {
+  const ceilings: Record<ShowcaseTier, number> = { wide: 4, medium: 1, tablet: 1, mobile: 1, narrowMobile: 1 };
 
   for (const [tier, ceiling] of Object.entries(ceilings) as [ShowcaseTier, number][]) {
     for (let count = 1; count <= HOMEPAGE_SHOWCASE_MAX_CARDS; count++) {
@@ -97,14 +97,16 @@ test("responsive column ceilings per tier: wide 4, medium 3, tablet 2, mobile 2,
   }
 });
 
-test("tablet reproduces the §30 examples, including a centred lone final card at standard width", () => {
-  assert.deepEqual(showcaseRows(2, "tablet"), [2]);
-  assert.deepEqual(showcaseRows(3, "tablet"), [2, 1]);
-  assert.deepEqual(showcaseRows(4, "tablet"), [2, 2]);
-  assert.deepEqual(showcaseRows(5, "tablet"), [2, 2, 1]);
-  assert.deepEqual(showcaseRows(6, "tablet"), [2, 2, 2]);
-  assert.deepEqual(showcaseRows(7, "tablet"), [2, 2, 2, 1]);
-  assert.deepEqual(showcaseRows(8, "tablet"), [2, 2, 2, 2]);
+test("tablet stacks every card in its own row (PS-P3) — no 2-column tablet grid", () => {
+  for (let count = 1; count <= HOMEPAGE_SHOWCASE_MAX_CARDS; count++) {
+    assert.deepEqual(showcaseRows(count, "tablet"), Array(count).fill(1), `tablet should stack ${count} card(s) one per row`);
+  }
+});
+
+test("medium (1024px) also stacks every card in its own row (PS-P3) — no 3-column track at tablet-ish widths", () => {
+  for (let count = 1; count <= HOMEPAGE_SHOWCASE_MAX_CARDS; count++) {
+    assert.deepEqual(showcaseRows(count, "medium"), Array(count).fill(1), `medium should stack ${count} card(s) one per row`);
+  }
 });
 
 test("card width never inflates to fill space — a tier's column count is constant except where §25 mandates a 4-wide row", () => {
@@ -115,19 +117,13 @@ test("card width never inflates to fill space — a tier's column count is const
   // Regression guard for a real defect caught by live measurement: medium
   // once dropped 4 cards to 2 columns to get a "balanced" 2+2, which
   // measured 481px per card (~half the container). Every tier below wide
-  // desktop must therefore use ONE column count for every count.
-  for (const tier of ["narrowMobile", "tablet", "medium"] as ShowcaseTier[]) {
+  // desktop must therefore use ONE column count for every count — and, per
+  // PS-P3, that one column count is always 1.
+  for (const tier of ["narrowMobile", "mobile", "tablet", "medium"] as ShowcaseTier[]) {
     const widths = new Set<number>();
     for (let count = 1; count <= HOMEPAGE_SHOWCASE_MAX_CARDS; count++) widths.add(showcaseColumns(count, tier));
-    assert.equal(widths.size, 1, `${tier} must keep a single card width across all counts, got columns ${[...widths].join("/")}`);
+    assert.deepEqual(widths, new Set([1]), `${tier} must be single-column for every count, got columns ${[...widths].join("/")}`);
   }
-
-  // Mobile is the one lower tier with a deliberate exception: a single card
-  // goes full-width rather than sitting at an awkward half-width on a phone.
-  assert.equal(showcaseColumns(1, "mobile"), 1);
-  const mobileMulti = new Set<number>();
-  for (let count = 2; count <= HOMEPAGE_SHOWCASE_MAX_CARDS; count++) mobileMulti.add(showcaseColumns(count, "mobile"));
-  assert.equal(mobileMulti.size, 1, "mobile must keep one card width for every multi-card count");
 
   // Wide desktop varies ONLY between the 3-wide and 4-wide tracks the frozen
   // matrix itself requires — never a third, wider track.
@@ -136,16 +132,19 @@ test("card width never inflates to fill space — a tier's column count is const
   assert.deepEqual([...wide].sort(), [3, 4], "wide desktop must use exactly the 3- and 4-column tracks §25 defines");
 });
 
-test("narrow mobile collapses to a single column for every count (§31)", () => {
-  for (let count = 1; count <= HOMEPAGE_SHOWCASE_MAX_CARDS; count++) {
-    assert.equal(showcaseColumns(count, "narrowMobile"), 1);
+test("every tier below wide (narrow mobile, mobile, tablet, medium/1024px) collapses to a single column for every count (PS-P3)", () => {
+  for (const tier of ["narrowMobile", "mobile", "tablet", "medium"] as ShowcaseTier[]) {
+    for (let count = 1; count <= HOMEPAGE_SHOWCASE_MAX_CARDS; count++) {
+      assert.equal(showcaseColumns(count, tier), 1, `${tier} should be 1 column for ${count} card(s)`);
+    }
   }
 });
 
-test("normal mobile uses 2 columns from 2 cards up, and does not half-width a lone single card", () => {
-  assert.equal(showcaseColumns(1, "mobile"), 1);
-  for (let count = 2; count <= HOMEPAGE_SHOWCASE_MAX_CARDS; count++) {
-    assert.equal(showcaseColumns(count, "mobile"), 2, `mobile should show 2 columns for ${count} cards`);
+test("only wide (>= 1280px) ever composes multi-column — every narrower tier stays single-column up to and including 1024px (PS-P3, no tablet 2-column grid)", () => {
+  for (const tier of ["narrowMobile", "mobile", "tablet", "medium"] as ShowcaseTier[]) {
+    for (let count = 1; count <= HOMEPAGE_SHOWCASE_MAX_CARDS; count++) {
+      assert.ok(showcaseColumns(count, tier) < 2, `${tier} must never go multi-column (found ${showcaseColumns(count, tier)} columns for ${count} cards)`);
+    }
   }
 });
 

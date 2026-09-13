@@ -1,9 +1,11 @@
 /**
  * Homepage Product Showcase composition table — the canonical, testable
- * encoding of the frozen 0–8 layout matrix
+ * encoding of the frozen 0–8 wide-desktop layout matrix
  * (docs/product-showcase/AHANASSA_PRODUCT_SHOWCASE_FINAL_FROZEN_V2.0.md
- * §25 "Complete Wide-Desktop Layout Matrix", restated identically at §73.1,
- * plus the responsive column contract in §27/§28/§30/§31/§73.2).
+ * §25 "Complete Wide-Desktop Layout Matrix", restated identically at §73.1),
+ * overridden below `wide` per PS-P3 (owner-approved staging-defect-fix,
+ * docs/homepage/PRODUCT_SHOWCASE_STAGING_DEFECT_FIX_REPORT.md): every
+ * narrower tier is single-column, one card per row, no exceptions.
  *
  * Pure data + pure functions: no D1, no `cloudflare:workers`, no React — so
  * this is directly `node --test`-able, unlike `editorial-repository.ts`.
@@ -21,21 +23,16 @@
 export const HOMEPAGE_SHOWCASE_MAX_CARDS = 8;
 
 /**
- * Responsive tiers, named by the spec's own vocabulary (§73.2). The pixel
- * values are the `min-width` of each tier's media query in
- * `styles/theme-extensions.css`.
+ * Responsive tiers. The pixel values are the `min-width` of each tier's
+ * media query in `styles/theme-extensions.css`. Tier names/breakpoints are
+ * kept from the original spec's vocabulary (§73.2) even though, per PS-P3,
+ * every tier below `wide` now shares the identical single-column behavior —
+ * keeping them distinct (rather than collapsing to one "not-wide" tier)
+ * preserves the existing CSS/module-drift test convention and leaves the
+ * breakpoints addressable if a future task reintroduces per-tier variation.
  */
 export const SHOWCASE_TIER_MIN_WIDTHS = {
   narrowMobile: 0,
-  /**
-   * 380px, chosen from measured content fit rather than a framework default
-   * (§28 "Breakpoints are based on actual content fit"). Below it a
-   * 2-column card drops to ~164px wide with a ~111px image and wraps a long
-   * realistic FA title onto 3–4 lines; at/above it the title fits on 2 lines
-   * with a ~120px+ image. Keeps the spec's 390/430 validation widths on 2
-   * columns and 320/360 on 1. Full measurements are recorded in
-   * `styles/theme-extensions.css` next to the media query itself.
-   */
   mobile: 380,
   tablet: 640,
   medium: 1024,
@@ -46,6 +43,14 @@ export type ShowcaseTier = keyof typeof SHOWCASE_TIER_MIN_WIDTHS;
 
 /**
  * Cards per FULL row, per tier, per card count (index = count, 0 unused).
+ *
+ * PS-P3 (owner-approved staging-defect-fix): every tier below `wide` is a
+ * single, full-width column for every count — cards stack vertically, one
+ * per row, with no 2-column mobile/tablet track and no 3-column `medium`
+ * (1024px) track. `medium` in particular previously switched to 3 columns,
+ * which is exactly the "1024px tablet becomes multi-column" behavior this
+ * fix forbids. Only `wide` (>= 1280px) still composes multi-column, per the
+ * frozen matrix below, unchanged.
  *
  * Wide desktop reproduces §25 exactly:
  *   1 -> 3-column track, one card centred (standard width, never stretched — §26/§36)
@@ -60,13 +65,9 @@ export type ShowcaseTier = keyof typeof SHOWCASE_TIER_MIN_WIDTHS;
 const COLUMNS_BY_TIER_AND_COUNT: Record<ShowcaseTier, readonly number[]> = {
   //                    count: 0  1  2  3  4  5  6  7  8
   narrowMobile: [0, 1, 1, 1, 1, 1, 1, 1, 1],
-  mobile: [0, 1, 2, 2, 2, 2, 2, 2, 2],
-  tablet: [0, 2, 2, 2, 2, 2, 2, 2, 2],
-  // Medium stays at 3 columns for every count. Dropping 4 cards to a
-  // 2-column 2+2 was measured live at ~481px per card (about half the
-  // container) — the "stretched to fill space" shape §26 prohibits. 3+1 with
-  // a centred lone final card at standard width is what §30 sanctions.
-  medium: [0, 3, 3, 3, 3, 3, 3, 3, 3],
+  mobile: [0, 1, 1, 1, 1, 1, 1, 1, 1],
+  tablet: [0, 1, 1, 1, 1, 1, 1, 1, 1],
+  medium: [0, 1, 1, 1, 1, 1, 1, 1, 1],
   wide: [0, 3, 3, 3, 4, 3, 3, 4, 4],
 };
 

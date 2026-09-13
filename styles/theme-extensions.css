@@ -148,12 +148,16 @@
 /**
  * Homepage Product Showcase — count-aware composition
  * (docs/product-showcase/AHANASSA_PRODUCT_SHOWCASE_FINAL_FROZEN_V2.0.md
- * §25/§26/§27/§28/§29/§30/§31/§36/§73).
+ * §25/§26/§27/§28/§29/§30/§31/§36/§73), overridden below `1280px` per the
+ * owner-approved PS-P3 staging-defect-fix requirement: every viewport
+ * narrower than desktop stacks cards in a single column, one per row —
+ * no 2-column mobile/tablet track, no 3-column medium track. `1280px` and
+ * above is unchanged from the frozen matrix.
  *
  * Mechanism: the component sets `data-count` on the <ul>; each breakpoint
  * maps that count to `--aa-showcase-columns`, the number of cards per FULL
  * row. Cards are fixed-basis flex items in a `justify-content: center`
- * container, so a partial trailing row centres itself and the frozen
+ * container, so a partial trailing row centres itself and the frozen wide
  * compositions (5 -> 3+2, 7 -> 4+3) fall out of ordinary wrapping rather
  * than nth-child arithmetic. `lib/catalog/homepage-showcase-layout.ts` is
  * the canonical table these media queries mirror; the pairing is pinned by
@@ -173,7 +177,8 @@
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    /* Narrow mobile baseline — one column before content becomes cramped. */
+    /* Single-column baseline for every viewport below 1280px (PS-P3) — the
+       previous mobile/tablet/medium 2-/3-column tracks are retired below. */
     --aa-showcase-columns: 1;
   }
 
@@ -187,56 +192,44 @@
     margin-block-start: -1px;
   }
 
-  /* Normal mobile — 2 columns while a card stays comfortably readable (§31).
-     380px is set from measured content fit, not a framework default
-     (§28: "Breakpoints are based on actual content fit"). Forcing the
-     2-column track and measuring a long realistic FA title
-     ("ورق سیاه گرم نوردیده st37") gave:
-        320px -> 144px card,  98px image, title wraps to 4 lines  (cramped)
-        360px -> 164px card, 111px image, title wraps to 3 lines  (cramped)
-        375px -> 172px card, 117px image, title wraps to 2 lines  (ok)
-        390px -> 179px card, 122px image, title wraps to 2 lines  (ok)
-        430px -> 199px card, 135px image, title wraps to 2 lines  (comfortable)
-     So the switch to one column happens below ~375px, before image
-     recognition and title readability degrade. 380px keeps the spec's
-     390/430 validation widths on 2 columns and 320/360 on 1. */
+  /* Mobile (PS-P3): stays on the single-column baseline above for every
+     card count — no 2-column track below 1280px. The breakpoint itself is
+     kept (rather than deleted) so the tier remains addressable by
+     lib/catalog/homepage-showcase-layout.ts and its stylesheet-drift test;
+     it now only restates the baseline explicitly. */
   @media (min-width: 380px) {
     .aa-showcase-grid,
     .aa-showcase-grid[data-count] {
-      --aa-showcase-columns: 2;
-    }
-    .aa-showcase-grid[data-count="1"] {
       --aa-showcase-columns: 1;
     }
   }
 
-  /* Tablet — max 2 columns (§30). A lone card keeps standard card width. */
+  /* Tablet (PS-P3): single column, one card per row — no 2-column tablet
+     grid, no carousel. */
   @media (min-width: 640px) {
     .aa-showcase-grid,
     .aa-showcase-grid[data-count] {
-      --aa-showcase-columns: 2;
+      --aa-showcase-columns: 1;
     }
   }
 
-  /* Medium — max 3 columns (§28), uniformly.
-     Deliberately NOT dropping 4 cards to a 2-column 2+2: measured live, that
-     inflates each card to ~481px, i.e. roughly half the container, which is
-     the exact "stretched to fill space" shape §26 prohibits. 3+1 keeps every
-     card at the standard 321px and centres the lone final card, which §30
-     explicitly sanctions ("A lone final card remains standard card width and
-     centered"). §29's balance preference is about row grouping at a constant
-     card width, not about widening cards. */
+  /* Medium / small-desktop tablet (PS-P3): still single column. This tier
+     previously switched to a 3-column track at 1024px — that is exactly
+     the "1024px tablet becomes multi-column" outcome PS-P3 forbids, so it
+     no longer does. The multi-column desktop grid begins only at 1280px
+     below. */
   @media (min-width: 1024px) {
     .aa-showcase-grid,
     .aa-showcase-grid[data-count] {
-      --aa-showcase-columns: 3;
+      --aa-showcase-columns: 1;
     }
   }
 
-  /* Wide desktop — max 4 columns (§27), applied only where the frozen
-     matrix calls for it: 4 -> one row, 7 -> 4+3, 8 -> 4+4. Counts 1/2/3/5/6
-     stay on the 3-column track so card width remains stable (§26) and
-     5 composes as 3+2 rather than 4+1. */
+  /* Wide desktop — unchanged from the frozen matrix: max 4 columns (§27),
+     applied only where it calls for it (4 -> one row, 7 -> 4+3, 8 -> 4+4).
+     Counts 1/2/3/5/6 stay on the 3-column track so card width remains
+     stable (§26) and 5 composes as 3+2 rather than 4+1. This is the first
+     breakpoint at which cards go multi-column at all (PS-P3). */
   @media (min-width: 1280px) {
     .aa-showcase-grid,
     .aa-showcase-grid[data-count] {
