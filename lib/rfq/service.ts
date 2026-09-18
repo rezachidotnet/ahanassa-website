@@ -80,7 +80,15 @@ export async function submitRfq(rawBody: unknown, options: SubmitRfqOptions): Pr
         (catalogFieldErrors[`items[${index}].unit`] ??= []).push("unsupported_for_product");
         continue;
       }
-      itemRecords.push(buildCatalogItemRecord(selection, { quantityText: item.quantityText, quantityValue: item.quantityValue, quantityScale: item.quantityScale }, item.description, unitInput));
+      itemRecords.push(
+        buildCatalogItemRecord(
+          selection,
+          { quantityText: item.quantityText, quantityValue: item.quantityValue, quantityScale: item.quantityScale },
+          item.description,
+          unitInput,
+          item.lengthMm,
+        ),
+      );
     } else {
       // The Custom-item Launch restriction (kg/ton only) was already
       // enforced format-side in lib/rfq/validation.ts (no DB access
@@ -97,6 +105,7 @@ export async function submitRfq(rawBody: unknown, options: SubmitRfqOptions): Pr
             quantityValue: item.quantityValue,
             quantityScale: item.quantityScale,
             description: item.description,
+            lengthMm: item.lengthMm,
           },
           unitInput,
         ),

@@ -41,6 +41,16 @@ export interface RfqItemInput {
    */
   unit?: string;
   description?: string;
+  /**
+   * Optional, structured requested commercial length in millimetres —
+   * RFQ-time customer request, never Catalog/Product Master identity
+   * (docs/POST_P3F_RFQ_LENGTH_MM_FULL_STACK_REPORT.md). Raw/unchecked at
+   * the wire boundary, like `catalogVariantXid`/`unit`; format- and
+   * range-validated server-side (`lib/rfq/validation.ts`) before ever being
+   * trusted. Whole millimetres only — see that doc's "Data Model" section
+   * for why no UI-side unit conversion can produce a fractional value.
+   */
+  lengthMm?: number;
 }
 
 /**
@@ -73,6 +83,8 @@ export interface RfqItemRecord {
   description: string | null;
   /** Canonical SKU snapshot at submission time — always server-resolved, never the (nonexistent) client-supplied value; null for a freeform item. */
   skuSnapshot: string | null;
+  /** Optional requested commercial length in whole millimetres — see `RfqItemInput.lengthMm`. Never derived from or written back into Catalog/Product Master/Supplier Offer data; a plain customer-typed number, already range-validated. */
+  lengthMm: number | null;
 }
 
 /** Header fields (already format-validated) + fully-resolved items — the exact shape `lib/rfq/repository.ts#createRfq` accepts. */

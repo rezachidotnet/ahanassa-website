@@ -1,0 +1,42 @@
+-- Migration: 0005_rfq_length_mm
+-- Database: DB_OPS
+--
+-- Adds the optional, structured "requested commercial length" the Odoo RFQ
+-- API v1 already accepts as `length_mm` (docs/integrations/odoo/backend-handoff/
+-- ODOO_WEBSITE_CURRENT_CATALOG_CONTRACT_HANDOFF.md "RFQ CONTRACT": `_ITEM_KEYS`
+-- allow-list, optional since Phase ANGLE-CHANNEL-P3D-B2, "finite, positive,
+-- <= 1e6 mm float; omission is fully backward-compatible"). Purely additive
+-- (ALTER TABLE ADD COLUMN, nullable) — DB_OPS already holds real rows in
+-- staging (6 rfqs / 7 rfq_items, verified via `wrangler d1 execute DB_OPS
+-- --env staging --remote` immediately before writing this migration) and 0
+-- in production; this must never be a DROP/recreate, the same discipline
+-- already established in migrations 0002/0003/0004.
+--
+-- Precision: INTEGER, not REAL. The backend's own type is a float, but no
+-- realistic Website input path produces a non-whole-millimetre value —
+-- millimetres are already the finest unit any steel commercial-length
+-- conversation uses (see docs/POST_P3F_RFQ_LENGTH_MM_FULL_STACK_REPORT.md
+-- "Data Model" for the full reasoning) — and this schema's own established
+-- convention prefers exact integer storage over SQLite REAL for any
+-- precision-sensitive numeric value (see 0004_public_price_quotes.sql's
+-- "never SQLite REAL/floating point" for money; this column follows the
+-- same discipline for a physical measurement instead of a currency amount).
+-- Website storage being stricter (integer-only) than the backend's own
+-- float acceptance is always safe — it can never produce a value the
+-- backend would reject, only a narrower one.
+--
+-- Architecture invariant (unchanged, unaffected by this column): commercial/
+-- catalog PRODUCT IDENTITY remains size-only — `product_variants.xid`
+-- (CVAR-...) and `catalog_products.template_xid` (CTMPL-...) are completely
+-- untouched by this migration. `length_mm` lives only on `rfq_items` — a
+-- per-submission REQUEST detail, never a Catalog/Product Master column, and
+-- never derived from or written back into any Supplier Offer.
+--
+-- The CHECK constraint mirrors the backend contract's own bound (<= 1e6 mm)
+-- and the existing `quantity_value` CHECK's style (0001_rfq_ops_schema.sql:
+-- "CHECK (quantity_value IS NULL OR quantity_value > 0)") — nullable-safe,
+-- self-referential only (no other column), which SQLite/D1 supports on an
+-- ALTER TABLE ADD COLUMN.
+
+ALTER TABLE rfq_items ADD COLUMN length_mm INTEGER
+  CHECK (length_mm IS NULL OR (length_mm > 0 AND length_mm <= 1000000));

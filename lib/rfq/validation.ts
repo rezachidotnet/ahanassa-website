@@ -39,8 +39,35 @@ const LIMITS = {
   catalogVariantXid: { max: 200 },
 } as const;
 
-/** Odoo external-ID shape, e.g. "ahanassa_marketplace.product_rb_aj340_d10_l12" — format-only; existence/eligibility is a DB_PUBLIC concern (lib/rfq/service.ts), never decided here. */
-const CATALOG_XID_PATTERN = /^[A-Za-z0-9_.]+$/;
+/**
+ * Requested-commercial-length bound — mirrors the Odoo RFQ API's own
+ * documented bound exactly (docs/integrations/odoo/backend-handoff/
+ * ODOO_WEBSITE_CURRENT_CATALOG_CONTRACT_HANDOFF.md "RFQ CONTRACT":
+ * "length_mm ... finite, positive, <= 1e6 mm float"), not an invented
+ * business maximum — see docs/POST_P3F_RFQ_LENGTH_MM_FULL_STACK_REPORT.md
+ * "Validation".
+ */
+export const MAX_LENGTH_MM = 1_000_000;
+
+/**
+ * Catalog identifier shape — format-only; existence/eligibility is a
+ * DB_PUBLIC concern (lib/rfq/service.ts), never decided here. Covers both
+ * identity forms that can appear in `product_variants.xid` today: the
+ * legacy Odoo external-ID shape (e.g.
+ * "ahanassa_marketplace.product_rb_aj340_d10_l12") and the canonical
+ * `CVAR-NNNNNN` shape (e.g. "CVAR-000242") every variant now uses after the
+ * PRE-P3F-D1/POST-P3F canonical identity migration
+ * (docs/POST_P3F_WEBSITE_LIVE_CANONICAL_CATALOG_SYNC_REPORT.md — all 256
+ * staging variants are CVAR-keyed). A hyphen was missing from the original
+ * character class (it only ever needed to admit the legacy dotted/
+ * underscored shape when written); found and fixed during
+ * docs/POST_P3F_RFQ_LENGTH_MM_FULL_STACK_REPORT.md's own end-to-end CVAR
+ * verification — without this fix, every catalog-linked RFQ submission is
+ * rejected with `invalid_format` today, for any variant (not only
+ * Angle/Channel), since the canonical migration already replaced every
+ * variant's `xid`.
+ */
+const CATALOG_XID_PATTERN = /^[A-Za-z0-9_.-]+$/;
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -86,6 +113,8 @@ export interface ValidationResult {
        */
       unit: RfqUomCode;
       description: string | null;
+      /** Format/range-validated requested length in whole millimetres, or `null` when omitted — see `parseLengthMm`. */
+      lengthMm: number | null;
     }>;
   };
 }
@@ -96,6 +125,22 @@ function pushError(errors: Record<string, string[]>, field: string, message: str
 
 function trimmed(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+/**
+ * Format/range check for `RfqItemInput.lengthMm` — omitted is valid (returns
+ * `{ ok: true, value: null }`); a present value must be a finite, positive,
+ * whole-millimetre integer within the backend's own documented bound
+ * (`MAX_LENGTH_MM`). No invented business maximum — see that constant's own
+ * doc comment. Never trusts `NaN`/`Infinity`/a string/a fractional value.
+ */
+function parseLengthMm(raw: unknown): { ok: true; value: number | null } | { ok: false } {
+  if (raw === undefined || raw === null || raw === "") return { ok: true, value: null };
+  const value = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+  if (!Number.isFinite(value) || !Number.isInteger(value) || value <= 0 || value > MAX_LENGTH_MM) {
+    return { ok: false };
+  }
+  return { ok: true, value };
 }
 
 function validateItem(raw: unknown, index: number, errors: Record<string, string[]>) {
@@ -193,6 +238,11 @@ function validateItem(raw: unknown, index: number, errors: Record<string, string
 
   const parsedQuantity = quantityTextRaw ? parseLeadingQuantity(quantityTextRaw) : null;
 
+  const parsedLengthMm = parseLengthMm(item.lengthMm);
+  if (!parsedLengthMm.ok) {
+    pushError(errors, `${prefix}.lengthMm`, "invalid");
+  }
+
   // freeform_title is the DB's "this item has a subject" signal for a
   // freeform item (no product_ref/variant_ref is ever set for those — see
   // the comment above) and must never be left null when a label exists. A
@@ -212,6 +262,7 @@ function validateItem(raw: unknown, index: number, errors: Record<string, string
     quantityScale: parsedQuantity?.scale ?? null,
     unit,
     description: description || null,
+    lengthMm: parsedLengthMm.ok ? parsedLengthMm.value : null,
   };
 }
 

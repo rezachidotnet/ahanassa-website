@@ -40,6 +40,16 @@ export interface RfqCatalogRowFields {
   quantityValue: string;
   unit: RfqUomCode;
   notes: string;
+  /**
+   * Optional requested commercial length, raw string as typed (whole
+   * millimetres) — empty string means "not specified." Only ever rendered
+   * for a product group where `lib/rfq/length-policy.ts#isLengthMmSupportedForGroup`
+   * is true (docs/POST_P3F_RFQ_LENGTH_MM_FULL_STACK_REPORT.md
+   * "Product-Aware Visibility"); a "custom"/freeform row has no group at
+   * all and never shows this input, so it has no counterpart field on
+   * `RfqCustomRowFields`. Never product identity — see `lib/rfq/types.ts#RfqItemInput.lengthMm`.
+   */
+  lengthMm: string;
 }
 
 export interface RfqCustomRowFields {
@@ -66,7 +76,7 @@ export function nextRfqRowId(): string {
 }
 
 export function createEmptyCatalogRow(): RfqRow {
-  return { id: nextRfqRowId(), fields: { mode: "catalog", categoryCode: null, templateXid: null, variantXid: null, quantityValue: "", unit: DEFAULT_RFQ_UOM, notes: "" } };
+  return { id: nextRfqRowId(), fields: { mode: "catalog", categoryCode: null, templateXid: null, variantXid: null, quantityValue: "", unit: DEFAULT_RFQ_UOM, notes: "", lengthMm: "" } };
 }
 
 export function createEmptyCustomRow(): RfqRow {
@@ -77,11 +87,28 @@ export function createEmptyCustomRow(): RfqRow {
 export function createCatalogRowFromSelection(selection: { categoryCode: string | null; templateXid: string; variantXid: string }): RfqRow {
   return {
     id: nextRfqRowId(),
-    fields: { mode: "catalog", categoryCode: selection.categoryCode, templateXid: selection.templateXid, variantXid: selection.variantXid, quantityValue: "", unit: DEFAULT_RFQ_UOM, notes: "" },
+    fields: { mode: "catalog", categoryCode: selection.categoryCode, templateXid: selection.templateXid, variantXid: selection.variantXid, quantityValue: "", unit: DEFAULT_RFQ_UOM, notes: "", lengthMm: "" },
   };
 }
 
-export type RfqRowFieldKey = "product" | "quantity";
+export type RfqRowFieldKey = "product" | "quantity" | "length";
+
+/**
+ * Format check for a raw, user-typed `lengthMm` string — empty is always
+ * valid (the field is optional); a non-empty value must be a positive whole
+ * number, mirroring the server's own `parseLengthMm`
+ * (`lib/rfq/validation.ts`) closely enough to catch an obviously-invalid
+ * value before submission, without re-deriving its exact upper bound here
+ * (the server remains the sole authority on `MAX_LENGTH_MM`; this is a
+ * conservative pre-check only, never a stricter/contradictory rule).
+ */
+export function isValidLengthMmValue(value: string): boolean {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) return true;
+  if (!/^\d+$/.test(trimmedValue)) return false;
+  const parsed = Number(trimmedValue);
+  return Number.isFinite(parsed) && parsed > 0;
+}
 
 /**
  * Client-side, per-row pre-check — deliberately a conservative SUBSET of
@@ -96,6 +123,7 @@ export function validateRfqRow(fields: RfqRowFields): RfqRowFieldKey[] {
 
   if (fields.mode === "catalog") {
     if (!fields.variantXid) errors.push("product");
+    if (!isValidLengthMmValue(fields.lengthMm)) errors.push("length");
   } else {
     if (!fields.productTitle.trim()) errors.push("product");
   }
@@ -107,7 +135,7 @@ export function validateRfqRow(fields: RfqRowFields): RfqRowFieldKey[] {
 
 export function isRfqRowEmpty(fields: RfqRowFields): boolean {
   if (fields.mode === "catalog") {
-    return !fields.variantXid && !fields.quantityValue.trim() && !fields.notes.trim();
+    return !fields.variantXid && !fields.quantityValue.trim() && !fields.notes.trim() && !fields.lengthMm.trim();
   }
   return !fields.productTitle.trim() && !fields.sizeSpec.trim() && !fields.quantityValue.trim() && !fields.notes.trim();
 }
@@ -124,11 +152,14 @@ export function buildRfqItemInput(fields: RfqRowFields, locale: Locale): RfqItem
 
   if (fields.mode === "catalog") {
     if (!fields.variantXid) return null;
+    if (!isValidLengthMmValue(fields.lengthMm)) return null;
+    const trimmedLengthMm = fields.lengthMm.trim();
     return {
       catalogVariantXid: fields.variantXid,
       quantityText,
       unit: fields.unit,
       description: fields.notes.trim() || undefined,
+      lengthMm: trimmedLengthMm ? Number(trimmedLengthMm) : undefined,
     };
   }
 

@@ -5,7 +5,8 @@ import { cn } from "@/lib/utils";
 import type { Locale } from "@/config/locales";
 import { RFQ_UOM_LABELS, type RfqUomCode } from "@/lib/rfq/uom";
 import { CUSTOM_ITEM_LAUNCH_UOMS, getAllowedUomsForCatalogGroup } from "@/lib/rfq/uom-policy";
-import type { RfqRowFieldKey, RfqRowFields } from "@/lib/rfq/item-row-validation";
+import { isLengthMmSupportedForGroup } from "@/lib/rfq/length-policy";
+import { isValidLengthMmValue, type RfqRowFieldKey, type RfqRowFields } from "@/lib/rfq/item-row-validation";
 import type { CatalogCategoryGroup } from "@/lib/rfq/catalog-selector";
 
 /**
@@ -47,6 +48,11 @@ interface RowCopy {
   remove: string;
   fieldRequired: string;
   quantityInvalid: string;
+  /** POST-P3F RFQ length_mm — optional requested commercial length, shown only for a product group where `isLengthMmSupportedForGroup` is true. */
+  lengthLabel: string;
+  lengthPlaceholder: string;
+  lengthHelp: string;
+  lengthInvalid: string;
 }
 
 const copy: Record<Locale, RowCopy> = {
@@ -66,6 +72,10 @@ const copy: Record<Locale, RowCopy> = {
     remove: "حذف ردیف",
     fieldRequired: "این فیلد را تکمیل کنید",
     quantityInvalid: "مقدار را وارد کنید",
+    lengthLabel: "طول درخواستی",
+    lengthPlaceholder: "مثلاً ۶۰۰۰ (اختیاری، میلی‌متر)",
+    lengthHelp: "این مقدار فقط درخواست شماست؛ سایز و طول نهایی توسط کارشناسان آهن آسا بررسی می‌شود.",
+    lengthInvalid: "عدد صحیح و مثبت وارد کنید",
   },
   en: {
     rowLabel: "Row",
@@ -83,6 +93,10 @@ const copy: Record<Locale, RowCopy> = {
     remove: "Remove row",
     fieldRequired: "This field is required",
     quantityInvalid: "Enter a quantity",
+    lengthLabel: "Requested length",
+    lengthPlaceholder: "e.g. 6000 (optional, mm)",
+    lengthHelp: "This is your request only — final size and length are reviewed by Ahan Asa's team.",
+    lengthInvalid: "Enter a positive whole number",
   },
   ar: {
     rowLabel: "الصف",
@@ -100,6 +114,10 @@ const copy: Record<Locale, RowCopy> = {
     remove: "حذف الصف",
     fieldRequired: "هذا الحقل مطلوب",
     quantityInvalid: "أدخل الكمية",
+    lengthLabel: "الطول المطلوب",
+    lengthPlaceholder: "مثلاً ٦٠٠٠ (اختياري، ملم)",
+    lengthHelp: "هذه رغبتك فقط؛ سيراجع فريق آهن آسا المقاس والطول النهائي.",
+    lengthInvalid: "أدخل رقمًا صحيحًا موجبًا",
   },
 };
 
@@ -156,6 +174,7 @@ export function RfqItemRow({ layout, index, fields, locale, disabled, errors, ca
   const t = copy[locale];
   const hasProductError = errors.includes("product");
   const hasQuantityError = errors.includes("quantity");
+  const hasLengthError = errors.includes("length");
   const idPrefix = `rfq-item-${layout}-${index}`;
 
   const hasUncategorizedGroup = catalogGroups.some((g) => g.categoryCode === null);
@@ -177,6 +196,16 @@ export function RfqItemRow({ layout, index, fields, locale, disabled, errors, ca
    */
   const allowedUnits = fields.mode === "custom" ? CUSTOM_ITEM_LAUNCH_UOMS : getAllowedUomsForCatalogGroup(selectedTemplate?.groupCode);
 
+  /**
+   * Product-aware visibility (docs/POST_P3F_RFQ_LENGTH_MM_FULL_STACK_REPORT.md
+   * "Product-Aware Visibility") — the optional requested-length input only
+   * ever appears for a Catalog row whose resolved product group's own
+   * commercial dimensions do NOT already include a length
+   * (`lib/rfq/length-policy.ts`, currently ANGLE/CHANNEL only). A Custom
+   * row, or a Catalog row with no product chosen yet, never shows it.
+   */
+  const showLengthInput = fields.mode === "catalog" && isLengthMmSupportedForGroup(selectedTemplate?.groupCode);
+
   /** Resets the row's unit to the new context's default whenever the previously-selected unit is no longer valid for it — never lets an invalid stale unit survive a product change (Phase H's own explicit "do NOT silently submit an invalid stale UoM"). Returns the fields unchanged (aside from the caller's own delta) when the current unit is still valid. */
   function withUnitResetIfInvalid<T extends RfqRowFields>(nextFields: T, nextAllowedUnits: readonly RfqUomCode[]): T {
     if (nextAllowedUnits.includes(nextFields.unit)) return nextFields;
@@ -191,7 +220,16 @@ export function RfqItemRow({ layout, index, fields, locale, disabled, errors, ca
       // No product chosen yet within the new category -> conservative kg/ton default, same as Custom, until a real Template narrows the policy further.
       onChange(
         withUnitResetIfInvalid(
-          { mode: "catalog", categoryCode: value === UNCATEGORIZED_VALUE ? null : value, templateXid: null, variantXid: null, quantityValue: fields.quantityValue, unit: fields.unit, notes: fields.notes },
+          {
+            mode: "catalog",
+            categoryCode: value === UNCATEGORIZED_VALUE ? null : value,
+            templateXid: null,
+            variantXid: null,
+            quantityValue: fields.quantityValue,
+            unit: fields.unit,
+            notes: fields.notes,
+            lengthMm: fields.mode === "catalog" ? fields.lengthMm : "",
+          },
           CUSTOM_ITEM_LAUNCH_UOMS,
         ),
       );
@@ -202,12 +240,24 @@ export function RfqItemRow({ layout, index, fields, locale, disabled, errors, ca
     if (fields.mode !== "catalog") return;
     const newTemplate = selectedCategory?.templates.find((tpl) => tpl.templateXid === templateXid);
     const nextAllowedUnits = getAllowedUomsForCatalogGroup(newTemplate?.groupCode);
-    onChange(withUnitResetIfInvalid({ ...fields, templateXid: templateXid || null, variantXid: null }, nextAllowedUnits));
+    // A previously-typed length must never silently survive a switch to a
+    // product group that doesn't offer this input (it would otherwise be
+    // submitted invisibly — the input disappears from the UI but
+    // `buildRfqItemInput` has no group awareness of its own to drop it).
+    // Mirrors `withUnitResetIfInvalid`'s own "never let a stale value
+    // survive a product change" discipline for `unit`.
+    const nextLengthMm = isLengthMmSupportedForGroup(newTemplate?.groupCode) ? fields.lengthMm : "";
+    onChange(withUnitResetIfInvalid({ ...fields, templateXid: templateXid || null, variantXid: null, lengthMm: nextLengthMm }, nextAllowedUnits));
   }
 
   function handleVariantChange(variantXid: string) {
     if (fields.mode !== "catalog") return;
     onChange({ ...fields, variantXid: variantXid || null });
+  }
+
+  function handleLengthMmChange(value: string) {
+    if (fields.mode !== "catalog") return;
+    onChange({ ...fields, lengthMm: value });
   }
 
   function handleQuantityChange(value: string) {
@@ -310,6 +360,30 @@ export function RfqItemRow({ layout, index, fields, locale, disabled, errors, ca
             {t.skuLabel}: {selectedVariant.sku}
           </p>
         )}
+        {showLengthInput && (
+          <div className="grid gap-1">
+            <label htmlFor={`${idPrefix}-length`} className="text-muted-foreground text-[11px] font-medium">
+              {t.lengthLabel}
+            </label>
+            <input
+              id={`${idPrefix}-length`}
+              aria-label={t.lengthLabel}
+              aria-invalid={hasLengthError}
+              aria-describedby={`${idPrefix}-length-help`}
+              type="text"
+              inputMode="numeric"
+              value={fields.lengthMm}
+              placeholder={t.lengthPlaceholder}
+              disabled={disabled}
+              onChange={(e) => handleLengthMmChange(e.target.value)}
+              className={cn(cellInput, "text-sm", hasLengthError && "border-[var(--aa-color-danger-700)]")}
+            />
+            <p id={`${idPrefix}-length-help`} className="text-muted-foreground text-[11px] leading-snug">
+              {t.lengthHelp}
+            </p>
+            {hasLengthError && <p className="text-[11px] font-medium text-[var(--aa-color-danger-700)]">{t.lengthInvalid}</p>}
+          </div>
+        )}
       </div>
     ) : (
       <input
@@ -389,7 +463,7 @@ export function RfqItemRow({ layout, index, fields, locale, disabled, errors, ca
 
   if (layout === "table") {
     return (
-      <tr ref={rowRef as (el: HTMLTableRowElement | null) => void} className={cn("border-border border-b align-top", (hasProductError || hasQuantityError) && "bg-[var(--aa-color-danger-50)]/40")}>
+      <tr ref={rowRef as (el: HTMLTableRowElement | null) => void} className={cn("border-border border-b align-top", (hasProductError || hasQuantityError || hasLengthError) && "bg-[var(--aa-color-danger-50)]/40")}>
         <td className="text-muted-foreground px-3 py-3 text-center text-sm font-semibold">{index + 1}</td>
         <td className="px-2 py-3">{categorySelect}</td>
         <td className="px-2 py-3">{productCell}</td>
@@ -405,7 +479,7 @@ export function RfqItemRow({ layout, index, fields, locale, disabled, errors, ca
   return (
     <div
       ref={rowRef as (el: HTMLDivElement | null) => void}
-      className={cn("border-border grid gap-3 rounded-[var(--aa-radius-md)] border bg-white p-4 shadow-[var(--aa-shadow-xs)]", (hasProductError || hasQuantityError) && "border-[var(--aa-color-danger-700)]")}
+      className={cn("border-border grid gap-3 rounded-[var(--aa-radius-md)] border bg-white p-4 shadow-[var(--aa-shadow-xs)]", (hasProductError || hasQuantityError || hasLengthError) && "border-[var(--aa-color-danger-700)]")}
     >
       <div className="flex items-center justify-between">
         <span className="text-copper text-xs font-bold uppercase tracking-wide">

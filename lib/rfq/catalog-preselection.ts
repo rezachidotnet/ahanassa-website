@@ -26,6 +26,9 @@ export interface QuantityInput {
   quantityScale: number | null;
 }
 
+/** Already format/range-validated by `lib/rfq/validation.ts#parseLengthMm` — this module never re-validates it, only threads it through. */
+export type LengthMmInput = number | null;
+
 /** The structured, already-policy-validated unit for this line (docs/RFQ_LAUNCH_UOM_ALIGNMENT.md) — `code` is the wire/Odoo-mapping value, `label` the customer's own locale's display string (`lib/rfq/uom.ts#RFQ_UOM_LABELS`), both resolved by the caller before this function ever runs. */
 export interface UnitInput {
   code: RfqUomCode;
@@ -42,7 +45,7 @@ export interface UnitInput {
  * the source product's title/SKU/slug changes or it is later deactivated
  * (docs/CATALOG_RFQ_INTEGRATION.md §Historical safety).
  */
-export function buildCatalogItemRecord(selection: CatalogSelectionForRecord, quantity: QuantityInput, description: string | null, unit: UnitInput): RfqItemRecord {
+export function buildCatalogItemRecord(selection: CatalogSelectionForRecord, quantity: QuantityInput, description: string | null, unit: UnitInput, lengthMm: LengthMmInput = null): RfqItemRecord {
   return {
     source: "selected",
     categoryRef: selection.categoryCode,
@@ -60,6 +63,7 @@ export function buildCatalogItemRecord(selection: CatalogSelectionForRecord, qua
     quantityScale: quantity.quantityScale,
     description,
     skuSnapshot: selection.sku,
+    lengthMm,
   };
 }
 
@@ -73,6 +77,7 @@ export interface FreeformItemInput {
   quantityValue: number | null;
   quantityScale: number | null;
   description: string | null;
+  lengthMm?: LengthMmInput;
 }
 
 /** The unchanged freeform/sample-catalog path — never carries a variant_ref/sku_snapshot. `unit` is already Custom-item-policy-validated (kg/ton only, lib/rfq/validation.ts) by the time this runs. */
@@ -94,5 +99,6 @@ export function buildFreeformItemRecord(item: FreeformItemInput, unit: UnitInput
     quantityScale: item.quantityScale,
     description: item.description,
     skuSnapshot: null,
+    lengthMm: item.lengthMm ?? null,
   };
 }

@@ -80,7 +80,7 @@ const copy: Record<
     tableHeadIndex: string; tableHeadCategory: string; tableHeadProduct: string; tableHeadSpec: string; tableHeadQuantity: string; tableHeadUnit: string; tableHeadNotes: string; tableHeadActions: string;
     errorSummaryTitle: string;
     rowPrefix: (n: number) => string;
-    errorProductCatalog: string; errorProductCustom: string; errorQuantity: string;
+    errorProductCatalog: string; errorProductCustom: string; errorQuantity: string; errorLength: string;
     assurance: string;
     submit: string; submitting: string; clearForm: string;
     successTitle: string; successBody: (reference: string) => string; again: string;
@@ -110,6 +110,7 @@ const copy: Record<
     errorProductCatalog: "محصول را انتخاب کنید",
     errorProductCustom: "نام محصول را وارد کنید",
     errorQuantity: "مقدار را وارد کنید",
+    errorLength: "طول درخواستی را به‌صورت عدد صحیح و مثبت وارد کنید",
     assurance: "اطلاعات شما صرفاً برای بررسی این درخواست استفاده می‌شود.",
     submit: "ارسال برای بررسی", submitting: "در حال ارسال…", clearForm: "پاک‌کردن فرم",
     successTitle: "درخواست شما دریافت شد.",
@@ -146,6 +147,7 @@ const copy: Record<
     errorProductCatalog: "Select a product",
     errorProductCustom: "Enter a product name",
     errorQuantity: "Enter a quantity",
+    errorLength: "Enter a positive whole number for the requested length",
     assurance: "Your information is used only to review this request.",
     submit: "Send for review", submitting: "Sending…", clearForm: "Clear form",
     successTitle: "Your request has been received.",
@@ -182,6 +184,7 @@ const copy: Record<
     errorProductCatalog: "اختر منتجًا",
     errorProductCustom: "أدخل اسم المنتج",
     errorQuantity: "أدخل الكمية",
+    errorLength: "أدخل رقمًا صحيحًا موجبًا للطول المطلوب",
     assurance: "تُستخدم معلوماتك فقط لمراجعة هذا الطلب.",
     submit: "إرسال للمراجعة", submitting: "جارٍ الإرسال…", clearForm: "مسح النموذج",
     successTitle: "تم استلام طلبك.",
@@ -705,7 +708,14 @@ export function EnquiryForm({
                 return fieldErrors.map((fieldKey) => (
                   <li key={`${rowId}-${fieldKey}`}>
                     <button type="button" onClick={() => scrollToRow(rowId)} className="underline decoration-dotted underline-offset-2">
-                      {t.rowPrefix(rowIndex + 1)} {fieldKey === "quantity" ? t.errorQuantity : row?.fields.mode === "catalog" ? t.errorProductCatalog : t.errorProductCustom}
+                      {t.rowPrefix(rowIndex + 1)}{" "}
+                      {fieldKey === "quantity"
+                        ? t.errorQuantity
+                        : fieldKey === "length"
+                          ? t.errorLength
+                          : row?.fields.mode === "catalog"
+                            ? t.errorProductCatalog
+                            : t.errorProductCustom}
                     </button>
                   </li>
                 ));

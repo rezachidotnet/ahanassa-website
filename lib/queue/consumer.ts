@@ -135,7 +135,7 @@ async function processMessage(db: D1Database, message: QueueMessageLike): Promis
 
   const itemRows = await db
     .prepare(
-      `SELECT line_number, variant_ref, sku_snapshot, freeform_title, description, quantity_text, quantity_value, quantity_scale, unit_ref
+      `SELECT line_number, variant_ref, sku_snapshot, freeform_title, description, quantity_text, quantity_value, quantity_scale, unit_ref, length_mm
        FROM rfq_items WHERE rfq_id = ? ORDER BY line_number ASC`,
     )
     .bind(event.aggregate_id)
@@ -149,6 +149,8 @@ async function processMessage(db: D1Database, message: QueueMessageLike): Promis
       quantity_value: number | null;
       quantity_scale: number | null;
       unit_ref: string | null;
+      /** `null` both for a historical row predating this column and for a new row that simply omitted a requested length — the two are indistinguishable by design (and don't need to be distinguished): both correctly produce no `length_mm` in the outbound Odoo payload. */
+      length_mm: number | null;
     }>();
 
   const items: RfqSnapshotItem[] = (itemRows.results ?? []).map((item) => ({
@@ -161,6 +163,7 @@ async function processMessage(db: D1Database, message: QueueMessageLike): Promis
     quantityValue: item.quantity_value,
     quantityScale: item.quantity_scale,
     unitCode: item.unit_ref,
+    lengthMm: item.length_mm,
   }));
 
   const snapshot: RfqSnapshotForMapping = {

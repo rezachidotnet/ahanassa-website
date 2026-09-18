@@ -343,3 +343,111 @@ test("validateRfqSubmission does NOT apply the Custom-item kg/ton restriction to
   assert.equal(result.ok, true);
   assert.equal(result.value?.items[0].unit, "branch");
 });
+
+// --- canonical CVAR identity format (found-and-fixed regression, POST-P3F RFQ length_mm full stack) ---
+//
+// Every product_variants.xid is CVAR-NNNNNN after the canonical identity
+// migration (docs/POST_P3F_WEBSITE_LIVE_CANONICAL_CATALOG_SYNC_REPORT.md —
+// all 256 staging variants). The original CATALOG_XID_PATTERN had no
+// hyphen in its character class and rejected every one of them with
+// invalid_format — found while proving RFQ_SENDS_CVAR end-to-end for this
+// task, fixed in the same commit (see that constant's own doc comment).
+
+test("validateRfqSubmission accepts a canonical CVAR-format catalogVariantXid (regression: the hyphen was previously rejected)", () => {
+  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: "CVAR-000242", quantityText: "5", unit: "kg" }] }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.items[0].source, "selected");
+  assert.equal(result.value?.items[0].catalogVariantXid, "CVAR-000242");
+});
+
+test("validateRfqSubmission still rejects a catalogVariantXid containing a genuinely invalid character (e.g. a space) — the fix only adds the hyphen, nothing broader", () => {
+  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: "CVAR 000242", quantityText: "5", unit: "kg" }] }));
+  assert.equal(result.ok, false);
+  assert.ok(result.fieldErrors["items[0].catalogVariantXid"]?.includes("invalid_format"));
+});
+
+// --- lengthMm (POST-P3F RFQ length_mm full stack) — required test matrix ---
+
+test("validateRfqSubmission: no lengthMm sent — existing behavior unchanged, item.lengthMm is null", () => {
+  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: REAL_XID, quantityText: "5 branch", unit: "branch" }] }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.items[0].lengthMm, null);
+});
+
+test("validateRfqSubmission: ANGLE — CVAR-000242, kg, length_mm = 8000", () => {
+  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: "CVAR-000242", quantityText: "5", unit: "kg", lengthMm: 8000 }] }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.items[0].catalogVariantXid, "CVAR-000242");
+  assert.equal(result.value?.items[0].unit, "kg");
+  assert.equal(result.value?.items[0].lengthMm, 8000);
+});
+
+test("validateRfqSubmission: CHANNEL/UPN — CVAR-000252, ton, length_mm = 12000", () => {
+  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: "CVAR-000252", quantityText: "2", unit: "ton", lengthMm: 12000 }] }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.items[0].catalogVariantXid, "CVAR-000252");
+  assert.equal(result.value?.items[0].unit, "ton");
+  assert.equal(result.value?.items[0].lengthMm, 12000);
+});
+
+test("validateRfqSubmission: CHANNEL/UPE — CVAR-000260, meter, length omitted", () => {
+  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: "CVAR-000260", quantityText: "3", unit: "meter" }] }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.items[0].catalogVariantXid, "CVAR-000260");
+  assert.equal(result.value?.items[0].unit, "meter");
+  assert.equal(result.value?.items[0].lengthMm, null);
+});
+
+test("validateRfqSubmission: lengthMm = 0 is invalid", () => {
+  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: "CVAR-000242", quantityText: "5", unit: "kg", lengthMm: 0 }] }));
+  assert.equal(result.ok, false);
+  assert.ok(result.fieldErrors["items[0].lengthMm"]?.includes("invalid"));
+});
+
+test("validateRfqSubmission: negative lengthMm is invalid", () => {
+  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: "CVAR-000242", quantityText: "5", unit: "kg", lengthMm: -100 }] }));
+  assert.equal(result.ok, false);
+  assert.ok(result.fieldErrors["items[0].lengthMm"]?.includes("invalid"));
+});
+
+test("validateRfqSubmission: non-numeric lengthMm is invalid", () => {
+  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: "CVAR-000242", quantityText: "5", unit: "kg", lengthMm: "eight thousand" }] }));
+  assert.equal(result.ok, false);
+  assert.ok(result.fieldErrors["items[0].lengthMm"]?.includes("invalid"));
+});
+
+test("validateRfqSubmission: empty-string lengthMm normalizes to omitted (valid, null) — never treated as an invalid numeric value", () => {
+  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: "CVAR-000242", quantityText: "5", unit: "kg", lengthMm: "" }] }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.items[0].lengthMm, null);
+});
+
+test("validateRfqSubmission: lengthMm exceeding the backend's own 1e6 mm bound is invalid", () => {
+  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: "CVAR-000242", quantityText: "5", unit: "kg", lengthMm: 1_000_001 }] }));
+  assert.equal(result.ok, false);
+  assert.ok(result.fieldErrors["items[0].lengthMm"]?.includes("invalid"));
+});
+
+test("validateRfqSubmission: lengthMm exactly at the 1e6 mm bound is valid", () => {
+  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: "CVAR-000242", quantityText: "5", unit: "kg", lengthMm: 1_000_000 }] }));
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.items[0].lengthMm, 1_000_000);
+});
+
+test("validateRfqSubmission: a fractional lengthMm is invalid — whole millimetres only", () => {
+  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: "CVAR-000242", quantityText: "5", unit: "kg", lengthMm: 8000.5 }] }));
+  assert.equal(result.ok, false);
+  assert.ok(result.fieldErrors["items[0].lengthMm"]?.includes("invalid"));
+});
+
+test("validateRfqSubmission: branch never becomes a valid unit for ANGLE/CHANNEL because of lengthMm — format-level check still passes (group policy is lib/rfq/service.ts's job), but this confirms lengthMm never bypasses/interacts with unit validation", () => {
+  const result = validateRfqSubmission(basePayload({ items: [{ catalogVariantXid: "CVAR-000242", quantityText: "5", unit: "branch", lengthMm: 8000 }] }));
+  // Format-only layer: any of the 8 known unit codes format-passes here,
+  // exactly like the pre-existing "does NOT apply the Custom-item
+  // restriction to a catalogVariantXid item" test above — the real
+  // ANGLE/CHANNEL-specific branch rejection happens in
+  // lib/rfq/service.ts#isUomAllowedForCatalogGroup, which this D1-free
+  // module cannot check. lengthMm being present changes nothing about this.
+  assert.equal(result.ok, true);
+  assert.equal(result.value?.items[0].unit, "branch");
+});

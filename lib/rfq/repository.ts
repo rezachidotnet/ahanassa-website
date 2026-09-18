@@ -89,8 +89,8 @@ export async function createRfq(
               `INSERT INTO rfq_items (
                 id, rfq_id, line_number, source, category_ref, product_ref, variant_ref, unit_ref,
                 category_label, product_label, variant_label, unit_label, freeform_title, size_text,
-                quantity_text, quantity_value, quantity_scale, description, sku_snapshot, resolution_status, created_at, updated_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'not_applicable', ?, ?)`,
+                quantity_text, quantity_value, quantity_scale, description, sku_snapshot, length_mm, resolution_status, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'not_applicable', ?, ?)`,
             )
             .bind(
               ulid(),
@@ -112,6 +112,7 @@ export async function createRfq(
               item.quantityScale,
               item.description,
               item.skuSnapshot,
+              item.lengthMm,
               now,
               now,
             ),

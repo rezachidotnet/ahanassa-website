@@ -36,6 +36,8 @@ export interface RfqSnapshotItem {
    * submission (which always has this populated).
    */
   unitCode: string | null;
+  /** `rfq_items.length_mm` — optional requested commercial length, whole millimetres. `null` for both a historical row predating the column and a row that simply omitted one; both cases correctly omit `length_mm` from the outbound payload (never coerced to `0`). */
+  lengthMm: number | null;
 }
 
 export interface RfqSnapshotForMapping {
@@ -144,6 +146,13 @@ function mapItem(item: RfqSnapshotItem): { ok: true; apiItem: RfqApiItem } | { o
   if (uom === null) return { ok: false, reason: "UNRESOLVED_UOM" };
 
   const notes = item.description ?? undefined;
+  // Never `0`/`NaN`/an empty string — `item.lengthMm` is already `null` for
+  // both "never had one" and "historical row predating the column" (see
+  // `RfqSnapshotItem.lengthMm`'s own doc comment), and `undefined` here
+  // means the JSON key is omitted entirely by `JSON.stringify` (never
+  // serialized as `"length_mm":null`), matching the backend contract's own
+  // "omission is fully backward-compatible" guarantee exactly.
+  const lengthMm = item.lengthMm ?? undefined;
 
   if (item.variantRef) {
     return {
@@ -154,6 +163,7 @@ function mapItem(item: RfqSnapshotItem): { ok: true; apiItem: RfqApiItem } | { o
         quantity,
         uom,
         notes,
+        length_mm: lengthMm,
       },
     };
   }
@@ -170,6 +180,7 @@ function mapItem(item: RfqSnapshotItem): { ok: true; apiItem: RfqApiItem } | { o
       uom,
       description: item.freeformTitle,
       notes,
+      length_mm: lengthMm,
     },
   };
 }

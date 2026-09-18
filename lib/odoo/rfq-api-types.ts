@@ -35,6 +35,8 @@ export interface RfqApiCatalogItem {
   uom: RfqApiUomCode;
   notes?: string;
   description?: string;
+  /** Optional requested commercial length, whole millimetres — part of `_ITEM_KEYS` since Phase ANGLE-CHANNEL-P3D-B2 (backend handoff "RFQ CONTRACT": finite, positive, <= 1e6 mm). Omitted entirely (never `0`/`null`) when the customer did not request one — see `lib/odoo/rfq-payload-mapper.ts#mapItem`. */
+  length_mm?: number;
 }
 
 export interface RfqApiFreeTextItem {
@@ -43,6 +45,8 @@ export interface RfqApiFreeTextItem {
   uom: RfqApiUomCode;
   description: string;
   notes?: string;
+  /** Same optional field as `RfqApiCatalogItem.length_mm` — the backend's `_ITEM_KEYS` allow-list is one shared item schema, not split by catalog/freeform. */
+  length_mm?: number;
 }
 
 export type RfqApiItem = RfqApiCatalogItem | RfqApiFreeTextItem;

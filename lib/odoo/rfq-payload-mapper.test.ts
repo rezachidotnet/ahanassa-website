@@ -19,6 +19,7 @@ function catalogItem(overrides: Partial<RfqSnapshotItem> = {}): RfqSnapshotItem 
     quantityValue: 5,
     quantityScale: 0,
     unitCode: null,
+    lengthMm: null,
     ...overrides,
   };
 }
@@ -34,6 +35,7 @@ function freeformItem(overrides: Partial<RfqSnapshotItem> = {}): RfqSnapshotItem
     quantityValue: 10,
     quantityScale: 0,
     unitCode: null,
+    lengthMm: null,
     ...overrides,
   };
 }
@@ -329,4 +331,69 @@ test("mapRfqToApiPayload output is a plain snapshot — mutating the source snap
   input.items[0].variantRef = "a-different-xid";
   assert.equal(result.payload.customer.name, "Ali Ahmadi");
   assert.equal(result.payload.items[0].product_variant_xid, "ahanassa_marketplace.product_rb_aj340_d16_l12");
+});
+
+// --- length_mm (POST-P3F RFQ length_mm full stack) ---
+
+test("mapRfqToApiPayload omits length_mm entirely (never null/0) when the item never had one — byte-identical to pre-length_mm behavior", () => {
+  const result = mapRfqToApiPayload(snapshot({ items: [catalogItem({ lengthMm: null })] }));
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  const raw = JSON.stringify(result.payload);
+  assert.ok(!raw.includes("length_mm"), "length_mm key must not appear in the serialized JSON at all when omitted");
+  // The in-memory object may carry `length_mm: undefined` as a JS property
+  // (a harmless implementation detail) — what actually matters is the wire
+  // contract, already asserted above: JSON.stringify drops an `undefined`
+  // property entirely, so it never reaches the backend at all.
+  assert.equal((result.payload.items[0] as { length_mm?: number }).length_mm, undefined);
+});
+
+test("mapRfqToApiPayload maps a present lengthMm to length_mm verbatim, on a catalog item", () => {
+  const result = mapRfqToApiPayload(snapshot({ items: [catalogItem({ lengthMm: 8000 })] }));
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal((result.payload.items[0] as { length_mm?: number }).length_mm, 8000);
+});
+
+test("mapRfqToApiPayload maps a present lengthMm to length_mm verbatim, on a free-text item", () => {
+  const result = mapRfqToApiPayload(snapshot({ items: [freeformItem({ lengthMm: 12000 })] }));
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal((result.payload.items[0] as { length_mm?: number }).length_mm, 12000);
+});
+
+test("mapRfqToApiPayload: two items identical except lengthMm produce different serialized JSON (Website never conflates a different requested length into an identical outbound payload)", () => {
+  const withoutLength = mapRfqToApiPayload(snapshot({ items: [catalogItem({ lengthMm: null })] }));
+  const withLength = mapRfqToApiPayload(snapshot({ items: [catalogItem({ lengthMm: 8000 })] }));
+  assert.equal(withoutLength.ok, true);
+  assert.equal(withLength.ok, true);
+  if (!withoutLength.ok || !withLength.ok) return;
+  assert.notEqual(JSON.stringify(withoutLength.payload), JSON.stringify(withLength.payload));
+});
+
+test("mapRfqToApiPayload: two items with different requested lengths produce different serialized JSON (same CVAR/qty/uom, different length => distinguishable payload)", () => {
+  const length8000 = mapRfqToApiPayload(snapshot({ items: [catalogItem({ lengthMm: 8000 })] }));
+  const length12000 = mapRfqToApiPayload(snapshot({ items: [catalogItem({ lengthMm: 12000 })] }));
+  assert.equal(length8000.ok, true);
+  assert.equal(length12000.ok, true);
+  if (!length8000.ok || !length12000.ok) return;
+  assert.notEqual(JSON.stringify(length8000.payload), JSON.stringify(length12000.payload));
+});
+
+test("mapRfqToApiPayload: two items with the same requested length produce identical serialized JSON (same CVAR/qty/uom/length => same payload)", () => {
+  const a = mapRfqToApiPayload(snapshot({ items: [catalogItem({ lengthMm: 8000 })] }));
+  const b = mapRfqToApiPayload(snapshot({ items: [catalogItem({ lengthMm: 8000 })] }));
+  assert.equal(a.ok, true);
+  assert.equal(b.ok, true);
+  if (!a.ok || !b.ok) return;
+  assert.equal(JSON.stringify(a.payload), JSON.stringify(b.payload));
+});
+
+test("buildOutboundRfqIdempotencyKey is unaffected by item content, including lengthMm — the Website's outbound idempotency key is scoped to one durable RFQ record (rfqId), never derived from item fields, so two submissions differing only in requested length are already distinguished by construction (different rfqId), and a retry of the SAME submission is deduplicated regardless of what length it carries", () => {
+  const key = buildOutboundRfqIdempotencyKey("01ARZ3NDEKTSV4RRFFQ6980001");
+  // The key is a pure function of rfqId alone — item content (including
+  // length_mm) never enters into it, by construction (see the function's
+  // own signature: it accepts only an id). This test documents/pins that
+  // invariant rather than exercising a fingerprint that does not exist.
+  assert.equal(key, "rfq-01ARZ3NDEKTSV4RRFFQ6980001");
 });
