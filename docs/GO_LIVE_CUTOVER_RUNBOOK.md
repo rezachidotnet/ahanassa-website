@@ -34,7 +34,7 @@ This is the same `ahanassa-production` Worker already live at `workers.dev` — 
 1. Freeze cutover window.
 2. Capture final DNS/Vercel/Cloudflare snapshots.
 3. Verify final source/runtime SHA.
-4. Disconnect Vercel's Git integration (§8) — before `main` is ever touched again.
+4. ~~Disconnect Vercel's Git integration (§8) — before `main` is ever touched again.~~ **DONE as of 2026-09-19** — the integration is disconnected and re-verified; no longer a blocking cutover step (see §8's status update).
 5. **Confirm the Turnstile widget's domain allowlist already contains `www.ahanassa.com` and `ahanassa.com`** — see §4: this step is **already done** as of 2026-09-02, ahead of the rest of cutover, precisely so it never blocks or races the domain-activation steps below.
 6. Remove Preview Basic Auth (§3), in an isolated commit.
 7. Run full tests.
@@ -93,6 +93,20 @@ Cloudflare requires the zone (`ahanassa.com`) to already be on the same Cloudfla
 **Not performed by this runbook — requires explicit, separate, owner-approved execution at cutover time.** The change: point `ahanassa.com`/`www.ahanassa.com`'s DNS (currently DNS-only/not proxied, resolving to the legacy Vercel deployment) at the newly-attached Cloudflare Worker custom domain from §5 instead. Concretely, once §5's custom domain attachment succeeds, Cloudflare typically manages the necessary DNS record(s) for a Worker custom domain automatically (proxied) — the manual action is enabling/confirming that record replaces whatever previously pointed at Vercel (an A/CNAME record, or Vercel's own DNS target). **Record the exact prior DNS configuration (§8) before making this change.**
 
 ## 8. Vercel transition
+
+**STATUS UPDATE — 2026-09-19: Vercel's Git integration is DISCONNECTED. Everything below that depends on it being connected is HISTORICAL and no longer describes the live configuration.**
+
+Cloudflare Workers is the active deployment target for this site; GitHub Actions' staging deployment (`.github/workflows/deploy-staging.yml`) deploys to Cloudflare. **A push to this GitHub repository — including to `origin/main` — does not deploy through Vercel.**
+
+Re-verified read-only on 2026-09-19 (no deploy triggered by the verification): `vercel project inspect ahanassa-website` reports no connected Git repository; the newest Preview deployment is 16 days old and the newest Production deployment is 31 days old (the legacy holding page, commit `d22d752`). An additive commit was pushed to `origin/main` on 2026-09-19 (registering the staging workflow) and produced **no** Vercel deployment of any kind, Preview or Production — independent empirical confirmation of the disconnection. `https://www.ahanassa.com/` is served by the Cloudflare Worker and apex `ahanassa.com` still returns `308` to `www`.
+
+What this changes below:
+
+- The **"Critical finding (2026-09-02 …)"** paragraph and the **"Consequence for Stage 2"** steps 1–3 are retained as history. Their premise ("because Vercel auto-deploys `main` on push") no longer holds.
+- **Step 2** (disconnect the Git integration / reassign the Production Branch) is **DONE** — it is no longer a prerequisite for touching `origin/main`.
+- **Step 4** under "Before touching DNS" is likewise **DONE**.
+- **"Corrected operational order" step 4** ("Disconnect Vercel's Git integration (§8) — before `main` is ever touched again") is **DONE** and is no longer a blocking cutover step.
+- Still **unchanged and still in force:** do not delete or unlink the Vercel project (§8.2/§8.3) — it remains the intact rollback target, and the rollback path in §11 still depends on it. Git-level consolidation of the two unrelated histories remains out of scope here and still requires separate owner sign-off; it is simply no longer gated on Vercel.
 
 **Critical finding (2026-09-02, Final Go-Live Readiness read-only audit — see `DOCUMENT_AUDIT_REPORT.md` DAR-048): Vercel's Git integration is connected to this exact GitHub repository (`rezachidotnet/ahanassa-website`) and auto-deploys on every push to every branch, not only `main`.** Confirmed via `vercel ls`/`vercel inspect` (read-only, no deploy triggered by the inspection itself): every branch this project has pushed during the Website workstream (e.g. `fix/rfq-launch-uom-policy`) produced a corresponding Vercel **Preview** deployment (alias pattern `https://ahanassa-website-git-<branch>-rezachidotnets-projects.vercel.app`), which fails quickly (~11–15s) because this repository's build (`vinext build` / Cloudflare Workers + D1 bindings) is not a Vercel-compatible Next.js build. These failures are harmless in isolation (Preview target only, not Production, and Preview URLs are not linked from anywhere public) — but they are **new, unplanned surface area** that were not previously identified as a risk.
 

@@ -43,7 +43,11 @@ npx wrangler d1 migrations apply DB_PUBLIC --env staging --remote
 
 Production deployment is not automated by either workflow, and CI-CD-P1 does not create one. Production release remains an explicit, manual, owner-approved action outside this policy's scope — see `docs/GO_LIVE_CUTOVER_RUNBOOK.md` and `docs/CLOUDFLARE_DEPLOYMENT_STAGE1.md` for the existing manual production release history.
 
-**Separately, and pre-existing (not introduced by this task):** Vercel's Git integration is connected to this GitHub repository and auto-deploys every pushed branch as a Vercel Preview; its Production target is tied to `origin/main` (see `docs/GO_LIVE_CUTOVER_RUNBOOK.md` §8, `DOCUMENT_AUDIT_REPORT.md` DAR-048). This is unrelated to GitHub Actions and was neither created nor modified here — it is called out because it is the one auto-deploy-adjacent mechanism that already exists against this repository, and pushing to `main` while it remains connected is a known risk documented in that runbook.
+**Deployment target (corrected 2026-09-19).** Cloudflare Workers is the active deployment target for this site. GitHub Actions' staging deployment (`deploy-staging.yml`) deploys to Cloudflare, not to Vercel. **Vercel's Git integration is disconnected from this GitHub repository, so no push to any branch — `main` included — deploys anything through Vercel.**
+
+This supersedes the earlier statement here that Vercel auto-deployed every pushed branch as a Preview with its Production target tied to `origin/main` (the 2026-09-02 finding recorded as `DOCUMENT_AUDIT_REPORT.md` DAR-048 and `docs/GO_LIVE_CUTOVER_RUNBOOK.md` §8). That was accurate when written and is no longer true. Re-verified read-only on 2026-09-19: `vercel project inspect ahanassa-website` reports no connected Git repository, the most recent Preview deployment is 16 days old, and the most recent Production deployment is 31 days old (the legacy holding page) — an additive push to `origin/main` on 2026-09-19 produced neither. **No assumption should be made that a GitHub push deploys through Vercel.**
+
+The live site is served by the Cloudflare Worker, not by Vercel: `https://www.ahanassa.com/` responds from the Worker and apex `ahanassa.com` still returns `308` to `www` (verified 2026-09-19).
 
 ## Recovery / rollback
 
