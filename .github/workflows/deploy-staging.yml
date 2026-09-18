@@ -1,0 +1,261 @@
+name: Deploy Staging
+
+# Manual, workflow_dispatch-only deployment of the application code to the
+# real Cloudflare staging Worker (env.staging in wrangler.jsonc —
+# ahanassa-bootstrap-staging). This workflow deploys application code ONLY.
+#
+# It deliberately does NOT apply D1 migrations. Migrations against the real
+# staging database remain a separate, explicit operator action:
+#   npx wrangler d1 migrations apply DB_OPS --env staging --remote
+#   npx wrangler d1 migrations apply DB_PUBLIC --env staging --remote
+# (migrations_public/0010_homepage_eligibility.sql is REMOTE PENDING — this
+# workflow never touches it.)
+#
+# EXACT-SHA MODEL
+# ---------------
+# `main` and the application branches have UNRELATED Git histories. A copy of
+# this file exists on `main` purely so GitHub Actions registers/indexes the
+# workflow; `main` does NOT contain the application. Therefore this workflow
+# NEVER deploys its own checkout: `deploy_ref` is mandatory and the checkout
+# step targets it explicitly. There is no implicit "deploy the current branch"
+# fallback path.
+#
+# The Cloudflare environment, Worker name and D1 databases are NOT inputs.
+# They are fixed in wrangler.jsonc, and the "Assert staging resources" step
+# re-verifies them against the checked-out ref before anything is built or
+# deployed, so a doctored branch cannot redirect this workflow at production.
+#
+# See docs/release/CI_CD_POLICY.md for the full policy this implements.
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_ref:
+        description: >-
+          Git ref or full commit SHA to deploy. Prefer a full 40-character
+          commit SHA so the deployed artifact is immutable and traceable.
+          Required — this workflow never deploys its own checkout.
+        required: true
+        type: string
+      confirm:
+        description: >-
+          Type exactly "deploy-staging" to confirm. Deploys application code
+          only to ahanassa-bootstrap-staging (env.staging). Does NOT run any
+          database migration.
+        required: true
+        type: string
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-staging:
+    name: deploy-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging
+    outputs:
+      deployed_sha: ${{ steps.resolve.outputs.deployed_sha }}
+    steps:
+      - name: Require explicit confirmation
+        env:
+          CONFIRM_INPUT: ${{ inputs.confirm }}
+          DEPLOY_REF_INPUT: ${{ inputs.deploy_ref }}
+        run: |
+          set -euo pipefail
+          if [ "$CONFIRM_INPUT" != "deploy-staging" ]; then
+            echo "::error::Confirmation input did not equal 'deploy-staging'. Aborting without making any changes."
+            exit 1
+          fi
+          if [ -z "${DEPLOY_REF_INPUT// /}" ]; then
+            echo "::error::deploy_ref is empty. This workflow never deploys its own checkout; supply an explicit ref or commit SHA."
+            exit 1
+          fi
+          echo "Requested deploy_ref: $DEPLOY_REF_INPUT"
+
+      - name: Checkout deploy_ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.deploy_ref }}
+          persist-credentials: false
+
+      - name: Resolve deployed SHA
+        id: resolve
+        env:
+          DEPLOY_REF_INPUT: ${{ inputs.deploy_ref }}
+        run: |
+          set -euo pipefail
+          DEPLOYED_SHA="$(git rev-parse HEAD)"
+          if [ -z "$DEPLOYED_SHA" ] || ! git cat-file -e "${DEPLOYED_SHA}^{commit}" 2>/dev/null; then
+            echo "::error::deploy_ref '$DEPLOY_REF_INPUT' did not resolve to a commit. Aborting before build and deploy."
+            exit 1
+          fi
+          echo "DEPLOYED_SHA=$DEPLOYED_SHA" >> "$GITHUB_ENV"
+          echo "deployed_sha=$DEPLOYED_SHA" >> "$GITHUB_OUTPUT"
+          echo "Deploying exact commit: $DEPLOYED_SHA"
+          {
+            echo "### Staging deployment"
+            echo ""
+            echo "| field | value |"
+            echo "| --- | --- |"
+            echo "| requested deploy_ref | \`$DEPLOY_REF_INPUT\` |"
+            echo "| resolved DEPLOYED_SHA | \`$DEPLOYED_SHA\` |"
+            echo "| Cloudflare environment | \`staging\` |"
+            echo "| Worker | \`ahanassa-bootstrap-staging\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Runs BEFORE setup-node / npm ci / build, so no code from the
+      # checked-out ref executes until the staging target is proven. This
+      # script is intentionally inline: it comes from the workflow file on the
+      # dispatch branch, never from the (untrusted) deploy_ref checkout.
+      - name: Assert staging resources (fail closed)
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/assert-staging.cjs" <<'ASSERT_EOF'
+          const fs = require('fs');
+
+          const EXPECTED_WORKER = 'ahanassa-bootstrap-staging';
+          const EXPECTED_D1 = {
+            DB_OPS: { database_name: 'ahanassa-ops-staging', database_id: '49bd0aff-e289-4fff-b7b9-0f4b517e6b14' },
+            DB_PUBLIC: { database_name: 'ahanassa-public-staging', database_id: '35cef70f-3ad3-4049-add4-ddcac6cac45b' },
+          };
+
+          function stripJsonc(src) {
+            let out = '';
+            let i = 0;
+            const n = src.length;
+            while (i < n) {
+              const c = src[i];
+              if (c === '"') {
+                let j = i + 1;
+                while (j < n) {
+                  if (src[j] === '\\') { j += 2; continue; }
+                  if (src[j] === '"') { j++; break; }
+                  j++;
+                }
+                out += src.slice(i, j);
+                i = j;
+                continue;
+              }
+              if (c === '/' && src[i + 1] === '/') {
+                while (i < n && src[i] !== '\n') i++;
+                continue;
+              }
+              if (c === '/' && src[i + 1] === '*') {
+                i += 2;
+                while (i < n && !(src[i] === '*' && src[i + 1] === '/')) i++;
+                i += 2;
+                continue;
+              }
+              out += c;
+              i++;
+            }
+            return out.replace(/,(\s*[}\]])/g, '$1');
+          }
+
+          function fail(msg) {
+            console.log('::error::STAGING RESOURCE ASSERTION FAILED — ' + msg);
+            process.exit(1);
+          }
+
+          if (!fs.existsSync('wrangler.jsonc')) {
+            fail('wrangler.jsonc not found in the checked-out deploy_ref. This ref does not contain the application.');
+          }
+
+          let cfg;
+          try {
+            cfg = JSON.parse(stripJsonc(fs.readFileSync('wrangler.jsonc', 'utf8')));
+          } catch (e) {
+            fail('wrangler.jsonc could not be parsed: ' + e.message);
+          }
+
+          const staging = cfg && cfg.env && cfg.env.staging;
+          if (!staging || typeof staging !== 'object') fail('wrangler.jsonc has no env.staging block.');
+
+          if (staging.name !== EXPECTED_WORKER) {
+            fail('env.staging.name is "' + staging.name + '", expected "' + EXPECTED_WORKER + '".');
+          }
+
+          const d1 = Array.isArray(staging.d1_databases) ? staging.d1_databases : [];
+          const seen = new Set();
+          for (const b of d1) {
+            const exp = EXPECTED_D1[b.binding];
+            if (!exp) fail('env.staging declares an unexpected D1 binding "' + b.binding + '".');
+            if (b.database_name !== exp.database_name) {
+              fail('env.staging D1 ' + b.binding + ' database_name is "' + b.database_name + '", expected "' + exp.database_name + '".');
+            }
+            if (b.database_id !== exp.database_id) {
+              fail('env.staging D1 ' + b.binding + ' database_id does not match the expected staging database.');
+            }
+            seen.add(b.binding);
+          }
+          for (const k of Object.keys(EXPECTED_D1)) {
+            if (!seen.has(k)) fail('env.staging is missing the expected D1 binding "' + k + '".');
+          }
+
+          // Literal-free denylist: no string anywhere under env.staging may
+          // name the live environment. Combined with the pinned Worker name
+          // and pinned D1 ids above, a doctored ref cannot redirect this
+          // staging-only workflow at the live Cloudflare resources.
+          const offenders = [];
+          (function walk(node, trail) {
+            if (typeof node === 'string') {
+              if (/produc(tion|t_ion)/i.test(node)) offenders.push(trail + ' = ' + node);
+              return;
+            }
+            if (Array.isArray(node)) { node.forEach((v, i) => walk(v, trail + '[' + i + ']')); return; }
+            if (node && typeof node === 'object') {
+              for (const [k, v] of Object.entries(node)) {
+                if (/produc(tion|t_ion)/i.test(k)) offenders.push(trail + '.' + k + ' (key)');
+                walk(v, trail + '.' + k);
+              }
+            }
+          })(staging, 'env.staging');
+          if (offenders.length > 0) {
+            fail('env.staging names the live environment: ' + offenders.join('; '));
+          }
+
+          const vars = staging.vars || {};
+          if (vars.APP_ENV !== 'staging') {
+            fail('env.staging vars.APP_ENV is "' + vars.APP_ENV + '", expected "staging".');
+          }
+
+          console.log('Staging resource assertion PASSED.');
+          console.log('  worker    : ' + staging.name);
+          console.log('  DB_OPS    : ' + EXPECTED_D1.DB_OPS.database_name);
+          console.log('  DB_PUBLIC : ' + EXPECTED_D1.DB_PUBLIC.database_name);
+          console.log('  APP_ENV   : ' + vars.APP_ENV);
+          console.log('  live-environment identifiers inside env.staging: none');
+          ASSERT_EOF
+          node "$RUNNER_TEMP/assert-staging.cjs"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies (immutable)
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy application code to Cloudflare Workers (staging)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          echo "Deploying $DEPLOYED_SHA to Cloudflare env.staging (ahanassa-bootstrap-staging)"
+          npx vinext-cloudflare deploy --env staging
