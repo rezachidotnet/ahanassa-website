@@ -1,0 +1,2025 @@
+{
+  "snapshot_label": "POST_P3F_STAGING_PRE_SYNC_SNAPSHOT",
+  "created_at_utc": "2026-09-18T09:21:03.597Z",
+  "environment": "staging",
+  "database": "ahanassa-public-staging",
+  "database_id": "35cef70f-3ad3-4049-add4-ddcac6cac45b",
+  "aggregate_counts": {
+    "catalog_products_count": 13,
+    "product_variants_count": 237,
+    "seo_contents_count": 3,
+    "published_seo_count": 3,
+    "distinct_xid": 237,
+    "distinct_template_xid": 13,
+    "dup_xid": 0,
+    "dup_template_xid": 0,
+    "dup_sku": 0,
+    "orphan_variants": 0,
+    "cvar_keyed_variants": 0,
+    "legacy_keyed_variants": 237,
+    "ctmpl_keyed_products": 0,
+    "legacy_keyed_products": 13,
+    "identity_classification": "legacy_xid_keyed"
+  },
+  "catalog_products": [
+    {
+      "id": "01M19CWBRTX7R2NRDC31VN6048",
+      "template_xid": "ahanassa_marketplace.product_tmpl_sh_hr_s235jr_plate",
+      "name_fa": "Hot Rolled Plate S235JR",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRW1N2HS9EXKMQ2A644",
+      "template_xid": "ahanassa_marketplace.product_tmpl_sh_hr_s355jr_sheet",
+      "name_fa": "Hot Rolled Sheet S355JR",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRW383BTSNJ9KVRN7R2",
+      "template_xid": "ahanassa_marketplace.product_tmpl_pp_smls_a106_gr_b",
+      "name_fa": "Seamless Pipe ASTM A106 Grade B",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "template_xid": "ahanassa_marketplace.product_tmpl_pf_shs",
+      "name_fa": "Square Hollow Section (SHS)",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "template_xid": "ahanassa_marketplace.product_tmpl_bm_inp",
+      "name_fa": "IPN / INP Beam",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRWD6MR5F6DYDJ6A4RV",
+      "template_xid": "ahanassa_marketplace.product_tmpl_rb_s240",
+      "name_fa": "Plain Rebar S240 (A1)",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRWGPT9AQ2XMN4B7TCT",
+      "template_xid": "ahanassa_marketplace.product_tmpl_rb_aj400",
+      "name_fa": "Ribbed Rebar Aj400 (A3)",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRWP4V1FAGPPWNKKFCR",
+      "template_xid": "ahanassa_marketplace.product_tmpl_rb_aj340",
+      "name_fa": "Ribbed Rebar Aj340 (A2)",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "template_xid": "ahanassa_marketplace.product_tmpl_pf_rhs",
+      "name_fa": "Rectangular Hollow Section (RHS)",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRWSTZR9BGB9VEJP9S6",
+      "template_xid": "ahanassa_marketplace.product_tmpl_sh_hr_s235jr_sheet",
+      "name_fa": "Hot Rolled Sheet S235JR",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "template_xid": "ahanassa_marketplace.product_tmpl_sh_hr_s355jr_plate",
+      "name_fa": "Hot Rolled Plate S355JR",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRWVMXRAPV5YR98VKCE",
+      "template_xid": "ahanassa_marketplace.product_tmpl_bm_ipe",
+      "name_fa": "IPE Beam",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRWZCKPXGV9PDPWP7W6",
+      "template_xid": "ahanassa_marketplace.product_tmpl_rb_aj500",
+      "name_fa": "Ribbed Rebar Aj500 (A4)",
+      "is_active": 1
+    }
+  ],
+  "product_variants": [
+    {
+      "id": "01M19CWBRW0ANQ9F1JEPG06VHZ",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s25x1500x6000",
+      "sku": "AA-SH-HR-S235JR-S25X1500X6000",
+      "commercial_size": "25×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRW0YMF9P9XSV8PV64Y",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s20x1500x6000",
+      "sku": "AA-SH-HR-S235JR-S20X1500X6000",
+      "commercial_size": "20×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRW20C2XAHZBMN38SX6",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s35x2000x6000",
+      "sku": "AA-SH-HR-S235JR-S35X2000X6000",
+      "commercial_size": "35×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRW292B3JFECRBSV4BX",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s25x2000x6000",
+      "sku": "AA-SH-HR-S235JR-S25X2000X6000",
+      "commercial_size": "25×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRW46TQMAJ10C0J37B8",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s15x1500x6000",
+      "sku": "AA-SH-HR-S235JR-S15X1500X6000",
+      "commercial_size": "15×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRW67EGM5EQH0YMKYG2",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s30x1500x6000",
+      "sku": "AA-SH-HR-S235JR-S30X1500X6000",
+      "commercial_size": "30×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRW8S8WT7FV4CJVSK6Y",
+      "product_id": "01M19CWBRWSTZR9BGB9VEJP9S6",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s2x1000x2000",
+      "sku": "AA-SH-HR-S235JR-S2X1000X2000",
+      "commercial_size": "2×1000×2000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRW9FH115VQX6ZY6ZCF",
+      "product_id": "01M19CWBRWSTZR9BGB9VEJP9S6",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s2x1500x6000",
+      "sku": "AA-SH-HR-S235JR-S2X1500X6000",
+      "commercial_size": "2×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRW9KHNES9JAVHF4EVV",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s35x1500x6000",
+      "sku": "AA-SH-HR-S235JR-S35X1500X6000",
+      "commercial_size": "35×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRW9NC0BZQTAZCK67HN",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s30x2000x6000",
+      "sku": "AA-SH-HR-S235JR-S30X2000X6000",
+      "commercial_size": "30×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRWGPHRTQFQXK3QTRSF",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s20x2000x6000",
+      "sku": "AA-SH-HR-S235JR-S20X2000X6000",
+      "commercial_size": "20×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRWKTTP8X56898B9ZHS",
+      "product_id": "01M19CWBRWSTZR9BGB9VEJP9S6",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s2x1250x2500",
+      "sku": "AA-SH-HR-S235JR-S2X1250X2500",
+      "commercial_size": "2×1250×2500",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRWNQSTA5Q398XG8DMK",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s12x2000x6000",
+      "sku": "AA-SH-HR-S235JR-S12X2000X6000",
+      "commercial_size": "12×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRWNYZZSDXTY94KSZ5G",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s10x2000x6000",
+      "sku": "AA-SH-HR-S235JR-S10X2000X6000",
+      "commercial_size": "10×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRWVP0P6YVRVSS9ERTG",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s10x1500x6000",
+      "sku": "AA-SH-HR-S235JR-S10X1500X6000",
+      "commercial_size": "10×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRWX24B85XR2NRMCJ0F",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s12x1500x6000",
+      "sku": "AA-SH-HR-S235JR-S12X1500X6000",
+      "commercial_size": "12×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRWZSM0FRH0K33PQEHF",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s15x2000x6000",
+      "sku": "AA-SH-HR-S235JR-S15X2000X6000",
+      "commercial_size": "15×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRY03V6MJCVFXMVDADD",
+      "product_id": "01M19CWBRW1N2HS9EXKMQ2A644",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s4x1500x6000",
+      "sku": "AA-SH-HR-S355JR-S4X1500X6000",
+      "commercial_size": "4×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRY0FKD6G3DH6HHY4PH",
+      "product_id": "01M19CWBRWSTZR9BGB9VEJP9S6",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s6x1250x2500",
+      "sku": "AA-SH-HR-S235JR-S6X1250X2500",
+      "commercial_size": "6×1250×2500",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRY15MR2M5NTZ1XFMS5",
+      "product_id": "01M19CWBRW1N2HS9EXKMQ2A644",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s3x1500x6000",
+      "sku": "AA-SH-HR-S355JR-S3X1500X6000",
+      "commercial_size": "3×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRY2NJF9BFG6491MZZY",
+      "product_id": "01M19CWBRW1N2HS9EXKMQ2A644",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s3x1250x2500",
+      "sku": "AA-SH-HR-S355JR-S3X1250X2500",
+      "commercial_size": "3×1250×2500",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRY2YZ49NEV1WX10Y3F",
+      "product_id": "01M19CWBRW1N2HS9EXKMQ2A644",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s5x1500x6000",
+      "sku": "AA-SH-HR-S355JR-S5X1500X6000",
+      "commercial_size": "5×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRY3MHJ1JRBVKKJ1T90",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s12x1500x6000",
+      "sku": "AA-SH-HR-S355JR-S12X1500X6000",
+      "commercial_size": "12×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRY475EWZ5SWV69NPHT",
+      "product_id": "01M19CWBRWSTZR9BGB9VEJP9S6",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s5x1500x6000",
+      "sku": "AA-SH-HR-S235JR-S5X1500X6000",
+      "commercial_size": "5×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRY4VDQMW82ACFD1NQ4",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s50x2000x6000",
+      "sku": "AA-SH-HR-S235JR-S50X2000X6000",
+      "commercial_size": "50×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRY78F454CT75BCG0XV",
+      "product_id": "01M19CWBRWSTZR9BGB9VEJP9S6",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s3x1000x2000",
+      "sku": "AA-SH-HR-S235JR-S3X1000X2000",
+      "commercial_size": "3×1000×2000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRY7ZTH39V9776P66KC",
+      "product_id": "01M19CWBRWSTZR9BGB9VEJP9S6",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s5x1250x2500",
+      "sku": "AA-SH-HR-S235JR-S5X1250X2500",
+      "commercial_size": "5×1250×2500",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRY8AYH74ZAQND9BBTZ",
+      "product_id": "01M19CWBRW1N2HS9EXKMQ2A644",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s2x1000x2000",
+      "sku": "AA-SH-HR-S355JR-S2X1000X2000",
+      "commercial_size": "2×1000×2000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRY8KPVKWBYAQVF14W3",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s30x2000x6000",
+      "sku": "AA-SH-HR-S355JR-S30X2000X6000",
+      "commercial_size": "30×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRY988CANNTA7EAC6SV",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s40x1500x6000",
+      "sku": "AA-SH-HR-S235JR-S40X1500X6000",
+      "commercial_size": "40×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRY9FQE1EW6DNBBB09R",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s40x1500x6000",
+      "sku": "AA-SH-HR-S355JR-S40X1500X6000",
+      "commercial_size": "40×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYA57EKH67CTVG24XX",
+      "product_id": "01M19CWBRW1N2HS9EXKMQ2A644",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s5x1250x2500",
+      "sku": "AA-SH-HR-S355JR-S5X1250X2500",
+      "commercial_size": "5×1250×2500",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYA5NK9T52GD9QJW5R",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s8x1500x6000",
+      "sku": "AA-SH-HR-S235JR-S8X1500X6000",
+      "commercial_size": "8×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYBQ5VYN54VZYBB1D6",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s15x2000x6000",
+      "sku": "AA-SH-HR-S355JR-S15X2000X6000",
+      "commercial_size": "15×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYC4EGBDPBBM4BXG3C",
+      "product_id": "01M19CWBRWSTZR9BGB9VEJP9S6",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s4x1500x6000",
+      "sku": "AA-SH-HR-S235JR-S4X1500X6000",
+      "commercial_size": "4×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYCPMKFAPD4QAQRFS4",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s25x1500x6000",
+      "sku": "AA-SH-HR-S355JR-S25X1500X6000",
+      "commercial_size": "25×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYCS8D1SG1ZQ5VKDP1",
+      "product_id": "01M19CWBRW1N2HS9EXKMQ2A644",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s4x1250x2500",
+      "sku": "AA-SH-HR-S355JR-S4X1250X2500",
+      "commercial_size": "4×1250×2500",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYD1VPDH6HGB246ZE7",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s25x2000x6000",
+      "sku": "AA-SH-HR-S355JR-S25X2000X6000",
+      "commercial_size": "25×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYDVH2C9ESCT1H22QC",
+      "product_id": "01M19CWBRW1N2HS9EXKMQ2A644",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s2x1500x6000",
+      "sku": "AA-SH-HR-S355JR-S2X1500X6000",
+      "commercial_size": "2×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYEXGN4RH1YN0B2DBS",
+      "product_id": "01M19CWBRW1N2HS9EXKMQ2A644",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s2x1250x2500",
+      "sku": "AA-SH-HR-S355JR-S2X1250X2500",
+      "commercial_size": "2×1250×2500",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYF9BS697YHNSH90BV",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s20x1500x6000",
+      "sku": "AA-SH-HR-S355JR-S20X1500X6000",
+      "commercial_size": "20×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYFRMCQZAZKE0M9F0S",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s40x2000x6000",
+      "sku": "AA-SH-HR-S355JR-S40X2000X6000",
+      "commercial_size": "40×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYG6B62BD9J3J32T31",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s60x1500x6000",
+      "sku": "AA-SH-HR-S235JR-S60X1500X6000",
+      "commercial_size": "60×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYGGWDV5H1Q173043Y",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s15x1500x6000",
+      "sku": "AA-SH-HR-S355JR-S15X1500X6000",
+      "commercial_size": "15×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYGYSSTGTCDCE9R25Y",
+      "product_id": "01M19CWBRW1N2HS9EXKMQ2A644",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s4x1000x2000",
+      "sku": "AA-SH-HR-S355JR-S4X1000X2000",
+      "commercial_size": "4×1000×2000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYHJVH8FMKNS0RF0X6",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s10x1500x6000",
+      "sku": "AA-SH-HR-S355JR-S10X1500X6000",
+      "commercial_size": "10×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYJ4JBKGZ0T06A67AM",
+      "product_id": "01M19CWBRWSTZR9BGB9VEJP9S6",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s4x1250x2500",
+      "sku": "AA-SH-HR-S235JR-S4X1250X2500",
+      "commercial_size": "4×1250×2500",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYJ69WR2D9WRPKACGS",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s20x2000x6000",
+      "sku": "AA-SH-HR-S355JR-S20X2000X6000",
+      "commercial_size": "20×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYJ9V0FQ44G4H5WMRB",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s12x2000x6000",
+      "sku": "AA-SH-HR-S355JR-S12X2000X6000",
+      "commercial_size": "12×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYJKR4HQTFEH3WMDAH",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s8x2000x6000",
+      "sku": "AA-SH-HR-S235JR-S8X2000X6000",
+      "commercial_size": "8×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYJM9WJDQY5VT9A43F",
+      "product_id": "01M19CWBRW1N2HS9EXKMQ2A644",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s3x1000x2000",
+      "sku": "AA-SH-HR-S355JR-S3X1000X2000",
+      "commercial_size": "3×1000×2000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYK0N6SB2CT1T3EF2F",
+      "product_id": "01M19CWBRWSTZR9BGB9VEJP9S6",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s4x1000x2000",
+      "sku": "AA-SH-HR-S235JR-S4X1000X2000",
+      "commercial_size": "4×1000×2000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYM4F7HQP18T884V8E",
+      "product_id": "01M19CWBRWSTZR9BGB9VEJP9S6",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s6x1000x2000",
+      "sku": "AA-SH-HR-S235JR-S6X1000X2000",
+      "commercial_size": "6×1000×2000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYMQMHMD9QAY9KZVY6",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s10x2000x6000",
+      "sku": "AA-SH-HR-S355JR-S10X2000X6000",
+      "commercial_size": "10×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYMS0XN9SAT63X62BR",
+      "product_id": "01M19CWBRWSTZR9BGB9VEJP9S6",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s5x1000x2000",
+      "sku": "AA-SH-HR-S235JR-S5X1000X2000",
+      "commercial_size": "5×1000×2000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYMVKY5QZXEDYEE9AW",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s60x1500x6000",
+      "sku": "AA-SH-HR-S355JR-S60X1500X6000",
+      "commercial_size": "60×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYN26XCHBWS68MVGWQ",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s35x2000x6000",
+      "sku": "AA-SH-HR-S355JR-S35X2000X6000",
+      "commercial_size": "35×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYNEK2JANEKMFW4RMB",
+      "product_id": "01M19CWBRWSTZR9BGB9VEJP9S6",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s3x1500x6000",
+      "sku": "AA-SH-HR-S235JR-S3X1500X6000",
+      "commercial_size": "3×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYS3PDAT1APENPDZ2T",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s35x1500x6000",
+      "sku": "AA-SH-HR-S355JR-S35X1500X6000",
+      "commercial_size": "35×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYS54CN05XX1C4AKCQ",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s50x1500x6000",
+      "sku": "AA-SH-HR-S235JR-S50X1500X6000",
+      "commercial_size": "50×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYSX4QZCV4EN8NZAV8",
+      "product_id": "01M19CWBRW1N2HS9EXKMQ2A644",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s5x1000x2000",
+      "sku": "AA-SH-HR-S355JR-S5X1000X2000",
+      "commercial_size": "5×1000×2000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYV28BEG3NJRMX3AQT",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s50x1500x6000",
+      "sku": "AA-SH-HR-S355JR-S50X1500X6000",
+      "commercial_size": "50×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYVS2HM57CQ1NDCJDJ",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s60x2000x6000",
+      "sku": "AA-SH-HR-S235JR-S60X2000X6000",
+      "commercial_size": "60×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYW3EKAPMW7A5P65X0",
+      "product_id": "01M19CWBRTX7R2NRDC31VN6048",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s40x2000x6000",
+      "sku": "AA-SH-HR-S235JR-S40X2000X6000",
+      "commercial_size": "40×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYWSEZXN6VJFX3VJPH",
+      "product_id": "01M19CWBRWSTZR9BGB9VEJP9S6",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s6x1500x6000",
+      "sku": "AA-SH-HR-S235JR-S6X1500X6000",
+      "commercial_size": "6×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYZ8QZ0SQE4T088VPN",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s50x2000x6000",
+      "sku": "AA-SH-HR-S355JR-S50X2000X6000",
+      "commercial_size": "50×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYZR0V78Z1489C1SCB",
+      "product_id": "01M19CWBRWSTZR9BGB9VEJP9S6",
+      "xid": "ahanassa_marketplace.product_sh_hr_s235jr_s3x1250x2500",
+      "sku": "AA-SH-HR-S235JR-S3X1250X2500",
+      "commercial_size": "3×1250×2500",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRYZRNGJ83AVWHVVW83",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s30x1500x6000",
+      "sku": "AA-SH-HR-S355JR-S30X1500X6000",
+      "commercial_size": "30×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ034QKXT91RTYG2DV",
+      "product_id": "01M19CWBRWP4V1FAGPPWNKKFCR",
+      "xid": "ahanassa_marketplace.product_rb_aj340_d12_l12",
+      "sku": "AA-RB-AJ340-D12-L12",
+      "commercial_size": "Ø12",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ0P1P01G2DF6TE83A",
+      "product_id": "01M19CWBRWVMXRAPV5YR98VKCE",
+      "xid": "ahanassa_marketplace.product_bm_ipe_s140_l12",
+      "sku": "AA-BM-IPE-S140-L12",
+      "commercial_size": "IPE 140",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ0P6R9AFBVNA49FX2",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s120x80x5_l6",
+      "sku": "AA-PF-RHS-S120X80X5-L6",
+      "commercial_size": "120×80×5",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ0ZWWBBSGTNCJ6D0F",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s80x40x5_l6",
+      "sku": "AA-PF-RHS-S80X40X5-L6",
+      "commercial_size": "80×40×5",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ148232QM7FTNN78M",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s160x80x8_l6",
+      "sku": "AA-PF-RHS-S160X80X8-L6",
+      "commercial_size": "160×80×8",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ1693NVBV4XXK9BGQ",
+      "product_id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "xid": "ahanassa_marketplace.product_bm_inp_s500_l12",
+      "sku": "AA-BM-INP-S500-L12",
+      "commercial_size": "IPN 500",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ1GZ6D0QRQNRK9HTK",
+      "product_id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "xid": "ahanassa_marketplace.product_bm_inp_s550_l12",
+      "sku": "AA-BM-INP-S550-L12",
+      "commercial_size": "IPN 550",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ1MJE39QWTJJW1ET7",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s180x100x6_l6",
+      "sku": "AA-PF-RHS-S180X100X6-L6",
+      "commercial_size": "180×100×6",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ26XKRZGAWEFKDKX5",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s200x100x5_l6",
+      "sku": "AA-PF-RHS-S200X100X5-L6",
+      "commercial_size": "200×100×5",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ2CK3XJ0JRC566RNB",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s120x120x8_l6",
+      "sku": "AA-PF-SHS-S120X120X8-L6",
+      "commercial_size": "120×120×8",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ2GDHA5BVDFYBHCRP",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s50x50x3_l6",
+      "sku": "AA-PF-SHS-S50X50X3-L6",
+      "commercial_size": "50×50×3",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ2MCYC447M5DV3VYK",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s60x2000x6000",
+      "sku": "AA-SH-HR-S355JR-S60X2000X6000",
+      "commercial_size": "60×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ2MMH34Z9EXSW02HZ",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s120x120x5_l6",
+      "sku": "AA-PF-SHS-S120X120X5-L6",
+      "commercial_size": "120×120×5",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ2V8JXN3JG5P8JW36",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s100x50x3_l6",
+      "sku": "AA-PF-RHS-S100X50X3-L6",
+      "commercial_size": "100×50×3",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ2YRERZD4T6GT2JBC",
+      "product_id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "xid": "ahanassa_marketplace.product_bm_inp_s450_l12",
+      "sku": "AA-BM-INP-S450-L12",
+      "commercial_size": "IPN 450",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ3EHFZMKZW2WJ8RCP",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s150x100x6_l6",
+      "sku": "AA-PF-RHS-S150X100X6-L6",
+      "commercial_size": "150×100×6",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ3FZ91VGHCST83052",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s120x80x4_l6",
+      "sku": "AA-PF-RHS-S120X80X4-L6",
+      "commercial_size": "120×80×4",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ3QRTYJJEE8T57K0B",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s60x60x4_l6",
+      "sku": "AA-PF-SHS-S60X60X4-L6",
+      "commercial_size": "60×60×4",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ41VPM3WKBENTS613",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s250x150x6_l6",
+      "sku": "AA-PF-RHS-S250X150X6-L6",
+      "commercial_size": "250×150×6",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ43P5385AV995HQFN",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s100x50x6_l6",
+      "sku": "AA-PF-RHS-S100X50X6-L6",
+      "commercial_size": "100×50×6",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ4C977DTGA0R1WZD3",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s160x80x6_l6",
+      "sku": "AA-PF-RHS-S160X80X6-L6",
+      "commercial_size": "160×80×6",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ51944N0K85YRYZQD",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s100x100x4_l6",
+      "sku": "AA-PF-SHS-S100X100X4-L6",
+      "commercial_size": "100×100×4",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ58T189WFC3B1024V",
+      "product_id": "01M19CWBRWVMXRAPV5YR98VKCE",
+      "xid": "ahanassa_marketplace.product_bm_ipe_s550_l12",
+      "sku": "AA-BM-IPE-S550-L12",
+      "commercial_size": "IPE 550",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ5G0M68E1Q8854G22",
+      "product_id": "01M19CWBRWVMXRAPV5YR98VKCE",
+      "xid": "ahanassa_marketplace.product_bm_ipe_s270_l12",
+      "sku": "AA-BM-IPE-S270-L12",
+      "commercial_size": "IPE 270",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ62AK4CN6XV141H89",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s150x150x6_l6",
+      "sku": "AA-PF-SHS-S150X150X6-L6",
+      "commercial_size": "150×150×6",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ71PNWEBF692RRZ7Q",
+      "product_id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "xid": "ahanassa_marketplace.product_bm_inp_s160_l12",
+      "sku": "AA-BM-INP-S160-L12",
+      "commercial_size": "IPN 160",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ71REZE067PKQXE3Y",
+      "product_id": "01M19CWBRW1N2HS9EXKMQ2A644",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s6x1250x2500",
+      "sku": "AA-SH-HR-S355JR-S6X1250X2500",
+      "commercial_size": "6×1250×2500",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ74B78BSDWV47BK9B",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s120x60x6_l6",
+      "sku": "AA-PF-RHS-S120X60X6-L6",
+      "commercial_size": "120×60×6",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ75W8BHMC5Q167NQK",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s140x80x8_l6",
+      "sku": "AA-PF-RHS-S140X80X8-L6",
+      "commercial_size": "140×80×8",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ7A0PP4WZRM1V8D8A",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s200x100x6_l6",
+      "sku": "AA-PF-RHS-S200X100X6-L6",
+      "commercial_size": "200×100×6",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ7DAVC9HRTKHFNEDG",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s140x80x6_l6",
+      "sku": "AA-PF-RHS-S140X80X6-L6",
+      "commercial_size": "140×80×6",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ8BYG7XT5BSW8BRD7",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s50x50x4_l6",
+      "sku": "AA-PF-SHS-S50X50X4-L6",
+      "commercial_size": "50×50×4",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ8KD1F7W5HG2NXX9D",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s300x200x6_l6",
+      "sku": "AA-PF-RHS-S300X200X6-L6",
+      "commercial_size": "300×200×6",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ8MEPSEXBAS5PFMBK",
+      "product_id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "xid": "ahanassa_marketplace.product_bm_inp_s360_l12",
+      "sku": "AA-BM-INP-S360-L12",
+      "commercial_size": "IPN 360",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ95NXHRT6Y5XNBAVH",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s140x80x5_l6",
+      "sku": "AA-PF-RHS-S140X80X5-L6",
+      "commercial_size": "140×80×5",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ99MZ9ZQMR08WYSH6",
+      "product_id": "01M19CWBRWP4V1FAGPPWNKKFCR",
+      "xid": "ahanassa_marketplace.product_rb_aj340_d14_l12",
+      "sku": "AA-RB-AJ340-D14-L12",
+      "commercial_size": "Ø14",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ9FDJZGMXKAVTG1VJ",
+      "product_id": "01M19CWBRWP4V1FAGPPWNKKFCR",
+      "xid": "ahanassa_marketplace.product_rb_aj340_d20_l12",
+      "sku": "AA-RB-AJ340-D20-L12",
+      "commercial_size": "Ø20",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ9KC2AY8C981XNKJD",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s80x40x3_l6",
+      "sku": "AA-PF-RHS-S80X40X3-L6",
+      "commercial_size": "80×40×3",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ9M394WNS9EF0DAGG",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s100x100x5_l6",
+      "sku": "AA-PF-SHS-S100X100X5-L6",
+      "commercial_size": "100×100×5",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZ9R8S4JP1J44G2Q1K",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s60x60x3_l6",
+      "sku": "AA-PF-SHS-S60X60X3-L6",
+      "commercial_size": "60×60×3",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZADQ6DK3XB16PETAT",
+      "product_id": "01M19CWBRWVMXRAPV5YR98VKCE",
+      "xid": "ahanassa_marketplace.product_bm_ipe_s500_l12",
+      "sku": "AA-BM-IPE-S500-L12",
+      "commercial_size": "IPE 500",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZADTXWEEKZ6MH8FH7",
+      "product_id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "xid": "ahanassa_marketplace.product_bm_inp_s100_l12",
+      "sku": "AA-BM-INP-S100-L12",
+      "commercial_size": "IPN 100",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZAGFT2ZH3XCG4EWFJ",
+      "product_id": "01M19CWBRWP4V1FAGPPWNKKFCR",
+      "xid": "ahanassa_marketplace.product_rb_aj340_d18_l12",
+      "sku": "AA-RB-AJ340-D18-L12",
+      "commercial_size": "Ø18",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZAHX84K9KGFKQ3RCF",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s300x200x10_l6",
+      "sku": "AA-PF-RHS-S300X200X10-L6",
+      "commercial_size": "300×200×10",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZAM4A2V320BVNZ7QG",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s60x60x5_l6",
+      "sku": "AA-PF-SHS-S60X60X5-L6",
+      "commercial_size": "60×60×5",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZBBG6XBK7E32ZG610",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s60x60x6_l6",
+      "sku": "AA-PF-SHS-S60X60X6-L6",
+      "commercial_size": "60×60×6",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZBD1WN6NX1CMN8FT6",
+      "product_id": "01M19CWBRWP4V1FAGPPWNKKFCR",
+      "xid": "ahanassa_marketplace.product_rb_aj340_d8_l12",
+      "sku": "AA-RB-AJ340-D8-L12",
+      "commercial_size": "Ø8",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZBRQ5MWC9DJT6HC2B",
+      "product_id": "01M19CWBRWVMXRAPV5YR98VKCE",
+      "xid": "ahanassa_marketplace.product_bm_ipe_s360_l12",
+      "sku": "AA-BM-IPE-S360-L12",
+      "commercial_size": "IPE 360",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZBSCWWTK1PTFZWK0C",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s80x40x4_l6",
+      "sku": "AA-PF-RHS-S80X40X4-L6",
+      "commercial_size": "80×40×4",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZCAM1TP16FV8SD08F",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s80x80x3_l6",
+      "sku": "AA-PF-SHS-S80X80X3-L6",
+      "commercial_size": "80×80×3",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZCJA5DY5SGJY7GZE3",
+      "product_id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "xid": "ahanassa_marketplace.product_bm_inp_s80_l12",
+      "sku": "AA-BM-INP-S80-L12",
+      "commercial_size": "IPN 80",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZCMJBP0RQ84S1TV85",
+      "product_id": "01M19CWBRWP4V1FAGPPWNKKFCR",
+      "xid": "ahanassa_marketplace.product_rb_aj340_d22_l12",
+      "sku": "AA-RB-AJ340-D22-L12",
+      "commercial_size": "Ø22",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZD07HY34S0CZ9HDZ4",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s200x200x10_l6",
+      "sku": "AA-PF-SHS-S200X200X10-L6",
+      "commercial_size": "200×200×10",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZD3AS032KY5TFYJ6E",
+      "product_id": "01M19CWBRWVMXRAPV5YR98VKCE",
+      "xid": "ahanassa_marketplace.product_bm_ipe_s180_l12",
+      "sku": "AA-BM-IPE-S180-L12",
+      "commercial_size": "IPE 180",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZDCPRXXBYC05EJ7NY",
+      "product_id": "01M19CWBRWVMXRAPV5YR98VKCE",
+      "xid": "ahanassa_marketplace.product_bm_ipe_s450_l12",
+      "sku": "AA-BM-IPE-S450-L12",
+      "commercial_size": "IPE 450",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZDH3N63K7DTYKMZH7",
+      "product_id": "01M19CWBRWP4V1FAGPPWNKKFCR",
+      "xid": "ahanassa_marketplace.product_rb_aj340_d25_l12",
+      "sku": "AA-RB-AJ340-D25-L12",
+      "commercial_size": "Ø25",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZEBPP9B3FC7DFQMHN",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s50x50x2p5_l6",
+      "sku": "AA-PF-SHS-S50X50X2P5-L6",
+      "commercial_size": "50×50×2.5",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZED8SDPGFKT7Z7YN9",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s150x150x10_l6",
+      "sku": "AA-PF-SHS-S150X150X10-L6",
+      "commercial_size": "150×150×10",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZEMFJTW6XZZ6N55PZ",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s100x100x6_l6",
+      "sku": "AA-PF-SHS-S100X100X6-L6",
+      "commercial_size": "100×100×6",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZES82870W0P74KB3P",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s150x150x8_l6",
+      "sku": "AA-PF-SHS-S150X150X8-L6",
+      "commercial_size": "150×150×8",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZFSNZWBA4YKN5CXEC",
+      "product_id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "xid": "ahanassa_marketplace.product_bm_inp_s600_l12",
+      "sku": "AA-BM-INP-S600-L12",
+      "commercial_size": "IPN 600",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZG62QJHMX8JAY64H3",
+      "product_id": "01M19CWBRWVMXRAPV5YR98VKCE",
+      "xid": "ahanassa_marketplace.product_bm_ipe_s400_l12",
+      "sku": "AA-BM-IPE-S400-L12",
+      "commercial_size": "IPE 400",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZG6ZC7V44X8THMHYK",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s250x150x10_l6",
+      "sku": "AA-PF-RHS-S250X150X10-L6",
+      "commercial_size": "250×150×10",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZGAPXGTRQK7VASXFT",
+      "product_id": "01M19CWBRW1N2HS9EXKMQ2A644",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s6x1500x6000",
+      "sku": "AA-SH-HR-S355JR-S6X1500X6000",
+      "commercial_size": "6×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZGXS18D8Y0SH3V7HQ",
+      "product_id": "01M19CWBRWVMXRAPV5YR98VKCE",
+      "xid": "ahanassa_marketplace.product_bm_ipe_s80_l12",
+      "sku": "AA-BM-IPE-S80-L12",
+      "commercial_size": "IPE 80",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZH8FKE37KZST0EVC4",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s80x80x5_l6",
+      "sku": "AA-PF-SHS-S80X80X5-L6",
+      "commercial_size": "80×80×5",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZHCSC78H1F29N431F",
+      "product_id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "xid": "ahanassa_marketplace.product_bm_inp_s380_l12",
+      "sku": "AA-BM-INP-S380-L12",
+      "commercial_size": "IPN 380",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZHDJTAXYQF0NEWM4V",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s200x200x8_l6",
+      "sku": "AA-PF-SHS-S200X200X8-L6",
+      "commercial_size": "200×200×8",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZHRD6K64J9TNZXA1B",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s100x50x5_l6",
+      "sku": "AA-PF-RHS-S100X50X5-L6",
+      "commercial_size": "100×50×5",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZHVH3VCRGP49SE67P",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s120x80x6_l6",
+      "sku": "AA-PF-RHS-S120X80X6-L6",
+      "commercial_size": "120×80×6",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZHX23GH8CE2EZVZWR",
+      "product_id": "01M19CWBRWVMXRAPV5YR98VKCE",
+      "xid": "ahanassa_marketplace.product_bm_ipe_s200_l12",
+      "sku": "AA-BM-IPE-S200-L12",
+      "commercial_size": "IPE 200",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZHZV268MK930N59E2",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s200x200x12_l6",
+      "sku": "AA-PF-SHS-S200X200X12-L6",
+      "commercial_size": "200×200×12",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZJPZ6T74KX6JFCY22",
+      "product_id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "xid": "ahanassa_marketplace.product_bm_inp_s220_l12",
+      "sku": "AA-BM-INP-S220-L12",
+      "commercial_size": "IPN 220",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZK2A559JKJ5SQR51F",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s80x80x4_l6",
+      "sku": "AA-PF-SHS-S80X80X4-L6",
+      "commercial_size": "80×80×4",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZK7C6JZ0TERKFSX5H",
+      "product_id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "xid": "ahanassa_marketplace.product_bm_inp_s300_l12",
+      "sku": "AA-BM-INP-S300-L12",
+      "commercial_size": "IPN 300",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZK8Y89MZEA1K8J8KA",
+      "product_id": "01M19CWBRWVMXRAPV5YR98VKCE",
+      "xid": "ahanassa_marketplace.product_bm_ipe_s330_l12",
+      "sku": "AA-BM-IPE-S330-L12",
+      "commercial_size": "IPE 330",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZKC1V0Z3E4TVRRCRP",
+      "product_id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "xid": "ahanassa_marketplace.product_bm_inp_s200_l12",
+      "sku": "AA-BM-INP-S200-L12",
+      "commercial_size": "IPN 200",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZKZNFX2MSACGM3DGM",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s100x50x4_l6",
+      "sku": "AA-PF-RHS-S100X50X4-L6",
+      "commercial_size": "100×50×4",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZMJFKQNB860MFFB4Y",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s120x120x10_l6",
+      "sku": "AA-PF-SHS-S120X120X10-L6",
+      "commercial_size": "120×120×10",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZN3YP2M4JR19AFZZJ",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s40x40x2p5_l6",
+      "sku": "AA-PF-SHS-S40X40X2P5-L6",
+      "commercial_size": "40×40×2.5",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZNKRF8J0YJCGCTD0J",
+      "product_id": "01M19CWBRW1N2HS9EXKMQ2A644",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s6x1000x2000",
+      "sku": "AA-SH-HR-S355JR-S6X1000X2000",
+      "commercial_size": "6×1000×2000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZNYTQVV0P4F1E9SHH",
+      "product_id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "xid": "ahanassa_marketplace.product_bm_inp_s240_l12",
+      "sku": "AA-BM-INP-S240-L12",
+      "commercial_size": "IPN 240",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZPA2GB8T8R6ZAZNAH",
+      "product_id": "01M19CWBRWVMXRAPV5YR98VKCE",
+      "xid": "ahanassa_marketplace.product_bm_ipe_s300_l12",
+      "sku": "AA-BM-IPE-S300-L12",
+      "commercial_size": "IPE 300",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZPMFMJM78T81CQH82",
+      "product_id": "01M19CWBRWP4V1FAGPPWNKKFCR",
+      "xid": "ahanassa_marketplace.product_rb_aj340_d32_l12",
+      "sku": "AA-RB-AJ340-D32-L12",
+      "commercial_size": "Ø32",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZQ3D5PD59ZA4K5KR3",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s60x40x3_l6",
+      "sku": "AA-PF-RHS-S60X40X3-L6",
+      "commercial_size": "60×40×3",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZQDC9ZYJENHVNMVWM",
+      "product_id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "xid": "ahanassa_marketplace.product_bm_inp_s400_l12",
+      "sku": "AA-BM-INP-S400-L12",
+      "commercial_size": "IPN 400",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZQJGNAF13SEMVWZY7",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s300x200x8_l6",
+      "sku": "AA-PF-RHS-S300X200X8-L6",
+      "commercial_size": "300×200×8",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZQSTT11M8M4MPWFP0",
+      "product_id": "01M19CWBRWP4V1FAGPPWNKKFCR",
+      "xid": "ahanassa_marketplace.product_rb_aj340_d16_l12",
+      "sku": "AA-RB-AJ340-D16-L12",
+      "commercial_size": "Ø16",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZR6CGDM06106J1396",
+      "product_id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "xid": "ahanassa_marketplace.product_bm_inp_s280_l12",
+      "sku": "AA-BM-INP-S280-L12",
+      "commercial_size": "IPN 280",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZRCJDGE7MEEFQD4TA",
+      "product_id": "01M19CWBRWVMXRAPV5YR98VKCE",
+      "xid": "ahanassa_marketplace.product_bm_ipe_s600_l12",
+      "sku": "AA-BM-IPE-S600-L12",
+      "commercial_size": "IPE 600",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZRNTHN7RJS8SSM84B",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s250x150x8_l6",
+      "sku": "AA-PF-RHS-S250X150X8-L6",
+      "commercial_size": "250×150×8",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZRX3PNPX9QXHSZQXQ",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s160x80x5_l6",
+      "sku": "AA-PF-RHS-S160X80X5-L6",
+      "commercial_size": "160×80×5",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZS3AE3G7140WQSSXB",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s40x40x3_l6",
+      "sku": "AA-PF-SHS-S40X40X3-L6",
+      "commercial_size": "40×40×3",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZS3WDF1M97W03HZPV",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s8x2000x6000",
+      "sku": "AA-SH-HR-S355JR-S8X2000X6000",
+      "commercial_size": "8×2000×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZSQ1M767SR1XZPFJ6",
+      "product_id": "01M19CWBRWVMXRAPV5YR98VKCE",
+      "xid": "ahanassa_marketplace.product_bm_ipe_s240_l12",
+      "sku": "AA-BM-IPE-S240-L12",
+      "commercial_size": "IPE 240",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZTHTFYFQEAKC70F5T",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s200x100x10_l6",
+      "sku": "AA-PF-RHS-S200X100X10-L6",
+      "commercial_size": "200×100×10",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZTJ01QPW0MBH0FPV6",
+      "product_id": "01M19CWBRWVMXRAPV5YR98VKCE",
+      "xid": "ahanassa_marketplace.product_bm_ipe_s160_l12",
+      "sku": "AA-BM-IPE-S160-L12",
+      "commercial_size": "IPE 160",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZTRA4V7GVEAD2Q4QD",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s60x40x4_l6",
+      "sku": "AA-PF-RHS-S60X40X4-L6",
+      "commercial_size": "60×40×4",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZTZPGR09F4GWFZ6K4",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s200x100x8_l6",
+      "sku": "AA-PF-RHS-S200X100X8-L6",
+      "commercial_size": "200×100×8",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZV42Y5EYMYSD2BY1X",
+      "product_id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "xid": "ahanassa_marketplace.product_bm_inp_s140_l12",
+      "sku": "AA-BM-INP-S140-L12",
+      "commercial_size": "IPN 140",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZW1755RM9GA4BGMK7",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s180x100x5_l6",
+      "sku": "AA-PF-RHS-S180X100X5-L6",
+      "commercial_size": "180×100×5",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZWG23K62C65JQJ94J",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s150x100x5_l6",
+      "sku": "AA-PF-RHS-S150X100X5-L6",
+      "commercial_size": "150×100×5",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZWJN4FS532775EGCV",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s40x40x4_l6",
+      "sku": "AA-PF-SHS-S40X40X4-L6",
+      "commercial_size": "40×40×4",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZWJZ59J5K4DAB7HAE",
+      "product_id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "xid": "ahanassa_marketplace.product_bm_inp_s320_l12",
+      "sku": "AA-BM-INP-S320-L12",
+      "commercial_size": "IPN 320",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZWS6RVVMR7YPRYM2B",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s80x80x6_l6",
+      "sku": "AA-PF-SHS-S80X80X6-L6",
+      "commercial_size": "80×80×6",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZWWAGDPM3SP3JSQT1",
+      "product_id": "01M19CWBRWVMXRAPV5YR98VKCE",
+      "xid": "ahanassa_marketplace.product_bm_ipe_s220_l12",
+      "sku": "AA-BM-IPE-S220-L12",
+      "commercial_size": "IPE 220",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZWZ5QMTNTVQFTMDZH",
+      "product_id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "xid": "ahanassa_marketplace.product_bm_inp_s340_l12",
+      "sku": "AA-BM-INP-S340-L12",
+      "commercial_size": "IPN 340",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZXHMXGYMQCEP0J72R",
+      "product_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "xid": "ahanassa_marketplace.product_sh_hr_s355jr_s8x1500x6000",
+      "sku": "AA-SH-HR-S355JR-S8X1500X6000",
+      "commercial_size": "8×1500×6000",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZXKJKB201GHWWGTWN",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s120x60x5_l6",
+      "sku": "AA-PF-RHS-S120X60X5-L6",
+      "commercial_size": "120×60×5",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZXTMHVMJADSB6ST08",
+      "product_id": "01M19CWBRWVMXRAPV5YR98VKCE",
+      "xid": "ahanassa_marketplace.product_bm_ipe_s120_l12",
+      "sku": "AA-BM-IPE-S120-L12",
+      "commercial_size": "IPE 120",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZY8SVG6K969Q8ZEJN",
+      "product_id": "01M19CWBRWVMXRAPV5YR98VKCE",
+      "xid": "ahanassa_marketplace.product_bm_ipe_s100_l12",
+      "sku": "AA-BM-IPE-S100-L12",
+      "commercial_size": "IPE 100",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZYDACDAN0JW789D2V",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s120x60x4_l6",
+      "sku": "AA-PF-RHS-S120X60X4-L6",
+      "commercial_size": "120×60×4",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZYDG86CQJPPTMNRPD",
+      "product_id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "xid": "ahanassa_marketplace.product_bm_inp_s180_l12",
+      "sku": "AA-BM-INP-S180-L12",
+      "commercial_size": "IPN 180",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZYGGGZCVBXQVZ2R7T",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s50x50x5_l6",
+      "sku": "AA-PF-SHS-S50X50X5-L6",
+      "commercial_size": "50×50×5",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZYXFKB55TZCD014V6",
+      "product_id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "xid": "ahanassa_marketplace.product_bm_inp_s260_l12",
+      "sku": "AA-BM-INP-S260-L12",
+      "commercial_size": "IPN 260",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZZ0FCTFH48EJ6YFDE",
+      "product_id": "01M19CWBRWP4V1FAGPPWNKKFCR",
+      "xid": "ahanassa_marketplace.product_rb_aj340_d28_l12",
+      "sku": "AA-RB-AJ340-D28-L12",
+      "commercial_size": "Ø28",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZZ2GSF5R0Z7KFD0Z3",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s150x100x8_l6",
+      "sku": "AA-PF-RHS-S150X100X8-L6",
+      "commercial_size": "150×100×8",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZZ2MMRZT620N2W9E6",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s60x40x2p5_l6",
+      "sku": "AA-PF-RHS-S60X40X2P5-L6",
+      "commercial_size": "60×40×2.5",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZZGJBXWEANVP3CD0X",
+      "product_id": "01M19CWBRWQZ96J5MRHHMWVCJ2",
+      "xid": "ahanassa_marketplace.product_pf_rhs_s180x100x8_l6",
+      "sku": "AA-PF-RHS-S180X100X8-L6",
+      "commercial_size": "180×100×8",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZZP2GZQ8SD6VWT2K6",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s120x120x6_l6",
+      "sku": "AA-PF-SHS-S120X120X6-L6",
+      "commercial_size": "120×120×6",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZZQK16H4783CFPSV3",
+      "product_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "xid": "ahanassa_marketplace.product_pf_shs_s100x100x8_l6",
+      "sku": "AA-PF-SHS-S100X100X8-L6",
+      "commercial_size": "100×100×8",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZZRSJK55TQDABPTWM",
+      "product_id": "01M19CWBRWP4V1FAGPPWNKKFCR",
+      "xid": "ahanassa_marketplace.product_rb_aj340_d10_l12",
+      "sku": "AA-RB-AJ340-D10-L12",
+      "commercial_size": "Ø10",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBRZZVAK4WKH220PCZWT",
+      "product_id": "01M19CWBRWAVS1BVX4WJDA9N3E",
+      "xid": "ahanassa_marketplace.product_bm_inp_s120_l12",
+      "sku": "AA-BM-INP-S120-L12",
+      "commercial_size": "IPN 120",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS019ZF6ZC7RJ85GXDT",
+      "product_id": "01M19CWBRWZCKPXGV9PDPWP7W6",
+      "xid": "ahanassa_marketplace.product_rb_aj500_d10_l12",
+      "sku": "AA-RB-AJ500-D10-L12",
+      "commercial_size": "Ø10",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS01FC6Z0X4VJ8MK2JG",
+      "product_id": "01M19CWBRWD6MR5F6DYDJ6A4RV",
+      "xid": "ahanassa_marketplace.product_rb_s240_d16_l12",
+      "sku": "AA-RB-S240-D16-L12",
+      "commercial_size": "Ø16",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS01FZAB8VZB9NFY4NE",
+      "product_id": "01M19CWBRWGPT9AQ2XMN4B7TCT",
+      "xid": "ahanassa_marketplace.product_rb_aj400_d28_l12",
+      "sku": "AA-RB-AJ400-D28-L12",
+      "commercial_size": "Ø28",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS029CSNWH3MJR6GDDB",
+      "product_id": "01M19CWBRW383BTSNJ9KVRN7R2",
+      "xid": "ahanassa_marketplace.product_pp_smls_a106b_s60p325x3p912_l6",
+      "sku": "AA-PP-SMLS-A106B-S60P325X3P912-L6",
+      "commercial_size": "60.325×3.912 SCH40",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS02KTP3T580VEB4JGQ",
+      "product_id": "01M19CWBRWGPT9AQ2XMN4B7TCT",
+      "xid": "ahanassa_marketplace.product_rb_aj400_d22_l12",
+      "sku": "AA-RB-AJ400-D22-L12",
+      "commercial_size": "Ø22",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS036TV5MVF6K1NA2QQ",
+      "product_id": "01M19CWBRWD6MR5F6DYDJ6A4RV",
+      "xid": "ahanassa_marketplace.product_rb_s240_d36_l12",
+      "sku": "AA-RB-S240-D36-L12",
+      "commercial_size": "Ø36",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS03HTEFS67XEM6RJHF",
+      "product_id": "01M19CWBRW383BTSNJ9KVRN7R2",
+      "xid": "ahanassa_marketplace.product_pp_smls_a106b_s141p3x6p553_l6",
+      "sku": "AA-PP-SMLS-A106B-S141P3X6P553-L6",
+      "commercial_size": "141.3×6.553 SCH40",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS03YDSKV77PGQWZFWF",
+      "product_id": "01M19CWBRW383BTSNJ9KVRN7R2",
+      "xid": "ahanassa_marketplace.product_pp_smls_a106b_s219p075x8p179_l6",
+      "sku": "AA-PP-SMLS-A106B-S219P075X8P179-L6",
+      "commercial_size": "219.075×8.179 SCH40",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS05KDDKN19GQF63FFF",
+      "product_id": "01M19CWBRWZCKPXGV9PDPWP7W6",
+      "xid": "ahanassa_marketplace.product_rb_aj500_d14_l12",
+      "sku": "AA-RB-AJ500-D14-L12",
+      "commercial_size": "Ø14",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS05W10BRFVJV0SMSSR",
+      "product_id": "01M19CWBRWZCKPXGV9PDPWP7W6",
+      "xid": "ahanassa_marketplace.product_rb_aj500_d28_l12",
+      "sku": "AA-RB-AJ500-D28-L12",
+      "commercial_size": "Ø28",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0975CMQBS4XNHAEZ6",
+      "product_id": "01M19CWBRWD6MR5F6DYDJ6A4RV",
+      "xid": "ahanassa_marketplace.product_rb_s240_d50_l12",
+      "sku": "AA-RB-S240-D50-L12",
+      "commercial_size": "Ø50",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS09K3WTCPY6B2D4SA9",
+      "product_id": "01M19CWBRWGPT9AQ2XMN4B7TCT",
+      "xid": "ahanassa_marketplace.product_rb_aj400_d20_l12",
+      "sku": "AA-RB-AJ400-D20-L12",
+      "commercial_size": "Ø20",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0ANWN25RA6DNJX1MC",
+      "product_id": "01M19CWBRW383BTSNJ9KVRN7R2",
+      "xid": "ahanassa_marketplace.product_pp_smls_a106b_s114p3x6p02_l6",
+      "sku": "AA-PP-SMLS-A106B-S114P3X6P02-L6",
+      "commercial_size": "114.3×6.02 SCH40",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0B87JWWHBFB8W8AM4",
+      "product_id": "01M19CWBRWZCKPXGV9PDPWP7W6",
+      "xid": "ahanassa_marketplace.product_rb_aj500_d20_l12",
+      "sku": "AA-RB-AJ500-D20-L12",
+      "commercial_size": "Ø20",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0BCFJYPDF0QB9B3M5",
+      "product_id": "01M19CWBRW383BTSNJ9KVRN7R2",
+      "xid": "ahanassa_marketplace.product_pp_smls_a106b_s88p9x5p486_l6",
+      "sku": "AA-PP-SMLS-A106B-S88P9X5P486-L6",
+      "commercial_size": "88.9×5.486 SCH40",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0CCA97WG08XGGNBY5",
+      "product_id": "01M19CWBRWZCKPXGV9PDPWP7W6",
+      "xid": "ahanassa_marketplace.product_rb_aj500_d18_l12",
+      "sku": "AA-RB-AJ500-D18-L12",
+      "commercial_size": "Ø18",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0D024MX71X8HCG1X2",
+      "product_id": "01M19CWBRW383BTSNJ9KVRN7R2",
+      "xid": "ahanassa_marketplace.product_pp_smls_a106b_s26p67x2p87_l6",
+      "sku": "AA-PP-SMLS-A106B-S26P67X2P87-L6",
+      "commercial_size": "26.67×2.87 SCH40",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0DYNGR0WARAPHXT8A",
+      "product_id": "01M19CWBRW383BTSNJ9KVRN7R2",
+      "xid": "ahanassa_marketplace.product_pp_smls_a106b_s33p401x3p378_l6",
+      "sku": "AA-PP-SMLS-A106B-S33P401X3P378-L6",
+      "commercial_size": "33.401×3.378 SCH40",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0ECBMVM766HP1YQNA",
+      "product_id": "01M19CWBRWGPT9AQ2XMN4B7TCT",
+      "xid": "ahanassa_marketplace.product_rb_aj400_d10_l12",
+      "sku": "AA-RB-AJ400-D10-L12",
+      "commercial_size": "Ø10",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0EGV58VHYAMZBZ8TT",
+      "product_id": "01M19CWBRWGPT9AQ2XMN4B7TCT",
+      "xid": "ahanassa_marketplace.product_rb_aj400_d32_l12",
+      "sku": "AA-RB-AJ400-D32-L12",
+      "commercial_size": "Ø32",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0EKFGJNGT496QB0Q5",
+      "product_id": "01M19CWBRWD6MR5F6DYDJ6A4RV",
+      "xid": "ahanassa_marketplace.product_rb_s240_d25_l12",
+      "sku": "AA-RB-S240-D25-L12",
+      "commercial_size": "Ø25",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0EP26XJ096HZ668N0",
+      "product_id": "01M19CWBRWD6MR5F6DYDJ6A4RV",
+      "xid": "ahanassa_marketplace.product_rb_s240_d20_l12",
+      "sku": "AA-RB-S240-D20-L12",
+      "commercial_size": "Ø20",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0FRWZJJMKEHTR32MC",
+      "product_id": "01M19CWBRWD6MR5F6DYDJ6A4RV",
+      "xid": "ahanassa_marketplace.product_rb_s240_d12_l12",
+      "sku": "AA-RB-S240-D12-L12",
+      "commercial_size": "Ø12",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0G0HA9X0RVSGMZBFW",
+      "product_id": "01M19CWBRWGPT9AQ2XMN4B7TCT",
+      "xid": "ahanassa_marketplace.product_rb_aj400_d16_l12",
+      "sku": "AA-RB-AJ400-D16-L12",
+      "commercial_size": "Ø16",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0H0C2DZDMNXJ2KNZT",
+      "product_id": "01M19CWBRWGPT9AQ2XMN4B7TCT",
+      "xid": "ahanassa_marketplace.product_rb_aj400_d14_l12",
+      "sku": "AA-RB-AJ400-D14-L12",
+      "commercial_size": "Ø14",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0H56ZNDXJ8JZ7BJGR",
+      "product_id": "01M19CWBRWD6MR5F6DYDJ6A4RV",
+      "xid": "ahanassa_marketplace.product_rb_s240_d14_l12",
+      "sku": "AA-RB-S240-D14-L12",
+      "commercial_size": "Ø14",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0HPR2BXN98DVKYJES",
+      "product_id": "01M19CWBRWD6MR5F6DYDJ6A4RV",
+      "xid": "ahanassa_marketplace.product_rb_s240_d40_l12",
+      "sku": "AA-RB-S240-D40-L12",
+      "commercial_size": "Ø40",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0J2GBDP38EFM4NSMG",
+      "product_id": "01M19CWBRWGPT9AQ2XMN4B7TCT",
+      "xid": "ahanassa_marketplace.product_rb_aj400_d8_l12",
+      "sku": "AA-RB-AJ400-D8-L12",
+      "commercial_size": "Ø8",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0JW4BJB9Z677ESAZH",
+      "product_id": "01M19CWBRWZCKPXGV9PDPWP7W6",
+      "xid": "ahanassa_marketplace.product_rb_aj500_d16_l12",
+      "sku": "AA-RB-AJ500-D16-L12",
+      "commercial_size": "Ø16",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0K3FY63E3WFA8EGGP",
+      "product_id": "01M19CWBRWZCKPXGV9PDPWP7W6",
+      "xid": "ahanassa_marketplace.product_rb_aj500_d22_l12",
+      "sku": "AA-RB-AJ500-D22-L12",
+      "commercial_size": "Ø22",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0MP2R0N5Y8Y08XYMB",
+      "product_id": "01M19CWBRWZCKPXGV9PDPWP7W6",
+      "xid": "ahanassa_marketplace.product_rb_aj500_d12_l12",
+      "sku": "AA-RB-AJ500-D12-L12",
+      "commercial_size": "Ø12",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0NZMNNV3F3QYMN2V2",
+      "product_id": "01M19CWBRWD6MR5F6DYDJ6A4RV",
+      "xid": "ahanassa_marketplace.product_rb_s240_d10_l12",
+      "sku": "AA-RB-S240-D10-L12",
+      "commercial_size": "Ø10",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0PAB9B4SEB6NZ322V",
+      "product_id": "01M19CWBRWGPT9AQ2XMN4B7TCT",
+      "xid": "ahanassa_marketplace.product_rb_aj400_d12_l12",
+      "sku": "AA-RB-AJ400-D12-L12",
+      "commercial_size": "Ø12",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0QABZVNH1YDWM5H49",
+      "product_id": "01M19CWBRW383BTSNJ9KVRN7R2",
+      "xid": "ahanassa_marketplace.product_pp_smls_a106b_s168p275x7p112_l6",
+      "sku": "AA-PP-SMLS-A106B-S168P275X7P112-L6",
+      "commercial_size": "168.275×7.112 SCH40",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0RDFP53KWXWHJD480",
+      "product_id": "01M19CWBRWD6MR5F6DYDJ6A4RV",
+      "xid": "ahanassa_marketplace.product_rb_s240_d22_l12",
+      "sku": "AA-RB-S240-D22-L12",
+      "commercial_size": "Ø22",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0RM6ZFDRQ7AKFF4QD",
+      "product_id": "01M19CWBRW383BTSNJ9KVRN7R2",
+      "xid": "ahanassa_marketplace.product_pp_smls_a106b_s48p26x3p683_l6",
+      "sku": "AA-PP-SMLS-A106B-S48P26X3P683-L6",
+      "commercial_size": "48.26×3.683 SCH40",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0T8CREWCC0BMA9DD6",
+      "product_id": "01M19CWBRW383BTSNJ9KVRN7R2",
+      "xid": "ahanassa_marketplace.product_pp_smls_a106b_s21p336x2p769_l6",
+      "sku": "AA-PP-SMLS-A106B-S21P336X2P769-L6",
+      "commercial_size": "21.336×2.769 SCH40",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0TFH983WWHRQ61653",
+      "product_id": "01M19CWBRWGPT9AQ2XMN4B7TCT",
+      "xid": "ahanassa_marketplace.product_rb_aj400_d25_l12",
+      "sku": "AA-RB-AJ400-D25-L12",
+      "commercial_size": "Ø25",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0WE0S8Q5HTJG2KMWE",
+      "product_id": "01M19CWBRW383BTSNJ9KVRN7R2",
+      "xid": "ahanassa_marketplace.product_pp_smls_a106b_s42p164x3p556_l6",
+      "sku": "AA-PP-SMLS-A106B-S42P164X3P556-L6",
+      "commercial_size": "42.164×3.556 SCH40",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0WE5SE6SK063N3VZV",
+      "product_id": "01M19CWBRWGPT9AQ2XMN4B7TCT",
+      "xid": "ahanassa_marketplace.product_rb_aj400_d18_l12",
+      "sku": "AA-RB-AJ400-D18-L12",
+      "commercial_size": "Ø18",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0WGF0GFSA7DQEGTFR",
+      "product_id": "01M19CWBRWZCKPXGV9PDPWP7W6",
+      "xid": "ahanassa_marketplace.product_rb_aj500_d32_l12",
+      "sku": "AA-RB-AJ500-D32-L12",
+      "commercial_size": "Ø32",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0WKR4WYEV9X7T3X9J",
+      "product_id": "01M19CWBRWD6MR5F6DYDJ6A4RV",
+      "xid": "ahanassa_marketplace.product_rb_s240_d18_l12",
+      "sku": "AA-RB-S240-D18-L12",
+      "commercial_size": "Ø18",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0WNYT3H5SYK6SMG9S",
+      "product_id": "01M19CWBRWZCKPXGV9PDPWP7W6",
+      "xid": "ahanassa_marketplace.product_rb_aj500_d25_l12",
+      "sku": "AA-RB-AJ500-D25-L12",
+      "commercial_size": "Ø25",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0YDA9TW6913GJA03H",
+      "product_id": "01M19CWBRWD6MR5F6DYDJ6A4RV",
+      "xid": "ahanassa_marketplace.product_rb_s240_d32_l12",
+      "sku": "AA-RB-S240-D32-L12",
+      "commercial_size": "Ø32",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0YEVCKE32X1QJ5ZSN",
+      "product_id": "01M19CWBRWD6MR5F6DYDJ6A4RV",
+      "xid": "ahanassa_marketplace.product_rb_s240_d28_l12",
+      "sku": "AA-RB-S240-D28-L12",
+      "commercial_size": "Ø28",
+      "is_active": 1
+    },
+    {
+      "id": "01M19CWBS0ZBKXFDG7SBMERGJ8",
+      "product_id": "01M19CWBRW383BTSNJ9KVRN7R2",
+      "xid": "ahanassa_marketplace.product_pp_smls_a106b_s73p025x5p156_l6",
+      "sku": "AA-PP-SMLS-A106B-S73P025X5P156-L6",
+      "commercial_size": "73.025×5.156 SCH40",
+      "is_active": 1
+    }
+  ],
+  "product_seo_contents": [
+    {
+      "entity_type": "product",
+      "entity_id": "01M19CWBRW88XJTEKC3S6M2J57",
+      "locale": "fa",
+      "slug": "square-hollow-section-shs",
+      "is_published": 1
+    },
+    {
+      "entity_type": "product",
+      "entity_id": "01M19CWBRWP4V1FAGPPWNKKFCR",
+      "locale": "fa",
+      "slug": "rebar-aj340",
+      "is_published": 1
+    },
+    {
+      "entity_type": "product",
+      "entity_id": "01M19CWBRWVJZCCBD5SA22VDCM",
+      "locale": "fa",
+      "slug": "hot-rolled-plate-s355jr",
+      "is_published": 1
+    }
+  ]
+}
