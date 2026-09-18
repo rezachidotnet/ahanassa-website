@@ -13,6 +13,14 @@ import { type RfqUomCode } from "./uom.ts";
  * request UoMs for Launch. This module encodes that confirmed policy — it
  * does not invent, guess, or extend it.
  *
+ * ANGLE/CHANNEL added (DAR-056, PRE-P3F-D1, 2026-09-18) per the Odoo-side
+ * authoritative handoff
+ * (docs/integrations/odoo/backend-handoff/ODOO_WEBSITE_CURRENT_CATALOG_CONTRACT_HANDOFF.md
+ * "ANGLE CHANNEL CONTRACT"): programmatically verified against all 19
+ * Angle/Channel pilot variants' `allowed_commercial_units` (5 Equal Angle
+ * under `CTMPL-000017`, 7 UPN + 7 UPE under `CTMPL-000018`/`-19`) — every
+ * one of the 19 rows carries exactly `"kg, ton, meter"`, no `branch`.
+ *
  * Keyed by `product_variants.group_code` (via
  * `lib/catalog/editorial-repository.ts#RfqCatalogSelection.groupCode`) —
  * the least brittle stable Product Master identifier that exactly matches
@@ -27,6 +35,8 @@ export const LAUNCH_GROUP_UOM_POLICY: Readonly<Record<string, readonly RfqUomCod
   REBAR: ["kg", "ton", "branch"],
   SHEET_PLATE: ["kg", "ton", "sheet"],
   SHS: ["kg", "ton", "meter"],
+  ANGLE: ["kg", "ton", "meter"],
+  CHANNEL: ["kg", "ton", "meter"],
 };
 
 /**

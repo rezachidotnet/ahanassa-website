@@ -16,6 +16,8 @@ function apiProduct(overrides: Partial<CatalogApiProduct> = {}): CatalogApiProdu
   return {
     id: "ahanassa_marketplace.product_rb_aj340_d10_l12",
     template_id: "ahanassa_marketplace.product_tmpl_rb_aj340",
+    canonical_id: "CVAR-000001",
+    canonical_template_id: "CTMPL-000001",
     sku: "AA-RB-AJ340-D10-L12",
     name: "[AA-RB-AJ340-D10-L12] Ribbed Rebar Aj340 (A2) (Ø10)",
     template_name: "Ribbed Rebar Aj340 (A2)",
@@ -43,7 +45,10 @@ function existingVariant(overrides: Partial<ProductVariant> = {}): ProductVarian
   return {
     id: "var_local_1",
     productId: "prod_local_1",
-    xid: "ahanassa_marketplace.product_rb_aj340_d10_l12",
+    // Already-migrated (canonical) identity — the steady state most of this
+    // suite's "update"/"unchanged"/"deactivate" tests exercise. Dedicated
+    // migration tests below use an explicit legacy-xid override instead.
+    xid: "CVAR-000001",
     sku: "AA-RB-AJ340-D10-L12",
     commercialName: "[AA-RB-AJ340-D10-L12] Ribbed Rebar Aj340 (A2) (Ø10)",
     nameFa: "میلگرد آجدار Aj340 سایز 10 (ویرایش‌شده توسط ادیتور)",
@@ -75,11 +80,11 @@ function existingVariant(overrides: Partial<ProductVariant> = {}): ProductVarian
 
 // --- create ---
 
-test("planCatalogV1Sync creates a brand-new variant with commercial fields bootstrapped from Odoo", () => {
+test("planCatalogV1Sync creates a brand-new variant, resolving identity from canonical_id/canonical_template_id (DAR-056)", () => {
   const plan = planCatalogV1Sync([apiProduct()], [], true);
   assert.equal(plan.toCreate.length, 1);
-  assert.equal(plan.toCreate[0].xid, "ahanassa_marketplace.product_rb_aj340_d10_l12");
-  assert.equal(plan.toCreate[0].templateXid, "ahanassa_marketplace.product_tmpl_rb_aj340");
+  assert.equal(plan.toCreate[0].xid, "CVAR-000001");
+  assert.equal(plan.toCreate[0].templateXid, "CTMPL-000001");
   assert.equal(plan.toCreate[0].sku, "AA-RB-AJ340-D10-L12");
   assert.equal(plan.toCreate[0].commercialName, apiProduct().name);
   assert.deepEqual(plan.toCreate[0].grade, { code: "AJ340", name: "Aj340 (market A2)" });
@@ -162,6 +167,83 @@ test("planCatalogV1Sync replayed with identical data twice produces no update/cr
   assert.equal(second.toCreate.length, 0);
   assert.equal(second.toUpdate.length, 0);
   assert.deepEqual(second.unchanged, ["var_local_1"]);
+});
+
+// --- canonical identity (DAR-056, PRE-P3F-D1) ---
+
+function canonicalOnlyApiProduct(overrides: Partial<CatalogApiProduct> = {}): CatalogApiProduct {
+  return apiProduct({
+    id: null,
+    template_id: null,
+    canonical_id: "CVAR-000242",
+    canonical_template_id: "CTMPL-000017",
+    sku: "AA-AN-EQ-S50X50X5",
+    commercial_size: "50X50X5",
+    section_size: null,
+    allowed_commercial_units: "kg, ton, meter",
+    classification: {
+      family: { code: "LONG_PRODUCTS", name: "Long Products" },
+      group: { code: "ANGLE", name: "Angle" },
+      form: { code: "EQUAL_ANGLE", name: "Equal Angle" },
+    },
+    grade: { code: null, name: null },
+    dimensions: { width_mm: 50, height_mm: 50, thickness_mm: 5 },
+    nominal_weight: { kg_m: 3.77 },
+    ...overrides,
+  });
+}
+
+test("A: planCatalogV1Sync creates a canonical-only row (id/template_id null) with no existing rows to match against", () => {
+  const plan = planCatalogV1Sync([canonicalOnlyApiProduct()], [], true);
+  assert.equal(plan.toCreate.length, 1);
+  assert.equal(plan.toCreate[0].xid, "CVAR-000242");
+  assert.equal(plan.toCreate[0].templateXid, "CTMPL-000017");
+  assert.equal(plan.toCreate[0].sku, "AA-AN-EQ-S50X50X5");
+});
+
+test("B: planCatalogV1Sync resolves a legacy+canonical row's identity to canonical_id, not the legacy id", () => {
+  const plan = planCatalogV1Sync([apiProduct()], [], true);
+  assert.equal(plan.toCreate[0].xid, apiProduct().canonical_id);
+  assert.notEqual(plan.toCreate[0].xid, apiProduct().id);
+});
+
+test("MIGRATION: an existing row still keyed by the legacy xid is matched via row.id and migrated to canonical_id in place, not duplicated", () => {
+  const legacyKeyedExisting = existingVariant({ xid: "ahanassa_marketplace.product_rb_aj340_d10_l12" });
+  const plan = planCatalogV1Sync([apiProduct()], [legacyKeyedExisting], true);
+  assert.equal(plan.toCreate.length, 0, "must not duplicate an already-synced legacy row");
+  assert.equal(plan.toUpdate.length, 1);
+  assert.equal(plan.toUpdate[0].id, "var_local_1");
+  assert.equal(plan.toUpdate[0].patch.xid, "CVAR-000001");
+});
+
+test("MIGRATION: once a row's xid is already canonical, replaying the same data never re-touches xid again (one-time, idempotent)", () => {
+  const alreadyMigrated = existingVariant({ xid: "CVAR-000001", catalogUpdatedAt: normalizeCatalogTimestamp(apiProduct().updated_at) });
+  const plan = planCatalogV1Sync([apiProduct()], [alreadyMigrated], true);
+  assert.equal(plan.toCreate.length, 0);
+  assert.equal(plan.toUpdate.length, 0);
+  assert.deepEqual(plan.unchanged, ["var_local_1"]);
+});
+
+test("MIGRATION: a legacy-keyed existing row is not wrongly deactivated during its own migration run (seenXids tracks both identity forms)", () => {
+  const legacyKeyedExisting = existingVariant({ xid: "ahanassa_marketplace.product_rb_aj340_d10_l12" });
+  const plan = planCatalogV1Sync([apiProduct()], [legacyKeyedExisting], true);
+  assert.deepEqual(plan.toDeactivate, []);
+});
+
+test("MIGRATION: templateIdentity is deduped per canonical_template_id across multiple variants of the same template", () => {
+  const variant1 = apiProduct({ canonical_id: "CVAR-000242" });
+  const variant2 = apiProduct({ canonical_id: "CVAR-000243", sku: "AA-AN-EQ-S60X60X6" });
+  const plan = planCatalogV1Sync([variant1, variant2], [], true);
+  assert.equal(plan.templateIdentity.length, 1);
+  assert.equal(plan.templateIdentity[0].canonicalTemplateXid, "CTMPL-000001");
+  assert.equal(plan.templateIdentity[0].legacyTemplateXid, "ahanassa_marketplace.product_tmpl_rb_aj340");
+});
+
+test("MIGRATION: templateIdentity carries a null legacyTemplateXid for a canonical-only (Angle/Channel pilot) template", () => {
+  const plan = planCatalogV1Sync([canonicalOnlyApiProduct()], [], true);
+  assert.equal(plan.templateIdentity.length, 1);
+  assert.equal(plan.templateIdentity[0].canonicalTemplateXid, "CTMPL-000017");
+  assert.equal(plan.templateIdentity[0].legacyTemplateXid, null);
 });
 
 // --- timestamp normalization ---

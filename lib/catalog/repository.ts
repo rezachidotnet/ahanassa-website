@@ -113,11 +113,40 @@ export async function getAllVariantsForSync(): Promise<ProductVariant[]> {
 
 // --- Writes (sync orchestrator only — never called from a public route) ---
 
-/** Idempotent: returns the existing row's id if `templateXid` is already mapped, otherwise creates one. */
-export async function ensureCatalogProduct(templateXid: string, commercialTemplateName: string, nameFa: string, slugFa: string): Promise<string> {
+/**
+ * Idempotent: returns the existing row's id if `canonicalTemplateXid` (or,
+ * for a not-yet-migrated legacy row, `legacyTemplateXid`) is already
+ * mapped, otherwise creates one keyed by `canonicalTemplateXid`.
+ *
+ * MIGRATION SAFETY (DAR-056, PRE-P3F-D1): looks up by the resolved
+ * canonical identity first; only when that misses AND a legacy identity is
+ * given does it fall back to a legacy-keyed lookup, and if found, migrates
+ * that row's `template_xid` to the canonical value in place — a one-time,
+ * idempotent reconciliation (lib/catalog/sync.ts file header). This runs
+ * for every row this task's sync applies (create AND update — see
+ * `sync-runner.ts#applyPlan`), so an already-migrated row costs one no-op
+ * SELECT and a not-yet-migrated one self-heals the next time it is synced,
+ * without requiring a separate one-off migration script.
+ */
+export async function ensureCatalogProduct(
+  canonicalTemplateXid: string,
+  legacyTemplateXid: string | null,
+  commercialTemplateName: string,
+  nameFa: string,
+  slugFa: string,
+): Promise<string> {
   const db = getPublicDb();
-  const existing = await db.prepare(`SELECT id FROM catalog_products WHERE template_xid = ?`).bind(templateXid).first<{ id: string }>();
+  const existing = await db.prepare(`SELECT id FROM catalog_products WHERE template_xid = ?`).bind(canonicalTemplateXid).first<{ id: string }>();
   if (existing) return existing.id;
+
+  if (legacyTemplateXid) {
+    const legacy = await db.prepare(`SELECT id FROM catalog_products WHERE template_xid = ?`).bind(legacyTemplateXid).first<{ id: string }>();
+    if (legacy) {
+      const now = new Date().toISOString();
+      await db.prepare(`UPDATE catalog_products SET template_xid = ?, updated_at = ? WHERE id = ?`).bind(canonicalTemplateXid, now, legacy.id).run();
+      return legacy.id;
+    }
+  }
 
   const id = ulid();
   const now = new Date().toISOString();
@@ -127,14 +156,14 @@ export async function ensureCatalogProduct(templateXid: string, commercialTempla
         `INSERT INTO catalog_products (id, template_xid, commercial_template_name, name_fa, slug_fa, is_active, is_public, sync_status, last_synced_at, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, 1, 0, 'synced', ?, ?, ?)`,
       )
-      .bind(id, templateXid, commercialTemplateName, nameFa, slugFa, now, now, now)
+      .bind(id, canonicalTemplateXid, commercialTemplateName, nameFa, slugFa, now, now, now)
       .run();
     return id;
   } catch (err) {
     // Concurrent sync runs racing to create the same template — the UNIQUE
     // constraint on template_xid is the real guard; lose gracefully.
     if (isUniqueConstraintError(err)) {
-      const winner = await db.prepare(`SELECT id FROM catalog_products WHERE template_xid = ?`).bind(templateXid).first<{ id: string }>();
+      const winner = await db.prepare(`SELECT id FROM catalog_products WHERE template_xid = ?`).bind(canonicalTemplateXid).first<{ id: string }>();
       if (winner) return winner.id;
     }
     throw err;
@@ -200,7 +229,14 @@ export async function createVariant(productId: string, input: VariantCreateInput
     .run();
 }
 
-/** Updates only Odoo-owned commercial fields — never `name_fa`/`slug_fa` (CLAUDE.md "editorial preservation"). */
+/**
+ * Updates only Odoo-owned commercial fields — never `name_fa`/`slug_fa`
+ * (CLAUDE.md "editorial preservation"). When `patch.xid` is present (DAR-056
+ * migration case — see `lib/catalog/sync.ts` file header), also migrates
+ * the row's identity column to the resolved canonical value in the same
+ * statement; otherwise `xid` is left untouched, matching the pre-existing
+ * behavior of never changing identity on a normal commercial update.
+ */
 export async function updateVariantCommercialFields(id: string, patch: VariantCommercialPatch): Promise<void> {
   const db = getPublicDb();
   const now = new Date().toISOString();
@@ -217,32 +253,35 @@ export async function updateVariantCommercialFields(id: string, patch: VariantCo
         family_code = ?, family_name = ?, group_code = ?, group_name = ?, form_code = ?, form_name = ?,
         grade_code = ?, grade_name = ?, standard_code = ?, standard_name = ?,
         dimensions_json = ?, nominal_weight_json = ?, allowed_commercial_units = ?, inventory_uom = ?,
-        catalog_updated_at = ?, is_active = 1, sync_version = sync_version + 1, last_synced_at = ?, updated_at = ?
+        catalog_updated_at = ?, is_active = 1, sync_version = sync_version + 1, last_synced_at = ?, updated_at = ?${patch.xid ? ", xid = ?" : ""}
        WHERE id = ?`,
     )
     .bind(
-      patch.commercialName,
-      patch.commercialSize,
-      patch.sectionSize,
-      patch.schedule,
-      familyCode,
-      familyName,
-      groupCode,
-      groupName,
-      formCode,
-      formName,
-      gradeCode,
-      gradeName,
-      standardCode,
-      standardName,
-      patch.dimensions ? JSON.stringify(patch.dimensions) : null,
-      patch.nominalWeight ? JSON.stringify(patch.nominalWeight) : null,
-      patch.allowedCommercialUnits,
-      patch.inventoryUom,
-      patch.catalogUpdatedAt,
-      now,
-      now,
-      id,
+      ...[
+        patch.commercialName,
+        patch.commercialSize,
+        patch.sectionSize,
+        patch.schedule,
+        familyCode,
+        familyName,
+        groupCode,
+        groupName,
+        formCode,
+        formName,
+        gradeCode,
+        gradeName,
+        standardCode,
+        standardName,
+        patch.dimensions ? JSON.stringify(patch.dimensions) : null,
+        patch.nominalWeight ? JSON.stringify(patch.nominalWeight) : null,
+        patch.allowedCommercialUnits,
+        patch.inventoryUom,
+        patch.catalogUpdatedAt,
+        now,
+        now,
+        ...(patch.xid ? [patch.xid] : []),
+        id,
+      ],
     )
     .run();
 }

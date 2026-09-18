@@ -140,6 +140,11 @@ test("SEAMLESS_PIPE: grade prefix + SCH-suffixed commercial size — never appen
   assert.equal(spec, "A106_GR_B · 114.3×6.02 SCH40");
 });
 
+test("K: ANGLE (DAR-056) — section_size null, commercial_size populated renders safely, never a fixed-shape assumption", () => {
+  const spec = formatCompactVariantSpecification({ grade: { code: null, name: null }, commercialSize: "50X50X5", sectionSize: null, sku: "AA-AN-EQ-S50X50X5" });
+  assert.equal(spec, "50X50X5");
+});
+
 test("falls back to sectionSize when commercialSize is null", () => {
   const spec = formatCompactVariantSpecification({ grade: { code: null, name: null }, commercialSize: null, sectionSize: "100", sku: "AA-BM-INP-S100-L12" });
   assert.equal(spec, "100");

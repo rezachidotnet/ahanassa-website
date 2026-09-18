@@ -17,6 +17,7 @@ import {
   buildDeactivateVariantsSql,
   buildInsertCatalogProductSql,
   buildInsertVariantSql,
+  buildMigrateCatalogProductTemplateXidSql,
   buildRecordAttemptStartSql,
   buildRecordFailureSql,
   buildRecordSuccessSql,
@@ -150,22 +151,39 @@ function getAllExisting(env: CliEnv): ProductVariant[] {
 function applyPlanRemote(env: CliEnv, plan: ReturnType<typeof planCatalogV1Sync>, now: string): { created: number; updated: number; deactivated: number } {
   const templateIdCache = new Map<string, string>();
 
-  function ensureCatalogProductId(templateXid: string, commercialTemplateName: string): string {
-    const cached = templateIdCache.get(templateXid);
+  // DAR-056 migration reconciliation — mirrors lib/catalog/sync-runner.ts#applyPlan
+  // exactly: look up by the resolved canonical template identity first,
+  // fall back to a legacy-keyed lookup and migrate in place if found,
+  // otherwise create fresh. See lib/catalog/sync.ts file header "MIGRATION SAFETY".
+  function ensureCatalogProductId(canonicalTemplateXid: string, legacyTemplateXid: string | null, commercialTemplateName: string): string {
+    const cached = templateIdCache.get(canonicalTemplateXid);
     if (cached) return cached;
-    const existing = runD1<{ id: string }>(env, buildSelectCatalogProductByTemplateXidSql(templateXid));
+    const existing = runD1<{ id: string }>(env, buildSelectCatalogProductByTemplateXidSql(canonicalTemplateXid));
     if (existing.length > 0) {
-      templateIdCache.set(templateXid, existing[0].id);
+      templateIdCache.set(canonicalTemplateXid, existing[0].id);
       return existing[0].id;
     }
+    if (legacyTemplateXid) {
+      const legacy = runD1<{ id: string }>(env, buildSelectCatalogProductByTemplateXidSql(legacyTemplateXid));
+      if (legacy.length > 0) {
+        runD1(env, buildMigrateCatalogProductTemplateXidSql(legacy[0].id, canonicalTemplateXid, now));
+        templateIdCache.set(canonicalTemplateXid, legacy[0].id);
+        return legacy[0].id;
+      }
+    }
     const id = ulid();
-    runD1(env, buildInsertCatalogProductSql({ id, templateXid, commercialTemplateName, nameFa: commercialTemplateName, slugFa: slugifyTemplateXid(templateXid), now }));
-    templateIdCache.set(templateXid, id);
+    runD1(env, buildInsertCatalogProductSql({ id, templateXid: canonicalTemplateXid, commercialTemplateName, nameFa: commercialTemplateName, slugFa: slugifyTemplateXid(canonicalTemplateXid), now }));
+    templateIdCache.set(canonicalTemplateXid, id);
     return id;
   }
 
+  for (const t of plan.templateIdentity) {
+    ensureCatalogProductId(t.canonicalTemplateXid, t.legacyTemplateXid, t.commercialTemplateName);
+  }
+
   for (const item of plan.toCreate) {
-    const productId = ensureCatalogProductId(item.templateXid, item.commercialTemplateName);
+    const productId = templateIdCache.get(item.templateXid);
+    if (!productId) throw new Error(`Catalog sync invariant violated: no reconciled product id for template ${item.templateXid}`);
     runD1(env, buildInsertVariantSql(ulid(), productId, item, item.commercialName, slugifyFromSku(item.sku), now));
   }
   for (const { id, patch } of plan.toUpdate) {

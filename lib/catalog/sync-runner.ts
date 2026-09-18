@@ -62,13 +62,20 @@ async function applyPlan(apiProducts: CatalogApiProduct[], isFullPull: boolean, 
   const existing = prefetchedExisting ?? (await getAllVariantsForSync());
   const plan = planCatalogV1Sync(apiProducts, existing, isFullPull);
 
+  // DAR-056 migration reconciliation pass — runs once per distinct template
+  // for EVERY row this pull touched (create AND update), so an already-synced
+  // legacy template's `catalog_products.template_xid` self-heals to the
+  // canonical value the moment its Odoo data changes, not just on first sync.
+  // See lib/catalog/sync.ts file header "MIGRATION SAFETY".
+  const templateIdByCanonical = new Map<string, string>();
+  for (const t of plan.templateIdentity) {
+    const productId = await ensureCatalogProduct(t.canonicalTemplateXid, t.legacyTemplateXid, t.commercialTemplateName, t.commercialTemplateName, slugifyTemplateXid(t.canonicalTemplateXid));
+    templateIdByCanonical.set(t.canonicalTemplateXid, productId);
+  }
+
   for (const item of plan.toCreate) {
-    const productId = await ensureCatalogProduct(
-      item.templateXid,
-      item.commercialTemplateName,
-      item.commercialTemplateName, // catalog_products.name_fa bootstrap — website-owned, editable later, never touched again by sync
-      slugifyTemplateXid(item.templateXid),
-    );
+    const productId = templateIdByCanonical.get(item.templateXid);
+    if (!productId) throw new Error(`Catalog sync invariant violated: no reconciled product id for template ${item.templateXid}`);
     await createVariant(productId, item, item.commercialName, slugifyFromSku(item.sku));
   }
 

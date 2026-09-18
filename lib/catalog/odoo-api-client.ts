@@ -40,6 +40,26 @@ import { getOdooCatalogApiBaseUrl } from "../env.ts";
  *     here specifically because `nominal_weight` is stored as opaque JSON,
  *     not a hardcoded field name, but flagged because relying on the
  *     documented example key would have been silently wrong.
+ *
+ * IDENTITY MODEL UPDATE (DAR-056, PRE-P3F-D1, 2026-09-18) — superseding the
+ * `id`/`template_id`-are-always-non-null assumption this file previously
+ * encoded. Per the Odoo-side authoritative handoff
+ * (docs/integrations/odoo/backend-handoff/ODOO_WEBSITE_CURRENT_CATALOG_CONTRACT_HANDOFF.md,
+ * verified against live Odoo code/production DB by the Odoo team, Phase
+ * PRODUCT-MASTER-UI-P1, production since 2026-09-15):
+ *   - `id`/`template_id` are the LEGACY `ir.model.data` XIDs, retained only
+ *     for backward compatibility. They are `null` for any product created
+ *     through the Product Master UI that never received one (first
+ *     realized by the Angle/Channel pilot, `CVAR-000242`.. — still `draft`
+ *     in production at handoff time).
+ *   - `canonical_id`/`canonical_template_id` (`CVAR-…`/`CTMPL-…`) are the
+ *     real, always-populated (`required=True` + unique-constrained on the
+ *     Odoo side), preferred stable identity going forward — present and
+ *     non-null on every row, legacy or canonical-only, past and future.
+ * Website's resolved identity is therefore always `canonical_id`/
+ * `canonical_template_id` — `id`/`template_id` are read only for
+ * migration/reconciliation of already-synced legacy rows (lib/catalog/sync.ts)
+ * and are never the primary key.
  */
 
 const DEFAULT_TIMEOUT_MS = 8_000;
@@ -51,8 +71,14 @@ export interface CatalogClassificationEntry {
 
 /** A single product-variant row — identical shape in both list and detail responses (verified live). */
 export interface CatalogApiProduct {
-  id: string; // product_variant_xid — the durable identity (CatalogClassificationEntry, CLAUDE.md "Stable Identity")
-  template_id: string; // template xid — groups variants
+  /** Legacy `ir.model.data` XID — nullable (null for Product-Master-UI-era products that never had one). Retained for backward-compat/reconciliation only — never the resolved identity. See file header, DAR-056. */
+  id: string | null;
+  /** Legacy template XID — same nullable, compat-only status as `id`. */
+  template_id: string | null;
+  /** `CVAR-…` — the real, always-populated stable variant identity. Required, never null, on any row past or future. */
+  canonical_id: string;
+  /** `CTMPL-…` — the real, always-populated stable template identity. Required, never null, on any row past or future. */
+  canonical_template_id: string;
   sku: string;
   name: string;
   template_name: string; // undocumented in the MD/report prose; present on every live response
@@ -278,8 +304,12 @@ function isValidProduct(value: unknown): value is CatalogApiProduct {
   if (typeof value !== "object" || value === null) return false;
   const p = value as Record<string, unknown>;
   return (
-    typeof p.id === "string" &&
-    typeof p.template_id === "string" &&
+    (p.id === null || typeof p.id === "string") &&
+    (p.template_id === null || typeof p.template_id === "string") &&
+    typeof p.canonical_id === "string" &&
+    p.canonical_id.length > 0 &&
+    typeof p.canonical_template_id === "string" &&
+    p.canonical_template_id.length > 0 &&
     typeof p.sku === "string" &&
     typeof p.name === "string" &&
     typeof p.active === "boolean" &&

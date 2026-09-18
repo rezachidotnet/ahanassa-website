@@ -80,6 +80,57 @@ for (const unit of ALL_UOMS) {
   });
 }
 
+// --- Catalog: Angle (group_code "ANGLE") — DAR-056, PRE-P3F-D1 ---
+
+const angleExpected: Record<RfqUomCode, boolean> = {
+  kg: true,
+  ton: true,
+  meter: true,
+  branch: false,
+  sheet: false,
+  coil: false,
+  bundle: false,
+  piece: false,
+};
+
+for (const unit of ALL_UOMS) {
+  test(`H: Angle + ${unit} -> ${angleExpected[unit] ? "PASS" : "FAIL"}`, () => {
+    assert.equal(isUomAllowedForCatalogGroup("ANGLE", unit), angleExpected[unit]);
+  });
+}
+
+// --- Catalog: Channel (group_code "CHANNEL") — DAR-056, PRE-P3F-D1 ---
+
+const channelExpected: Record<RfqUomCode, boolean> = {
+  kg: true,
+  ton: true,
+  meter: true,
+  branch: false,
+  sheet: false,
+  coil: false,
+  bundle: false,
+  piece: false,
+};
+
+for (const unit of ALL_UOMS) {
+  test(`I: Channel + ${unit} -> ${channelExpected[unit] ? "PASS" : "FAIL"}`, () => {
+    assert.equal(isUomAllowedForCatalogGroup("CHANNEL", unit), channelExpected[unit]);
+  });
+}
+
+test("J: Angle + branch -> invalid (no branch UoM exposed for Angle)", () => {
+  assert.equal(isUomAllowedForCatalogGroup("ANGLE", "branch"), false);
+});
+test("J: Channel + branch -> invalid (no branch UoM exposed for Channel)", () => {
+  assert.equal(isUomAllowedForCatalogGroup("CHANNEL", "branch"), false);
+});
+test("Angle + meter -> valid (explicit cross-check)", () => {
+  assert.equal(isUomAllowedForCatalogGroup("ANGLE", "meter"), true);
+});
+test("Channel + meter -> valid (explicit cross-check)", () => {
+  assert.equal(isUomAllowedForCatalogGroup("CHANNEL", "meter"), true);
+});
+
 // --- Custom / free-text ---
 
 const customExpected: Record<RfqUomCode, boolean> = {
@@ -158,6 +209,8 @@ test("getDefaultUomForCatalogGroup returns kg for every confirmed group and for 
   assert.equal(getDefaultUomForCatalogGroup("REBAR"), "kg");
   assert.equal(getDefaultUomForCatalogGroup("SHEET_PLATE"), "kg");
   assert.equal(getDefaultUomForCatalogGroup("SHS"), "kg");
+  assert.equal(getDefaultUomForCatalogGroup("ANGLE"), "kg");
+  assert.equal(getDefaultUomForCatalogGroup("CHANNEL"), "kg");
   assert.equal(getDefaultUomForCatalogGroup("BEAMS"), "kg");
   assert.equal(getDefaultUomForCatalogGroup(null), "kg");
 });

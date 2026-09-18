@@ -5,6 +5,7 @@ import {
   buildDeactivateVariantsSql,
   buildInsertCatalogProductSql,
   buildInsertVariantSql,
+  buildMigrateCatalogProductTemplateXidSql,
   buildRecordAttemptStartSql,
   buildRecordFailureSql,
   buildRecordSuccessSql,
@@ -107,6 +108,23 @@ test("buildUpdateVariantCommercialFieldsSql never touches name_fa/slug_fa/is_pub
 test("buildUpdateVariantCommercialFieldsSql scopes the UPDATE to the given id", () => {
   const sql = buildUpdateVariantCommercialFieldsSql("var-42", patch, "2026-09-01T00:00:00.000Z");
   assert.ok(sql.endsWith("WHERE id = 'var-42';"));
+});
+
+test("F: buildUpdateVariantCommercialFieldsSql migrates xid in the same statement when patch.xid is present (DAR-056)", () => {
+  const migratingPatch: VariantCommercialPatch = { ...patch, xid: "CVAR-000123" };
+  const sql = buildUpdateVariantCommercialFieldsSql("var-42", migratingPatch, "2026-09-01T00:00:00.000Z");
+  assert.ok(sql.includes("xid = 'CVAR-000123'"));
+  assert.ok(sql.endsWith("WHERE id = 'var-42';"));
+});
+
+test("buildUpdateVariantCommercialFieldsSql never touches xid when patch.xid is absent (steady-state, already-canonical row)", () => {
+  const sql = buildUpdateVariantCommercialFieldsSql("var-42", patch, "2026-09-01T00:00:00.000Z");
+  assert.ok(!sql.includes("xid ="));
+});
+
+test("buildMigrateCatalogProductTemplateXidSql migrates a catalog_products row's identity column in place", () => {
+  const sql = buildMigrateCatalogProductTemplateXidSql("prod-1", "CTMPL-000017", "2026-09-01T00:00:00.000Z");
+  assert.equal(sql, "UPDATE catalog_products SET template_xid = 'CTMPL-000017', updated_at = '2026-09-01T00:00:00.000Z' WHERE id = 'prod-1';");
 });
 
 test("buildDeactivateVariantsSql returns null for an empty id list (no-op, never a WHERE IN () syntax error)", () => {

@@ -30,6 +30,32 @@ import type { ClassificationRef, ProductVariant } from "./types.ts";
  * *full* pull. Callers must not pass an incremental (`updated_since`
  * filtered) result set to `detectDeactivations` — see `planCatalogV1Sync`'s
  * `isFullPull` parameter.
+ *
+ * IDENTITY RESOLUTION (DAR-056, PRE-P3F-D1, 2026-09-18): the resolved
+ * identity fed into `xid`/`templateXid` is always `row.canonical_id`/
+ * `row.canonical_template_id` — never the legacy `row.id`/`row.template_id`
+ * (per docs/integrations/odoo/backend-handoff/ODOO_WEBSITE_CURRENT_CATALOG_CONTRACT_HANDOFF.md
+ * "WEBSITE MIGRATION GUIDANCE": canonical_id is unconditionally populated,
+ * so preferring it is always at least as correct, and the website's
+ * existing `xid`/`template_xid` columns are kept — only the value that
+ * populates them changes).
+ *
+ * MIGRATION SAFETY — the critical compatibility checkpoint (task's own §5):
+ * every already-synced production row currently has `xid` populated from
+ * the OLD identity field (the legacy `id`), since that is what the
+ * ingestion boundary wrote before this change. Blindly matching existing
+ * rows by `row.canonical_id` alone would therefore treat every one of
+ * those rows as unseen and re-`toCreate` them — silent duplication. To
+ * avoid that, matching against `existing` tries the resolved canonical
+ * identity FIRST (covers rows already migrated, or genuinely new rows),
+ * then falls back to the legacy `row.id`/`row.template_id` (covers a
+ * not-yet-migrated legacy row). A fallback match produces a `toUpdate`
+ * whose patch also migrates `xid`/`templateXid` in place to the canonical
+ * value — a one-time, idempotent, self-healing reconciliation: once
+ * migrated, subsequent runs match directly on `canonical_id` and never
+ * touch the identity columns again. No new storage/columns are added —
+ * `xid`/`templateXid` are re-populated, not renamed (per the handoff's own
+ * "Website may keep its internal columns named xid/template_xid" guidance).
  */
 
 export interface VariantCreateInput {
@@ -69,6 +95,16 @@ export interface VariantCommercialPatch {
   inventoryUom: string | null;
   catalogUpdatedAt: string;
   isActive: true;
+  /** Only present when this row's stored `xid` still holds the legacy identity and must be migrated to `canonical_id` in place — see file header "MIGRATION SAFETY". Absent (never touched) once a row is already canonical. */
+  xid?: string;
+}
+
+/** One distinct template's resolved identity, deduped across all variant rows under it, for the apply-time reconciliation pass (`lib/catalog/sync-runner.ts`) — see file header "MIGRATION SAFETY". */
+export interface TemplateIdentityInput {
+  canonicalTemplateXid: string;
+  /** The legacy template XID from this pull, if any — used only to find and migrate an already-synced row keyed by the old value; never written as the resolved identity itself. */
+  legacyTemplateXid: string | null;
+  commercialTemplateName: string;
 }
 
 export interface CatalogV1SyncPlan {
@@ -77,25 +113,41 @@ export interface CatalogV1SyncPlan {
   /** Only ever populated when `isFullPull` is true — see file header. */
   toDeactivate: string[];
   unchanged: string[];
+  /** Deduped by `canonicalTemplateXid` — every distinct template observed in this pull, regardless of whether its variants were created/updated/unchanged. */
+  templateIdentity: TemplateIdentityInput[];
 }
 
 export function planCatalogV1Sync(apiProducts: CatalogApiProduct[], existing: ProductVariant[], isFullPull: boolean): CatalogV1SyncPlan {
   const byXid = new Map(existing.map((v) => [v.xid, v]));
   const seenXids = new Set<string>();
+  const templateIdentityByCanonical = new Map<string, TemplateIdentityInput>();
 
   const toCreate: VariantCreateInput[] = [];
   const toUpdate: CatalogV1SyncPlan["toUpdate"] = [];
   const unchanged: string[] = [];
 
   for (const row of apiProducts) {
-    seenXids.add(row.id);
+    const resolvedXid = row.canonical_id;
+    const resolvedTemplateXid = row.canonical_template_id;
+
+    seenXids.add(resolvedXid);
+    if (row.id) seenXids.add(row.id);
+
+    if (!templateIdentityByCanonical.has(resolvedTemplateXid)) {
+      templateIdentityByCanonical.set(resolvedTemplateXid, {
+        canonicalTemplateXid: resolvedTemplateXid,
+        legacyTemplateXid: row.template_id,
+        commercialTemplateName: row.template_name,
+      });
+    }
+
     const catalogUpdatedAt = normalizeCatalogTimestamp(row.updated_at);
-    const current = byXid.get(row.id);
+    const current = byXid.get(resolvedXid) ?? (row.id ? byXid.get(row.id) : undefined);
 
     if (!current) {
       toCreate.push({
-        xid: row.id,
-        templateXid: row.template_id,
+        xid: resolvedXid,
+        templateXid: resolvedTemplateXid,
         sku: row.sku,
         commercialName: row.name,
         commercialTemplateName: row.template_name,
@@ -116,7 +168,8 @@ export function planCatalogV1Sync(apiProducts: CatalogApiProduct[], existing: Pr
       continue;
     }
 
-    const changed = current.catalogUpdatedAt !== catalogUpdatedAt || !current.isActive;
+    const needsIdentityMigration = current.xid !== resolvedXid;
+    const changed = needsIdentityMigration || current.catalogUpdatedAt !== catalogUpdatedAt || !current.isActive;
     if (!changed) {
       unchanged.push(current.id);
       continue;
@@ -140,13 +193,14 @@ export function planCatalogV1Sync(apiProducts: CatalogApiProduct[], existing: Pr
         inventoryUom: row.inventory_uom,
         catalogUpdatedAt,
         isActive: true,
+        ...(needsIdentityMigration ? { xid: resolvedXid } : {}),
       },
     });
   }
 
   const toDeactivate = isFullPull ? existing.filter((v) => v.isActive && !seenXids.has(v.xid)).map((v) => v.id) : [];
 
-  return { toCreate, toUpdate, toDeactivate, unchanged };
+  return { toCreate, toUpdate, toDeactivate, unchanged, templateIdentity: [...templateIdentityByCanonical.values()] };
 }
 
 function toClassificationRef(entry: CatalogClassificationEntry | { code: null; name: null }): ClassificationRef {

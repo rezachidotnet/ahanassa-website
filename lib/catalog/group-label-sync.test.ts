@@ -40,6 +40,8 @@ function productFixture(overrides: Partial<{ group_code: string; group_name: str
     name: "[AA-RB-AJ340-D10-L12] Ribbed Rebar Aj340 (A2) (Ø10)",
     id: `ahanassa_marketplace.product_${groupCode.toLowerCase()}_1`,
     template_id: `ahanassa_marketplace.product_tmpl_${groupCode.toLowerCase()}`,
+    canonical_id: `CVAR-${groupCode}-${overrides.sku ?? "1"}`,
+    canonical_template_id: `CTMPL-${groupCode}`,
     classification: {
       family: { code: "LONG_PRODUCTS", name: "Long Products" },
       group: { code: groupCode, name: groupName },

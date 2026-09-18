@@ -25,6 +25,11 @@ export function buildSelectCatalogProductByTemplateXidSql(templateXid: string): 
   return `SELECT id FROM catalog_products WHERE template_xid = ${sqliteLiteral(templateXid)};`;
 }
 
+/** DAR-056 migration case: migrates a `catalog_products` row's identity column in place — mirrors `repository.ts#ensureCatalogProduct`'s legacy-match branch. */
+export function buildMigrateCatalogProductTemplateXidSql(id: string, canonicalTemplateXid: string, now: string): string {
+  return `UPDATE catalog_products SET template_xid = ${sqliteLiteral(canonicalTemplateXid)}, updated_at = ${sqliteLiteral(now)} WHERE id = ${sqliteLiteral(id)};`;
+}
+
 export interface InsertCatalogProductInput {
   id: string;
   templateXid: string;
@@ -64,13 +69,14 @@ export function buildInsertVariantSql(id: string, productId: string, input: Vari
   );
 }
 
-/** Mirrors `repository.ts#updateVariantCommercialFields` — never touches `name_fa`/`slug_fa`/`is_public`. */
+/** Mirrors `repository.ts#updateVariantCommercialFields` — never touches `name_fa`/`slug_fa`/`is_public`. When `patch.xid` is present (DAR-056 migration case), also migrates the identity column in the same statement. */
 export function buildUpdateVariantCommercialFieldsSql(id: string, patch: VariantCommercialPatch, now: string): string {
   const [familyCode, familyName] = classificationLiterals(patch.family);
   const [groupCode, groupName] = classificationLiterals(patch.group);
   const [formCode, formName] = classificationLiterals(patch.form);
   const [gradeCode, gradeName] = classificationLiterals(patch.grade);
   const [standardCode, standardName] = classificationLiterals(patch.standard);
+  const xidClause = patch.xid ? `, xid = ${sqliteLiteral(patch.xid)}` : "";
 
   return (
     `UPDATE product_variants SET ` +
@@ -79,7 +85,7 @@ export function buildUpdateVariantCommercialFieldsSql(id: string, patch: Variant
     `grade_code = ${gradeCode}, grade_name = ${gradeName}, standard_code = ${standardCode}, standard_name = ${standardName}, ` +
     `dimensions_json = ${sqliteLiteral(patch.dimensions ? JSON.stringify(patch.dimensions) : null)}, nominal_weight_json = ${sqliteLiteral(patch.nominalWeight ? JSON.stringify(patch.nominalWeight) : null)}, ` +
     `allowed_commercial_units = ${sqliteLiteral(patch.allowedCommercialUnits)}, inventory_uom = ${sqliteLiteral(patch.inventoryUom)}, catalog_updated_at = ${sqliteLiteral(patch.catalogUpdatedAt)}, ` +
-    `is_active = 1, sync_version = sync_version + 1, last_synced_at = ${sqliteLiteral(now)}, updated_at = ${sqliteLiteral(now)} ` +
+    `is_active = 1, sync_version = sync_version + 1, last_synced_at = ${sqliteLiteral(now)}, updated_at = ${sqliteLiteral(now)}${xidClause} ` +
     `WHERE id = ${sqliteLiteral(id)};`
   );
 }

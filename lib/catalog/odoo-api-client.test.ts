@@ -37,6 +37,8 @@ const rebarFixture = {
   name: "[AA-RB-AJ340-D10-L12] Ribbed Rebar Aj340 (A2) (Ø10)",
   id: "ahanassa_marketplace.product_rb_aj340_d10_l12",
   template_id: "ahanassa_marketplace.product_tmpl_rb_aj340",
+  canonical_id: "CVAR-000001",
+  canonical_template_id: "CTMPL-000001",
   classification: {
     family: { code: "LONG_PRODUCTS", name: "Long Products" },
     group: { code: "REBAR", name: "Rebar" },
@@ -188,4 +190,79 @@ test("fetchCatalogProductByXid URL-encodes the XID path segment", async () => {
     return new Response(JSON.stringify({ data: rebarFixture, meta: {} }), { status: 200 });
   });
   await fetchCatalogProductByXid("product with space");
+});
+
+// --- canonical identity (DAR-056, PRE-P3F-D1) ---
+
+const canonicalOnlyFixture = {
+  ...rebarFixture,
+  id: null,
+  template_id: null,
+  canonical_id: "CVAR-000242",
+  canonical_template_id: "CTMPL-000017",
+  sku: "AA-AN-EQ-S50X50X5",
+  commercial_size: "50X50X5",
+  section_size: null,
+  allowed_commercial_units: "kg, ton, meter",
+  classification: {
+    family: { code: "LONG_PRODUCTS", name: "Long Products" },
+    group: { code: "ANGLE", name: "Angle" },
+    form: { code: "EQUAL_ANGLE", name: "Equal Angle" },
+  },
+  grade: { code: null, name: null },
+  standard: { code: "EN10056-1", name: "EN 10056-1" },
+  dimensions: { width_mm: 50.0, height_mm: 50.0, thickness_mm: 5.0 },
+  nominal_weight: { kg_m: 3.77 },
+};
+
+test("A: fetchCatalogProductsPage accepts a canonical-only row (id/template_id null, canonical_id/canonical_template_id populated)", async () => {
+  globalThis.fetch = mockFetch(() => new Response(JSON.stringify({ data: [canonicalOnlyFixture], meta: { page: 1, page_size: 50, total: 1, pages: 1 } }), { status: 200 }));
+  const result = await fetchCatalogProductsPage();
+  assert.equal(result.status, "ok");
+  assert.equal(result.data?.items.length, 1);
+  assert.equal(result.data?.items[0].id, null);
+  assert.equal(result.data?.items[0].template_id, null);
+  assert.equal(result.data?.items[0].canonical_id, "CVAR-000242");
+  assert.equal(result.data?.items[0].canonical_template_id, "CTMPL-000017");
+});
+
+test("B: fetchCatalogProductsPage accepts a legacy+canonical row and preserves both identity forms", async () => {
+  globalThis.fetch = mockFetch(() => new Response(JSON.stringify({ data: [rebarFixture], meta: { page: 1, page_size: 50, total: 1, pages: 1 } }), { status: 200 }));
+  const result = await fetchCatalogProductsPage();
+  assert.equal(result.status, "ok");
+  assert.equal(result.data?.items[0].id, rebarFixture.id);
+  assert.equal(result.data?.items[0].canonical_id, rebarFixture.canonical_id);
+});
+
+test("C: fetchCatalogProductsPage rejects a row missing canonical_id — the whole page fails, not just the row", async () => {
+  const missingCanonicalId = { ...canonicalOnlyFixture } as Record<string, unknown>;
+  delete missingCanonicalId.canonical_id;
+  globalThis.fetch = mockFetch(() => new Response(JSON.stringify({ data: [missingCanonicalId], meta: { page: 1, page_size: 50, total: 1, pages: 1 } }), { status: 200 }));
+  const result = await fetchCatalogProductsPage();
+  assert.equal(result.status, "failed");
+  assert.equal(result.reasonCode, "CATALOG_API_UNEXPECTED_SHAPE");
+});
+
+test("D: fetchCatalogProductsPage rejects a row missing canonical_template_id", async () => {
+  const missingCanonicalTemplateId = { ...canonicalOnlyFixture } as Record<string, unknown>;
+  delete missingCanonicalTemplateId.canonical_template_id;
+  globalThis.fetch = mockFetch(() => new Response(JSON.stringify({ data: [missingCanonicalTemplateId], meta: { page: 1, page_size: 50, total: 1, pages: 1 } }), { status: 200 }));
+  const result = await fetchCatalogProductsPage();
+  assert.equal(result.status, "failed");
+  assert.equal(result.reasonCode, "CATALOG_API_UNEXPECTED_SHAPE");
+});
+
+test("fetchCatalogProductsPage rejects a canonical_id that is an empty string, not just a missing one", async () => {
+  const emptyCanonicalId = { ...canonicalOnlyFixture, canonical_id: "" };
+  globalThis.fetch = mockFetch(() => new Response(JSON.stringify({ data: [emptyCanonicalId], meta: { page: 1, page_size: 50, total: 1, pages: 1 } }), { status: 200 }));
+  const result = await fetchCatalogProductsPage();
+  assert.equal(result.status, "failed");
+  assert.equal(result.reasonCode, "CATALOG_API_UNEXPECTED_SHAPE");
+});
+
+test("E: a full page mixing legacy and canonical-only Angle/Channel rows succeeds with no CATALOG_API_UNEXPECTED_SHAPE", async () => {
+  globalThis.fetch = mockFetch(() => new Response(JSON.stringify({ data: [rebarFixture, canonicalOnlyFixture], meta: { page: 1, page_size: 50, total: 2, pages: 1 } }), { status: 200 }));
+  const result = await fetchCatalogProductsPage();
+  assert.equal(result.status, "ok");
+  assert.equal(result.data?.items.length, 2);
 });
