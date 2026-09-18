@@ -82,3 +82,63 @@ test("no workflow in this repository auto-deploys production", () => {
     assert.ok(!content.includes("--env production"), `${file} must not deploy to production`);
   }
 });
+
+// Exact-SHA hardening. `main` and the application branches have unrelated
+// histories; a copy of deploy-staging.yml lives on `main` only so GitHub
+// Actions indexes the workflow. These invariants keep that copy from ever
+// deploying its own (application-less) checkout, and keep the staging target
+// pinned in configuration rather than taken from operator input.
+
+test("staging deploy workflow requires an explicit deploy_ref and checks out that ref", () => {
+  const deploy = readWorkflow("deploy-staging.yml");
+  assert.match(deploy, /^\s{6}deploy_ref:\s*$/m, "staging deploy must expose a deploy_ref input");
+  assert.match(
+    deploy,
+    /ref:\s*\$\{\{\s*inputs\.deploy_ref\s*\}\}/,
+    "staging deploy must check out inputs.deploy_ref explicitly, never the dispatch branch implicitly",
+  );
+  const checkouts = (withoutComments(deploy).match(/actions\/checkout@/g) ?? []).length;
+  const explicitRefs = (deploy.match(/ref:\s*\${{\s*inputs\.deploy_ref\s*}}/g) ?? []).length;
+  assert.equal(
+    checkouts,
+    explicitRefs,
+    "every checkout step in staging deploy must pin ref: inputs.deploy_ref — no implicit-checkout fallback",
+  );
+});
+
+test("staging deploy workflow records the exact deployed commit SHA", () => {
+  const deploy = withoutComments(readWorkflow("deploy-staging.yml"));
+  assert.ok(deploy.includes("DEPLOYED_SHA"), "staging deploy must record the resolved commit as DEPLOYED_SHA");
+  assert.ok(deploy.includes("git rev-parse HEAD"), "staging deploy must resolve the checked-out commit");
+});
+
+test("staging deploy workflow asserts its staging target before building or deploying", () => {
+  const deploy = withoutComments(readWorkflow("deploy-staging.yml"));
+  const assertAt = deploy.indexOf("STAGING RESOURCE ASSERTION FAILED");
+  assert.ok(assertAt > -1, "staging deploy must carry a fail-closed staging resource assertion");
+  for (const later of ["npm ci", "npm run build", "vinext-cloudflare deploy"]) {
+    assert.ok(
+      deploy.indexOf(later) > assertAt,
+      `staging deploy must run the staging resource assertion before "${later}"`,
+    );
+  }
+  assert.ok(
+    deploy.includes("ahanassa-bootstrap-staging"),
+    "the assertion must pin the staging Worker name",
+  );
+});
+
+test("staging deploy workflow takes no Cloudflare target as operator input", () => {
+  const deploy = withoutComments(readWorkflow("deploy-staging.yml"));
+  const inputsBlock = deploy.slice(deploy.indexOf("inputs:"), deploy.indexOf("concurrency:"));
+  for (const forbidden of ["database_id", "worker", "account", "env:"]) {
+    assert.ok(
+      !inputsBlock.toLowerCase().includes(forbidden),
+      `workflow_dispatch inputs must not expose "${forbidden}" as an operator-supplied Cloudflare target`,
+    );
+  }
+  assert.ok(
+    deploy.includes("--env staging"),
+    "staging deploy must pin the Cloudflare environment to staging in the workflow, not in an input",
+  );
+});
