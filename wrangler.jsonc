@@ -271,20 +271,38 @@
 		},
 		"staging": {
 			"name": "ahanassa-bootstrap-staging",
-			// Explicit, not inherited (DAR-053). Deliberately empty — staging
-			// previously inherited the same 3-cron list as production, which
-			// contributed to the account's Workers Free 5-trigger cap being
-			// exceeded during a staging deploy (2026-09-03), leaving one cron
-			// (the RFQ-outbox sweep) partially attached to staging afterward.
+			// Explicit, not inherited (DAR-053). Staging was deliberately empty
+			// from 2026-09-03 until 2026-09-19: it had previously inherited the
+			// same 3-cron list as production, which contributed to the
+			// account's Workers Free 5-trigger cap being exceeded during a
+			// staging deploy, leaving one cron (the RFQ-outbox sweep)
+			// partially attached to staging afterward.
+			//
+			// 2026-09-19 — ONE trigger deliberately re-enabled, exactly as that
+			// note prescribed ("re-enable specific staging schedules
+			// deliberately later, never by silently re-inheriting the
+			// top-level default"). This is the single cron
+			// `workers/entry.ts#scheduled()` routes to Processing Groups sync
+			// (`runScheduledProcessingSync()`); without it the Processing read
+			// model (`public_processing_groups`) stays empty on staging and the
+			// Header Services dropdown degrades to a plain link.
+			//
+			// Trigger-cap accounting (verified against the Cloudflare API on
+			// 2026-09-19, not assumed): ahanassa-production has 3 registered
+			// schedules, ahanassa-bootstrap-staging had 0. This adds 1, taking
+			// the account to 4 of the 5-trigger cap. Do NOT add the other two
+			// production crons here without re-checking that budget.
+			//
+			// Known, accepted side effect: this same cron branch also runs
+			// `runScheduledCatalogSync("incremental")`, so enabling it starts
+			// incremental Catalog sync on staging too. Both write only to this
+			// environment's own bound DB_PUBLIC — never production's.
+			//
 			// The `scheduled` handler remains exported in code
-			// (workers/entry.ts) regardless — an empty crons list here only
-			// means Cloudflare never invokes it for this environment; it is
-			// not a code-level removal of scheduled-job support. Re-enable
-			// specific staging schedules deliberately later (e.g. after a
-			// Workers Paid upgrade), never by silently re-inheriting the
-			// top-level default.
+			// (workers/entry.ts) regardless — this list only controls whether
+			// Cloudflare ever invokes it for this environment.
 			"triggers": {
-				"crons": []
+				"crons": ["0 */3 * * *"]
 			},
 			"images": { "binding": "IMAGES" },
 			"d1_databases": [
