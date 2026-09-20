@@ -26,6 +26,18 @@ name: Deploy Staging
 # deployed, so a doctored branch cannot redirect this workflow at production.
 #
 # See docs/release/CI_CD_POLICY.md for the full policy this implements.
+#
+# RELEASE EVIDENCE + SMOKE VALIDATION (STAGING-P1)
+# -------------------------------------------------
+# After a successful deploy, this workflow (1) captures the deployed Worker
+# Version ID, the deployed SHA, the workflow run ID and a UTC timestamp as a
+# durable evidence artifact + job summary, and (2) runs a mandatory,
+# read-only HTTP smoke suite against the real staging Worker (plus one
+# external, unauthenticated check of the production apex redirect — staging
+# has no apex of its own; see the smoke step's own comment). Any smoke
+# failure fails this job. Neither addition submits an RFQ, requires
+# production credentials, changes the exact-SHA deploy model, or touches D1
+# migrations/secrets. Full rationale: docs/release/STAGING_RELEASE_EVIDENCE_HARDENING_REPORT.md.
 
 on:
   workflow_dispatch:
@@ -60,6 +72,8 @@ jobs:
     environment: staging
     outputs:
       deployed_sha: ${{ steps.resolve.outputs.deployed_sha }}
+      worker_version_id: ${{ steps.evidence.outputs.worker_version_id }}
+      deployed_at: ${{ steps.evidence.outputs.deployed_at }}
     steps:
       - name: Require explicit confirmation
         env:
@@ -258,4 +272,233 @@ jobs:
         run: |
           set -euo pipefail
           echo "Deploying $DEPLOYED_SHA to Cloudflare env.staging (ahanassa-bootstrap-staging)"
-          npx vinext-cloudflare deploy --env staging
+          # Output is teed to a log file (never a second deploy invocation)
+          # so the next step can capture the Worker Version ID that
+          # `wrangler deploy` prints, without changing what actually gets
+          # deployed or how.
+          npx vinext-cloudflare deploy --env staging 2>&1 | tee "$RUNNER_TEMP/deploy-staging.log"
+
+      # Fails closed: if the deploy log doesn't contain a recognizable
+      # Worker Version ID, this is treated as a broken evidence chain, not a
+      # soft warning — a staging release with no recorded version ID cannot
+      # later be verified as this SHA's provenance.
+      - name: Capture staging release evidence
+        id: evidence
+        run: |
+          set -euo pipefail
+          DEPLOY_LOG="$RUNNER_TEMP/deploy-staging.log"
+          if [ ! -f "$DEPLOY_LOG" ]; then
+            echo "::error::RELEASE EVIDENCE CAPTURE FAILED — deploy log not found."
+            exit 1
+          fi
+
+          WORKER_VERSION_ID="$(
+            sed -E 's/\x1b\[[0-9;]*m//g' "$DEPLOY_LOG" \
+              | grep -o 'Current Version ID:.*' \
+              | tail -n1 \
+              | sed -E 's/^Current Version ID:[[:space:],]*//' \
+              | tr -d '[:space:]'
+          )"
+          if [ -z "$WORKER_VERSION_ID" ]; then
+            echo "::error::RELEASE EVIDENCE CAPTURE FAILED — could not find a Worker Version ID in the deploy output."
+            exit 1
+          fi
+
+          DEPLOYED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          echo "worker_version_id=$WORKER_VERSION_ID" >> "$GITHUB_OUTPUT"
+          echo "deployed_at=$DEPLOYED_AT" >> "$GITHUB_OUTPUT"
+
+          EVIDENCE_FILE="$RUNNER_TEMP/staging-release-evidence.json"
+          cat > "$EVIDENCE_FILE" <<EOF
+          {
+            "environment": "staging",
+            "worker_name": "ahanassa-bootstrap-staging",
+            "worker_version_id": "$WORKER_VERSION_ID",
+            "deployed_sha": "$DEPLOYED_SHA",
+            "workflow_run_id": "${{ github.run_id }}",
+            "workflow_run_attempt": "${{ github.run_attempt }}",
+            "deployed_at": "$DEPLOYED_AT"
+          }
+          EOF
+          echo "EVIDENCE_FILE=$EVIDENCE_FILE" >> "$GITHUB_ENV"
+
+          {
+            echo ""
+            echo "### Staging release evidence"
+            echo ""
+            echo "| field | value |"
+            echo "| --- | --- |"
+            echo "| Worker Version ID | \`$WORKER_VERSION_ID\` |"
+            echo "| Deployed SHA | \`$DEPLOYED_SHA\` |"
+            echo "| Workflow run ID | \`${{ github.run_id }}\` |"
+            echo "| Deployed at (UTC) | \`$DEPLOYED_AT\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload staging release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-release-evidence-${{ github.run_id }}
+          path: ${{ env.EVIDENCE_FILE }}
+          retention-days: 90
+
+      # Mandatory, read-only, credential-free HTTP smoke suite against the
+      # real deployed staging Worker. Any failure below fails this job —
+      # this is a release gate, not advisory. Nothing here submits an RFQ,
+      # authenticates, or requires a secret; every request is a plain GET.
+      #
+      # S10 (apex) is the one check that cannot target staging: staging is
+      # `workers_dev`-only and has no apex domain of its own (see
+      # README.md's staging resource table). It instead re-verifies, as a
+      # read-only external check, the public production apex→www redirect
+      # that a future production release depends on — the same tolerant
+      # assertion style already specified for the production pipeline design
+      # (docs/release/PRODUCTION_DEPLOY_WORKFLOW_DESIGN.md S10): it asserts
+      # only the redirect and its target, never which platform serves it.
+      # This performs no production deploy, config change, or credentialed
+      # request — see docs/release/STAGING_RELEASE_EVIDENCE_HARDENING_REPORT.md.
+      - name: Staging smoke checks
+        run: |
+          set -uo pipefail
+          STAGING_BASE_URL="https://ahanassa-bootstrap-staging.nova-b1e6f0.workers.dev"
+          PRODUCTION_APEX_URL="https://ahanassa.com"
+          FAILURES=0
+
+          fail() {
+            echo "::error::SMOKE CHECK FAILED — $1"
+            FAILURES=$((FAILURES + 1))
+          }
+
+          pass() {
+            echo "  OK — $1"
+          }
+
+          http_status() {
+            curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$1"
+          }
+
+          redirect_target() {
+            curl -s -o /dev/null -w '%{redirect_url}' --max-time 20 "$1"
+          }
+
+          body_of() {
+            curl -s --max-time 20 "$1"
+          }
+
+          echo "== S1: homepage / =="
+          STATUS="$(http_status "$STAGING_BASE_URL/")"
+          if [ "$STATUS" = "200" ]; then pass "/ -> 200"; else fail "/ expected 200, got $STATUS"; fi
+
+          echo "== S2: /fa redirects to the unprefixed default locale =="
+          STATUS="$(http_status "$STAGING_BASE_URL/fa")"
+          TARGET="$(redirect_target "$STAGING_BASE_URL/fa")"
+          if [ "$STATUS" = "308" ] && [ "$TARGET" = "$STAGING_BASE_URL/" ]; then
+            pass "/fa -> 308 -> /"
+          else
+            fail "/fa expected 308 -> $STAGING_BASE_URL/, got $STATUS -> $TARGET"
+          fi
+
+          echo "== S3: /en =="
+          STATUS="$(http_status "$STAGING_BASE_URL/en")"
+          if [ "$STATUS" = "200" ]; then pass "/en -> 200"; else fail "/en expected 200, got $STATUS"; fi
+
+          echo "== S4: /services =="
+          STATUS="$(http_status "$STAGING_BASE_URL/services")"
+          if [ "$STATUS" = "200" ]; then pass "/services -> 200"; else fail "/services expected 200, got $STATUS"; fi
+
+          echo "== S5: catalog route /products =="
+          STATUS="$(http_status "$STAGING_BASE_URL/products")"
+          PRODUCTS_BODY="$(body_of "$STAGING_BASE_URL/products")"
+          CATALOG_SLUG="$(printf '%s' "$PRODUCTS_BODY" | grep -o 'href="/products/[a-zA-Z0-9_-]\+"' | head -n1 | sed -E 's#href="/products/([a-zA-Z0-9_-]+)"#\1#')"
+          if [ "$STATUS" != "200" ]; then
+            fail "/products expected 200, got $STATUS"
+          elif [ -n "$CATALOG_SLUG" ]; then
+            pass "/products -> 200, discovered a published catalog slug"
+          elif printf '%s' "$PRODUCTS_BODY" | grep -q "کاتالوگ آنلاین در حال آماده‌سازی است"; then
+            pass "/products -> 200, legitimate empty-catalog state (no templates currently published on staging)"
+          else
+            fail "/products returned 200 but neither a product link nor the known empty-catalog state was found"
+          fi
+
+          echo "== S6: catalog detail route =="
+          if [ -n "$CATALOG_SLUG" ]; then
+            STATUS="$(http_status "$STAGING_BASE_URL/products/$CATALOG_SLUG")"
+            if [ "$STATUS" = "200" ]; then
+              pass "/products/$CATALOG_SLUG -> 200"
+            else
+              fail "/products/$CATALOG_SLUG expected 200, got $STATUS"
+            fi
+          else
+            # Catalog is legitimately empty right now (S5) — prove the
+            # detail route still degrades correctly (404, never 500)
+            # instead of skipping this check outright.
+            STATUS="$(http_status "$STAGING_BASE_URL/products/smoke-check-no-such-slug")"
+            if [ "$STATUS" = "404" ]; then
+              pass "no published catalog slug available; /products/<nonexistent> correctly 404s"
+            else
+              fail "/products/<nonexistent> expected 404 with an empty catalog, got $STATUS"
+            fi
+          fi
+
+          echo "== S7: RFQ page render (/contact) =="
+          STATUS="$(http_status "$STAGING_BASE_URL/contact")"
+          CONTACT_BODY="$(body_of "$STAGING_BASE_URL/contact")"
+          if [ "$STATUS" != "200" ]; then
+            fail "/contact expected 200, got $STATUS"
+          elif printf '%s' "$CONTACT_BODY" | grep -q 'id="website"' \
+            && printf '%s' "$CONTACT_BODY" | grep -q 'id="email"' \
+            && printf '%s' "$CONTACT_BODY" | grep -q 'name="message"'; then
+            pass "/contact -> 200, RFQ form server-rendered (no RFQ submitted)"
+          else
+            fail "/contact returned 200 but the RFQ form fields were not found in the rendered HTML"
+          fi
+
+          echo "== S8: 404 behavior =="
+          STATUS="$(http_status "$STAGING_BASE_URL/smoke-check-route-that-does-not-exist")"
+          if [ "$STATUS" = "404" ]; then pass "unknown route -> 404"; else fail "unknown route expected 404, got $STATUS"; fi
+
+          echo "== S9: security headers =="
+          HEADERS="$(curl -s -D - -o /dev/null --max-time 20 "$STAGING_BASE_URL/" | tr -d '\r')"
+          for h in "x-content-type-options: nosniff" "x-frame-options: DENY" "referrer-policy: strict-origin-when-cross-origin"; do
+            if printf '%s\n' "$HEADERS" | grep -qi "^${h}$"; then
+              pass "header present: $h"
+            else
+              fail "missing/incorrect security header: $h"
+            fi
+          done
+          if printf '%s\n' "$HEADERS" | grep -qi "^permissions-policy:"; then
+            pass "header present: permissions-policy"
+          else
+            fail "missing permissions-policy header"
+          fi
+          if printf '%s\n' "$HEADERS" | grep -qi "^content-security-policy-report-only:"; then
+            pass "header present: content-security-policy-report-only"
+          else
+            fail "missing content-security-policy-report-only header"
+          fi
+
+          echo "== S10: apex redirect (external, read-only, no credentials — see step comment) =="
+          STATUS="$(http_status "$PRODUCTION_APEX_URL/")"
+          TARGET="$(redirect_target "$PRODUCTION_APEX_URL/")"
+          if [ "$STATUS" = "308" ] && [ "$TARGET" = "https://www.ahanassa.com/" ]; then
+            pass "apex -> 308 -> https://www.ahanassa.com/"
+          else
+            fail "apex expected 308 -> https://www.ahanassa.com/, got $STATUS -> $TARGET"
+          fi
+
+          {
+            echo ""
+            echo "### Staging smoke checks"
+            echo ""
+            if [ "$FAILURES" -gt 0 ]; then
+              echo "**$FAILURES check(s) FAILED** — see step log above for detail."
+            else
+              echo "All 10 checks passed (S1-S10)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$FAILURES" -gt 0 ]; then
+            echo "::error::$FAILURES staging smoke check(s) failed."
+            exit 1
+          fi
+          echo "All staging smoke checks passed."

@@ -358,3 +358,125 @@ test("staging deploy workflow takes no Cloudflare target as operator input", () 
     "staging deploy must pin the Cloudflare environment to staging in the workflow, not in an input",
   );
 });
+
+// Staging release-evidence capture + mandatory smoke validation
+// (docs/release/STAGING_RELEASE_EVIDENCE_HARDENING_REPORT.md). Same
+// approach as validateProductionWorkflowShape above: a small set of
+// literal/regex checks against the workflow's own text, run against both
+// the real file and mutated copies of it so the checks are proven to catch
+// what they claim to, not merely assumed to.
+
+const REQUIRED_SMOKE_CHECK_MARKERS = [
+  "S1: homepage",
+  "S2: /fa",
+  "S3: /en",
+  "S4: /services",
+  "S5: catalog route",
+  "S6: catalog detail route",
+  "S7: RFQ page render",
+  "S8: 404 behavior",
+  "S9: security headers",
+  "S10: apex redirect",
+];
+
+function validateStagingReleaseHardeningShape(content: string): string[] {
+  const violations: string[] = [];
+  const code = withoutComments(content);
+
+  if (!code.includes("Current Version ID")) {
+    violations.push("must capture the deployed Worker Version ID from the wrangler deploy output");
+  }
+  if (!/worker_version_id=/.test(code)) {
+    violations.push("must expose worker_version_id as a captured evidence field");
+  }
+  if (!code.includes("DEPLOYED_SHA")) {
+    violations.push("must capture the deployed commit SHA as release evidence");
+  }
+  if (!/github\.run_id/.test(code)) {
+    violations.push("must capture the workflow run ID as release evidence");
+  }
+  if (!/date\s+-u/.test(code)) {
+    violations.push("must capture a UTC timestamp as release evidence");
+  }
+  if (!code.includes("actions/upload-artifact")) {
+    violations.push("must upload the captured release evidence as a workflow artifact");
+  }
+  for (const marker of REQUIRED_SMOKE_CHECK_MARKERS) {
+    if (!code.includes(marker)) {
+      violations.push(`must run the mandatory smoke check: ${marker}`);
+    }
+  }
+  if (!/FAILURES/.test(code) || !/exit 1/.test(code)) {
+    violations.push("the smoke suite must fail closed (increment a failure counter and exit non-zero)");
+  }
+
+  return violations;
+}
+
+test("deploy-staging.yml carries the required release-evidence and smoke-validation shape", () => {
+  const violations = validateStagingReleaseHardeningShape(readWorkflow("deploy-staging.yml"));
+  assert.deepEqual(
+    violations,
+    [],
+    `deploy-staging.yml is missing required staging release-evidence/smoke hardening: ${violations.join("; ")}`,
+  );
+});
+
+test("mutation: removing the Worker Version ID capture fails the staging hardening shape check", () => {
+  const mutated = readWorkflow("deploy-staging.yml").replaceAll("Current Version ID", "REDACTED");
+  const violations = validateStagingReleaseHardeningShape(mutated);
+  assert.ok(
+    violations.some((v) => v.includes("Worker Version ID")),
+    `removing the version-ID capture marker must be caught; got: ${violations.join("; ")}`,
+  );
+});
+
+test("mutation: removing one mandatory smoke check fails the staging hardening shape check", () => {
+  const real = readWorkflow("deploy-staging.yml");
+  // Cut the entire /services smoke-check block (S4) out of a copy, leaving
+  // every other check untouched, and prove the shape check notices exactly
+  // that one is now missing — not a blanket failure.
+  const s4Start = real.indexOf('echo "== S4: /services ==');
+  const s5Start = real.indexOf('echo "== S5: catalog route');
+  assert.ok(s4Start > -1 && s5Start > s4Start, "fixture assumption: S4 must precede S5 in the real workflow");
+  const mutated = real.slice(0, s4Start) + real.slice(s5Start);
+  const violations = validateStagingReleaseHardeningShape(mutated);
+  assert.ok(
+    violations.includes("must run the mandatory smoke check: S4: /services"),
+    `removing the /services smoke check must be caught; got: ${violations.join("; ")}`,
+  );
+  for (const marker of REQUIRED_SMOKE_CHECK_MARKERS) {
+    if (marker === "S4: /services") continue;
+    assert.ok(
+      !violations.some((v) => v.includes(`smoke check: ${marker}`)),
+      `removing only the /services check must not report an unrelated missing check (${marker})`,
+    );
+  }
+});
+
+test("mutation: removing the release-evidence artifact upload fails the staging hardening shape check", () => {
+  const mutated = readWorkflow("deploy-staging.yml").replaceAll("actions/upload-artifact@v4", "REDACTED");
+  const violations = validateStagingReleaseHardeningShape(mutated);
+  assert.ok(
+    violations.some((v) => v.includes("upload the captured release evidence")),
+    `removing the evidence artifact upload must be caught; got: ${violations.join("; ")}`,
+  );
+});
+
+test("mutation: removing the fail-closed smoke gate fails the staging hardening shape check", () => {
+  const mutated = readWorkflow("deploy-staging.yml").replaceAll("FAILURES", "IGNORED_FAILURE_COUNT");
+  const violations = validateStagingReleaseHardeningShape(mutated);
+  assert.ok(
+    violations.some((v) => v.includes("fail closed")),
+    `removing the FAILURES fail-closed counter must be caught; got: ${violations.join("; ")}`,
+  );
+});
+
+test("staging smoke checks never submit an RFQ and never require a production credential", () => {
+  const deploy = withoutComments(readWorkflow("deploy-staging.yml"));
+  assert.ok(!deploy.includes("/api/rfqs"), "the smoke suite must never POST to the RFQ submission endpoint");
+  assert.ok(
+    !/curl[^\n]*(-u |--user |Authorization:)/i.test(deploy),
+    "the smoke suite must never pass a credential to any HTTP request",
+  );
+});
