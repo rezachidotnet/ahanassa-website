@@ -617,6 +617,20 @@ function validateProductionDeploySafetyShape(content: string): string[] {
     );
   }
 
+  // CHECKOUT-VALIDATION HARDENING
+  // (docs/release/PRODUCTION_CHECKOUT_VALIDATION_HARDENING_REPORT.md): a
+  // syntactically valid but nonexistent deploy_ref must fail closed via a
+  // clear, workflow-owned check before actions/checkout ever runs — never
+  // by letting checkout itself surface a raw git-protocol error ("remote
+  // error: upload-pack: not our ref"), which is what happened on the first
+  // live fail-closed test (deploy_ref = 40 zeros).
+  if (!code.includes("DEPLOY_REF EXISTENCE CHECK FAILED")) {
+    violations.push("must verify deploy_ref's commit exists (a fail-closed pre-checkout existence check) before ever running actions/checkout");
+  }
+  if (!/repos\/[^\n]*\/commits\/\$DEPLOY_REF_INPUT/.test(code)) {
+    violations.push("the pre-checkout existence check must query the GitHub commits API for deploy_ref");
+  }
+
   return violations;
 }
 
@@ -764,5 +778,35 @@ test("mutation: removing the Arabic (ar) locale smoke check fails the production
   assert.ok(
     violations.some((v) => v.includes("Arabic (ar) locale homepage")),
     `removing the S1b Arabic homepage check must be caught; got: ${violations.join("; ")}`,
+  );
+});
+
+// Checkout-validation hardening (docs/release/PRODUCTION_CHECKOUT_VALIDATION_HARDENING_REPORT.md).
+// Mirrors the existing "staging deploy workflow asserts its staging target
+// before building or deploying" ordering test above: a direct indexOf
+// comparison against the real file, proving the pre-checkout existence
+// check genuinely runs before actions/checkout, not just that both exist
+// somewhere in the file.
+
+test("deploy-production.yml verifies deploy_ref's commit exists before ever running actions/checkout", () => {
+  const deploy = withoutComments(readWorkflow(PRODUCTION_WORKFLOW));
+  const existenceCheckAt = deploy.indexOf("DEPLOY_REF EXISTENCE CHECK FAILED");
+  const checkoutAt = deploy.indexOf("uses: actions/checkout@v4");
+  assert.ok(existenceCheckAt > -1, "deploy-production.yml must carry a fail-closed deploy_ref existence check");
+  assert.ok(checkoutAt > -1, "deploy-production.yml must use actions/checkout@v4");
+  assert.ok(
+    existenceCheckAt < checkoutAt,
+    "the deploy_ref existence check must run before actions/checkout, never after — a nonexistent deploy_ref must fail closed with a clear message, not with checkout's raw git-protocol error",
+  );
+});
+
+test("mutation: removing the pre-checkout deploy_ref existence check fails the production safety shape check", () => {
+  const mutated = readFileSync(PRODUCTION_WORKFLOW_PATH, "utf8")
+    .replaceAll("DEPLOY_REF EXISTENCE CHECK FAILED", "REMOVED")
+    .replaceAll("repos/${{ github.repository }}/commits/$DEPLOY_REF_INPUT", "REMOVED_ENDPOINT");
+  const violations = validateProductionDeploySafetyShape(mutated);
+  assert.ok(
+    violations.some((v) => v.includes("existence check")),
+    `removing the pre-checkout existence check must be caught; got: ${violations.join("; ")}`,
   );
 });
