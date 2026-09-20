@@ -914,7 +914,56 @@ jobs:
             URL="$BASE_URL$PREFIX/products"
             STATUS="$(http_status "$URL")"
             PRODUCTS_BODY_FILE="$(body_to_file "$URL" "s5-products-$LOC.html")"
-            SLUG="$(grep -o "href=\"$PREFIX/products/[a-zA-Z0-9_-]\+\"" "$PRODUCTS_BODY_FILE" | head -n1 | sed -E "s#href=\"$PREFIX/products/([a-zA-Z0-9_-]+)\"#\1#")"
+            # A locale whose catalog is legitimately empty is a DOCUMENTED,
+            # supported state, never a failure: fa/en/ar publish completely
+            # independently of one another (docs/CATALOG_EDITORIAL_PUBLICATION.md
+            # §6 — "FA, EN, AR are independent per (entity, locale) rows —
+            # publishing FA never requires EN/AR to exist, and vice versa"),
+            # so `grep` finding no product link MUST fall through to the
+            # empty-catalog branch below.
+            #
+            # It previously did not. GitHub runs every `run:` block under
+            # `shell: /usr/bin/bash -e {0}`, and the `set -uo pipefail` at the
+            # top of this step does NOT clear that inherited errexit — so
+            # `grep`'s exit 1 ("no match") aborted this entire step mid-suite,
+            # before the branch written for exactly this case could execute.
+            # That is the defect that failed the first real production release
+            # (run 35533626395) on production's legitimately empty `en`
+            # catalog, after the fa iteration had already passed:
+            # docs/release/PRODUCTION_CANARY_SMOKE_GATE_FIX_REPORT.md.
+            #
+            # The former `| head -n1` is also gone, removing a second,
+            # still-latent instance of the same class of bug: under
+            # `pipefail`, `grep ... | head -n1` reports 141 (SIGPIPE) whenever
+            # the match list is large enough that `head` exits while `grep` is
+            # still writing — which would abort this step on a POPULATED
+            # catalog once the fa catalog outgrows the pipe buffer. The first
+            # match is now selected with parameter expansion instead (below).
+            #
+            # Fail-closed is preserved exactly: only status 1 ("no match") is
+            # tolerated. Any other grep status is a real harness error and
+            # still fails the gate, rather than being silently read as "this
+            # locale has an empty catalog."
+            SLUG=""
+            SLUG_HREF=""
+            GREP_STATUS=0
+            SLUG_HREF="$(grep -o "href=\"$PREFIX/products/[a-zA-Z0-9_-]\+\"" "$PRODUCTS_BODY_FILE")" || GREP_STATUS=$?
+            if [ "$GREP_STATUS" -gt 1 ]; then
+              echo "::error::SMOKE HARNESS ERROR — scanning $PRODUCTS_BODY_FILE for a [$LOC] catalog link failed with grep status $GREP_STATUS, which is not a 'no match'. Failing closed rather than reporting an unverified catalog as empty."
+              exit 1
+            fi
+            # Take the FIRST match only. Done with parameter expansion rather than
+            # `| head -n1`: `head` exiting early can hand `grep` a SIGPIPE, which
+            # `pipefail` then reports as 141 and errexit acts on — the same class
+            # of abort this whole fix exists to remove, just triggered by a LARGE
+            # catalog instead of an empty one. `grep -m1` is NOT a substitute:
+            # it stops after the first matching LINE, and a minified page puts
+            # every product link on one line, so `grep -o -m1` still emits every
+            # match and SLUG would become a multi-line value.
+            SLUG_HREF="${SLUG_HREF%%$'\n'*}"
+            if [ -n "$SLUG_HREF" ]; then
+              SLUG="$(printf '%s' "$SLUG_HREF" | sed -E "s#href=\"$PREFIX/products/([a-zA-Z0-9_-]+)\"#\1#")"
+            fi
             CATALOG_SLUG[$LOC]="$SLUG"
             if [ "$STATUS" != "200" ]; then
               fail "$PREFIX/products [$LOC] expected 200, got $STATUS"
