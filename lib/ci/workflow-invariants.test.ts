@@ -574,6 +574,49 @@ function validateProductionDeploySafetyShape(content: string): string[] {
     violations.push("must never declare permissions: contents: write");
   }
 
+  // AUDIT FIX 1 — rollout split (docs/release/PRODUCTION_WORKFLOW_INDEPENDENT_AUDIT.md
+  // CRITICAL finding): Cloudflare requires every version-spec percentage
+  // passed to `wrangler versions deploy` to sum to exactly 100 — a single
+  // spec below 100 always fails. A non-100 rollout must compute and deploy
+  // the complementary percentage onto PREVIOUS_VERSION_ID in the same call.
+  if (!code.includes("REMAINDER")) {
+    violations.push("Phase 2 must compute the complementary rollout percentage (REMAINDER) when rollout_percentage is not 100 (audit CRITICAL finding)");
+  }
+  if (!code.includes("DEPLOY_SPECS")) {
+    violations.push("Phase 2 must build a DEPLOY_SPECS array so PREVIOUS_VERSION_ID's complementary percentage is deployed alongside NEW_VERSION_ID's (audit CRITICAL finding)");
+  }
+  if (!/ROLLOUT SPLIT ASSERTION FAILED/.test(code)) {
+    violations.push("Phase 2 must verify the generated rollout percentages sum to 100 before ever invoking wrangler (audit CRITICAL finding)");
+  }
+
+  // AUDIT FIX 2 — production vars beyond APP_ENV
+  // (docs/release/PRODUCTION_WORKFLOW_INDEPENDENT_AUDIT.md HIGH finding):
+  // A1 previously checked only vars.APP_ENV, so a tampered ODOO_BASE_URL
+  // (or any other production var) in deploy_ref would have passed A1
+  // undetected.
+  for (const varName of ["ODOO_BASE_URL", "ODOO_DATABASE", "ODOO_CRM_TEAM_ID", "NEXT_PUBLIC_TURNSTILE_SITE_KEY"]) {
+    if (!code.includes(varName)) {
+      violations.push(`A1 must validate the production var ${varName} (audit HIGH finding)`);
+    }
+  }
+
+  // AUDIT FIX 3 — Arabic (ar) locale smoke coverage
+  // (docs/release/PRODUCTION_WORKFLOW_INDEPENDENT_AUDIT.md MEDIUM finding):
+  // S1/S5/S6/S7 previously checked only fa (and, for S1, en) — homepage,
+  // catalog index/detail, and RFQ render must all also cover ar.
+  if (!code.includes('lang="ar"')) {
+    violations.push("the smoke gate must check the Arabic (ar) locale homepage (audit MEDIUM finding)");
+  }
+  if (!code.includes('[ar]="/ar"')) {
+    violations.push("the smoke gate must define the Arabic (ar) locale URL prefix (audit MEDIUM finding)");
+  }
+  const localeLoopCount = (code.match(/for LOC in fa en ar/g) ?? []).length;
+  if (localeLoopCount < 3) {
+    violations.push(
+      `the smoke gate must loop over fa/en/ar for catalog index, catalog detail, and RFQ page render (audit MEDIUM finding — found ${localeLoopCount} locale loop(s), need at least 3)`,
+    );
+  }
+
   return violations;
 }
 
@@ -655,5 +698,71 @@ test("mutation: granting contents: write fails the production safety shape check
   assert.ok(
     violations.some((v) => v.includes("contents: write")),
     `granting contents: write must be caught; got: ${violations.join("; ")}`,
+  );
+});
+
+// Audit-fix mutation tests (docs/release/PRODUCTION_WORKFLOW_AUDIT_FIX_REPORT.md) —
+// the three specific regressions this fix task named as required proof that
+// each fix's static invariant actually catches what it claims to.
+
+test("mutation: removing the rollout split logic fails the production safety shape check", () => {
+  const real = readFileSync(PRODUCTION_WORKFLOW_PATH, "utf8");
+  // Reverts Phase 2 back to the pre-fix, CRITICAL-finding shape: a single
+  // version-spec with no complementary percentage and no sum-to-100 guard.
+  const mutated = real
+    .replace(
+      /DEPLOY_SPECS=\("\$NEW_VERSION_ID@\$ROLLOUT_PCT"\)[\s\S]*?fi\n\n( +)# Verify the generated command before execution:[\s\S]*?fi\n/,
+      'DEPLOY_SPECS=("$NEW_VERSION_ID@$ROLLOUT_PCT")\n',
+    )
+    .replaceAll("REMAINDER", "UNUSED")
+    .replaceAll("DEPLOY_SPECS", "SINGLE_SPEC")
+    .replace(/ROLLOUT SPLIT ASSERTION FAILED/g, "REMOVED");
+  const violations = validateProductionDeploySafetyShape(mutated);
+  assert.ok(
+    violations.some((v) => v.includes("REMAINDER")),
+    `removing the complementary-percentage computation must be caught; got: ${violations.join("; ")}`,
+  );
+  assert.ok(
+    violations.some((v) => v.includes("DEPLOY_SPECS")),
+    `removing the DEPLOY_SPECS array must be caught; got: ${violations.join("; ")}`,
+  );
+  assert.ok(
+    violations.some((v) => v.includes("sum to 100")),
+    `removing the sum-to-100 verification must be caught; got: ${violations.join("; ")}`,
+  );
+});
+
+test("mutation: removing one required production var assertion fails the production safety shape check", () => {
+  // Simulates reverting A1 to check only APP_ENV, as it did before the
+  // audit's HIGH finding — strip every other reference to ODOO_BASE_URL,
+  // the specific var the audit's own exploit scenario used.
+  const mutated = readFileSync(PRODUCTION_WORKFLOW_PATH, "utf8").replaceAll("ODOO_BASE_URL", "REMOVED_VAR");
+  const violations = validateProductionDeploySafetyShape(mutated);
+  assert.ok(
+    violations.includes("A1 must validate the production var ODOO_BASE_URL (audit HIGH finding)"),
+    `removing the ODOO_BASE_URL assertion must be caught; got: ${violations.join("; ")}`,
+  );
+  // And nothing else should have been accidentally removed by the same cut.
+  for (const varName of ["ODOO_DATABASE", "ODOO_CRM_TEAM_ID", "NEXT_PUBLIC_TURNSTILE_SITE_KEY"]) {
+    assert.ok(
+      !violations.some((v) => v.includes(varName)),
+      `removing only ODOO_BASE_URL must not report an unrelated missing var (${varName})`,
+    );
+  }
+});
+
+test("mutation: removing the Arabic (ar) locale smoke check fails the production safety shape check", () => {
+  const real = readFileSync(PRODUCTION_WORKFLOW_PATH, "utf8");
+  // Removes the standalone S1b homepage check (the single, clearly-delineated
+  // "Arabic smoke check") the same way the staging mutation test above
+  // removes one whole smoke-check block, rather than editing text within it.
+  const s1bStart = real.indexOf('echo "== S1b: homepage /ar ==');
+  const s2Start = real.indexOf('echo "== S2:');
+  assert.ok(s1bStart > -1 && s2Start > s1bStart, "fixture assumption: S1b must precede S2 in the real workflow");
+  const mutated = real.slice(0, s1bStart) + real.slice(s2Start);
+  const violations = validateProductionDeploySafetyShape(mutated);
+  assert.ok(
+    violations.some((v) => v.includes("Arabic (ar) locale homepage")),
+    `removing the S1b Arabic homepage check must be caught; got: ${violations.join("; ")}`,
   );
 });

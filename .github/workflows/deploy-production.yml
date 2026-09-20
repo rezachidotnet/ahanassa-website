@@ -85,6 +85,24 @@ name: Deploy Production
 # updated as a separate, human-reviewed documentation commit after a real
 # release, exactly like every other report in docs/release/ — never
 # committed to by the workflow itself.
+#
+# AUDIT FIXES (docs/release/PRODUCTION_WORKFLOW_INDEPENDENT_AUDIT.md,
+# docs/release/PRODUCTION_WORKFLOW_AUDIT_FIX_REPORT.md)
+# -----------------------------------------------------------------------
+# 1. ROLLOUT SPLIT (was CRITICAL): Cloudflare requires every version-spec
+#    percentage passed to `wrangler versions deploy` to sum to exactly 100
+#    — a single spec below 100 always failed with "percentages add up to
+#    N%, but must total exactly 100%" (reproduced live via --dry-run).
+#    Phase 2 now computes the complementary percentage for
+#    PREVIOUS_VERSION_ID and passes both specs whenever rollout_percentage
+#    is not 100, and verifies the generated specs sum to 100 before ever
+#    invoking `wrangler`.
+# 2. A1 now validates every `env.production.vars` key defined in
+#    wrangler.jsonc (was HIGH: only APP_ENV was checked) — see A1 itself
+#    for the exact-match vs. pattern-match split and why.
+# 3. The smoke gate (S1/S5/S6/S7) now covers fa/en/ar for homepage, catalog
+#    index/detail, and RFQ page render (was MEDIUM: only the default
+#    locale was checked for those four).
 
 on:
   workflow_dispatch:
@@ -147,6 +165,7 @@ jobs:
         env:
           CONFIRM_INPUT: ${{ inputs.confirm }}
           DEPLOY_REF_INPUT: ${{ inputs.deploy_ref }}
+          ROLLOUT_INPUT: ${{ inputs.rollout_percentage }}
         run: |
           set -euo pipefail
           if [ "$CONFIRM_INPUT" != "deploy-production" ]; then
@@ -155,6 +174,14 @@ jobs:
           fi
           if ! [[ "$DEPLOY_REF_INPUT" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::deploy_ref must be a full 40-character lowercase-hexadecimal commit SHA, never a branch name or short SHA. Got: \"$DEPLOY_REF_INPUT\""
+            exit 1
+          fi
+          # `type: choice` constrains the dispatch UI's dropdown but is not
+          # enforced server-side for an API-triggered dispatch — re-checked
+          # here, at the earliest possible point, same discipline as the two
+          # checks above.
+          if [[ "$ROLLOUT_INPUT" != "10" && "$ROLLOUT_INPUT" != "50" && "$ROLLOUT_INPUT" != "100" ]]; then
+            echo "::error::rollout_percentage must be exactly one of 10, 50, or 100. Got: \"$ROLLOUT_INPUT\""
             exit 1
           fi
           echo "Requested deploy_ref (validated 40-hex SHA): $DEPLOY_REF_INPUT"
@@ -272,10 +299,65 @@ jobs:
             fail('env.production.name is "' + prod.name + '", expected "' + EXPECTED_WORKER + '".');
           }
 
-          if (prod.vars && prod.vars.APP_ENV !== 'production') {
-            fail('env.production.vars.APP_ENV is "' + (prod.vars && prod.vars.APP_ENV) + '", expected "production".');
-          } else if (!prod.vars) {
-            fail('env.production has no vars block (expected vars.APP_ENV = "production").');
+          // Production vars — AUDIT FIX (docs/release/PRODUCTION_WORKFLOW_INDEPENDENT_AUDIT.md
+          // HIGH finding: this block previously checked only APP_ENV, leaving
+          // ODOO_BASE_URL/ODOO_DATABASE/ODOO_CRM_TEAM_ID/NEXT_PUBLIC_TURNSTILE_SITE_KEY
+          // etc. unchecked — a tampered/accidental ODOO_BASE_URL in
+          // deploy_ref would have passed A1 undetected, silently misrouting
+          // every RFQ synced after that release). Every var declared under
+          // env.production.vars in wrangler.jsonc today is covered below —
+          // none of these are secrets (the two real Worker secrets,
+          // ODOO_RFQ_API_TOKEN and TURNSTILE_SECRET_KEY, are never declared
+          // in wrangler.jsonc at all — see the "Verify secret inheritance"
+          // step further down), so printing them in full on failure/success
+          // is safe.
+          //
+          // Two different validation strengths, deliberately:
+          // - EXPECTED_VARS: identity-bearing values that must never change
+          //   from one specific pinned string (which Odoo instance/database/
+          //   CRM team, which Turnstile site) — exact match, same strength
+          //   as the Worker name / D1 ids above.
+          // - EXPECTED_VAR_PATTERNS / EXPECTED_VAR_PRESENT_ONLY: the three
+          //   feature-flag-style vars wrangler.jsonc's own comments document
+          //   as deliberately, independently flippable in a later, separate
+          //   config commit (never bundled with an app-code deploy) — these
+          //   are validated for presence and a well-formed value, not pinned
+          //   to one exact value, so this assertion never blocks the
+          //   documented future flip of PRICE_STRIP_ENABLED/HOMEPAGE_RANKING_MODE.
+          if (!prod.vars || typeof prod.vars !== 'object') {
+            fail('env.production has no vars block.');
+          }
+
+          const EXPECTED_VARS = {
+            APP_ENV: 'production',
+            ODOO_BASE_URL: 'https://odoo.ahanassa.com',
+            ODOO_DATABASE: 'ahanassa',
+            ODOO_CRM_TEAM_ID: '1',
+            NEXT_PUBLIC_TURNSTILE_SITE_KEY: '0x4AAAAAAEi2RZ3NHcqTk0ej',
+          };
+          for (const [key, expected] of Object.entries(EXPECTED_VARS)) {
+            const actual = prod.vars[key];
+            if (actual !== expected) {
+              fail('env.production.vars.' + key + ' is "' + actual + '", expected "' + expected + '".');
+            }
+          }
+
+          const EXPECTED_VAR_PATTERNS = {
+            PRICE_STRIP_ENABLED: /^(true|false)$/,
+            HOMEPAGE_RANKING_MODE: /^(base|auto)$/,
+          };
+          for (const [key, pattern] of Object.entries(EXPECTED_VAR_PATTERNS)) {
+            const actual = prod.vars[key];
+            if (typeof actual !== 'string' || !pattern.test(actual)) {
+              fail('env.production.vars.' + key + ' is "' + actual + '", expected to match ' + pattern + '.');
+            }
+          }
+
+          const EXPECTED_VAR_PRESENT_ONLY = ['ENABLED_PRICE_PROVIDERS'];
+          for (const key of EXPECTED_VAR_PRESENT_ONLY) {
+            if (typeof prod.vars[key] !== 'string') {
+              fail('env.production.vars.' + key + ' is missing or not a string (got "' + prod.vars[key] + '").');
+            }
           }
 
           const d1 = Array.isArray(prod.d1_databases) ? prod.d1_databases : [];
@@ -338,7 +420,7 @@ jobs:
           console.log('  routes      : ' + JSON.stringify(routes));
           console.log('  workers_dev : ' + prod.workers_dev);
           console.log('  crons       : ' + JSON.stringify(crons));
-          console.log('  APP_ENV     : ' + prod.vars.APP_ENV);
+          console.log('  vars        : ' + JSON.stringify(prod.vars));
           console.log('  staging-environment identifiers inside env.production: none');
           ASSERT_EOF
           node "$RUNNER_TEMP/assert-production.cjs"
@@ -566,17 +648,56 @@ jobs:
 
       # Phase 2 — the one step in this workflow that shifts real traffic.
       # Everything before this point is read-only or zero-traffic.
+      #
+      # ROLLOUT SPLIT — AUDIT FIX for a CRITICAL finding
+      # (docs/release/PRODUCTION_WORKFLOW_INDEPENDENT_AUDIT.md §6):
+      # Cloudflare requires every version-spec percentage passed to
+      # `wrangler versions deploy` to sum to exactly 100 — a single spec
+      # below 100 fails outright ("The specified traffic percentages add up
+      # to N%, but must total exactly 100%"), reproduced live via --dry-run
+      # against the real production Worker during that audit. A rollout
+      # below 100% therefore explicitly deploys the complementary
+      # percentage onto PREVIOUS_VERSION_ID in the same call:
+      #   100 -> new@100
+      #    50 -> new@50  previous@50
+      #    10 -> new@10  previous@90
       - name: "Phase 2: wrangler versions deploy (rollout ${{ inputs.rollout_percentage }}%)"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          npx wrangler versions deploy "$NEW_VERSION_ID@${{ inputs.rollout_percentage }}" \
+          ROLLOUT_PCT="${{ inputs.rollout_percentage }}"
+
+          DEPLOY_SPECS=("$NEW_VERSION_ID@$ROLLOUT_PCT")
+          if [ "$ROLLOUT_PCT" != "100" ]; then
+            REMAINDER=$((100 - ROLLOUT_PCT))
+            DEPLOY_SPECS+=("$PREVIOUS_VERSION_ID@$REMAINDER")
+          fi
+
+          # Verify the generated command before execution: every specified
+          # percentage must sum to exactly 100 (Cloudflare's own hard
+          # requirement) — checked here too so a future bug in the
+          # arithmetic above fails this workflow closed rather than ever
+          # reaching `wrangler` with a malformed split.
+          TOTAL_PCT=0
+          for SPEC in "${DEPLOY_SPECS[@]}"; do
+            SPEC_PCT="${SPEC##*@}"
+            TOTAL_PCT=$((TOTAL_PCT + SPEC_PCT))
+          done
+          if [ "$TOTAL_PCT" -ne 100 ]; then
+            echo "::error::ROLLOUT SPLIT ASSERTION FAILED — generated version-spec percentages (${DEPLOY_SPECS[*]}) sum to $TOTAL_PCT, not 100. Refusing to deploy."
+            exit 1
+          fi
+
+          echo "Rollout ${ROLLOUT_PCT}% verified — deploying version-spec(s): ${DEPLOY_SPECS[*]}"
+          echo "ROLLOUT_DEPLOY_SPECS=${DEPLOY_SPECS[*]}" >> "$GITHUB_ENV"
+
+          npx wrangler versions deploy "${DEPLOY_SPECS[@]}" \
             --config dist/server/wrangler.json \
             --message "Production release - SHA $DEPLOYED_SHA - run ${{ github.run_id }}" \
             --yes
-          echo "Promoted version $NEW_VERSION_ID to ${{ inputs.rollout_percentage }}% traffic."
+          echo "Promoted: ${DEPLOY_SPECS[*]}"
 
       # Evidence capture — durable, three places: job outputs, job summary,
       # and an uploaded artifact. Captured before the smoke gate so evidence
@@ -598,6 +719,7 @@ jobs:
             "previous_version_id": "$PREVIOUS_VERSION_ID",
             "deployed_sha": "$DEPLOYED_SHA",
             "rollout_percentage": "${{ inputs.rollout_percentage }}",
+            "rollout_deploy_specs": "$ROLLOUT_DEPLOY_SPECS",
             "staging_provenance_run": "${{ steps.provenance.outputs.staging_provenance_run }}",
             "skip_staging_provenance": "${{ inputs.skip_staging_provenance }}",
             "workflow_run_id": "${{ github.run_id }}",
@@ -617,6 +739,7 @@ jobs:
             echo "| Previous Worker Version ID (rollback target) | \`$PREVIOUS_VERSION_ID\` |"
             echo "| Deployed SHA | \`$DEPLOYED_SHA\` |"
             echo "| Rollout percentage | \`${{ inputs.rollout_percentage }}%\` |"
+            echo "| Deployed version-spec(s) | \`$ROLLOUT_DEPLOY_SPECS\` |"
             echo "| Staging provenance run | \`${{ steps.provenance.outputs.staging_provenance_run }}\` |"
             echo "| Workflow run ID | \`${{ github.run_id }}\` |"
             echo "| Deployed at (UTC) | \`$DEPLOYED_AT\` |"
@@ -644,7 +767,7 @@ jobs:
       # rollback on failure — the exact rollback command is already printed
       # above with PREVIOUS_VERSION_ID filled in; a human decides
       # (docs/release/PRODUCTION_DEPLOY_WORKFLOW_DESIGN.md §9).
-      - name: Production smoke checks (S1-S10)
+      - name: Production smoke checks (S1-S10, fa/en/ar locale coverage)
         run: |
           set -uo pipefail
           BASE_URL="https://www.ahanassa.com"
@@ -652,6 +775,7 @@ jobs:
           SMOKE_DIR="$RUNNER_TEMP/smoke"
           mkdir -p "$SMOKE_DIR"
           FAILURES=0
+          CHECKS_PASSED=0
 
           fail() {
             echo "::error::SMOKE CHECK FAILED — $1"
@@ -660,6 +784,7 @@ jobs:
 
           pass() {
             echo "  OK — $1"
+            CHECKS_PASSED=$((CHECKS_PASSED + 1))
           }
 
           http_status() {
@@ -682,6 +807,22 @@ jobs:
             echo "$out"
           }
 
+          # AUDIT FIX (docs/release/PRODUCTION_WORKFLOW_INDEPENDENT_AUDIT.md
+          # MEDIUM finding): S5/S6/S7 previously checked only the default
+          # (fa) locale. This maps each supported locale to its URL prefix
+          # (fa is unprefixed, per PROJECT_OVERRIDES.md §1) and its own
+          # localized "catalog is being prepared" empty-state string
+          # (components/products/catalog-empty-state.tsx), so the catalog
+          # index/detail and RFQ checks below can loop over fa/en/ar without
+          # duplicating per-locale logic three times.
+          declare -A LOCALE_PREFIX=( [fa]="" [en]="/en" [ar]="/ar" )
+          declare -A LOCALE_EMPTY_STATE=(
+            [fa]="کاتالوگ آنلاین در حال آماده‌سازی است"
+            [en]="The online catalog is being prepared"
+            [ar]="الكتالوج الإلكتروني قيد الإعداد"
+          )
+          declare -A CATALOG_SLUG
+
           echo "== S1: homepage / =="
           STATUS="$(http_status "$BASE_URL/")"
           BODY_FILE="$(body_to_file "$BASE_URL/" "s1-home.html")"
@@ -689,6 +830,15 @@ jobs:
             pass "/ -> 200, <html lang=\"fa\" dir=\"rtl\">"
           else
             fail "/ expected 200 with <html lang=\"fa\" dir=\"rtl\">, got status $STATUS"
+          fi
+
+          echo "== S1b: homepage /ar =="
+          STATUS="$(http_status "$BASE_URL/ar")"
+          BODY_FILE="$(body_to_file "$BASE_URL/ar" "s1b-home-ar.html")"
+          if [ "$STATUS" = "200" ] && grep -qi '<html[^>]*lang="ar"[^>]*dir="rtl"' "$BODY_FILE"; then
+            pass "/ar -> 200, <html lang=\"ar\" dir=\"rtl\">"
+          else
+            fail "/ar expected 200 with <html lang=\"ar\" dir=\"rtl\">, got status $STATUS"
           fi
 
           echo "== S2: /fa redirects to the unprefixed default locale =="
@@ -715,52 +865,67 @@ jobs:
             if [ "$STATUS" = "200" ]; then pass "$p -> 200"; else fail "$p expected 200, got $STATUS"; fi
           done
 
-          echo "== S5: catalog index /products =="
-          STATUS="$(http_status "$BASE_URL/products")"
-          PRODUCTS_BODY_FILE="$(body_to_file "$BASE_URL/products" "s5-products.html")"
-          CATALOG_SLUG="$(grep -o 'href="/products/[a-zA-Z0-9_-]\+"' "$PRODUCTS_BODY_FILE" | head -n1 | sed -E 's#href="/products/([a-zA-Z0-9_-]+)"#\1#')"
-          if [ "$STATUS" != "200" ]; then
-            fail "/products expected 200, got $STATUS"
-          elif [ -n "$CATALOG_SLUG" ]; then
-            pass "/products -> 200, discovered a published catalog slug"
-          elif grep -q "کاتالوگ آنلاین در حال آماده‌سازی است" "$PRODUCTS_BODY_FILE"; then
-            pass "/products -> 200, legitimate empty-catalog state"
-          else
-            fail "/products returned 200 but neither a product link nor the known empty-catalog state was found"
-          fi
-
-          echo "== S6: catalog detail =="
-          if [ -n "$CATALOG_SLUG" ]; then
-            STATUS="$(http_status "$BASE_URL/products/$CATALOG_SLUG")"
-            DETAIL_BODY_FILE="$(body_to_file "$BASE_URL/products/$CATALOG_SLUG" "s6-detail.html")"
-            if [ "$STATUS" = "200" ] && grep -q '<h1' "$DETAIL_BODY_FILE"; then
-              pass "/products/$CATALOG_SLUG -> 200, <h1> present"
+          echo "== S5: catalog index (fa/en/ar) =="
+          for LOC in fa en ar; do
+            PREFIX="${LOCALE_PREFIX[$LOC]}"
+            URL="$BASE_URL$PREFIX/products"
+            STATUS="$(http_status "$URL")"
+            PRODUCTS_BODY_FILE="$(body_to_file "$URL" "s5-products-$LOC.html")"
+            SLUG="$(grep -o "href=\"$PREFIX/products/[a-zA-Z0-9_-]\+\"" "$PRODUCTS_BODY_FILE" | head -n1 | sed -E "s#href=\"$PREFIX/products/([a-zA-Z0-9_-]+)\"#\1#")"
+            CATALOG_SLUG[$LOC]="$SLUG"
+            if [ "$STATUS" != "200" ]; then
+              fail "$PREFIX/products [$LOC] expected 200, got $STATUS"
+            elif [ -n "$SLUG" ]; then
+              pass "$PREFIX/products [$LOC] -> 200, discovered a published catalog slug"
+            elif grep -q "${LOCALE_EMPTY_STATE[$LOC]}" "$PRODUCTS_BODY_FILE"; then
+              pass "$PREFIX/products [$LOC] -> 200, legitimate empty-catalog state"
             else
-              fail "/products/$CATALOG_SLUG expected 200 with an <h1>, got status $STATUS"
+              fail "$PREFIX/products [$LOC] returned 200 but neither a product link nor the known empty-catalog state was found"
             fi
-          else
-            STATUS="$(http_status "$BASE_URL/products/smoke-check-no-such-slug")"
-            if [ "$STATUS" = "404" ]; then
-              pass "no published catalog slug available; /products/<nonexistent> correctly 404s"
-            else
-              fail "/products/<nonexistent> expected 404 with an empty catalog, got $STATUS"
-            fi
-          fi
+          done
 
-          echo "== S7: RFQ page render (/contact) — no RFQ submitted =="
-          STATUS="$(http_status "$BASE_URL/contact")"
-          CONTACT_BODY_FILE="$(body_to_file "$BASE_URL/contact" "s7-contact.html")"
-          if [ "$STATUS" != "200" ]; then
-            fail "/contact expected 200, got $STATUS"
-          elif grep -q '<form' "$CONTACT_BODY_FILE" \
-            && grep -q 'name="company"' "$CONTACT_BODY_FILE" \
-            && grep -q 'name="phoneCountry"' "$CONTACT_BODY_FILE" \
-            && grep -q 'name="phoneLocal"' "$CONTACT_BODY_FILE" \
-            && grep -qi 'challenges\.cloudflare\.com/turnstile' "$CONTACT_BODY_FILE"; then
-            pass "/contact -> 200, <form> with company/phoneCountry/phoneLocal fields and Turnstile widget markup present (no RFQ submitted)"
-          else
-            fail "/contact returned 200 but the RFQ form/Turnstile markup was not found in the rendered HTML"
-          fi
+          echo "== S6: catalog detail (fa/en/ar) =="
+          for LOC in fa en ar; do
+            PREFIX="${LOCALE_PREFIX[$LOC]}"
+            SLUG="${CATALOG_SLUG[$LOC]}"
+            if [ -n "$SLUG" ]; then
+              URL="$BASE_URL$PREFIX/products/$SLUG"
+              STATUS="$(http_status "$URL")"
+              DETAIL_BODY_FILE="$(body_to_file "$URL" "s6-detail-$LOC.html")"
+              if [ "$STATUS" = "200" ] && grep -q '<h1' "$DETAIL_BODY_FILE"; then
+                pass "$PREFIX/products/$SLUG [$LOC] -> 200, <h1> present"
+              else
+                fail "$PREFIX/products/$SLUG [$LOC] expected 200 with an <h1>, got status $STATUS"
+              fi
+            else
+              URL="$BASE_URL$PREFIX/products/smoke-check-no-such-slug"
+              STATUS="$(http_status "$URL")"
+              if [ "$STATUS" = "404" ]; then
+                pass "no published catalog slug for [$LOC]; $PREFIX/products/<nonexistent> correctly 404s"
+              else
+                fail "$PREFIX/products/<nonexistent> [$LOC] expected 404 with an empty catalog, got $STATUS"
+              fi
+            fi
+          done
+
+          echo "== S7: RFQ page render (fa/en/ar) — no RFQ submitted =="
+          for LOC in fa en ar; do
+            PREFIX="${LOCALE_PREFIX[$LOC]}"
+            URL="$BASE_URL$PREFIX/contact"
+            STATUS="$(http_status "$URL")"
+            CONTACT_BODY_FILE="$(body_to_file "$URL" "s7-contact-$LOC.html")"
+            if [ "$STATUS" != "200" ]; then
+              fail "$PREFIX/contact [$LOC] expected 200, got $STATUS"
+            elif grep -q '<form' "$CONTACT_BODY_FILE" \
+              && grep -q 'name="company"' "$CONTACT_BODY_FILE" \
+              && grep -q 'name="phoneCountry"' "$CONTACT_BODY_FILE" \
+              && grep -q 'name="phoneLocal"' "$CONTACT_BODY_FILE" \
+              && grep -qi 'challenges\.cloudflare\.com/turnstile' "$CONTACT_BODY_FILE"; then
+              pass "$PREFIX/contact [$LOC] -> 200, <form> with company/phoneCountry/phoneLocal fields and Turnstile widget markup present (no RFQ submitted)"
+            else
+              fail "$PREFIX/contact [$LOC] returned 200 but the RFQ form/Turnstile markup was not found in the rendered HTML"
+            fi
+          done
 
           echo "== S8: not-found handling =="
           STATUS="$(http_status "$BASE_URL/products/smoke-check-route-that-does-not-exist")"
@@ -801,10 +966,11 @@ jobs:
           fi
 
           echo ""
+          TOTAL_CHECKS=$((CHECKS_PASSED + FAILURES))
           if [ "$FAILURES" -gt 0 ]; then
-            SMOKE_RESULT="FAILED ($FAILURES check(s))"
+            SMOKE_RESULT="FAILED ($FAILURES check(s), $CHECKS_PASSED/$TOTAL_CHECKS passed)"
           else
-            SMOKE_RESULT="PASSED (10/10)"
+            SMOKE_RESULT="PASSED ($CHECKS_PASSED/$TOTAL_CHECKS)"
           fi
           echo "smoke_result=$SMOKE_RESULT" >> "$GITHUB_ENV"
 
