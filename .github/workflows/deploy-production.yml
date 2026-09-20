@@ -1,0 +1,830 @@
+name: Deploy Production
+
+# Manual, workflow_dispatch-only, reviewer-gated deployment of the application
+# code to the real Cloudflare production Worker (env.production in
+# wrangler.jsonc — ahanassa-production, serving www.ahanassa.com). This
+# workflow deploys application code ONLY — it never applies a D1 migration
+# and never mutates a secret.
+#
+# SOURCE OF TRUTH — this file implements, and must stay consistent with:
+#   - docs/release/PRODUCTION_DEPLOY_WORKFLOW_DESIGN.md   (the frozen architecture: trigger,
+#     approval gate, A1-A3 preconditions, two-phase deploy, secret handling,
+#     smoke gate, rollback policy, evidence scheme)
+#   - docs/release/PRODUCTION_PIPELINE_PRECHECKS_REPORT.md (the empirically-corrected
+#     staging-provenance mechanism — see A2 below — and the confirmed
+#     `wrangler versions upload` secret-inheritance behavior)
+#   - .github/workflows/deploy-staging.yml (the proven exact-SHA checkout model,
+#     staging resource assertion pattern, and S1-S10 smoke-gate shape this
+#     workflow adapts for production)
+#
+# EXACT-SHA MODEL (same discipline as deploy-staging.yml, stricter format)
+# -------------------------------------------------------------------------
+# `deploy_ref` must be a full 40-character lowercase-hex commit SHA — never a
+# branch name or short SHA (staging tolerates those for operator convenience;
+# production does not). The very first step rejects anything else, before
+# checkout ever runs.
+#
+# TWO INDEPENDENT GATES, NEITHER SUBSTITUTES FOR THE OTHER
+# -----------------------------------------------------------
+# 1. `environment: production` — GitHub pauses the job before ANY step runs
+#    (including checkout) until the required reviewer approves. A run that is
+#    never approved never executes and never receives the environment's
+#    secrets.
+# 2. The typed `confirm: "deploy-production"` input — catches a different
+#    mistake (an approved reviewer who fat-fingers the dispatch form itself:
+#    wrong deploy_ref pasted, wrong workflow selected).
+#
+# A1 -> A2 -> A3, IN ORDER, ALL BEFORE npm ci / BUILD
+# -----------------------------------------------------
+# A1 (production target safety, local file parse only) is cheapest and most
+# security-critical, so it runs first. A2 (staging provenance, one GitHub API
+# scan) runs second. A3 (migration parity, a Cloudflare network call) runs
+# last, because it is the most expensive to repeat during a failed dry run.
+# No code from `deploy_ref` executes in any capacity until all three pass.
+#
+# A2 — STAGING PROVENANCE — CORRECTED METHOD, PER PRODUCTION_PIPELINE_PRECHECKS_REPORT.md
+# -------------------------------------------------------------------------------------------
+# Do NOT compare against `workflow_run.inputs.deploy_ref` (this field does not
+# exist anywhere in GitHub's REST or GraphQL API for a historical run — proven
+# empirically, not assumed), `head_sha` (the dispatching branch's tip at
+# trigger time, NOT the deployed SHA — proven to diverge on a real run in this
+# repository's own history), or the auto-created Deployments API object's
+# `sha` (same trap: keyed to the triggering ref, not the checked-out
+# application ref). The only mechanism proven to work is a log scan of
+# `deploy-staging.yml` (workflow 361701517)'s own successful runs for the
+# exact line it already prints: `Deploying exact commit: <deploy_ref>`.
+#
+# TWO-PHASE DEPLOY (never a one-shot `wrangler deploy`/`vinext-cloudflare deploy`)
+# -----------------------------------------------------------------------------------
+# Phase 1 (`wrangler versions upload`) yields a named, addressable version and
+# shifts zero traffic. Its bindings/secrets are verified. Only then does
+# Phase 2 (`wrangler versions deploy <id>@<rollout_percentage>`) shift traffic
+# — this is what makes a rollback target (`PREVIOUS_VERSION_ID`, captured
+# before Phase 1) meaningful: it is always captured before any traffic moves.
+#
+# CLOUDFLARE_ENV BUILD-TIME GOTCHA (docs/CLOUDFLARE_DEPLOYMENT_STAGE1.md §2)
+# -----------------------------------------------------------------------------
+# `@cloudflare/vite-plugin` merges a named Wrangler environment's config into
+# `dist/server/wrangler.json` at BUILD time, driven by the `CLOUDFLARE_ENV`
+# process env var — never at `wrangler` invocation time via `--env`. Every
+# `wrangler` command after Build below therefore passes
+# `--config dist/server/wrangler.json` and NEVER `--env` again — the config is
+# already flattened. Getting this wrong silently targets placeholder/staging
+# resources without ever erroring (confirmed the hard way during the real
+# Stage 1 production deployment).
+#
+# NO AUTOMATIC ROLLBACK, NO AUTO-APPLIED MIGRATION, NO contents: write
+# -----------------------------------------------------------------------
+# A smoke-gate failure fails this job loudly with the exact rollback command
+# pre-filled — it never rolls back automatically (a migration-caused failure
+# is not fixed by reverting the Worker, and an automatic revert could mask a
+# partially-applied data change; a human decides). Migration parity (A3) is
+# read-only and never runs `d1 migrations apply` under any condition. This
+# workflow is never granted `contents: write` — the deployment manifest
+# (docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md) is an append-only ledger
+# updated as a separate, human-reviewed documentation commit after a real
+# release, exactly like every other report in docs/release/ — never
+# committed to by the workflow itself.
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_ref:
+        description: >-
+          Full 40-character commit SHA to deploy. Must already have a
+          successful Deploy Staging run (workflow 361701517) for this exact
+          SHA — see the "Verify staging provenance" step. No default; a
+          mutable default would destroy the promotion guarantee. Never a
+          branch name or short SHA.
+        required: true
+        type: string
+      confirm:
+        description: >-
+          Type exactly "deploy-production" to confirm. Deliberately different
+          from staging's "deploy-staging" so operator muscle memory cannot
+          cross environments.
+        required: true
+        type: string
+      rollout_percentage:
+        description: Traffic percentage for the newly uploaded version.
+        required: true
+        type: choice
+        options: ["10", "50", "100"]
+        default: "100"
+      skip_staging_provenance:
+        description: >-
+          Break-glass only. Set true only for a hotfix SHA that legitimately
+          never went to staging. Still requires the environment's reviewer to
+          approve the run at all, and is loudly recorded in the job summary
+          and the production release evidence every time it is used.
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  deploy-production:
+    name: deploy-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    outputs:
+      deployed_sha: ${{ steps.resolve.outputs.deployed_sha }}
+      new_version_id: ${{ steps.phase1_upload.outputs.new_version_id }}
+      previous_version_id: ${{ steps.previous_version.outputs.previous_version_id }}
+      rollout_percentage: ${{ inputs.rollout_percentage }}
+      staging_provenance_run: ${{ steps.provenance.outputs.staging_provenance_run }}
+      deployed_at: ${{ steps.evidence.outputs.deployed_at }}
+    steps:
+      - name: Require explicit confirmation and a full 40-hex-character deploy_ref
+        env:
+          CONFIRM_INPUT: ${{ inputs.confirm }}
+          DEPLOY_REF_INPUT: ${{ inputs.deploy_ref }}
+        run: |
+          set -euo pipefail
+          if [ "$CONFIRM_INPUT" != "deploy-production" ]; then
+            echo "::error::Confirmation input did not equal 'deploy-production'. Aborting without making any changes."
+            exit 1
+          fi
+          if ! [[ "$DEPLOY_REF_INPUT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::deploy_ref must be a full 40-character lowercase-hexadecimal commit SHA, never a branch name or short SHA. Got: \"$DEPLOY_REF_INPUT\""
+            exit 1
+          fi
+          echo "Requested deploy_ref (validated 40-hex SHA): $DEPLOY_REF_INPUT"
+
+      - name: Checkout deploy_ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.deploy_ref }}
+          persist-credentials: false
+
+      - name: Resolve deployed SHA
+        id: resolve
+        env:
+          DEPLOY_REF_INPUT: ${{ inputs.deploy_ref }}
+        run: |
+          set -euo pipefail
+          DEPLOYED_SHA="$(git rev-parse HEAD)"
+          if [ -z "$DEPLOYED_SHA" ] || ! git cat-file -e "${DEPLOYED_SHA}^{commit}" 2>/dev/null; then
+            echo "::error::deploy_ref '$DEPLOY_REF_INPUT' did not resolve to a commit. Aborting before build and deploy."
+            exit 1
+          fi
+          if [ "$DEPLOYED_SHA" != "$DEPLOY_REF_INPUT" ]; then
+            echo "::error::Checked-out HEAD ($DEPLOYED_SHA) does not exactly match the requested deploy_ref ($DEPLOY_REF_INPUT). Aborting."
+            exit 1
+          fi
+          echo "DEPLOYED_SHA=$DEPLOYED_SHA" >> "$GITHUB_ENV"
+          echo "deployed_sha=$DEPLOYED_SHA" >> "$GITHUB_OUTPUT"
+          echo "Deploying exact commit: $DEPLOYED_SHA"
+          {
+            echo "### Production deployment"
+            echo ""
+            echo "| field | value |"
+            echo "| --- | --- |"
+            echo "| requested deploy_ref | \`$DEPLOY_REF_INPUT\` |"
+            echo "| resolved DEPLOYED_SHA | \`$DEPLOYED_SHA\` |"
+            echo "| Cloudflare environment | \`production\` |"
+            echo "| Worker | \`ahanassa-production\` |"
+            echo "| rollout_percentage | \`${{ inputs.rollout_percentage }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # A1 — Production target safety. Runs BEFORE setup-node / npm ci / build,
+      # so no code from the checked-out ref executes until the production
+      # target is proven. This script is intentionally inline: it comes from
+      # the workflow file on the dispatch branch, never from the (untrusted)
+      # deploy_ref checkout. Mirrors deploy-staging.yml's own
+      # assert-staging.cjs pattern exactly, pinned against production's
+      # live-verified values (docs/release/PRODUCTION_DEPLOY_WORKFLOW_DESIGN.md §4).
+      - name: "A1: assert production target (fail closed)"
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/assert-production.cjs" <<'ASSERT_EOF'
+          const fs = require('fs');
+
+          const EXPECTED_WORKER = 'ahanassa-production';
+          const EXPECTED_D1 = {
+            DB_OPS: { database_name: 'ahanassa-ops-production', database_id: '7240a6a7-c293-4e6e-baf3-95838a3c2944' },
+            DB_PUBLIC: { database_name: 'ahanassa-public-production', database_id: '73ba6b50-ef57-4d89-baa9-617a0b0af127' },
+          };
+          const EXPECTED_ROUTES = [{ pattern: 'www.ahanassa.com', custom_domain: true }];
+          const EXPECTED_CRONS = ['*/5 * * * *', '0 */3 * * *', '30 2 * * *'];
+
+          function stripJsonc(src) {
+            let out = '';
+            let i = 0;
+            const n = src.length;
+            while (i < n) {
+              const c = src[i];
+              if (c === '"') {
+                let j = i + 1;
+                while (j < n) {
+                  if (src[j] === '\\') { j += 2; continue; }
+                  if (src[j] === '"') { j++; break; }
+                  j++;
+                }
+                out += src.slice(i, j);
+                i = j;
+                continue;
+              }
+              if (c === '/' && src[i + 1] === '/') {
+                while (i < n && src[i] !== '\n') i++;
+                continue;
+              }
+              if (c === '/' && src[i + 1] === '*') {
+                i += 2;
+                while (i < n && !(src[i] === '*' && src[i + 1] === '/')) i++;
+                i += 2;
+                continue;
+              }
+              out += c;
+              i++;
+            }
+            return out.replace(/,(\s*[}\]])/g, '$1');
+          }
+
+          function fail(msg) {
+            console.log('::error::PRODUCTION TARGET ASSERTION FAILED — ' + msg);
+            process.exit(1);
+          }
+
+          if (!fs.existsSync('wrangler.jsonc')) {
+            fail('wrangler.jsonc not found in the checked-out deploy_ref. This ref does not contain the application.');
+          }
+
+          let cfg;
+          try {
+            cfg = JSON.parse(stripJsonc(fs.readFileSync('wrangler.jsonc', 'utf8')));
+          } catch (e) {
+            fail('wrangler.jsonc could not be parsed: ' + e.message);
+          }
+
+          const prod = cfg && cfg.env && cfg.env.production;
+          if (!prod || typeof prod !== 'object') fail('wrangler.jsonc has no env.production block.');
+
+          if (prod.name !== EXPECTED_WORKER) {
+            fail('env.production.name is "' + prod.name + '", expected "' + EXPECTED_WORKER + '".');
+          }
+
+          if (prod.vars && prod.vars.APP_ENV !== 'production') {
+            fail('env.production.vars.APP_ENV is "' + (prod.vars && prod.vars.APP_ENV) + '", expected "production".');
+          } else if (!prod.vars) {
+            fail('env.production has no vars block (expected vars.APP_ENV = "production").');
+          }
+
+          const d1 = Array.isArray(prod.d1_databases) ? prod.d1_databases : [];
+          const seenD1 = new Set();
+          for (const b of d1) {
+            const exp = EXPECTED_D1[b.binding];
+            if (!exp) fail('env.production declares an unexpected D1 binding "' + b.binding + '".');
+            if (b.database_name !== exp.database_name) {
+              fail('env.production D1 ' + b.binding + ' database_name is "' + b.database_name + '", expected "' + exp.database_name + '".');
+            }
+            if (b.database_id !== exp.database_id) {
+              fail('env.production D1 ' + b.binding + ' database_id does not match the expected production database.');
+            }
+            seenD1.add(b.binding);
+          }
+          for (const k of Object.keys(EXPECTED_D1)) {
+            if (!seenD1.has(k)) fail('env.production is missing the expected D1 binding "' + k + '".');
+          }
+
+          const routes = Array.isArray(prod.routes) ? prod.routes : [];
+          if (routes.length !== EXPECTED_ROUTES.length || routes.some((r, i) => r.pattern !== EXPECTED_ROUTES[i].pattern || r.custom_domain !== EXPECTED_ROUTES[i].custom_domain)) {
+            fail('env.production.routes is ' + JSON.stringify(routes) + ', expected exactly ' + JSON.stringify(EXPECTED_ROUTES) + ' — a deploy must never silently detach or add to the live custom domain.');
+          }
+
+          if (prod.workers_dev !== true) {
+            fail('env.production.workers_dev is "' + prod.workers_dev + '", expected true (regression class DOCUMENT_AUDIT_REPORT.md DAR-050).');
+          }
+
+          const crons = (prod.triggers && Array.isArray(prod.triggers.crons)) ? prod.triggers.crons : [];
+          if (crons.length !== EXPECTED_CRONS.length || crons.some((c, i) => c !== EXPECTED_CRONS[i])) {
+            fail('env.production.triggers.crons is ' + JSON.stringify(crons) + ', expected exactly ' + JSON.stringify(EXPECTED_CRONS) + ' — a trigger change must be a deliberate, reviewed config commit, never a deploy-time surprise.');
+          }
+
+          // Literal-free denylist: no string anywhere under env.production may
+          // name the staging Worker/databases/queues. Mirror image of
+          // staging's own live-environment scan — keeps a doctored ref from
+          // redirecting this workflow at the wrong target in either direction.
+          const offenders = [];
+          (function walk(node, trail) {
+            if (typeof node === 'string') {
+              if (/staging/i.test(node)) offenders.push(trail + ' = ' + node);
+              return;
+            }
+            if (Array.isArray(node)) { node.forEach((v, i) => walk(v, trail + '[' + i + ']')); return; }
+            if (node && typeof node === 'object') {
+              for (const [k, v] of Object.entries(node)) {
+                if (/staging/i.test(k)) offenders.push(trail + '.' + k + ' (key)');
+                walk(v, trail + '.' + k);
+              }
+            }
+          })(prod, 'env.production');
+          if (offenders.length > 0) {
+            fail('env.production names the staging environment: ' + offenders.join('; '));
+          }
+
+          console.log('Production target assertion PASSED.');
+          console.log('  worker      : ' + prod.name);
+          console.log('  DB_OPS      : ' + EXPECTED_D1.DB_OPS.database_name);
+          console.log('  DB_PUBLIC   : ' + EXPECTED_D1.DB_PUBLIC.database_name);
+          console.log('  routes      : ' + JSON.stringify(routes));
+          console.log('  workers_dev : ' + prod.workers_dev);
+          console.log('  crons       : ' + JSON.stringify(crons));
+          console.log('  APP_ENV     : ' + prod.vars.APP_ENV);
+          console.log('  staging-environment identifiers inside env.production: none');
+          ASSERT_EOF
+          node "$RUNNER_TEMP/assert-production.cjs"
+
+      # A2 — Staging provenance. Requires `actions: read` (job-level
+      # permission above) to read another workflow's run logs. Fails closed
+      # on any API error, rate limit, or malformed response — "not verified"
+      # is always treated the same as "verified false", never as "verified
+      # true" (docs/release/PRODUCTION_DEPLOY_WORKFLOW_DESIGN.md §3).
+      - name: "A2: verify staging provenance (Deploy Staging log scan)"
+        id: provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SKIP_PROVENANCE: ${{ inputs.skip_staging_provenance }}
+        run: |
+          set -uo pipefail
+          STAGING_WORKFLOW_ID=361701517
+          FOUND_RUN=""
+
+          # Do NOT use workflow_run.inputs.deploy_ref (does not exist on any
+          # historical run via REST or GraphQL — confirmed empirically,
+          # PRODUCTION_PIPELINE_PRECHECKS_REPORT.md §2 Step 3), head_sha (the
+          # dispatching branch's tip at trigger time, proven to diverge from
+          # the actually-deployed commit on a real run in this repository),
+          # or the Deployments API's auto-created `sha` (same trap, keyed to
+          # the triggering ref). The only mechanism proven correct is
+          # scanning each successful run's own job log for the exact line
+          # deploy-staging.yml already prints after resolving the checkout:
+          # "Deploying exact commit: <sha>".
+          RUN_IDS="$(gh api "repos/${{ github.repository }}/actions/workflows/$STAGING_WORKFLOW_ID/runs?status=success&per_page=100" --jq '.workflow_runs[].id' 2>/dev/null)"
+          API_STATUS=$?
+
+          if [ $API_STATUS -ne 0 ]; then
+            echo "::error::STAGING PROVENANCE ASSERTION FAILED — could not list Deploy Staging (workflow $STAGING_WORKFLOW_ID) runs via the GitHub API. Treated as NOT verified, never as verified."
+            exit 1
+          fi
+
+          for RUN_ID in $RUN_IDS; do
+            JOB_ID="$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs" --jq '.jobs[0].id // empty' 2>/dev/null)"
+            if [ -z "$JOB_ID" ]; then
+              continue
+            fi
+            # Written to a file and grepped from there, deliberately never
+            # held only in a shell variable and piped — a job log can be
+            # several hundred KB, and matching straight off a file is the
+            # more robust, unambiguous form for a fail-closed safety check.
+            LOG_FILE="$RUNNER_TEMP/staging-run-$RUN_ID.log"
+            gh api --allow-escape-sequences "repos/${{ github.repository }}/actions/jobs/$JOB_ID/logs" 2>/dev/null | sed -E 's/\x1b\[[0-9;]*m//g' > "$LOG_FILE"
+            if grep -qF "Deploying exact commit: $DEPLOYED_SHA" "$LOG_FILE"; then
+              FOUND_RUN="$RUN_ID"
+              break
+            fi
+          done
+
+          if [ -n "$FOUND_RUN" ]; then
+            echo "Staging provenance confirmed: Deploy Staging run $FOUND_RUN successfully deployed $DEPLOYED_SHA."
+            echo "staging_provenance_run=$FOUND_RUN" >> "$GITHUB_OUTPUT"
+            {
+              echo ""
+              echo "### Staging provenance"
+              echo ""
+              echo "Confirmed via Deploy Staging (workflow $STAGING_WORKFLOW_ID) run [$FOUND_RUN](https://github.com/${{ github.repository }}/actions/runs/$FOUND_RUN)."
+            } >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$SKIP_PROVENANCE" = "true" ]; then
+            echo "::warning::STAGING PROVENANCE SKIPPED — skip_staging_provenance=true. Deploying $DEPLOYED_SHA with NO staging proof. This MUST be justified when the production deployment manifest is appended."
+            echo "staging_provenance_run=SKIPPED" >> "$GITHUB_OUTPUT"
+            {
+              echo ""
+              echo "### Staging provenance"
+              echo ""
+              echo "**SKIPPED** (\`skip_staging_provenance=true\`) — $DEPLOYED_SHA was deployed with NO staging proof. Break-glass path used; this run was still gated by the production environment's required reviewer."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::STAGING PROVENANCE ASSERTION FAILED — no successful Deploy Staging run (workflow $STAGING_WORKFLOW_ID) contains the log line 'Deploying exact commit: $DEPLOYED_SHA'. This SHA has not been proven on staging."
+            exit 1
+          fi
+
+      # A3 — Migration parity. Read-only only: `d1 migrations list`, never
+      # `d1 migrations apply`. If either database has a pending migration,
+      # this workflow stops — applying it remains a separate, explicit,
+      # manual operator action (docs/release/CI_CD_POLICY.md), never
+      # performed by this workflow under any input or flag.
+      - name: "A3: migration parity gate (read-only, never auto-applied)"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          DB_OPS_STATE="$(npx wrangler d1 migrations list DB_OPS --config wrangler.jsonc --env production --remote 2>&1)"
+          echo "$DB_OPS_STATE"
+          if ! echo "$DB_OPS_STATE" | grep -q "No migrations to apply"; then
+            echo "::error::MIGRATION PARITY ASSERTION FAILED — DB_OPS has migrations pending on production that deploy_ref's code may depend on. This workflow never applies a migration itself — run the separate, manual, documented procedure against DB_OPS first (docs/release/CI_CD_POLICY.md), then re-run this workflow."
+            exit 1
+          fi
+
+          DB_PUBLIC_STATE="$(npx wrangler d1 migrations list DB_PUBLIC --config wrangler.jsonc --env production --remote 2>&1)"
+          echo "$DB_PUBLIC_STATE"
+          if ! echo "$DB_PUBLIC_STATE" | grep -q "No migrations to apply"; then
+            echo "::error::MIGRATION PARITY ASSERTION FAILED — DB_PUBLIC has migrations pending on production. Migrations are a separate, manual, human-run action, never auto-applied by this workflow — run the documented procedure against DB_PUBLIC first (docs/release/CI_CD_POLICY.md), then re-run this workflow."
+            exit 1
+          fi
+
+          echo "Migration parity confirmed: DB_OPS and DB_PUBLIC both report no pending migrations on production."
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies (immutable)
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      # CLOUDFLARE_ENV must be set at BUILD time, not passed as --env to a
+      # later wrangler command — see this file's header comment. Every
+      # `wrangler` invocation from here on passes
+      # --config dist/server/wrangler.json and never --env again.
+      - name: Build (production config baked into dist/server/wrangler.json)
+        env:
+          CLOUDFLARE_ENV: production
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          npm run build
+
+      # Captured BEFORE Phase 1 uploads anything — "a release whose rollback
+      # target was not captured is not a completed release"
+      # (docs/release/PRODUCTION_DEPLOY_WORKFLOW_DESIGN.md §9). Fails closed:
+      # an empty result blocks the release rather than proceeding with no
+      # named rollback target.
+      - name: Capture PREVIOUS_VERSION_ID (rollback target, before any traffic shift)
+        id: previous_version
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          PREVIOUS_VERSION_ID="$(npx wrangler deployments list --config dist/server/wrangler.json --json | jq -r '.[-1].versions[0].version_id // empty')"
+          if [ -z "$PREVIOUS_VERSION_ID" ]; then
+            echo "::error::ROLLBACK TARGET CAPTURE FAILED — could not determine the currently-serving Worker Version ID before deploying. Aborting before any traffic shift."
+            exit 1
+          fi
+          echo "PREVIOUS_VERSION_ID=$PREVIOUS_VERSION_ID" >> "$GITHUB_ENV"
+          echo "previous_version_id=$PREVIOUS_VERSION_ID" >> "$GITHUB_OUTPUT"
+          echo "Currently-serving version (rollback target): $PREVIOUS_VERSION_ID"
+
+      # Phase 1 — zero traffic shift. Yields an addressable, inspectable
+      # version handle before anything is promoted.
+      - name: "Phase 1: wrangler versions upload"
+        id: phase1_upload
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx wrangler versions upload --config dist/server/wrangler.json \
+            --message "Production release - SHA $DEPLOYED_SHA - run ${{ github.run_id }}" \
+            2>&1 | tee "$RUNNER_TEMP/versions-upload.log"
+
+          NEW_VERSION_ID="$(
+            sed -E 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/versions-upload.log" \
+              | grep -o 'Worker Version ID:.*' \
+              | tail -n1 \
+              | sed -E 's/^Worker Version ID:[[:space:],]*//' \
+              | tr -d '[:space:]'
+          )"
+          if [ -z "$NEW_VERSION_ID" ]; then
+            echo "::error::PHASE 1 UPLOAD FAILED — could not find a Worker Version ID in the versions upload output. No traffic has been shifted."
+            exit 1
+          fi
+          echo "NEW_VERSION_ID=$NEW_VERSION_ID" >> "$GITHUB_ENV"
+          echo "new_version_id=$NEW_VERSION_ID" >> "$GITHUB_OUTPUT"
+          echo "Uploaded new version (0% traffic so far): $NEW_VERSION_ID"
+
+      # Defense-in-depth, kept even though PRODUCTION_PIPELINE_PRECHECKS_REPORT.md
+      # §1 already empirically proved `versions upload` inherits the Worker's
+      # attached secrets — this check is what makes that finding continue to
+      # hold on every future release rather than being trusted once and
+      # forgotten, and it also re-confirms the actual UPLOADED version's
+      # bindings, not merely the source config A1 already parsed.
+      # Names only, never values — Cloudflare's API has no mechanism to
+      # return a secret's value, and this step never attempts to construct
+      # or print one.
+      - name: Verify secret inheritance and production bindings on the new version
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          VERSION_JSON_FILE="$RUNNER_TEMP/new-version.json"
+          npx wrangler versions view "$NEW_VERSION_ID" --config dist/server/wrangler.json --json > "$VERSION_JSON_FILE"
+
+          for SECRET_NAME in ODOO_RFQ_API_TOKEN TURNSTILE_SECRET_KEY; do
+            FOUND="$(jq -r --arg name "$SECRET_NAME" '[.resources.bindings[]? | select(.name == $name and .type == "secret_text")] | length' "$VERSION_JSON_FILE")"
+            if [ "$FOUND" != "1" ]; then
+              echo "::error::NEW VERSION SAFETY ASSERTION FAILED — secret \"$SECRET_NAME\" is not present (as secret_text) on newly uploaded version $NEW_VERSION_ID. Refusing to promote a version that would serve requests with a missing secret."
+              exit 1
+            fi
+          done
+
+          DB_OPS_ID="$(jq -r '.resources.bindings[]? | select(.name=="DB_OPS") | .database_id // empty' "$VERSION_JSON_FILE")"
+          DB_PUBLIC_ID="$(jq -r '.resources.bindings[]? | select(.name=="DB_PUBLIC") | .database_id // empty' "$VERSION_JSON_FILE")"
+          QUEUE_NAME="$(jq -r '.resources.bindings[]? | select(.name=="ODOO_SYNC_QUEUE") | .queue_name // empty' "$VERSION_JSON_FILE")"
+
+          if [ "$DB_OPS_ID" != "7240a6a7-c293-4e6e-baf3-95838a3c2944" ]; then
+            echo "::error::NEW VERSION SAFETY ASSERTION FAILED — uploaded version's DB_OPS binding is \"$DB_OPS_ID\", expected the production database."
+            exit 1
+          fi
+          if [ "$DB_PUBLIC_ID" != "73ba6b50-ef57-4d89-baa9-617a0b0af127" ]; then
+            echo "::error::NEW VERSION SAFETY ASSERTION FAILED — uploaded version's DB_PUBLIC binding is \"$DB_PUBLIC_ID\", expected the production database."
+            exit 1
+          fi
+          if [ "$QUEUE_NAME" != "ahanassa-odoo-sync-production" ]; then
+            echo "::error::NEW VERSION SAFETY ASSERTION FAILED — uploaded version's ODOO_SYNC_QUEUE binding is \"$QUEUE_NAME\", expected ahanassa-odoo-sync-production."
+            exit 1
+          fi
+
+          echo "New version $NEW_VERSION_ID: both required secrets present (names only, values never read), production D1/queue bindings confirmed correct."
+
+      # Phase 2 — the one step in this workflow that shifts real traffic.
+      # Everything before this point is read-only or zero-traffic.
+      - name: "Phase 2: wrangler versions deploy (rollout ${{ inputs.rollout_percentage }}%)"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx wrangler versions deploy "$NEW_VERSION_ID@${{ inputs.rollout_percentage }}" \
+            --config dist/server/wrangler.json \
+            --message "Production release - SHA $DEPLOYED_SHA - run ${{ github.run_id }}" \
+            --yes
+          echo "Promoted version $NEW_VERSION_ID to ${{ inputs.rollout_percentage }}% traffic."
+
+      # Evidence capture — durable, three places: job outputs, job summary,
+      # and an uploaded artifact. Captured before the smoke gate so evidence
+      # exists even if smoke fails (the release already happened; the smoke
+      # gate reports on it, it cannot retroactively prevent it).
+      - name: Capture production release evidence
+        id: evidence
+        run: |
+          set -euo pipefail
+          DEPLOYED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "deployed_at=$DEPLOYED_AT" >> "$GITHUB_OUTPUT"
+
+          EVIDENCE_FILE="$RUNNER_TEMP/production-release-evidence.json"
+          cat > "$EVIDENCE_FILE" <<EOF
+          {
+            "environment": "production",
+            "worker_name": "ahanassa-production",
+            "new_version_id": "$NEW_VERSION_ID",
+            "previous_version_id": "$PREVIOUS_VERSION_ID",
+            "deployed_sha": "$DEPLOYED_SHA",
+            "rollout_percentage": "${{ inputs.rollout_percentage }}",
+            "staging_provenance_run": "${{ steps.provenance.outputs.staging_provenance_run }}",
+            "skip_staging_provenance": "${{ inputs.skip_staging_provenance }}",
+            "workflow_run_id": "${{ github.run_id }}",
+            "workflow_run_attempt": "${{ github.run_attempt }}",
+            "deployed_at": "$DEPLOYED_AT"
+          }
+          EOF
+          echo "EVIDENCE_FILE=$EVIDENCE_FILE" >> "$GITHUB_ENV"
+
+          {
+            echo ""
+            echo "### Production release evidence"
+            echo ""
+            echo "| field | value |"
+            echo "| --- | --- |"
+            echo "| New Worker Version ID | \`$NEW_VERSION_ID\` |"
+            echo "| Previous Worker Version ID (rollback target) | \`$PREVIOUS_VERSION_ID\` |"
+            echo "| Deployed SHA | \`$DEPLOYED_SHA\` |"
+            echo "| Rollout percentage | \`${{ inputs.rollout_percentage }}%\` |"
+            echo "| Staging provenance run | \`${{ steps.provenance.outputs.staging_provenance_run }}\` |"
+            echo "| Workflow run ID | \`${{ github.run_id }}\` |"
+            echo "| Deployed at (UTC) | \`$DEPLOYED_AT\` |"
+            echo ""
+            echo "Rollback command, if ever needed:"
+            echo '```'
+            echo "npx wrangler versions deploy \"$PREVIOUS_VERSION_ID@100\" --config dist/server/wrangler.json --yes"
+            echo '```'
+            echo ""
+            echo "Append a row to \`docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md\` recording this release (SHA, both version ids, rollout percentage, run ID, timestamp, smoke result below) — this workflow does not write to the repository itself."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload production release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-release-evidence-${{ github.run_id }}
+          path: ${{ env.EVIDENCE_FILE }}
+          retention-days: 365
+
+      # Mandatory, blocking, read-only HTTP smoke suite against the real
+      # production hostname (never *.workers.dev). No request submits an RFQ
+      # (S7 verifies form presence and required fields only) and no request
+      # requires a credential beyond a plain GET. Any 5xx, or any check
+      # below failing its criterion, fails this job. There is no automatic
+      # rollback on failure — the exact rollback command is already printed
+      # above with PREVIOUS_VERSION_ID filled in; a human decides
+      # (docs/release/PRODUCTION_DEPLOY_WORKFLOW_DESIGN.md §9).
+      - name: Production smoke checks (S1-S10)
+        run: |
+          set -uo pipefail
+          BASE_URL="https://www.ahanassa.com"
+          APEX_URL="https://ahanassa.com"
+          SMOKE_DIR="$RUNNER_TEMP/smoke"
+          mkdir -p "$SMOKE_DIR"
+          FAILURES=0
+
+          fail() {
+            echo "::error::SMOKE CHECK FAILED — $1"
+            FAILURES=$((FAILURES + 1))
+          }
+
+          pass() {
+            echo "  OK — $1"
+          }
+
+          http_status() {
+            curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$1"
+          }
+
+          redirect_target() {
+            curl -s -o /dev/null -w '%{redirect_url}' --max-time 20 "$1"
+          }
+
+          # Writes the response body straight to a file and prints that
+          # file's path — deliberately never returned as a shell variable.
+          # A response body here can be tens of KB of localized HTML;
+          # grepping it from a file (a real, seekable fd) rather than piping
+          # a giant shell variable through grep is the more robust form
+          # regardless of platform, and is what every check below does.
+          body_to_file() {
+            local out="$SMOKE_DIR/$2"
+            curl -s --max-time 20 "$1" > "$out"
+            echo "$out"
+          }
+
+          echo "== S1: homepage / =="
+          STATUS="$(http_status "$BASE_URL/")"
+          BODY_FILE="$(body_to_file "$BASE_URL/" "s1-home.html")"
+          if [ "$STATUS" = "200" ] && grep -qi '<html[^>]*lang="fa"[^>]*dir="rtl"' "$BODY_FILE"; then
+            pass "/ -> 200, <html lang=\"fa\" dir=\"rtl\">"
+          else
+            fail "/ expected 200 with <html lang=\"fa\" dir=\"rtl\">, got status $STATUS"
+          fi
+
+          echo "== S2: /fa redirects to the unprefixed default locale =="
+          STATUS="$(http_status "$BASE_URL/fa")"
+          TARGET="$(redirect_target "$BASE_URL/fa")"
+          if [ "$STATUS" = "308" ] && [ "$TARGET" = "$BASE_URL/" ]; then
+            pass "/fa -> 308 -> /"
+          else
+            fail "/fa expected 308 -> $BASE_URL/, got $STATUS -> $TARGET"
+          fi
+
+          echo "== S3: /en =="
+          STATUS="$(http_status "$BASE_URL/en")"
+          BODY_FILE="$(body_to_file "$BASE_URL/en" "s3-en.html")"
+          if [ "$STATUS" = "200" ] && grep -qi '<html[^>]*lang="en"[^>]*dir="ltr"' "$BODY_FILE"; then
+            pass "/en -> 200, <html lang=\"en\" dir=\"ltr\">"
+          else
+            fail "/en expected 200 with <html lang=\"en\" dir=\"ltr\">, got status $STATUS"
+          fi
+
+          echo "== S4: /services, /en/services, /ar/services =="
+          for p in "/services" "/en/services" "/ar/services"; do
+            STATUS="$(http_status "$BASE_URL$p")"
+            if [ "$STATUS" = "200" ]; then pass "$p -> 200"; else fail "$p expected 200, got $STATUS"; fi
+          done
+
+          echo "== S5: catalog index /products =="
+          STATUS="$(http_status "$BASE_URL/products")"
+          PRODUCTS_BODY_FILE="$(body_to_file "$BASE_URL/products" "s5-products.html")"
+          CATALOG_SLUG="$(grep -o 'href="/products/[a-zA-Z0-9_-]\+"' "$PRODUCTS_BODY_FILE" | head -n1 | sed -E 's#href="/products/([a-zA-Z0-9_-]+)"#\1#')"
+          if [ "$STATUS" != "200" ]; then
+            fail "/products expected 200, got $STATUS"
+          elif [ -n "$CATALOG_SLUG" ]; then
+            pass "/products -> 200, discovered a published catalog slug"
+          elif grep -q "کاتالوگ آنلاین در حال آماده‌سازی است" "$PRODUCTS_BODY_FILE"; then
+            pass "/products -> 200, legitimate empty-catalog state"
+          else
+            fail "/products returned 200 but neither a product link nor the known empty-catalog state was found"
+          fi
+
+          echo "== S6: catalog detail =="
+          if [ -n "$CATALOG_SLUG" ]; then
+            STATUS="$(http_status "$BASE_URL/products/$CATALOG_SLUG")"
+            DETAIL_BODY_FILE="$(body_to_file "$BASE_URL/products/$CATALOG_SLUG" "s6-detail.html")"
+            if [ "$STATUS" = "200" ] && grep -q '<h1' "$DETAIL_BODY_FILE"; then
+              pass "/products/$CATALOG_SLUG -> 200, <h1> present"
+            else
+              fail "/products/$CATALOG_SLUG expected 200 with an <h1>, got status $STATUS"
+            fi
+          else
+            STATUS="$(http_status "$BASE_URL/products/smoke-check-no-such-slug")"
+            if [ "$STATUS" = "404" ]; then
+              pass "no published catalog slug available; /products/<nonexistent> correctly 404s"
+            else
+              fail "/products/<nonexistent> expected 404 with an empty catalog, got $STATUS"
+            fi
+          fi
+
+          echo "== S7: RFQ page render (/contact) — no RFQ submitted =="
+          STATUS="$(http_status "$BASE_URL/contact")"
+          CONTACT_BODY_FILE="$(body_to_file "$BASE_URL/contact" "s7-contact.html")"
+          if [ "$STATUS" != "200" ]; then
+            fail "/contact expected 200, got $STATUS"
+          elif grep -q '<form' "$CONTACT_BODY_FILE" \
+            && grep -q 'name="company"' "$CONTACT_BODY_FILE" \
+            && grep -q 'name="phoneCountry"' "$CONTACT_BODY_FILE" \
+            && grep -q 'name="phoneLocal"' "$CONTACT_BODY_FILE" \
+            && grep -qi 'challenges\.cloudflare\.com/turnstile' "$CONTACT_BODY_FILE"; then
+            pass "/contact -> 200, <form> with company/phoneCountry/phoneLocal fields and Turnstile widget markup present (no RFQ submitted)"
+          else
+            fail "/contact returned 200 but the RFQ form/Turnstile markup was not found in the rendered HTML"
+          fi
+
+          echo "== S8: not-found handling =="
+          STATUS="$(http_status "$BASE_URL/products/smoke-check-route-that-does-not-exist")"
+          if [ "$STATUS" = "404" ]; then
+            pass "unknown catalog route -> 404 (not 500)"
+          else
+            fail "unknown catalog route expected 404, got $STATUS"
+          fi
+
+          echo "== S9: security headers =="
+          HEADERS_FILE="$SMOKE_DIR/s9-headers.txt"
+          curl -s -D - -o /dev/null --max-time 20 "$BASE_URL/" | tr -d '\r' > "$HEADERS_FILE"
+          for h in "x-content-type-options: nosniff" "x-frame-options: DENY" "referrer-policy: strict-origin-when-cross-origin"; do
+            if grep -qi "^${h}$" "$HEADERS_FILE"; then
+              pass "header present: $h"
+            else
+              fail "missing/incorrect security header: $h"
+            fi
+          done
+          if grep -qi "^permissions-policy:" "$HEADERS_FILE"; then
+            pass "header present: permissions-policy"
+          else
+            fail "missing permissions-policy header"
+          fi
+          if grep -qi "^content-security-policy" "$HEADERS_FILE"; then
+            pass "header present: content-security-policy (report-only or enforced)"
+          else
+            fail "missing content-security-policy header"
+          fi
+
+          echo "== S10: apex redirect =="
+          STATUS="$(http_status "$APEX_URL/")"
+          TARGET="$(redirect_target "$APEX_URL/")"
+          if [ "$STATUS" = "308" ] && [ "$TARGET" = "$BASE_URL/" ]; then
+            pass "apex -> 308 -> $BASE_URL/"
+          else
+            fail "apex expected 308 -> $BASE_URL/, got $STATUS -> $TARGET"
+          fi
+
+          echo ""
+          if [ "$FAILURES" -gt 0 ]; then
+            SMOKE_RESULT="FAILED ($FAILURES check(s))"
+          else
+            SMOKE_RESULT="PASSED (10/10)"
+          fi
+          echo "smoke_result=$SMOKE_RESULT" >> "$GITHUB_ENV"
+
+          {
+            echo ""
+            echo "### Production smoke checks"
+            echo ""
+            echo "**$SMOKE_RESULT**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$FAILURES" -gt 0 ]; then
+            echo "::error::$FAILURES production smoke check(s) failed. Traffic has ALREADY shifted to $NEW_VERSION_ID — this does not undo that. No automatic rollback is performed."
+            echo "::error::Rollback command (review before running): npx wrangler versions deploy \"$PREVIOUS_VERSION_ID@100\" --config dist/server/wrangler.json --yes"
+            {
+              echo ""
+              echo "Rollback command (review before running):"
+              echo '```'
+              echo "npx wrangler versions deploy \"$PREVIOUS_VERSION_ID@100\" --config dist/server/wrangler.json --yes"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "All production smoke checks passed."

@@ -480,3 +480,180 @@ test("staging smoke checks never submit an RFQ and never require a production cr
     "the smoke suite must never pass a credential to any HTTP request",
   );
 });
+
+// deploy-production.yml safety shape — additive to validateProductionWorkflowShape
+// above (which already covers the generic environment/secret/deploy_ref/assertion
+// requirements shared with any production workflow). These checks are specific to
+// THIS workflow's own design constraints from docs/release/PRODUCTION_DEPLOY_WORKFLOW_DESIGN.md
+// and the corrected staging-provenance mechanism from
+// docs/release/PRODUCTION_PIPELINE_PRECHECKS_REPORT.md. Same pattern as
+// validateStagingReleaseHardeningShape: a list of violation strings, exercised
+// against both the real file and mutated copies of it.
+
+const PRODUCTION_WORKFLOW_PATH = path.join(workflowsDir, PRODUCTION_WORKFLOW);
+
+function validateProductionDeploySafetyShape(content: string): string[] {
+  const violations: string[] = [];
+  const code = withoutComments(content);
+
+  // A2 — staging provenance must use the corrected log-scan method, never
+  // the three disproven mechanisms named in
+  // PRODUCTION_PIPELINE_PRECHECKS_REPORT.md §2 Step 3. Comments are allowed
+  // to name them for documentation (this file's own header does); only
+  // EXECUTABLE code is checked here.
+  if (!code.includes("Deploying exact commit:")) {
+    violations.push("A2 must scan Deploy Staging job logs for the 'Deploying exact commit:' line");
+  }
+  if (code.includes(".inputs.deploy_ref")) {
+    violations.push("A2 must never query a workflow run's .inputs.deploy_ref (proven not to exist on any historical run)");
+  }
+  if (code.includes("head_sha")) {
+    violations.push("A2 must never compare against head_sha (proven to diverge from the deployed SHA on a real run)");
+  }
+  if (/\/deployments\?environment/.test(code)) {
+    violations.push("A2 must never rely on the Deployments API's auto-created sha (proven to be keyed to the triggering ref, not the deployed one)");
+  }
+
+  // A3 — migration parity must be read-only, always.
+  if (!code.includes("migrations list")) {
+    violations.push("A3 must check migration state with 'wrangler d1 migrations list'");
+  }
+  if (code.includes("migrations apply")) {
+    violations.push("must never auto-apply a D1 migration ('migrations apply' must not appear anywhere)");
+  }
+
+  // Two-phase deploy — never a one-shot deploy for production.
+  if (!code.includes("versions upload")) {
+    violations.push("must use the two-phase 'wrangler versions upload' (Phase 1)");
+  }
+  if (!code.includes("versions deploy")) {
+    violations.push("must use the two-phase 'wrangler versions deploy' (Phase 2)");
+  }
+  if (code.includes("vinext-cloudflare deploy")) {
+    violations.push("must never use the one-shot 'vinext-cloudflare deploy' — production requires the two-phase versions upload/deploy path");
+  }
+  if (/(?<!versions )\bwrangler deploy\b/.test(code)) {
+    violations.push("must never use a bare one-shot 'wrangler deploy' — production requires 'wrangler versions deploy'");
+  }
+
+  // Rollback target must be captured before Phase 1 uploads anything.
+  if (!code.includes("PREVIOUS_VERSION_ID")) {
+    violations.push("must capture PREVIOUS_VERSION_ID as the rollback target before any traffic shift");
+  }
+
+  // Rollout percentage — a real choice input, not a free-form value.
+  if (!/rollout_percentage:/.test(code)) {
+    violations.push("must expose a rollout_percentage input");
+  }
+  if (!code.includes('options: ["10", "50", "100"]')) {
+    violations.push('rollout_percentage must be constrained to the choice options ["10", "50", "100"]');
+  }
+  if (!/rollout_percentage:[\s\S]*?default:\s*"100"/.test(code)) {
+    violations.push('rollout_percentage must default to "100"');
+  }
+
+  // Smoke gate must target the real production hostname, never workers.dev,
+  // and must never submit an RFQ or pass a credential to any check request.
+  if (!code.includes("https://www.ahanassa.com")) {
+    violations.push("the smoke gate must target https://www.ahanassa.com");
+  }
+  if (code.includes("workers.dev")) {
+    violations.push("the smoke gate must never target a *.workers.dev preview URL");
+  }
+  if (code.includes("/api/rfqs")) {
+    violations.push("the smoke gate must never POST to the RFQ submission endpoint");
+  }
+  if (/curl[^\n]*(-u |--user |Authorization:)/i.test(code)) {
+    violations.push("the smoke gate must never pass a credential to any HTTP request");
+  }
+
+  // This workflow must never be granted contents: write — the deployment
+  // manifest is appended as a separate, human-reviewed commit, never by the
+  // workflow itself.
+  if (/contents:\s*write/.test(code)) {
+    violations.push("must never declare permissions: contents: write");
+  }
+
+  return violations;
+}
+
+test("deploy-production.yml, once it exists, carries the required production-release SAFETY shape (A2/A3/two-phase/rollback/rollout/smoke)", () => {
+  if (!existsSync(PRODUCTION_WORKFLOW_PATH)) {
+    // Mirrors the dormant-until-created pattern already used above for
+    // validateProductionWorkflowShape — this activates automatically the
+    // moment deploy-production.yml exists.
+    return;
+  }
+  const violations = validateProductionDeploySafetyShape(readFileSync(PRODUCTION_WORKFLOW_PATH, "utf8"));
+  assert.deepEqual(
+    violations,
+    [],
+    `deploy-production.yml violates the required safety shape: ${violations.join("; ")}`,
+  );
+});
+
+test("mutation: reintroducing .inputs.deploy_ref as a provenance lookup fails the production safety shape check", () => {
+  const real = readFileSync(PRODUCTION_WORKFLOW_PATH, "utf8");
+  const mutated = `${real}\n# jq -r '.inputs.deploy_ref == $sha'\n`.replace(
+    "# jq -r '.inputs.deploy_ref == $sha'",
+    "        JQ_QUERY='.inputs.deploy_ref == $sha'",
+  );
+  const violations = validateProductionDeploySafetyShape(mutated);
+  assert.ok(
+    violations.some((v) => v.includes(".inputs.deploy_ref")),
+    `reintroducing .inputs.deploy_ref must be caught; got: ${violations.join("; ")}`,
+  );
+});
+
+test("mutation: reintroducing a migrations-apply call fails the production safety shape check", () => {
+  const real = readFileSync(PRODUCTION_WORKFLOW_PATH, "utf8");
+  const mutated = `${real}\n        run: npx wrangler d1 migrations apply DB_OPS --env production --remote\n`;
+  const violations = validateProductionDeploySafetyShape(mutated);
+  assert.ok(
+    violations.some((v) => v.includes("must never auto-apply")),
+    `reintroducing a migrations-apply call must be caught; got: ${violations.join("; ")}`,
+  );
+});
+
+test("mutation: replacing the two-phase deploy with a one-shot vinext-cloudflare deploy fails the production safety shape check", () => {
+  const real = readFileSync(PRODUCTION_WORKFLOW_PATH, "utf8")
+    .replace(/npx wrangler versions upload[\s\S]*?\n\n/, "npx vinext-cloudflare deploy --config dist/server/wrangler.json\n\n");
+  const violations = validateProductionDeploySafetyShape(real);
+  assert.ok(
+    violations.some((v) => v.includes("versions upload") || v.includes("one-shot")),
+    `removing the two-phase upload must be caught; got: ${violations.join("; ")}`,
+  );
+});
+
+test("mutation: removing the PREVIOUS_VERSION_ID rollback capture fails the production safety shape check", () => {
+  const mutated = readFileSync(PRODUCTION_WORKFLOW_PATH, "utf8").replaceAll("PREVIOUS_VERSION_ID", "ROLLBACK_TARGET");
+  const violations = validateProductionDeploySafetyShape(mutated);
+  assert.ok(
+    violations.some((v) => v.includes("PREVIOUS_VERSION_ID")),
+    `removing PREVIOUS_VERSION_ID must be caught; got: ${violations.join("; ")}`,
+  );
+});
+
+test("mutation: pointing the smoke gate at a workers.dev preview URL fails the production safety shape check", () => {
+  const mutated = readFileSync(PRODUCTION_WORKFLOW_PATH, "utf8").replace(
+    'BASE_URL="https://www.ahanassa.com"',
+    'BASE_URL="https://ahanassa-production.nova-b1e6f0.workers.dev"',
+  );
+  const violations = validateProductionDeploySafetyShape(mutated);
+  assert.ok(
+    violations.some((v) => v.includes("www.ahanassa.com") || v.includes("workers.dev")),
+    `pointing smoke checks at workers.dev must be caught; got: ${violations.join("; ")}`,
+  );
+});
+
+test("mutation: granting contents: write fails the production safety shape check", () => {
+  const mutated = readFileSync(PRODUCTION_WORKFLOW_PATH, "utf8").replace(
+    "permissions:\n  contents: read\n  actions: read",
+    "permissions:\n  contents: write\n  actions: read",
+  );
+  const violations = validateProductionDeploySafetyShape(mutated);
+  assert.ok(
+    violations.some((v) => v.includes("contents: write")),
+    `granting contents: write must be caught; got: ${violations.join("; ")}`,
+  );
+});
