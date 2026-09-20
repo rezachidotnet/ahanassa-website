@@ -103,6 +103,18 @@ name: Deploy Production
 # 3. The smoke gate (S1/S5/S6/S7) now covers fa/en/ar for homepage, catalog
 #    index/detail, and RFQ page render (was MEDIUM: only the default
 #    locale was checked for those four).
+#
+# CHECKOUT-VALIDATION HARDENING
+# (docs/release/PRODUCTION_CHECKOUT_VALIDATION_HARDENING_REPORT.md)
+# -----------------------------------------------------------------------
+# Discovered during a live fail-closed test with deploy_ref set to 40
+# zeros: a syntactically valid but nonexistent SHA passed the format
+# check and reached `actions/checkout@v4`, which failed with a raw,
+# uncontrolled git-protocol error ("remote error: upload-pack: not our
+# ref") instead of a clear workflow-owned message. A new step, "Verify
+# deploy_ref commit exists," now queries the GitHub REST API for the
+# commit before checkout ever runs, so a nonexistent (but format-valid)
+# deploy_ref fails closed with an unambiguous error first.
 
 on:
   workflow_dispatch:
@@ -185,6 +197,37 @@ jobs:
             exit 1
           fi
           echo "Requested deploy_ref (validated 40-hex SHA): $DEPLOY_REF_INPUT"
+
+      # Pre-checkout existence check — hardening
+      # (docs/release/PRODUCTION_CHECKOUT_VALIDATION_HARDENING_REPORT.md).
+      # A syntactically valid 40-hex string is not necessarily a real commit
+      # in this repository — letting `actions/checkout@v4` discover that
+      # itself produces a raw, uncontrolled git-protocol error ("remote
+      # error: upload-pack: not our ref") instead of a clear, workflow-owned
+      # message, and only after the checkout step has already started. This
+      # step queries the GitHub REST API (read-only; needs only the
+      # already-granted `contents: read` permission, no escalation) for the
+      # commit before `actions/checkout` ever runs, so a well-formed but
+      # nonexistent deploy_ref fails closed with an unambiguous error at the
+      # earliest possible point — mirroring the same "fail closed on any
+      # uncertainty" discipline A2's staging-provenance check already uses.
+      - name: Verify deploy_ref commit exists (pre-checkout, fail closed)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_REF_INPUT: ${{ inputs.deploy_ref }}
+        run: |
+          set -uo pipefail
+          RESOLVED_SHA="$(gh api "repos/${{ github.repository }}/commits/$DEPLOY_REF_INPUT" --jq '.sha' 2>&1)"
+          API_STATUS=$?
+          if [ $API_STATUS -ne 0 ]; then
+            echo "::error::DEPLOY_REF EXISTENCE CHECK FAILED — no commit '$DEPLOY_REF_INPUT' was found in this repository (or the check could not be completed). Aborting before checkout — this SHA does not exist, so it was never staged either. Details: $RESOLVED_SHA"
+            exit 1
+          fi
+          if [ "$RESOLVED_SHA" != "$DEPLOY_REF_INPUT" ]; then
+            echo "::error::DEPLOY_REF EXISTENCE CHECK FAILED — the GitHub API resolved deploy_ref to a different SHA ('$RESOLVED_SHA') than requested ('$DEPLOY_REF_INPUT'). Aborting before checkout."
+            exit 1
+          fi
+          echo "Confirmed: commit $DEPLOY_REF_INPUT exists in this repository."
 
       - name: Checkout deploy_ref
         uses: actions/checkout@v4
