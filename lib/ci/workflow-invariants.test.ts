@@ -29,6 +29,10 @@ const repoRoot = path.resolve(here, "..", "..");
 const workflowsDir = path.join(repoRoot, ".github", "workflows");
 
 const PRODUCTION_WORKFLOW = "deploy-production.yml";
+// The one other workflow permitted to NAME production resources — it only
+// reads them. See the narrow, self-guarding exception in the
+// "only deploy-production.yml may deploy to production" test below.
+const VERIFICATION_WORKFLOW = "verify-production.yml";
 
 function readWorkflow(name: string): string {
   return readFileSync(path.join(workflowsDir, name), "utf8");
@@ -149,14 +153,80 @@ test("staging deploy workflow never applies a D1 migration and never targets pro
   assert.ok(!deploy.includes("ahanassa-production"), "staging deploy must never reference the production Worker");
 });
 
+// Commands that actually CHANGE production, as opposed to naming it. A
+// verification workflow must read production, which means naming it — but it
+// must never be able to run any of these. Matched with boundaries so
+// `wrangler deployments list` (read-only) is not mistaken for `wrangler
+// deploy`.
+const PRODUCTION_MUTATING_COMMANDS: Array<{ re: RegExp; label: string }> = [
+  { re: /wrangler\s+versions\s+upload\b/, label: "wrangler versions upload" },
+  { re: /wrangler\s+versions\s+deploy\b/, label: "wrangler versions deploy" },
+  { re: /wrangler\s+deploy(\s|$)/, label: "wrangler deploy" },
+  { re: /vinext-cloudflare\s+deploy\b/, label: "vinext-cloudflare deploy" },
+  { re: /wrangler\s+triggers\s+deploy\b/, label: "wrangler triggers deploy" },
+  { re: /d1\s+migrations\s+apply\b/, label: "d1 migrations apply" },
+  { re: /wrangler\s+d1\s+execute\b/, label: "wrangler d1 execute" },
+  { re: /wrangler\s+secret\b/, label: "wrangler secret" },
+  { re: /wrangler\s+rollback\b/, label: "wrangler rollback" },
+];
+
+/**
+ * Lines that would EXECUTE a command, not merely print one. The production
+ * smoke suite deliberately echoes a rollback command as human-readable text
+ * when it fails (it never runs one), so a raw substring scan would
+ * false-positive on exactly the safety feature worth keeping.
+ */
+function executableLines(content: string): string[] {
+  return content
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l !== "" && !l.startsWith("echo "));
+}
+
+function findMutatingProductionCommands(content: string): string[] {
+  const lines = executableLines(content);
+  return PRODUCTION_MUTATING_COMMANDS.filter(({ re }) => lines.some((l) => re.test(l))).map((m) => m.label);
+}
+
 test("only deploy-production.yml may deploy to production — every other workflow, present or future, fails if it does", () => {
   for (const file of readdirSync(workflowsDir)) {
     if (file === PRODUCTION_WORKFLOW) continue; // the one allowed exception — validated separately below
+
     const content = withoutComments(readFileSync(path.join(workflowsDir, file), "utf8"));
+
+    // Second, NARROWER exception: `verify-production.yml` legitimately names
+    // production because it READS it (the corrected smoke gate re-run against
+    // an existing canary — re-dispatching deploy-production.yml during a live
+    // 10/90 split is unsafe, see docs/release/PRODUCTION_CANARY_SMOKE_GATE_FIX_REPORT.md
+    // §5). It earns that exception only by being provably incapable of
+    // changing anything, which is asserted HERE rather than deferred, so the
+    // skip can never quietly become a loophole: the moment this file gains a
+    // mutating command it fails this very test. Its fuller verification-only
+    // contract lives in lib/ci/verify-production-workflow.test.ts.
+    if (file === VERIFICATION_WORKFLOW) {
+      const mutations = findMutatingProductionCommands(content);
+      assert.deepEqual(
+        mutations,
+        [],
+        `${file} may reference production ONLY while it stays verification-only — found mutating command(s): ${mutations.join(", ")}`,
+      );
+      continue;
+    }
+
     const markers = findProductionDeployMarkers(content);
     assert.deepEqual(markers, [], `${file} must not deploy to production — found: ${markers.join(", ")}`);
   }
 });
+
+// NOTE — deliberately no blanket "no workflow but deploy-production.yml may
+// run a mutating command" test here. deploy-staging.yml legitimately runs
+// `vinext-cloudflare deploy` against STAGING, and the existing marker scan
+// above already forbids it (and every other workflow) from naming production
+// at all. The guarantee is therefore complete without a broader rule:
+//   - verify-production.yml   — may name production, proven unable to mutate it
+//   - every other workflow    — may not name production in the first place
+//   - deploy-production.yml   — the single exception, validated by its own
+//                               shape and safety tests below.
 
 test("deploy-production.yml, once it exists, must carry the required production-release shape", () => {
   const filePath = path.join(workflowsDir, PRODUCTION_WORKFLOW);

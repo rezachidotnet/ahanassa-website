@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { readFileSync, mkdtempSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
@@ -51,12 +51,12 @@ const workflow = readFileSync(workflowPath, "utf8");
  * the 10-space YAML block-scalar indent, so the extracted text is exactly the
  * script the runner executes.
  */
-function smokeScript(): string {
-  const lines = workflow.split("\n");
+function smokeScript(src: string = workflow, label: string = "deploy-production.yml"): string {
+  const lines = src.split("\n");
   const stepIdx = lines.findIndex((l) => l.includes("- name: Production smoke checks"));
-  assert.notEqual(stepIdx, -1, "the production smoke step must exist in deploy-production.yml");
+  assert.notEqual(stepIdx, -1, `the production smoke step must exist in ${label}`);
   const runIdx = lines.findIndex((l, i) => i > stepIdx && l.trim() === "run: |");
-  assert.notEqual(runIdx, -1, "the production smoke step must use a `run: |` block scalar");
+  assert.notEqual(runIdx, -1, `${label}'s production smoke step must use a \`run: |\` block scalar`);
 
   const body: string[] = [];
   for (let i = runIdx + 1; i < lines.length; i += 1) {
@@ -417,4 +417,59 @@ test("every existing S5-S10 assertion is still present in the smoke step", () =>
   assert.ok(S5_BLOCK.includes("discovered a published catalog slug"));
   assert.ok(S5_BLOCK.includes("legitimate empty-catalog state"));
   assert.ok(S5_BLOCK.includes("neither a product link nor the known empty-catalog state was found"));
+});
+
+// ---------------------------------------------------------------------------
+// The smoke suite exists in TWO workflows — deploy-production.yml (the release
+// gate) and verify-production.yml (the verification-only re-run against an
+// existing deployment). It is deliberately NOT extracted into a checked-in
+// script both call: deploy-production.yml checks out `deploy_ref`, so a
+// repo-script suite would run whatever version existed at the DEPLOYED SHA —
+// for f2202ab, the pre-fix broken one. Keeping the suite inside each workflow
+// keeps the gate logic versioned with the WORKFLOW, not the release under
+// test.
+//
+// The cost of that choice is a second copy, and this test is what pays it:
+// the two must stay byte-identical, so a fix to one can never silently miss
+// the other.
+// ---------------------------------------------------------------------------
+test("the smoke suite is byte-identical in deploy-production.yml and verify-production.yml", () => {
+  const verifyPath = path.join(repoRoot, ".github", "workflows", "verify-production.yml");
+  assert.ok(existsSync(verifyPath), "verify-production.yml must exist");
+
+  const verifyScript = smokeScript(readFileSync(verifyPath, "utf8"), "verify-production.yml");
+
+  if (verifyScript !== SCRIPT) {
+    const deployLines = SCRIPT.split("\n");
+    const verifyLines = verifyScript.split("\n");
+    let firstDiff = -1;
+    for (let i = 0; i < Math.max(deployLines.length, verifyLines.length); i += 1) {
+      if (deployLines[i] !== verifyLines[i]) {
+        firstDiff = i;
+        break;
+      }
+    }
+    assert.fail(
+      "the production smoke suite has drifted between deploy-production.yml and " +
+        `verify-production.yml (first difference at line ${firstDiff + 1} of the extracted script):\n` +
+        `  deploy: ${JSON.stringify(deployLines[firstDiff])}\n` +
+        `  verify: ${JSON.stringify(verifyLines[firstDiff])}\n` +
+        "Both copies must be updated together — see the comment above this test.",
+    );
+  }
+
+  assert.equal(verifyScript, SCRIPT);
+});
+
+test("verify-production.yml's smoke step binds the version ids its failure path prints", () => {
+  // The copied block's failure branch echoes $NEW_VERSION_ID/$PREVIOUS_VERSION_ID.
+  // deploy-production.yml sets those in GITHUB_ENV; verify-production.yml has no
+  // such step, so without an explicit `env:` binding the failure path would die
+  // on `set -u` instead of printing its message.
+  const verify = readFileSync(path.join(repoRoot, ".github", "workflows", "verify-production.yml"), "utf8");
+  const stepIdx = verify.indexOf("- name: Production smoke checks");
+  const runIdx = verify.indexOf("run: |", stepIdx);
+  const header = verify.slice(stepIdx, runIdx);
+  assert.match(header, /NEW_VERSION_ID:\s*\$\{\{\s*inputs\.expected_canary_version\s*\}\}/);
+  assert.match(header, /PREVIOUS_VERSION_ID:\s*\$\{\{\s*inputs\.expected_stable_version\s*\}\}/);
 });
