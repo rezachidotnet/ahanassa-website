@@ -1,0 +1,739 @@
+name: Verify Production
+
+# VERIFICATION ONLY — this workflow never changes production in any way.
+#
+# WHY IT EXISTS
+# -------------------------------------------------------------------------
+# The first real production release (deploy-production.yml run 35533626395,
+# SHA f2202ab, 10% canary) deployed successfully and then had its mandatory
+# smoke gate abort on a harness defect (S5 + GitHub's inherited `bash -e`
+# treating a legitimately empty locale catalog as fatal —
+# docs/release/PRODUCTION_CANARY_SMOKE_GATE_FIX_REPORT.md). The defect is
+# fixed, but the official gate result for that canary was never recorded.
+#
+# Re-dispatching deploy-production.yml to obtain it is NOT safe while a
+# 10/90 split is live: that workflow derives its rollback target from
+# `deployments list | .[-1].versions[0]`, which was unambiguous only while a
+# single version served 100%. The canary deployment holds two versions, so
+# the expression selects by array position and can return the CANARY as
+# "previous" — handing an uncertified version 90% of production traffic from
+# a run invoked at rollout_percentage=10, while the proven stable build drops
+# to 0% and stops being the rollback target. It would also upload a brand new
+# Worker version for the same SHA, so the evidence would no longer describe
+# the artifact that was actually tested. See that report §5 (finding R3).
+#
+# This workflow closes that gap: it runs the identical corrected smoke suite
+# against the EXISTING deployment, and nothing else.
+#
+# WHAT MAKES IT VERIFICATION-ONLY (enforced by lib/ci/verify-production-workflow.test.ts)
+# -------------------------------------------------------------------------
+#   - No `wrangler versions upload`, no `wrangler versions deploy`, no
+#     `wrangler deploy` — it cannot create a Worker version or move traffic.
+#   - No `d1 migrations apply`, no `d1 execute` — it cannot mutate data.
+#     The only D1 command is `d1 migrations list`, read-only.
+#   - No `wrangler secret` command of any kind.
+#   - `permissions: contents: read, actions: read` — never `contents: write`.
+#   - `workflow_dispatch` only; no push/pull_request/schedule trigger.
+#   - `environment: production`, so GitHub's required reviewer still gates it.
+#     A read-only workflow still touches production credentials, so it is held
+#     to the same approval bar as a deploy.
+#   - No `skip_*` / bypass input of any kind. There is deliberately nothing an
+#     operator can type that relaxes an assertion.
+#
+# NO OPERATOR-SUPPLIED DEPLOY REF
+# -------------------------------------------------------------------------
+# Unlike deploy-production.yml there is no `deploy_ref` input, and the
+# checkout below takes no `ref:` — it checks out this workflow's own commit
+# (`github.sha`), i.e. exactly the source the runner already trusted to
+# execute. It never checks out an operator-supplied or release ref. The
+# checkout exists only to provide `wrangler.jsonc` and `migrations/` for the
+# read-only production-target and D1-parity assertions; the smoke suite
+# itself is embedded in this file, not read from the checkout.
+#
+# THE SMOKE SUITE IS A VERBATIM COPY, ENFORCED
+# -------------------------------------------------------------------------
+# The "Production smoke checks" step below is byte-identical to the one in
+# deploy-production.yml. It is deliberately NOT extracted into a checked-in
+# script both workflows call: deploy-production.yml checks out `deploy_ref`,
+# so a repo-script smoke suite would run whatever version of that script
+# existed at the DEPLOYED SHA — which for f2202ab is the pre-fix, broken one.
+# Keeping the suite inside each workflow file keeps the gate logic versioned
+# with the WORKFLOW rather than with the release under test, which is the
+# safety property that matters. Drift between the two copies is prevented by
+# lib/ci/production-smoke-harness.test.ts, which extracts both and asserts
+# they are byte-identical — CI fails the moment they diverge.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: >-
+          Type exactly "verify-production" to confirm. Deliberately different
+          from "deploy-production" so operator muscle memory cannot cross a
+          verification into a deployment.
+        required: true
+        type: string
+      expected_release_sha:
+        description: >-
+          The 40-character commit SHA the live canary is expected to be
+          running. Asserted against the recorded release evidence of the
+          deploy-production run that produced the canary — not merely echoed.
+        required: true
+        type: string
+      expected_canary_version:
+        description: >-
+          Worker Version ID expected to be serving the canary share. Asserted
+          to exist in the live deployment at exactly 10%.
+        required: true
+        type: string
+      expected_stable_version:
+        description: >-
+          Worker Version ID expected to be serving the remaining share.
+          Asserted to exist in the live deployment at exactly 90%.
+        required: true
+        type: string
+
+concurrency:
+  group: verify-production
+  cancel-in-progress: false
+
+# Read-only. Never `contents: write` — this workflow writes nothing to the
+# repository, and `actions: read` is needed only to read the release-evidence
+# artifact produced by the deploy run under verification.
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify-production:
+    name: verify-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - name: Require explicit confirmation and well-formed expectations
+        env:
+          CONFIRM_INPUT: ${{ inputs.confirm }}
+          SHA_INPUT: ${{ inputs.expected_release_sha }}
+          CANARY_INPUT: ${{ inputs.expected_canary_version }}
+          STABLE_INPUT: ${{ inputs.expected_stable_version }}
+        run: |
+          set -euo pipefail
+          if [ "$CONFIRM_INPUT" != "verify-production" ]; then
+            echo "::error::Confirmation input did not equal 'verify-production'. Aborting."
+            exit 1
+          fi
+          if ! [[ "$SHA_INPUT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::expected_release_sha must be a full 40-character lowercase-hexadecimal commit SHA. Got: \"$SHA_INPUT\""
+            exit 1
+          fi
+          UUID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          if ! [[ "$CANARY_INPUT" =~ $UUID_RE ]]; then
+            echo "::error::expected_canary_version must be a Worker Version UUID. Got: \"$CANARY_INPUT\""
+            exit 1
+          fi
+          if ! [[ "$STABLE_INPUT" =~ $UUID_RE ]]; then
+            echo "::error::expected_stable_version must be a Worker Version UUID. Got: \"$STABLE_INPUT\""
+            exit 1
+          fi
+          if [ "$CANARY_INPUT" = "$STABLE_INPUT" ]; then
+            echo "::error::expected_canary_version and expected_stable_version are identical. A 10/90 split requires two distinct versions."
+            exit 1
+          fi
+          echo "Verifying release $SHA_INPUT — canary $CANARY_INPUT @10% / stable $STABLE_INPUT @90%."
+
+      # No `ref:` — this is THIS workflow's own commit, never an
+      # operator-supplied or release ref. Needed only for wrangler.jsonc and
+      # migrations/ below; the smoke suite is embedded in this file.
+      - name: Checkout this workflow's own commit (never an operator-supplied ref)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: "V1: assert production target (read-only, fail closed)"
+        run: |
+          set -euo pipefail
+          node - <<'ASSERT_EOF'
+          const fs = require('fs');
+          const EXPECTED_WORKER = 'ahanassa-production';
+          const EXPECTED_D1 = {
+            DB_OPS: '7240a6a7-c293-4e6e-baf3-95838a3c2944',
+            DB_PUBLIC: '73ba6b50-ef57-4d89-baa9-617a0b0af127',
+          };
+          function stripJsonc(src) {
+            let out = '', i = 0; const n = src.length;
+            while (i < n) {
+              const c = src[i];
+              if (c === '"') {
+                let j = i + 1;
+                while (j < n) { if (src[j] === '\\') { j += 2; continue; } if (src[j] === '"') { j++; break; } j++; }
+                out += src.slice(i, j); i = j; continue;
+              }
+              if (c === '/' && src[i + 1] === '/') { while (i < n && src[i] !== '\n') i++; continue; }
+              if (c === '/' && src[i + 1] === '*') { i += 2; while (i < n && !(src[i] === '*' && src[i + 1] === '/')) i++; i += 2; continue; }
+              out += c; i++;
+            }
+            return out.replace(/,(\s*[}\]])/g, '$1');
+          }
+          function fail(msg) { console.log('::error::PRODUCTION TARGET ASSERTION FAILED — ' + msg); process.exit(1); }
+          if (!fs.existsSync('wrangler.jsonc')) fail('wrangler.jsonc not found.');
+          let cfg;
+          try { cfg = JSON.parse(stripJsonc(fs.readFileSync('wrangler.jsonc', 'utf8'))); }
+          catch (e) { fail('wrangler.jsonc could not be parsed: ' + e.message); }
+          const prod = cfg && cfg.env && cfg.env.production;
+          if (!prod || typeof prod !== 'object') fail('wrangler.jsonc has no env.production block.');
+          if (prod.name !== EXPECTED_WORKER) fail('env.production.name is "' + prod.name + '", expected "' + EXPECTED_WORKER + '".');
+          const dbs = Array.isArray(prod.d1_databases) ? prod.d1_databases : [];
+          for (const [binding, id] of Object.entries(EXPECTED_D1)) {
+            const found = dbs.find((d) => d && d.binding === binding);
+            if (!found) fail('env.production has no ' + binding + ' D1 binding.');
+            if (found.database_id !== id) fail(binding + ' database_id is "' + found.database_id + '", expected the production database.');
+          }
+          console.log('Production target confirmed: ' + EXPECTED_WORKER + ', production DB_OPS/DB_PUBLIC bindings correct.');
+          ASSERT_EOF
+
+      # Binds the operator's claimed SHA to what the release actually
+      # recorded, rather than trusting the input. Reads the immutable
+      # evidence artifact deploy-production.yml uploaded for the run that
+      # produced this canary. Read-only; needs only `actions: read`.
+      - name: "V2: bind expected SHA to the recorded release evidence (fail closed)"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA_INPUT: ${{ inputs.expected_release_sha }}
+          CANARY_INPUT: ${{ inputs.expected_canary_version }}
+          STABLE_INPUT: ${{ inputs.expected_stable_version }}
+        run: |
+          set -euo pipefail
+          WORKDIR="$RUNNER_TEMP/evidence"
+          mkdir -p "$WORKDIR"
+          MATCHED=""
+          IDS="$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100" --jq '.artifacts[] | select(.name | startswith("production-release-evidence-")) | select(.expired == false) | .id')"
+          if [ -z "$IDS" ]; then
+            echo "::error::RELEASE EVIDENCE ASSERTION FAILED — no production-release-evidence-* artifact is available. The claimed canary cannot be bound to a recorded release."
+            exit 1
+          fi
+          for ID in $IDS; do
+            if ! gh api "repos/${{ github.repository }}/actions/artifacts/$ID/zip" > "$WORKDIR/$ID.zip" 2>/dev/null; then
+              continue
+            fi
+            if ! unzip -p "$WORKDIR/$ID.zip" '*.json' > "$WORKDIR/$ID.json" 2>/dev/null; then
+              continue
+            fi
+            FOUND_VERSION="$(jq -r '.new_version_id // empty' "$WORKDIR/$ID.json" 2>/dev/null || true)"
+            if [ "$FOUND_VERSION" = "$CANARY_INPUT" ]; then
+              MATCHED="$WORKDIR/$ID.json"
+              break
+            fi
+          done
+          if [ -z "$MATCHED" ]; then
+            echo "::error::RELEASE EVIDENCE ASSERTION FAILED — no recorded production release evidence names $CANARY_INPUT as its new_version_id. This version was not produced by a tracked deploy-production run."
+            exit 1
+          fi
+          EV_SHA="$(jq -r '.deployed_sha // empty' "$MATCHED")"
+          EV_PREV="$(jq -r '.previous_version_id // empty' "$MATCHED")"
+          EV_ROLLOUT="$(jq -r '.rollout_percentage // empty' "$MATCHED")"
+          EV_RUN="$(jq -r '.workflow_run_id // empty' "$MATCHED")"
+          if [ "$EV_SHA" != "$SHA_INPUT" ]; then
+            echo "::error::RELEASE EVIDENCE ASSERTION FAILED — the canary $CANARY_INPUT was built from $EV_SHA, not the claimed $SHA_INPUT."
+            exit 1
+          fi
+          if [ "$EV_PREV" != "$STABLE_INPUT" ]; then
+            echo "::error::RELEASE EVIDENCE ASSERTION FAILED — the release recorded $EV_PREV as the previous version, not the claimed $STABLE_INPUT."
+            exit 1
+          fi
+          if [ "$EV_ROLLOUT" != "10" ]; then
+            echo "::error::RELEASE EVIDENCE ASSERTION FAILED — the release recorded a rollout of ${EV_ROLLOUT}%, not 10%."
+            exit 1
+          fi
+          echo "Release evidence confirmed: run $EV_RUN deployed $EV_SHA as $CANARY_INPUT at ${EV_ROLLOUT}%, over previous $EV_PREV."
+          echo "EVIDENCE_RUN_ID=$EV_RUN" >> "$GITHUB_ENV"
+
+      # Read-only. Deliberately does NOT use `.versions[0]` — the positional
+      # read that makes a re-dispatch unsafe (finding R3). Every assertion
+      # below is position-independent: it matches versions by id and checks
+      # their percentages explicitly.
+      - name: "V3: assert live deployment baseline — exactly two versions at 10/90"
+        id: baseline
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CANARY_INPUT: ${{ inputs.expected_canary_version }}
+          STABLE_INPUT: ${{ inputs.expected_stable_version }}
+        run: |
+          set -euo pipefail
+          BEFORE="$RUNNER_TEMP/deployments-before.json"
+          npx wrangler deployments list --config wrangler.jsonc --env production --json > "$BEFORE"
+          npx wrangler versions list --config wrangler.jsonc --env production --json > "$RUNNER_TEMP/versions-before.json"
+
+          # wrangler sorts deployments ascending by created_on before printing
+          # JSON, so `.[-1]` is the newest. Verified against wrangler 4.x's
+          # versionsDeploymentsListHandler.
+          jq '.[-1]' "$BEFORE" > "$RUNNER_TEMP/latest-deployment.json"
+
+          COUNT="$(jq -r '.versions | length' "$RUNNER_TEMP/latest-deployment.json")"
+          if [ "$COUNT" != "2" ]; then
+            echo "::error::BASELINE ASSERTION FAILED — the live deployment has $COUNT version(s) receiving traffic, expected exactly 2 (a 10/90 canary). Production is not in the state this verification was authorized for. Not repairing; stopping."
+            exit 1
+          fi
+
+          CANARY_PCT="$(jq -r --arg v "$CANARY_INPUT" '[.versions[] | select(.version_id == $v) | .percentage] | first // empty' "$RUNNER_TEMP/latest-deployment.json")"
+          STABLE_PCT="$(jq -r --arg v "$STABLE_INPUT" '[.versions[] | select(.version_id == $v) | .percentage] | first // empty' "$RUNNER_TEMP/latest-deployment.json")"
+          if [ -z "$CANARY_PCT" ]; then
+            echo "::error::BASELINE ASSERTION FAILED — expected canary $CANARY_INPUT is not receiving traffic in the live deployment."
+            exit 1
+          fi
+          if [ -z "$STABLE_PCT" ]; then
+            echo "::error::BASELINE ASSERTION FAILED — expected stable $STABLE_INPUT is not receiving traffic in the live deployment."
+            exit 1
+          fi
+          if [ "$CANARY_PCT" != "10" ]; then
+            echo "::error::BASELINE ASSERTION FAILED — canary $CANARY_INPUT is at ${CANARY_PCT}%, expected 10%."
+            exit 1
+          fi
+          if [ "$STABLE_PCT" != "90" ]; then
+            echo "::error::BASELINE ASSERTION FAILED — stable $STABLE_INPUT is at ${STABLE_PCT}%, expected 90%."
+            exit 1
+          fi
+
+          TOTAL="$(jq -r '[.versions[].percentage] | add' "$RUNNER_TEMP/latest-deployment.json")"
+          if [ "$TOTAL" != "100" ]; then
+            echo "::error::BASELINE ASSERTION FAILED — traffic percentages total ${TOTAL}%, not 100%."
+            exit 1
+          fi
+
+          UNEXPECTED="$(jq -r --arg c "$CANARY_INPUT" --arg s "$STABLE_INPUT" '[.versions[] | select(.version_id != $c and .version_id != $s) | .version_id] | join(",")' "$RUNNER_TEMP/latest-deployment.json")"
+          if [ -n "$UNEXPECTED" ]; then
+            echo "::error::BASELINE ASSERTION FAILED — unexpected third version(s) receiving production traffic: $UNEXPECTED"
+            exit 1
+          fi
+
+          # Position-independent fingerprints, compared again after the smoke
+          # suite. Sorted so a pure reordering by the API is not a false alarm.
+          jq -S '[.[] | {id, versions: (.versions | sort_by(.version_id))}]' "$BEFORE" > "$RUNNER_TEMP/fingerprint-before.json"
+          jq -S '[.[].id] | sort' "$RUNNER_TEMP/versions-before.json" > "$RUNNER_TEMP/versionids-before.json" 2>/dev/null \
+            || jq -S '[.[] | .version_id // .id] | sort' "$RUNNER_TEMP/versions-before.json" > "$RUNNER_TEMP/versionids-before.json"
+
+          DEPLOY_COUNT="$(jq -r 'length' "$BEFORE")"
+          echo "deployment_count=$DEPLOY_COUNT" >> "$GITHUB_OUTPUT"
+          echo "Baseline confirmed: $CANARY_INPUT @ ${CANARY_PCT}% / $STABLE_INPUT @ ${STABLE_PCT}%, total ${TOTAL}%, no third version, $DEPLOY_COUNT deployment(s) listed."
+
+      # Read-only parity check, identical in spirit to deploy-production.yml's
+      # A3. `d1 migrations list` only — this workflow never applies a
+      # migration under any input or condition.
+      - name: "V4: D1 migration parity (read-only, never applied)"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          DB_OPS_STATE="$(npx wrangler d1 migrations list DB_OPS --config wrangler.jsonc --env production --remote 2>&1)"
+          echo "$DB_OPS_STATE"
+          if ! echo "$DB_OPS_STATE" | grep -q "No migrations to apply"; then
+            echo "::error::MIGRATION PARITY ASSERTION FAILED — DB_OPS has migrations pending on production. This workflow never applies a migration; stopping without repairing state."
+            exit 1
+          fi
+          DB_PUBLIC_STATE="$(npx wrangler d1 migrations list DB_PUBLIC --config wrangler.jsonc --env production --remote 2>&1)"
+          echo "$DB_PUBLIC_STATE"
+          if ! echo "$DB_PUBLIC_STATE" | grep -q "No migrations to apply"; then
+            echo "::error::MIGRATION PARITY ASSERTION FAILED — DB_PUBLIC has migrations pending on production. This workflow never applies a migration; stopping without repairing state."
+            exit 1
+          fi
+          echo "Migration parity confirmed: DB_OPS and DB_PUBLIC both report no pending migrations on production."
+
+      # ----------------------------------------------------------------------
+      # The official smoke gate. BYTE-IDENTICAL to deploy-production.yml's
+      # "Production smoke checks" step — enforced by
+      # lib/ci/production-smoke-harness.test.ts. Read-only HTTP GETs against
+      # the real production hostname; no request submits an RFQ (S7 verifies
+      # form and Turnstile markup presence only).
+      # ----------------------------------------------------------------------
+      - name: Production smoke checks (S1-S10, fa/en/ar locale coverage)
+        # The copied block's failure path echoes a rollback command (as TEXT
+        # only — it never executes one) referencing these two names. Bound here
+        # to the verified versions so a smoke FAILURE prints a correct, actionable
+        # message instead of dying on `set -u`, and so the `run:` script below
+        # stays byte-identical to deploy-production.yml's.
+        env:
+          NEW_VERSION_ID: ${{ inputs.expected_canary_version }}
+          PREVIOUS_VERSION_ID: ${{ inputs.expected_stable_version }}
+        run: |
+          set -uo pipefail
+          BASE_URL="https://www.ahanassa.com"
+          APEX_URL="https://ahanassa.com"
+          SMOKE_DIR="$RUNNER_TEMP/smoke"
+          mkdir -p "$SMOKE_DIR"
+          FAILURES=0
+          CHECKS_PASSED=0
+
+          fail() {
+            echo "::error::SMOKE CHECK FAILED — $1"
+            FAILURES=$((FAILURES + 1))
+          }
+
+          pass() {
+            echo "  OK — $1"
+            CHECKS_PASSED=$((CHECKS_PASSED + 1))
+          }
+
+          http_status() {
+            curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$1"
+          }
+
+          redirect_target() {
+            curl -s -o /dev/null -w '%{redirect_url}' --max-time 20 "$1"
+          }
+
+          # Writes the response body straight to a file and prints that
+          # file's path — deliberately never returned as a shell variable.
+          # A response body here can be tens of KB of localized HTML;
+          # grepping it from a file (a real, seekable fd) rather than piping
+          # a giant shell variable through grep is the more robust form
+          # regardless of platform, and is what every check below does.
+          body_to_file() {
+            local out="$SMOKE_DIR/$2"
+            curl -s --max-time 20 "$1" > "$out"
+            echo "$out"
+          }
+
+          # AUDIT FIX (docs/release/PRODUCTION_WORKFLOW_INDEPENDENT_AUDIT.md
+          # MEDIUM finding): S5/S6/S7 previously checked only the default
+          # (fa) locale. This maps each supported locale to its URL prefix
+          # (fa is unprefixed, per PROJECT_OVERRIDES.md §1) and its own
+          # localized "catalog is being prepared" empty-state string
+          # (components/products/catalog-empty-state.tsx), so the catalog
+          # index/detail and RFQ checks below can loop over fa/en/ar without
+          # duplicating per-locale logic three times.
+          declare -A LOCALE_PREFIX=( [fa]="" [en]="/en" [ar]="/ar" )
+          declare -A LOCALE_EMPTY_STATE=(
+            [fa]="کاتالوگ آنلاین در حال آماده‌سازی است"
+            [en]="The online catalog is being prepared"
+            [ar]="الكتالوج الإلكتروني قيد الإعداد"
+          )
+          declare -A CATALOG_SLUG
+
+          echo "== S1: homepage / =="
+          STATUS="$(http_status "$BASE_URL/")"
+          BODY_FILE="$(body_to_file "$BASE_URL/" "s1-home.html")"
+          if [ "$STATUS" = "200" ] && grep -qi '<html[^>]*lang="fa"[^>]*dir="rtl"' "$BODY_FILE"; then
+            pass "/ -> 200, <html lang=\"fa\" dir=\"rtl\">"
+          else
+            fail "/ expected 200 with <html lang=\"fa\" dir=\"rtl\">, got status $STATUS"
+          fi
+
+          echo "== S1b: homepage /ar =="
+          STATUS="$(http_status "$BASE_URL/ar")"
+          BODY_FILE="$(body_to_file "$BASE_URL/ar" "s1b-home-ar.html")"
+          if [ "$STATUS" = "200" ] && grep -qi '<html[^>]*lang="ar"[^>]*dir="rtl"' "$BODY_FILE"; then
+            pass "/ar -> 200, <html lang=\"ar\" dir=\"rtl\">"
+          else
+            fail "/ar expected 200 with <html lang=\"ar\" dir=\"rtl\">, got status $STATUS"
+          fi
+
+          echo "== S2: /fa redirects to the unprefixed default locale =="
+          STATUS="$(http_status "$BASE_URL/fa")"
+          TARGET="$(redirect_target "$BASE_URL/fa")"
+          if [ "$STATUS" = "308" ] && [ "$TARGET" = "$BASE_URL/" ]; then
+            pass "/fa -> 308 -> /"
+          else
+            fail "/fa expected 308 -> $BASE_URL/, got $STATUS -> $TARGET"
+          fi
+
+          echo "== S3: /en =="
+          STATUS="$(http_status "$BASE_URL/en")"
+          BODY_FILE="$(body_to_file "$BASE_URL/en" "s3-en.html")"
+          if [ "$STATUS" = "200" ] && grep -qi '<html[^>]*lang="en"[^>]*dir="ltr"' "$BODY_FILE"; then
+            pass "/en -> 200, <html lang=\"en\" dir=\"ltr\">"
+          else
+            fail "/en expected 200 with <html lang=\"en\" dir=\"ltr\">, got status $STATUS"
+          fi
+
+          echo "== S4: /services, /en/services, /ar/services =="
+          for p in "/services" "/en/services" "/ar/services"; do
+            STATUS="$(http_status "$BASE_URL$p")"
+            if [ "$STATUS" = "200" ]; then pass "$p -> 200"; else fail "$p expected 200, got $STATUS"; fi
+          done
+
+          echo "== S5: catalog index (fa/en/ar) =="
+          for LOC in fa en ar; do
+            PREFIX="${LOCALE_PREFIX[$LOC]}"
+            URL="$BASE_URL$PREFIX/products"
+            STATUS="$(http_status "$URL")"
+            PRODUCTS_BODY_FILE="$(body_to_file "$URL" "s5-products-$LOC.html")"
+            # A locale whose catalog is legitimately empty is a DOCUMENTED,
+            # supported state, never a failure: fa/en/ar publish completely
+            # independently of one another (docs/CATALOG_EDITORIAL_PUBLICATION.md
+            # §6 — "FA, EN, AR are independent per (entity, locale) rows —
+            # publishing FA never requires EN/AR to exist, and vice versa"),
+            # so `grep` finding no product link MUST fall through to the
+            # empty-catalog branch below.
+            #
+            # It previously did not. GitHub runs every `run:` block under
+            # `shell: /usr/bin/bash -e {0}`, and the `set -uo pipefail` at the
+            # top of this step does NOT clear that inherited errexit — so
+            # `grep`'s exit 1 ("no match") aborted this entire step mid-suite,
+            # before the branch written for exactly this case could execute.
+            # That is the defect that failed the first real production release
+            # (run 35533626395) on production's legitimately empty `en`
+            # catalog, after the fa iteration had already passed:
+            # docs/release/PRODUCTION_CANARY_SMOKE_GATE_FIX_REPORT.md.
+            #
+            # The former `| head -n1` is also gone, removing a second,
+            # still-latent instance of the same class of bug: under
+            # `pipefail`, `grep ... | head -n1` reports 141 (SIGPIPE) whenever
+            # the match list is large enough that `head` exits while `grep` is
+            # still writing — which would abort this step on a POPULATED
+            # catalog once the fa catalog outgrows the pipe buffer. The first
+            # match is now selected with parameter expansion instead (below).
+            #
+            # Fail-closed is preserved exactly: only status 1 ("no match") is
+            # tolerated. Any other grep status is a real harness error and
+            # still fails the gate, rather than being silently read as "this
+            # locale has an empty catalog."
+            SLUG=""
+            SLUG_HREF=""
+            GREP_STATUS=0
+            SLUG_HREF="$(grep -o "href=\"$PREFIX/products/[a-zA-Z0-9_-]\+\"" "$PRODUCTS_BODY_FILE")" || GREP_STATUS=$?
+            if [ "$GREP_STATUS" -gt 1 ]; then
+              echo "::error::SMOKE HARNESS ERROR — scanning $PRODUCTS_BODY_FILE for a [$LOC] catalog link failed with grep status $GREP_STATUS, which is not a 'no match'. Failing closed rather than reporting an unverified catalog as empty."
+              exit 1
+            fi
+            # Take the FIRST match only. Done with parameter expansion rather than
+            # `| head -n1`: `head` exiting early can hand `grep` a SIGPIPE, which
+            # `pipefail` then reports as 141 and errexit acts on — the same class
+            # of abort this whole fix exists to remove, just triggered by a LARGE
+            # catalog instead of an empty one. `grep -m1` is NOT a substitute:
+            # it stops after the first matching LINE, and a minified page puts
+            # every product link on one line, so `grep -o -m1` still emits every
+            # match and SLUG would become a multi-line value.
+            SLUG_HREF="${SLUG_HREF%%$'\n'*}"
+            if [ -n "$SLUG_HREF" ]; then
+              SLUG="$(printf '%s' "$SLUG_HREF" | sed -E "s#href=\"$PREFIX/products/([a-zA-Z0-9_-]+)\"#\1#")"
+            fi
+            CATALOG_SLUG[$LOC]="$SLUG"
+            if [ "$STATUS" != "200" ]; then
+              fail "$PREFIX/products [$LOC] expected 200, got $STATUS"
+            elif [ -n "$SLUG" ]; then
+              pass "$PREFIX/products [$LOC] -> 200, discovered a published catalog slug"
+            elif grep -q "${LOCALE_EMPTY_STATE[$LOC]}" "$PRODUCTS_BODY_FILE"; then
+              pass "$PREFIX/products [$LOC] -> 200, legitimate empty-catalog state"
+            else
+              fail "$PREFIX/products [$LOC] returned 200 but neither a product link nor the known empty-catalog state was found"
+            fi
+          done
+
+          echo "== S6: catalog detail (fa/en/ar) =="
+          for LOC in fa en ar; do
+            PREFIX="${LOCALE_PREFIX[$LOC]}"
+            SLUG="${CATALOG_SLUG[$LOC]}"
+            if [ -n "$SLUG" ]; then
+              URL="$BASE_URL$PREFIX/products/$SLUG"
+              STATUS="$(http_status "$URL")"
+              DETAIL_BODY_FILE="$(body_to_file "$URL" "s6-detail-$LOC.html")"
+              if [ "$STATUS" = "200" ] && grep -q '<h1' "$DETAIL_BODY_FILE"; then
+                pass "$PREFIX/products/$SLUG [$LOC] -> 200, <h1> present"
+              else
+                fail "$PREFIX/products/$SLUG [$LOC] expected 200 with an <h1>, got status $STATUS"
+              fi
+            else
+              URL="$BASE_URL$PREFIX/products/smoke-check-no-such-slug"
+              STATUS="$(http_status "$URL")"
+              if [ "$STATUS" = "404" ]; then
+                pass "no published catalog slug for [$LOC]; $PREFIX/products/<nonexistent> correctly 404s"
+              else
+                fail "$PREFIX/products/<nonexistent> [$LOC] expected 404 with an empty catalog, got $STATUS"
+              fi
+            fi
+          done
+
+          echo "== S7: RFQ page render (fa/en/ar) — no RFQ submitted =="
+          for LOC in fa en ar; do
+            PREFIX="${LOCALE_PREFIX[$LOC]}"
+            URL="$BASE_URL$PREFIX/contact"
+            STATUS="$(http_status "$URL")"
+            CONTACT_BODY_FILE="$(body_to_file "$URL" "s7-contact-$LOC.html")"
+            if [ "$STATUS" != "200" ]; then
+              fail "$PREFIX/contact [$LOC] expected 200, got $STATUS"
+            elif grep -q '<form' "$CONTACT_BODY_FILE" \
+              && grep -q 'name="company"' "$CONTACT_BODY_FILE" \
+              && grep -q 'name="phoneCountry"' "$CONTACT_BODY_FILE" \
+              && grep -q 'name="phoneLocal"' "$CONTACT_BODY_FILE" \
+              && grep -qi 'challenges\.cloudflare\.com/turnstile' "$CONTACT_BODY_FILE"; then
+              pass "$PREFIX/contact [$LOC] -> 200, <form> with company/phoneCountry/phoneLocal fields and Turnstile widget markup present (no RFQ submitted)"
+            else
+              fail "$PREFIX/contact [$LOC] returned 200 but the RFQ form/Turnstile markup was not found in the rendered HTML"
+            fi
+          done
+
+          echo "== S8: not-found handling =="
+          STATUS="$(http_status "$BASE_URL/products/smoke-check-route-that-does-not-exist")"
+          if [ "$STATUS" = "404" ]; then
+            pass "unknown catalog route -> 404 (not 500)"
+          else
+            fail "unknown catalog route expected 404, got $STATUS"
+          fi
+
+          echo "== S9: security headers =="
+          HEADERS_FILE="$SMOKE_DIR/s9-headers.txt"
+          curl -s -D - -o /dev/null --max-time 20 "$BASE_URL/" | tr -d '\r' > "$HEADERS_FILE"
+          for h in "x-content-type-options: nosniff" "x-frame-options: DENY" "referrer-policy: strict-origin-when-cross-origin"; do
+            if grep -qi "^${h}$" "$HEADERS_FILE"; then
+              pass "header present: $h"
+            else
+              fail "missing/incorrect security header: $h"
+            fi
+          done
+          if grep -qi "^permissions-policy:" "$HEADERS_FILE"; then
+            pass "header present: permissions-policy"
+          else
+            fail "missing permissions-policy header"
+          fi
+          if grep -qi "^content-security-policy" "$HEADERS_FILE"; then
+            pass "header present: content-security-policy (report-only or enforced)"
+          else
+            fail "missing content-security-policy header"
+          fi
+
+          echo "== S10: apex redirect =="
+          STATUS="$(http_status "$APEX_URL/")"
+          TARGET="$(redirect_target "$APEX_URL/")"
+          if [ "$STATUS" = "308" ] && [ "$TARGET" = "$BASE_URL/" ]; then
+            pass "apex -> 308 -> $BASE_URL/"
+          else
+            fail "apex expected 308 -> $BASE_URL/, got $STATUS -> $TARGET"
+          fi
+
+          echo ""
+          TOTAL_CHECKS=$((CHECKS_PASSED + FAILURES))
+          if [ "$FAILURES" -gt 0 ]; then
+            SMOKE_RESULT="FAILED ($FAILURES check(s), $CHECKS_PASSED/$TOTAL_CHECKS passed)"
+          else
+            SMOKE_RESULT="PASSED ($CHECKS_PASSED/$TOTAL_CHECKS)"
+          fi
+          echo "smoke_result=$SMOKE_RESULT" >> "$GITHUB_ENV"
+
+          {
+            echo ""
+            echo "### Production smoke checks"
+            echo ""
+            echo "**$SMOKE_RESULT**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$FAILURES" -gt 0 ]; then
+            echo "::error::$FAILURES production smoke check(s) failed. Traffic has ALREADY shifted to $NEW_VERSION_ID — this does not undo that. No automatic rollback is performed."
+            echo "::error::Rollback command (review before running): npx wrangler versions deploy \"$PREVIOUS_VERSION_ID@100\" --config dist/server/wrangler.json --yes"
+            {
+              echo ""
+              echo "Rollback command (review before running):"
+              echo '```'
+              echo "npx wrangler versions deploy \"$PREVIOUS_VERSION_ID@100\" --config dist/server/wrangler.json --yes"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "All production smoke checks passed."
+
+      # Proves this workflow changed nothing. Re-reads the same two Cloudflare
+      # listings and requires them to be identical to the pre-smoke capture:
+      # any new Worker version, any new deployment, or any traffic movement
+      # would change one of the fingerprints and fail here.
+      - name: "V5: post-verify — assert versions, traffic and deployments unchanged"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CANARY_INPUT: ${{ inputs.expected_canary_version }}
+          STABLE_INPUT: ${{ inputs.expected_stable_version }}
+          BASELINE_DEPLOY_COUNT: ${{ steps.baseline.outputs.deployment_count }}
+        run: |
+          set -euo pipefail
+          AFTER="$RUNNER_TEMP/deployments-after.json"
+          npx wrangler deployments list --config wrangler.jsonc --env production --json > "$AFTER"
+          npx wrangler versions list --config wrangler.jsonc --env production --json > "$RUNNER_TEMP/versions-after.json"
+
+          jq -S '[.[] | {id, versions: (.versions | sort_by(.version_id))}]' "$AFTER" > "$RUNNER_TEMP/fingerprint-after.json"
+          jq -S '[.[].id] | sort' "$RUNNER_TEMP/versions-after.json" > "$RUNNER_TEMP/versionids-after.json" 2>/dev/null \
+            || jq -S '[.[] | .version_id // .id] | sort' "$RUNNER_TEMP/versions-after.json" > "$RUNNER_TEMP/versionids-after.json"
+
+          if ! diff -u "$RUNNER_TEMP/fingerprint-before.json" "$RUNNER_TEMP/fingerprint-after.json"; then
+            echo "::error::POST-VERIFY ASSERTION FAILED — the production deployment list changed during this verification run (new deployment, or traffic moved). This workflow issues no mutating command; investigate an external change before trusting the smoke result above."
+            exit 1
+          fi
+          if ! diff -u "$RUNNER_TEMP/versionids-before.json" "$RUNNER_TEMP/versionids-after.json"; then
+            echo "::error::POST-VERIFY ASSERTION FAILED — the Worker version list changed during this verification run. This workflow never uploads a version; investigate an external change."
+            exit 1
+          fi
+
+          AFTER_COUNT="$(jq -r 'length' "$AFTER")"
+          if [ "$AFTER_COUNT" != "$BASELINE_DEPLOY_COUNT" ]; then
+            echo "::error::POST-VERIFY ASSERTION FAILED — deployment count moved from $BASELINE_DEPLOY_COUNT to $AFTER_COUNT."
+            exit 1
+          fi
+
+          jq '.[-1]' "$AFTER" > "$RUNNER_TEMP/latest-after.json"
+          CANARY_PCT="$(jq -r --arg v "$CANARY_INPUT" '[.versions[] | select(.version_id == $v) | .percentage] | first // empty' "$RUNNER_TEMP/latest-after.json")"
+          STABLE_PCT="$(jq -r --arg v "$STABLE_INPUT" '[.versions[] | select(.version_id == $v) | .percentage] | first // empty' "$RUNNER_TEMP/latest-after.json")"
+          if [ "$CANARY_PCT" != "10" ] || [ "$STABLE_PCT" != "90" ]; then
+            echo "::error::POST-VERIFY ASSERTION FAILED — traffic split is now ${CANARY_PCT}/${STABLE_PCT}, expected 10/90."
+            exit 1
+          fi
+
+          # D1 re-read, proving the verification itself applied nothing.
+          for DB in DB_OPS DB_PUBLIC; do
+            STATE="$(npx wrangler d1 migrations list "$DB" --config wrangler.jsonc --env production --remote 2>&1)"
+            if ! echo "$STATE" | grep -q "No migrations to apply"; then
+              echo "::error::POST-VERIFY ASSERTION FAILED — $DB no longer reports clean migration parity."
+              exit 1
+            fi
+          done
+
+          echo "Post-verify confirmed: versions unchanged, deployments unchanged ($AFTER_COUNT), traffic still ${CANARY_PCT}/${STABLE_PCT}, D1 parity still clean."
+
+      - name: Capture verification evidence
+        id: evidence
+        env:
+          SHA_INPUT: ${{ inputs.expected_release_sha }}
+          CANARY_INPUT: ${{ inputs.expected_canary_version }}
+          STABLE_INPUT: ${{ inputs.expected_stable_version }}
+        run: |
+          set -euo pipefail
+          VERIFIED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          EVIDENCE_FILE="$RUNNER_TEMP/production-verification-evidence.json"
+          cat > "$EVIDENCE_FILE" <<EOF
+          {
+            "environment": "production",
+            "worker_name": "ahanassa-production",
+            "verification_only": true,
+            "mutating_commands_issued": "none",
+            "release_sha": "$SHA_INPUT",
+            "canary_version_id": "$CANARY_INPUT",
+            "stable_version_id": "$STABLE_INPUT",
+            "traffic_split": "10/90",
+            "release_evidence_run_id": "${EVIDENCE_RUN_ID:-unknown}",
+            "smoke_result": "${smoke_result:-unknown}",
+            "workflow_run_id": "${{ github.run_id }}",
+            "workflow_run_attempt": "${{ github.run_attempt }}",
+            "verified_at": "$VERIFIED_AT"
+          }
+          EOF
+          echo "EVIDENCE_FILE=$EVIDENCE_FILE" >> "$GITHUB_ENV"
+          {
+            echo ""
+            echo "### Production verification evidence"
+            echo ""
+            echo "| field | value |"
+            echo "| --- | --- |"
+            echo "| Release SHA | \`$SHA_INPUT\` |"
+            echo "| Canary version (10%) | \`$CANARY_INPUT\` |"
+            echo "| Stable version (90%) | \`$STABLE_INPUT\` |"
+            echo "| Smoke result | \`${smoke_result:-unknown}\` |"
+            echo "| Release evidence run | \`${EVIDENCE_RUN_ID:-unknown}\` |"
+            echo "| Verified at (UTC) | \`$VERIFIED_AT\` |"
+            echo ""
+            echo "Verification only — no Worker version was created, no traffic was moved, no D1 or secret was touched."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload verification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-verification-evidence-${{ github.run_id }}
+          path: ${{ env.EVIDENCE_FILE }}
+          retention-days: 365
