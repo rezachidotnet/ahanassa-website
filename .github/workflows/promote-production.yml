@@ -1,0 +1,1136 @@
+name: Promote Production
+
+# Promotes an EXISTING, already-uploaded, already-verified production canary
+# Worker Version to 100% traffic. Uploads NOTHING — it operates only on
+# `canary_version_id`/`stable_version_id` Worker Versions that already exist,
+# proven by durable release/verification evidence, never by trusting operator
+# input at face value.
+#
+# SOURCE OF TRUTH — this file implements, and must stay consistent with:
+#   - docs/release/RELEASE_POLICY.md            (§11 — the promotion workflow contract)
+#   - docs/release/PRODUCTION_R3_DETERMINISTIC_VERSION_SELECTION_REPORT.md
+#     (§10 — the original proposal this workflow implements; deterministic,
+#     position-independent role matching, never `.versions[0]`/`.versions[1]`)
+#   - .github/workflows/deploy-production.yml  (evidence-artifact schema,
+#     two-phase-deploy discipline, A1-style production-target assertion)
+#   - .github/workflows/verify-production.yml  (the embedded smoke suite this
+#     file copies byte-for-byte, the release-evidence-artifact lookup
+#     technique, position-independent live-topology matching)
+#   - lib/ci/release-ledger.ts                 (imported directly at runtime
+#     via `node --experimental-strip-types`, never reimplemented in bash —
+#     the ledger table is parsed exactly once, by the tested engine)
+#
+# ZERO-UPLOAD GUARANTEE
+# -------------------------------------------------------------------------
+# No `npm ci`, no `npm run build`, no `wrangler versions upload`, no
+# `vinext-cloudflare deploy`, no `wrangler deploy`. The only Cloudflare
+# command capable of changing anything is the single "Phase: shift traffic
+# to 100%" step's `wrangler versions deploy`, and it never creates a
+# version — it only redistributes traffic across `canary_version_id`
+# (already live) and the version(s) already occupying the live deployment.
+# Enforced statically by lib/ci/promote-production-workflow.test.ts and by
+# workflow-invariants.test.ts's cross-workflow production-mutation scan.
+#
+# FAIL-CLOSED EVIDENCE BINDING (RELEASE_POLICY.md §11, this task's Phase 4)
+# -------------------------------------------------------------------------
+# Every input is bound to durable evidence before any live Cloudflare read,
+# and every live read is bound to the SAME evidence again before traffic
+# ever moves:
+#   1. release_sha must be a real commit in this repository (gh api).
+#   2/3. canary_version_id must be the `new_version_id` of some recorded
+#        `production-release-evidence-*` artifact, and that artifact's
+#        `deployed_sha` must equal release_sha.
+#   4. That same artifact's `previous_version_id` must equal
+#      stable_version_id — the deploy that produced this canary must have
+#      recorded stable_version_id as ITS OWN rollback target.
+#   5/6. verification_run_id must be a successful `Verify Production` run
+#        whose own uploaded evidence artifact names the SAME release_sha,
+#        canary_version_id, stable_version_id, and expected traffic split,
+#        and whose smoke_result started with "PASSED".
+#   7. staging_provenance_run recorded on the release-evidence artifact must
+#      be a real run id, never "SKIPPED".
+#   9/10. the release ledger (docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md,
+#        parsed by lib/ci/release-ledger.ts) must carry exactly one row for
+#        release_sha, in a RELEASE_STATE this workflow recognizes as
+#        promotable (LEGACY_IN_FLIGHT_RELEASE or CANARY_ACTIVE — never
+#        ROLLED_BACK, SUPERSEDED, or an already-promoted STABLE_100), and
+#        that row's ROLLBACK_VERSION_ID must equal stable_version_id.
+# Any mismatch anywhere in this chain fails the run closed. Nothing here
+# repairs, guesses, or silently proceeds on a partial match.
+#
+# LEGACY EXCEPTION, NOT A CLASSIFIER RETROFIT (RELEASE_POLICY.md §17, this
+# task's Phase 5)
+# -------------------------------------------------------------------------
+# This workflow does NOT invoke the LOW/MEDIUM/HIGH risk classifier
+# (lib/ci/release-risk-classifier.ts) against the release under promotion —
+# the current in-flight release predates that policy and is explicitly
+# `LEGACY_IN_FLIGHT_RELEASE`, a documented, one-time exception. For a
+# FUTURE HIGH release produced under the classifier's canary path, this same
+# workflow is the promotion leg — the ledger-state check above simply
+# requires whatever RELEASE_STATE a real canary carries at promotion time
+# (LEGACY_IN_FLIGHT_RELEASE today; CANARY_ACTIVE for a future HIGH release)
+# to be one of the two states already recognized as "a live, unpromoted
+# canary this workflow may act on." There is no separate, permanent bypass
+# path — the same two states are the only ones ever accepted.
+#
+# NO BREAK-GLASS, NO BYPASS
+# -------------------------------------------------------------------------
+# Unlike deploy-production.yml's `skip_staging_provenance`, this workflow
+# has no input that relaxes any assertion. There is nothing an operator can
+# type that skips evidence binding, skips the observation-attestation gate,
+# or skips the post-promotion smoke gate.
+#
+# OBSERVATION GATE (RELEASE_POLICY.md §12)
+# -------------------------------------------------------------------------
+# `observation_started_at`/`observation_ended_at`/`observation_owner` are
+# recorded, not merely typed and discarded — they are validated
+# (well-formed timestamps, ended >= started, non-empty owner) and carried
+# into the job summary and the promotion evidence artifact.
+# `observation_attestation` must equal one exact, positive literal defined
+# below — there is no numeric minimum observation duration in Policy v1
+# (`MINIMUM_OBSERVATION_DURATION = TBE`, RELEASE_POLICY.md §12), but
+# promotion is unconditionally refused without this explicit attestation.
+#
+# NO `contents: write`
+# -------------------------------------------------------------------------
+# This workflow never commits to the repository. The final `STABLE_100`
+# ledger row is emitted as a job-summary table and a durable evidence
+# artifact only — appending it to
+# docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md remains a separate,
+# human-reviewed documentation commit after the run, exactly like every
+# other evidence this repository's release workflows already produce.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: >-
+          Type exactly "promote-production" to confirm. Deliberately
+          different from "deploy-production"/"verify-production" so
+          operator muscle memory cannot cross into this workflow by
+          accident.
+        required: true
+        type: string
+      release_sha:
+        description: >-
+          The exact 40-character commit SHA already deployed as
+          canary_version_id. Bound against recorded release evidence, never
+          trusted merely because it is well-formed.
+        required: true
+        type: string
+      canary_version_id:
+        description: >-
+          Worker Version ID to promote to 100%. Must already be live in
+          some non-zero capacity and must match the `new_version_id` on a
+          recorded production-release-evidence artifact — never an
+          arbitrary/unverified id, and never uploaded by this workflow.
+        required: true
+        type: string
+      stable_version_id:
+        description: >-
+          Worker Version ID currently serving the remaining traffic — the
+          rollback target this release recorded for itself. Bound against
+          that same release evidence and against the release ledger's
+          ROLLBACK_VERSION_ID.
+        required: true
+        type: string
+      expected_canary_percent:
+        description: >-
+          Traffic percentage canary_version_id is expected to be serving
+          RIGHT NOW, before promotion (e.g. "10"). Not hardcoded to 10 —
+          a future HIGH release's canary could legitimately be at a
+          different percentage (e.g. 50) by the time it is promoted;
+          validated against live state exactly as given, never assumed.
+        required: true
+        type: string
+      expected_stable_percent:
+        description: >-
+          Traffic percentage stable_version_id is expected to be serving
+          right now. Must sum to exactly 100 with expected_canary_percent.
+        required: true
+        type: string
+      verification_run_id:
+        description: >-
+          The successful `Verify Production` workflow run ID whose own
+          uploaded evidence certifies this exact release/canary/stable/
+          split. Bound to that run's real conclusion and its evidence
+          artifact content — never merely echoed.
+        required: true
+        type: string
+      observation_started_at:
+        description: 'Observation window start, UTC, e.g. "2026-09-22T00:00:00Z".'
+        required: true
+        type: string
+      observation_ended_at:
+        description: 'Observation window end, UTC. Must be >= observation_started_at.'
+        required: true
+        type: string
+      observation_owner:
+        description: 'Who attests the observation gate is satisfied (a name or handle).'
+        required: true
+        type: string
+      observation_attestation:
+        description: >-
+          Must equal exactly "OBSERVATION_CONFIRMED_SAFE_TO_PROMOTE" — an
+          explicit, positive acknowledgment that every RELEASE_POLICY.md
+          §12 observation criterion (smoke PASS, no 5xx/exception
+          anomaly, queue/DLQ healthy, RFQ path healthy, topology stable)
+          was actually checked. No other value is accepted.
+        required: true
+        type: string
+
+concurrency:
+  group: promote-production
+  cancel-in-progress: false
+
+# Read-only repository access. `actions: read` is needed to read the
+# release-evidence and verification-evidence artifacts and the Verify
+# Production run's own metadata — the same permission deploy-production.yml
+# and verify-production.yml already carry for the equivalent lookups. Never
+# `contents: write` — see the header comment.
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  promote-production:
+    name: promote-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    outputs:
+      promoted_version_id: ${{ inputs.canary_version_id }}
+      rollback_version_id: ${{ inputs.stable_version_id }}
+      release_sha: ${{ inputs.release_sha }}
+      promoted_at: ${{ steps.evidence.outputs.promoted_at }}
+    steps:
+      # ---------------------------------------------------------------
+      # Step 1 — format-only validation, before any checkout or credential.
+      # ---------------------------------------------------------------
+      - name: Require explicit confirmation and well-formed inputs
+        env:
+          CONFIRM_INPUT: ${{ inputs.confirm }}
+          SHA_INPUT: ${{ inputs.release_sha }}
+          CANARY_INPUT: ${{ inputs.canary_version_id }}
+          STABLE_INPUT: ${{ inputs.stable_version_id }}
+          CANARY_PCT_INPUT: ${{ inputs.expected_canary_percent }}
+          STABLE_PCT_INPUT: ${{ inputs.expected_stable_percent }}
+          VERIFY_RUN_INPUT: ${{ inputs.verification_run_id }}
+          OBS_STARTED_INPUT: ${{ inputs.observation_started_at }}
+          OBS_ENDED_INPUT: ${{ inputs.observation_ended_at }}
+          OBS_OWNER_INPUT: ${{ inputs.observation_owner }}
+          OBS_ATTESTATION_INPUT: ${{ inputs.observation_attestation }}
+        run: |
+          set -euo pipefail
+
+          if [ "$CONFIRM_INPUT" != "promote-production" ]; then
+            echo "::error::Confirmation input did not equal 'promote-production'. Aborting without making any changes."
+            exit 1
+          fi
+
+          if ! [[ "$SHA_INPUT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::release_sha must be a full 40-character lowercase-hexadecimal commit SHA. Got: \"$SHA_INPUT\""
+            exit 1
+          fi
+
+          UUID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          if ! [[ "$CANARY_INPUT" =~ $UUID_RE ]]; then
+            echo "::error::canary_version_id must be a Worker Version UUID. Got: \"$CANARY_INPUT\""
+            exit 1
+          fi
+          if ! [[ "$STABLE_INPUT" =~ $UUID_RE ]]; then
+            echo "::error::stable_version_id must be a Worker Version UUID. Got: \"$STABLE_INPUT\""
+            exit 1
+          fi
+          if [ "$CANARY_INPUT" = "$STABLE_INPUT" ]; then
+            echo "::error::canary_version_id and stable_version_id are identical ('$CANARY_INPUT'). A promotable split requires two distinct versions."
+            exit 1
+          fi
+
+          PCT_RE='^[0-9]{1,2}$'
+          if ! [[ "$CANARY_PCT_INPUT" =~ $PCT_RE ]] || [ "$CANARY_PCT_INPUT" -lt 1 ] || [ "$CANARY_PCT_INPUT" -gt 99 ]; then
+            echo "::error::expected_canary_percent must be an integer from 1 to 99. Got: \"$CANARY_PCT_INPUT\""
+            exit 1
+          fi
+          if ! [[ "$STABLE_PCT_INPUT" =~ $PCT_RE ]] || [ "$STABLE_PCT_INPUT" -lt 1 ] || [ "$STABLE_PCT_INPUT" -gt 99 ]; then
+            echo "::error::expected_stable_percent must be an integer from 1 to 99. Got: \"$STABLE_PCT_INPUT\""
+            exit 1
+          fi
+          if [ $((CANARY_PCT_INPUT + STABLE_PCT_INPUT)) -ne 100 ]; then
+            echo "::error::expected_canary_percent ($CANARY_PCT_INPUT) and expected_stable_percent ($STABLE_PCT_INPUT) must sum to exactly 100."
+            exit 1
+          fi
+
+          if ! [[ "$VERIFY_RUN_INPUT" =~ ^[0-9]+$ ]]; then
+            echo "::error::verification_run_id must be a positive integer GitHub Actions run id. Got: \"$VERIFY_RUN_INPUT\""
+            exit 1
+          fi
+
+          if [ -z "$OBS_OWNER_INPUT" ]; then
+            echo "::error::observation_owner must not be empty."
+            exit 1
+          fi
+
+          STARTED_EPOCH="$(date -u -d "$OBS_STARTED_INPUT" +%s 2>/dev/null || true)"
+          if [ -z "$STARTED_EPOCH" ]; then
+            echo "::error::observation_started_at is not a parseable UTC timestamp. Got: \"$OBS_STARTED_INPUT\""
+            exit 1
+          fi
+          ENDED_EPOCH="$(date -u -d "$OBS_ENDED_INPUT" +%s 2>/dev/null || true)"
+          if [ -z "$ENDED_EPOCH" ]; then
+            echo "::error::observation_ended_at is not a parseable UTC timestamp. Got: \"$OBS_ENDED_INPUT\""
+            exit 1
+          fi
+          if [ "$ENDED_EPOCH" -lt "$STARTED_EPOCH" ]; then
+            echo "::error::observation_ended_at ($OBS_ENDED_INPUT) is before observation_started_at ($OBS_STARTED_INPUT)."
+            exit 1
+          fi
+
+          # The one and only accepted literal. No numeric minimum duration
+          # is asserted here (RELEASE_POLICY.md §12, MINIMUM_OBSERVATION_DURATION
+          # = TBE) — but this exact string is mandatory regardless.
+          if [ "$OBS_ATTESTATION_INPUT" != "OBSERVATION_CONFIRMED_SAFE_TO_PROMOTE" ]; then
+            echo "::error::observation_attestation must equal exactly \"OBSERVATION_CONFIRMED_SAFE_TO_PROMOTE\". Got: \"$OBS_ATTESTATION_INPUT\""
+            exit 1
+          fi
+
+          echo "Requested promotion: release $SHA_INPUT, canary $CANARY_INPUT ($CANARY_PCT_INPUT%) -> stable $STABLE_INPUT ($STABLE_PCT_INPUT%), verification run $VERIFY_RUN_INPUT."
+          echo "Observation window: $OBS_STARTED_INPUT -> $OBS_ENDED_INPUT, owner $OBS_OWNER_INPUT, attested."
+
+      # ---------------------------------------------------------------
+      # Step 2 — pre-checkout existence check, same discipline as
+      # deploy-production.yml's "Verify deploy_ref commit exists".
+      # ---------------------------------------------------------------
+      - name: Verify release_sha commit exists (pre-checkout, fail closed)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA_INPUT: ${{ inputs.release_sha }}
+        run: |
+          set -uo pipefail
+          RESOLVED_SHA="$(gh api "repos/${{ github.repository }}/commits/$SHA_INPUT" --jq '.sha' 2>&1)"
+          API_STATUS=$?
+          if [ $API_STATUS -ne 0 ]; then
+            echo "::error::RELEASE_SHA EXISTENCE CHECK FAILED — no commit '$SHA_INPUT' was found in this repository (or the check could not be completed). Details: $RESOLVED_SHA"
+            exit 1
+          fi
+          if [ "$RESOLVED_SHA" != "$SHA_INPUT" ]; then
+            echo "::error::RELEASE_SHA EXISTENCE CHECK FAILED — the GitHub API resolved release_sha to a different SHA ('$RESOLVED_SHA') than requested ('$SHA_INPUT')."
+            exit 1
+          fi
+          echo "Confirmed: commit $SHA_INPUT exists in this repository."
+
+      # No `ref:` — this workflow's OWN commit (github.sha), never an
+      # operator-supplied or release ref, exactly like verify-production.yml.
+      # This is what makes the Zero-Upload Guarantee possible: there is no
+      # step anywhere in this file that builds or checks out application
+      # code at release_sha. Needed only for wrangler.jsonc, migrations/,
+      # docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md, and
+      # lib/ci/release-ledger.ts.
+      - name: Checkout this workflow's own commit (never an operator-supplied ref)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: "A1: assert production target (read-only, fail closed)"
+        run: |
+          set -euo pipefail
+          node - <<'ASSERT_EOF'
+          const fs = require('fs');
+          const EXPECTED_WORKER = 'ahanassa-production';
+          const EXPECTED_D1 = {
+            DB_OPS: '7240a6a7-c293-4e6e-baf3-95838a3c2944',
+            DB_PUBLIC: '73ba6b50-ef57-4d89-baa9-617a0b0af127',
+          };
+          function stripJsonc(src) {
+            let out = '', i = 0; const n = src.length;
+            while (i < n) {
+              const c = src[i];
+              if (c === '"') {
+                let j = i + 1;
+                while (j < n) { if (src[j] === '\\') { j += 2; continue; } if (src[j] === '"') { j++; break; } j++; }
+                out += src.slice(i, j); i = j; continue;
+              }
+              if (c === '/' && src[i + 1] === '/') { while (i < n && src[i] !== '\n') i++; continue; }
+              if (c === '/' && src[i + 1] === '*') { i += 2; while (i < n && !(src[i] === '*' && src[i + 1] === '/')) i++; i += 2; continue; }
+              out += c; i++;
+            }
+            return out.replace(/,(\s*[}\]])/g, '$1');
+          }
+          function fail(msg) { console.log('::error::PRODUCTION TARGET ASSERTION FAILED — ' + msg); process.exit(1); }
+          if (!fs.existsSync('wrangler.jsonc')) fail('wrangler.jsonc not found.');
+          let cfg;
+          try { cfg = JSON.parse(stripJsonc(fs.readFileSync('wrangler.jsonc', 'utf8'))); }
+          catch (e) { fail('wrangler.jsonc could not be parsed: ' + e.message); }
+          const prod = cfg && cfg.env && cfg.env.production;
+          if (!prod || typeof prod !== 'object') fail('wrangler.jsonc has no env.production block.');
+          if (prod.name !== EXPECTED_WORKER) fail('env.production.name is "' + prod.name + '", expected "' + EXPECTED_WORKER + '".');
+          const dbs = Array.isArray(prod.d1_databases) ? prod.d1_databases : [];
+          for (const [binding, id] of Object.entries(EXPECTED_D1)) {
+            const found = dbs.find((d) => d && d.binding === binding);
+            if (!found) fail('env.production has no ' + binding + ' D1 binding.');
+            if (found.database_id !== id) fail(binding + ' database_id is "' + found.database_id + '", expected the production database.');
+          }
+          console.log('Production target confirmed: ' + EXPECTED_WORKER + ', production DB_OPS/DB_PUBLIC bindings correct.');
+          ASSERT_EOF
+
+      # ---------------------------------------------------------------
+      # Fail-closed evidence binding — Phase 4, items 1-4 and 7.
+      # ---------------------------------------------------------------
+      - name: "Bind release_sha/canary/stable to recorded production-release-evidence (fail closed)"
+        id: release_evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA_INPUT: ${{ inputs.release_sha }}
+          CANARY_INPUT: ${{ inputs.canary_version_id }}
+          STABLE_INPUT: ${{ inputs.stable_version_id }}
+        run: |
+          set -euo pipefail
+          WORKDIR="$RUNNER_TEMP/release-evidence"
+          mkdir -p "$WORKDIR"
+          MATCHED=""
+          IDS="$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100" --jq '.artifacts[] | select(.name | startswith("production-release-evidence-")) | select(.expired == false) | .id')"
+          if [ -z "$IDS" ]; then
+            echo "::error::RELEASE EVIDENCE ASSERTION FAILED — no production-release-evidence-* artifact is available. canary_version_id cannot be bound to a recorded release."
+            exit 1
+          fi
+          for ID in $IDS; do
+            if ! gh api "repos/${{ github.repository }}/actions/artifacts/$ID/zip" > "$WORKDIR/$ID.zip" 2>/dev/null; then
+              continue
+            fi
+            if ! unzip -p "$WORKDIR/$ID.zip" '*.json' > "$WORKDIR/$ID.json" 2>/dev/null; then
+              continue
+            fi
+            FOUND_VERSION="$(jq -r '.new_version_id // empty' "$WORKDIR/$ID.json" 2>/dev/null || true)"
+            if [ "$FOUND_VERSION" = "$CANARY_INPUT" ]; then
+              MATCHED="$WORKDIR/$ID.json"
+              break
+            fi
+          done
+          if [ -z "$MATCHED" ]; then
+            echo "::error::RELEASE EVIDENCE ASSERTION FAILED — no recorded production release evidence names $CANARY_INPUT as its new_version_id. canary_version_id was not produced by a tracked deploy-production run — refusing to promote an unverified version id."
+            exit 1
+          fi
+
+          EV_SHA="$(jq -r '.deployed_sha // empty' "$MATCHED")"
+          EV_PREV="$(jq -r '.previous_version_id // empty' "$MATCHED")"
+          EV_ROLLOUT="$(jq -r '.rollout_percentage // empty' "$MATCHED")"
+          EV_RUN="$(jq -r '.workflow_run_id // empty' "$MATCHED")"
+          EV_STAGING="$(jq -r '.staging_provenance_run // empty' "$MATCHED")"
+
+          if [ "$EV_SHA" != "$SHA_INPUT" ]; then
+            echo "::error::RELEASE EVIDENCE ASSERTION FAILED — canary $CANARY_INPUT was built from $EV_SHA, not the claimed release_sha $SHA_INPUT."
+            exit 1
+          fi
+          if [ "$EV_PREV" != "$STABLE_INPUT" ]; then
+            echo "::error::RELEASE EVIDENCE ASSERTION FAILED — the release that produced $CANARY_INPUT recorded $EV_PREV as its own rollback target, not the claimed stable_version_id $STABLE_INPUT."
+            exit 1
+          fi
+          if [ -z "$EV_STAGING" ] || [ "$EV_STAGING" = "SKIPPED" ]; then
+            echo "::error::RELEASE EVIDENCE ASSERTION FAILED — the release that produced $CANARY_INPUT has no real staging provenance (staging_provenance_run='$EV_STAGING'). Refusing to promote a release with no proof it was ever staged."
+            exit 1
+          fi
+
+          echo "Release evidence confirmed: run $EV_RUN deployed $EV_SHA as $CANARY_INPUT at ${EV_ROLLOUT}%, over previous $EV_PREV, staged in run $EV_STAGING."
+          echo "production_run_id=$EV_RUN" >> "$GITHUB_OUTPUT"
+          echo "staging_run_id=$EV_STAGING" >> "$GITHUB_OUTPUT"
+
+      # ---------------------------------------------------------------
+      # Fail-closed evidence binding — Phase 4, items 5, 6, 8.
+      # ---------------------------------------------------------------
+      - name: "Bind verification_run_id to a successful Verify Production run and its evidence (fail closed)"
+        id: verify_evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA_INPUT: ${{ inputs.release_sha }}
+          CANARY_INPUT: ${{ inputs.canary_version_id }}
+          STABLE_INPUT: ${{ inputs.stable_version_id }}
+          CANARY_PCT_INPUT: ${{ inputs.expected_canary_percent }}
+          STABLE_PCT_INPUT: ${{ inputs.expected_stable_percent }}
+          VERIFY_RUN_INPUT: ${{ inputs.verification_run_id }}
+        run: |
+          set -euo pipefail
+          VERIFY_WORKFLOW_ID=363097410
+
+          RUN_JSON="$(gh api "repos/${{ github.repository }}/actions/runs/$VERIFY_RUN_INPUT" 2>&1)"
+          API_STATUS=$?
+          if [ $API_STATUS -ne 0 ]; then
+            echo "::error::VERIFICATION RUN ASSERTION FAILED — could not read run $VERIFY_RUN_INPUT via the GitHub API. Details: $RUN_JSON"
+            exit 1
+          fi
+          RUN_WORKFLOW_ID="$(echo "$RUN_JSON" | jq -r '.workflow_id // empty')"
+          RUN_CONCLUSION="$(echo "$RUN_JSON" | jq -r '.conclusion // empty')"
+          if [ "$RUN_WORKFLOW_ID" != "$VERIFY_WORKFLOW_ID" ]; then
+            echo "::error::VERIFICATION RUN ASSERTION FAILED — run $VERIFY_RUN_INPUT belongs to workflow $RUN_WORKFLOW_ID, not Verify Production ($VERIFY_WORKFLOW_ID)."
+            exit 1
+          fi
+          if [ "$RUN_CONCLUSION" != "success" ]; then
+            echo "::error::VERIFICATION RUN ASSERTION FAILED — run $VERIFY_RUN_INPUT concluded '$RUN_CONCLUSION', not 'success'."
+            exit 1
+          fi
+
+          EVIDENCE_ZIP="$RUNNER_TEMP/verify-evidence.zip"
+          EVIDENCE_JSON="$RUNNER_TEMP/verify-evidence.json"
+          ARTIFACT_ID="$(gh api "repos/${{ github.repository }}/actions/runs/$VERIFY_RUN_INPUT/artifacts" --jq --arg n "production-verification-evidence-$VERIFY_RUN_INPUT" '.artifacts[] | select(.name == $n and .expired == false) | .id' | head -n1)"
+          if [ -z "$ARTIFACT_ID" ]; then
+            echo "::error::VERIFICATION RUN ASSERTION FAILED — run $VERIFY_RUN_INPUT has no production-verification-evidence-$VERIFY_RUN_INPUT artifact (missing or expired)."
+            exit 1
+          fi
+          gh api "repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip" > "$EVIDENCE_ZIP"
+          unzip -p "$EVIDENCE_ZIP" '*.json' > "$EVIDENCE_JSON"
+
+          EV_SHA="$(jq -r '.release_sha // empty' "$EVIDENCE_JSON")"
+          EV_CANARY="$(jq -r '.canary_version_id // empty' "$EVIDENCE_JSON")"
+          EV_STABLE="$(jq -r '.stable_version_id // empty' "$EVIDENCE_JSON")"
+          EV_SPLIT="$(jq -r '.traffic_split // empty' "$EVIDENCE_JSON")"
+          EV_SMOKE="$(jq -r '.smoke_result // empty' "$EVIDENCE_JSON")"
+          EV_ONLY="$(jq -r '.verification_only // empty' "$EVIDENCE_JSON")"
+          EV_MUTATING="$(jq -r '.mutating_commands_issued // empty' "$EVIDENCE_JSON")"
+          EXPECTED_SPLIT="${CANARY_PCT_INPUT}/${STABLE_PCT_INPUT}"
+
+          if [ "$EV_SHA" != "$SHA_INPUT" ]; then
+            echo "::error::VERIFICATION EVIDENCE ASSERTION FAILED — run $VERIFY_RUN_INPUT verified release_sha $EV_SHA, not the claimed $SHA_INPUT."
+            exit 1
+          fi
+          if [ "$EV_CANARY" != "$CANARY_INPUT" ] || [ "$EV_STABLE" != "$STABLE_INPUT" ]; then
+            echo "::error::VERIFICATION EVIDENCE ASSERTION FAILED — run $VERIFY_RUN_INPUT verified canary=$EV_CANARY/stable=$EV_STABLE, not the claimed canary=$CANARY_INPUT/stable=$STABLE_INPUT."
+            exit 1
+          fi
+          if [ "$EV_SPLIT" != "$EXPECTED_SPLIT" ]; then
+            echo "::error::VERIFICATION EVIDENCE ASSERTION FAILED — run $VERIFY_RUN_INPUT verified a $EV_SPLIT split, not the claimed $EXPECTED_SPLIT."
+            exit 1
+          fi
+          if [ "$EV_ONLY" != "true" ] || [ "$EV_MUTATING" != "none" ]; then
+            echo "::error::VERIFICATION EVIDENCE ASSERTION FAILED — run $VERIFY_RUN_INPUT's evidence does not confirm it was verification-only (verification_only=$EV_ONLY, mutating_commands_issued=$EV_MUTATING)."
+            exit 1
+          fi
+          case "$EV_SMOKE" in
+            PASSED*) : ;;
+            *)
+              echo "::error::VERIFICATION EVIDENCE ASSERTION FAILED — run $VERIFY_RUN_INPUT's official production smoke result was '$EV_SMOKE', not a PASS. Refusing to promote a release whose official smoke gate did not pass."
+              exit 1
+              ;;
+          esac
+
+          echo "Verification evidence confirmed: run $VERIFY_RUN_INPUT certified release $EV_SHA, canary $EV_CANARY / stable $EV_STABLE at $EV_SPLIT, smoke: $EV_SMOKE."
+
+      # ---------------------------------------------------------------
+      # Fail-closed evidence binding — Phase 4, items 9-10, and Phase 5's
+      # documented legacy exception (LEGACY_IN_FLIGHT_RELEASE /
+      # CANARY_ACTIVE only — never a classifier re-run against this
+      # already-running canary).
+      # ---------------------------------------------------------------
+      - name: "Bind release to ledger evidence — not rolled back, not superseded (fail closed)"
+        id: ledger_evidence
+        env:
+          RELEASE_SHA_INPUT: ${{ inputs.release_sha }}
+          STABLE_INPUT: ${{ inputs.stable_version_id }}
+        run: |
+          set -euo pipefail
+          node --experimental-strip-types - <<'LEDGER_EOF'
+          import { readFileSync } from "node:fs";
+          import { parseLedgerTable } from "./lib/ci/release-ledger.ts";
+
+          const RELEASE_SHA = process.env.RELEASE_SHA_INPUT;
+          const STABLE_INPUT = process.env.STABLE_INPUT;
+          const PROMOTABLE_STATES = new Set(["LEGACY_IN_FLIGHT_RELEASE", "CANARY_ACTIVE"]);
+
+          const md = readFileSync("docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md", "utf8");
+          const rows = parseLedgerTable(md);
+          const matches = rows.filter((r) => r.releaseSha === RELEASE_SHA);
+
+          if (matches.length === 0) {
+            console.log("::error::LEDGER EVIDENCE ASSERTION FAILED — no ledger row records release_sha " + RELEASE_SHA + ".");
+            process.exit(1);
+          }
+          if (matches.length > 1) {
+            console.log("::error::LEDGER EVIDENCE ASSERTION FAILED — multiple ledger rows record release_sha " + RELEASE_SHA + "; ambiguous, refusing to guess which is authoritative.");
+            process.exit(1);
+          }
+          const row = matches[0];
+
+          if (!PROMOTABLE_STATES.has(row.releaseState)) {
+            console.log(
+              "::error::LEDGER EVIDENCE ASSERTION FAILED — release " + RELEASE_SHA + " has RELEASE_STATE " +
+              row.releaseState + ", not a promotable state (" + [...PROMOTABLE_STATES].join(" or ") +
+              "). Already rolled back, superseded, or already promoted to STABLE_100 — refusing to re-promote."
+            );
+            process.exit(1);
+          }
+          if (row.rollbackVersionId !== STABLE_INPUT) {
+            console.log(
+              "::error::LEDGER EVIDENCE ASSERTION FAILED — ledger ROLLBACK_VERSION_ID (" + row.rollbackVersionId +
+              ") does not match the claimed stable_version_id (" + STABLE_INPUT + ")."
+            );
+            process.exit(1);
+          }
+
+          console.log(
+            "Ledger evidence confirmed: release " + RELEASE_SHA + " is " + row.releaseState +
+            ", ROLLBACK_VERSION_ID " + row.rollbackVersionId + " matches claimed stable_version_id."
+          );
+          LEDGER_EOF
+
+      # ---------------------------------------------------------------
+      # Phase 7 — live production topology, position-independent. Never
+      # `.versions[0]`/`.versions[1]`/first/last/latest/oldest — every
+      # match below is by explicit version_id equality, exactly the
+      # technique verify-production.yml's V3 already proved live against
+      # this exact production topology.
+      # ---------------------------------------------------------------
+      - name: "Assert live production topology matches expected pre-state (fail closed, no repair)"
+        id: pre_topology
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CANARY_INPUT: ${{ inputs.canary_version_id }}
+          STABLE_INPUT: ${{ inputs.stable_version_id }}
+          CANARY_PCT_INPUT: ${{ inputs.expected_canary_percent }}
+          STABLE_PCT_INPUT: ${{ inputs.expected_stable_percent }}
+        run: |
+          set -euo pipefail
+          BEFORE="$RUNNER_TEMP/deployments-before.json"
+          npx wrangler deployments list --config wrangler.jsonc --env production --json > "$BEFORE"
+          npx wrangler versions list --config wrangler.jsonc --env production --json > "$RUNNER_TEMP/versions-before.json"
+          npx wrangler secret list --config wrangler.jsonc --env production --format json > "$RUNNER_TEMP/secrets-before.json" 2>/dev/null \
+            || npx wrangler secret list --config wrangler.jsonc --env production > "$RUNNER_TEMP/secrets-before.json"
+
+          # wrangler sorts deployments ascending by created_on, so `.[-1]` is
+          # the newest deployment EVENT — an ordering guarantee, never a
+          # positional guess about which VERSION inside it is which role.
+          jq '.[-1]' "$BEFORE" > "$RUNNER_TEMP/latest-before.json"
+
+          # --- TOPOLOGY CHECK START (extracted verbatim by
+          #     lib/ci/promote-production-workflow.test.ts) ---
+          COUNT="$(jq -r '.versions | length' "$RUNNER_TEMP/latest-before.json")"
+          if [ "$COUNT" != "2" ]; then
+            echo "::error::TOPOLOGY ASSERTION FAILED — the live deployment has $COUNT version(s) receiving traffic, expected exactly 2 (canary_version_id + stable_version_id). Not repairing; stopping."
+            exit 1
+          fi
+
+          CANARY_PCT="$(jq -r --arg v "$CANARY_INPUT" '[.versions[] | select(.version_id == $v) | .percentage] | first // empty' "$RUNNER_TEMP/latest-before.json")"
+          STABLE_PCT="$(jq -r --arg v "$STABLE_INPUT" '[.versions[] | select(.version_id == $v) | .percentage] | first // empty' "$RUNNER_TEMP/latest-before.json")"
+          if [ -z "$CANARY_PCT" ]; then
+            echo "::error::TOPOLOGY ASSERTION FAILED — canary_version_id $CANARY_INPUT is not receiving traffic in the live deployment."
+            exit 1
+          fi
+          if [ -z "$STABLE_PCT" ]; then
+            echo "::error::TOPOLOGY ASSERTION FAILED — stable_version_id $STABLE_INPUT is not receiving traffic in the live deployment."
+            exit 1
+          fi
+          if [ "$CANARY_PCT" != "$CANARY_PCT_INPUT" ]; then
+            echo "::error::TOPOLOGY ASSERTION FAILED — canary_version_id is at ${CANARY_PCT}%, expected expected_canary_percent=${CANARY_PCT_INPUT}%."
+            exit 1
+          fi
+          if [ "$STABLE_PCT" != "$STABLE_PCT_INPUT" ]; then
+            echo "::error::TOPOLOGY ASSERTION FAILED — stable_version_id is at ${STABLE_PCT}%, expected expected_stable_percent=${STABLE_PCT_INPUT}%."
+            exit 1
+          fi
+
+          TOTAL="$(jq -r '[.versions[].percentage] | add' "$RUNNER_TEMP/latest-before.json")"
+          if [ "$TOTAL" != "100" ]; then
+            echo "::error::TOPOLOGY ASSERTION FAILED — traffic percentages total ${TOTAL}%, not 100%."
+            exit 1
+          fi
+
+          UNEXPECTED="$(jq -r --arg c "$CANARY_INPUT" --arg s "$STABLE_INPUT" '[.versions[] | select(.version_id != $c and .version_id != $s and .percentage > 0) | .version_id] | join(",")' "$RUNNER_TEMP/latest-before.json")"
+          if [ -n "$UNEXPECTED" ]; then
+            echo "::error::TOPOLOGY ASSERTION FAILED — unexpected third version(s) receiving production traffic: $UNEXPECTED"
+            exit 1
+          fi
+          # --- TOPOLOGY CHECK END ---
+
+          VERSION_COUNT="$(jq -r 'length' "$RUNNER_TEMP/versions-before.json")"
+          echo "version_count=$VERSION_COUNT" >> "$GITHUB_OUTPUT"
+          jq -S '[.[].id] | sort' "$RUNNER_TEMP/versions-before.json" > "$RUNNER_TEMP/versionids-before.json" 2>/dev/null \
+            || jq -S '[.[] | .version_id // .id] | sort' "$RUNNER_TEMP/versions-before.json" > "$RUNNER_TEMP/versionids-before.json"
+
+          echo "Pre-promotion topology confirmed: $CANARY_INPUT @ ${CANARY_PCT}% / $STABLE_INPUT @ ${STABLE_PCT}%, total ${TOTAL}%, no third version, $VERSION_COUNT Worker version(s) total."
+
+      - name: "D1 migration parity (read-only, captured pre-promotion)"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx wrangler d1 migrations list DB_OPS --config wrangler.jsonc --env production --remote > "$RUNNER_TEMP/d1-ops-before.txt" 2>&1
+          cat "$RUNNER_TEMP/d1-ops-before.txt"
+          npx wrangler d1 migrations list DB_PUBLIC --config wrangler.jsonc --env production --remote > "$RUNNER_TEMP/d1-public-before.txt" 2>&1
+          cat "$RUNNER_TEMP/d1-public-before.txt"
+
+      - name: "Capture GitHub Environment protection (read-only, captured pre-promotion)"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${{ github.repository }}/environments/production" \
+            --jq '{reviewers: [.protection_rules[]? | select(.type=="required_reviewers") | .reviewers], branch_policy: .deployment_branch_policy}' \
+            > "$RUNNER_TEMP/environment-before.json"
+          cat "$RUNNER_TEMP/environment-before.json"
+
+      # ---------------------------------------------------------------
+      # Phase 9 — the ONE step in this workflow that shifts real traffic.
+      # Every step above is read-only. No version is uploaded — this
+      # names ONLY canary_version_id, an already-existing Worker Version;
+      # Cloudflare drops every unnamed version (stable_version_id
+      # included) to 0%, exactly like deploy-production.yml's own
+      # rollout_percentage=100 case (a single version-spec, no
+      # complementary spec needed when the target is 100%).
+      # ---------------------------------------------------------------
+      - name: "Phase: shift traffic to 100% (existing canary version only, zero upload)"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CANARY_INPUT: ${{ inputs.canary_version_id }}
+        run: |
+          set -euo pipefail
+          npx wrangler versions deploy "$CANARY_INPUT@100" \
+            --config wrangler.jsonc --env production \
+            --message "Production promotion - SHA ${{ inputs.release_sha }} - run ${{ github.run_id }}" \
+            --yes
+          echo "Promoted: $CANARY_INPUT@100"
+
+      # ---------------------------------------------------------------
+      # Phase 10 — post-promotion verification, independent of the
+      # command above (re-reads live state rather than trusting the
+      # command's own exit code).
+      # ---------------------------------------------------------------
+      - name: "Post-promotion verification: 100/0 split, no new version, D1/secrets/Environment unchanged"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GH_TOKEN: ${{ github.token }}
+          CANARY_INPUT: ${{ inputs.canary_version_id }}
+          STABLE_INPUT: ${{ inputs.stable_version_id }}
+          EXPECTED_VERSION_COUNT: ${{ steps.pre_topology.outputs.version_count }}
+        run: |
+          set -euo pipefail
+          AFTER="$RUNNER_TEMP/deployments-after.json"
+          npx wrangler deployments list --config wrangler.jsonc --env production --json > "$AFTER"
+          npx wrangler versions list --config wrangler.jsonc --env production --json > "$RUNNER_TEMP/versions-after.json"
+
+          jq '.[-1]' "$AFTER" > "$RUNNER_TEMP/latest-after.json"
+
+          # --- POST-PROMOTION CHECK START (extracted verbatim by
+          #     lib/ci/promote-production-workflow.test.ts) ---
+          CANARY_PCT="$(jq -r --arg v "$CANARY_INPUT" '[.versions[] | select(.version_id == $v) | .percentage] | first // empty' "$RUNNER_TEMP/latest-after.json")"
+          STABLE_PCT="$(jq -r --arg v "$STABLE_INPUT" '[.versions[] | select(.version_id == $v) | .percentage] | first // 0' "$RUNNER_TEMP/latest-after.json")"
+          if [ "$CANARY_PCT" != "100" ]; then
+            echo "::error::POST-PROMOTION ASSERTION FAILED — canary_version_id is serving ${CANARY_PCT}%, expected 100%."
+            exit 1
+          fi
+          if [ "$STABLE_PCT" != "0" ] && [ -n "$STABLE_PCT" ]; then
+            echo "::error::POST-PROMOTION ASSERTION FAILED — stable_version_id is still serving ${STABLE_PCT}% traffic, expected 0% / not traffic-bearing."
+            exit 1
+          fi
+          UNEXPECTED="$(jq -r --arg c "$CANARY_INPUT" '[.versions[] | select(.version_id != $c and .percentage > 0) | .version_id] | join(",")' "$RUNNER_TEMP/latest-after.json")"
+          if [ -n "$UNEXPECTED" ]; then
+            echo "::error::POST-PROMOTION ASSERTION FAILED — unexpected third version(s) receiving production traffic after promotion: $UNEXPECTED"
+            exit 1
+          fi
+          # --- POST-PROMOTION CHECK END ---
+
+          # Zero-upload proof at the LIVE-state level: the Worker Version
+          # list itself (not the deployment/traffic list, which correctly
+          # DID change) must be byte-for-byte the same set as before.
+          jq -S '[.[].id] | sort' "$RUNNER_TEMP/versions-after.json" > "$RUNNER_TEMP/versionids-after.json" 2>/dev/null \
+            || jq -S '[.[] | .version_id // .id] | sort' "$RUNNER_TEMP/versions-after.json" > "$RUNNER_TEMP/versionids-after.json"
+          if ! diff -u "$RUNNER_TEMP/versionids-before.json" "$RUNNER_TEMP/versionids-after.json"; then
+            echo "::error::POST-PROMOTION ASSERTION FAILED — the Worker version list changed during promotion. This workflow never uploads a version; investigate an external change."
+            exit 1
+          fi
+          AFTER_VERSION_COUNT="$(jq -r 'length' "$RUNNER_TEMP/versions-after.json")"
+          if [ "$AFTER_VERSION_COUNT" != "$EXPECTED_VERSION_COUNT" ]; then
+            echo "::error::POST-PROMOTION ASSERTION FAILED — Worker version count moved from $EXPECTED_VERSION_COUNT to $AFTER_VERSION_COUNT."
+            exit 1
+          fi
+
+          for DB in DB_OPS DB_PUBLIC; do
+            STATE="$(npx wrangler d1 migrations list "$DB" --config wrangler.jsonc --env production --remote 2>&1)"
+            BEFORE_FILE="$RUNNER_TEMP/d1-$(echo "$DB" | tr '[:upper:]' '[:lower:]' | sed 's/db_//')-before.txt"
+            if ! diff -q <(cat "$BEFORE_FILE") <(echo "$STATE") > /dev/null 2>&1; then
+              if ! echo "$STATE" | grep -q "No migrations to apply"; then
+                echo "::error::POST-PROMOTION ASSERTION FAILED — $DB migration state changed during promotion (this workflow never applies a migration)."
+                exit 1
+              fi
+            fi
+          done
+
+          npx wrangler secret list --config wrangler.jsonc --env production --format json > "$RUNNER_TEMP/secrets-after.json" 2>/dev/null \
+            || npx wrangler secret list --config wrangler.jsonc --env production > "$RUNNER_TEMP/secrets-after.json"
+          if ! diff -q "$RUNNER_TEMP/secrets-before.json" "$RUNNER_TEMP/secrets-after.json" > /dev/null 2>&1; then
+            echo "::error::POST-PROMOTION ASSERTION FAILED — the production secret list changed during promotion. This workflow never mutates a secret."
+            exit 1
+          fi
+
+          gh api "repos/${{ github.repository }}/environments/production" \
+            --jq '{reviewers: [.protection_rules[]? | select(.type=="required_reviewers") | .reviewers], branch_policy: .deployment_branch_policy}' \
+            > "$RUNNER_TEMP/environment-after.json"
+          if ! diff -q "$RUNNER_TEMP/environment-before.json" "$RUNNER_TEMP/environment-after.json" > /dev/null 2>&1; then
+            echo "::error::POST-PROMOTION ASSERTION FAILED — the production GitHub Environment's protection configuration changed during promotion."
+            exit 1
+          fi
+
+          echo "Post-promotion confirmed: $CANARY_INPUT @ 100%, $STABLE_INPUT not traffic-bearing, no third version, Worker version count unchanged ($AFTER_VERSION_COUNT), D1/secrets/Environment protection unchanged."
+
+      # ---------------------------------------------------------------
+      # Phase 11 — the official smoke gate. BYTE-IDENTICAL to
+      # deploy-production.yml's and verify-production.yml's "Production
+      # smoke checks" step — enforced by
+      # lib/ci/production-smoke-harness.test.ts. If this fails, traffic
+      # has ALREADY shifted; this workflow performs NO automatic
+      # rollback (RELEASE_POLICY.md does not mandate one) — it prints
+      # the exact rollback command and fails the run.
+      # ---------------------------------------------------------------
+      - name: Production smoke checks (S1-S10, fa/en/ar locale coverage)
+        env:
+          NEW_VERSION_ID: ${{ inputs.canary_version_id }}
+          PREVIOUS_VERSION_ID: ${{ inputs.stable_version_id }}
+        run: |
+          set -uo pipefail
+          BASE_URL="https://www.ahanassa.com"
+          APEX_URL="https://ahanassa.com"
+          SMOKE_DIR="$RUNNER_TEMP/smoke"
+          mkdir -p "$SMOKE_DIR"
+          FAILURES=0
+          CHECKS_PASSED=0
+
+          fail() {
+            echo "::error::SMOKE CHECK FAILED — $1"
+            FAILURES=$((FAILURES + 1))
+          }
+
+          pass() {
+            echo "  OK — $1"
+            CHECKS_PASSED=$((CHECKS_PASSED + 1))
+          }
+
+          http_status() {
+            curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$1"
+          }
+
+          redirect_target() {
+            curl -s -o /dev/null -w '%{redirect_url}' --max-time 20 "$1"
+          }
+
+          # Writes the response body straight to a file and prints that
+          # file's path — deliberately never returned as a shell variable.
+          # A response body here can be tens of KB of localized HTML;
+          # grepping it from a file (a real, seekable fd) rather than piping
+          # a giant shell variable through grep is the more robust form
+          # regardless of platform, and is what every check below does.
+          body_to_file() {
+            local out="$SMOKE_DIR/$2"
+            curl -s --max-time 20 "$1" > "$out"
+            echo "$out"
+          }
+
+          # AUDIT FIX (docs/release/PRODUCTION_WORKFLOW_INDEPENDENT_AUDIT.md
+          # MEDIUM finding): S5/S6/S7 previously checked only the default
+          # (fa) locale. This maps each supported locale to its URL prefix
+          # (fa is unprefixed, per PROJECT_OVERRIDES.md §1) and its own
+          # localized "catalog is being prepared" empty-state string
+          # (components/products/catalog-empty-state.tsx), so the catalog
+          # index/detail and RFQ checks below can loop over fa/en/ar without
+          # duplicating per-locale logic three times.
+          declare -A LOCALE_PREFIX=( [fa]="" [en]="/en" [ar]="/ar" )
+          declare -A LOCALE_EMPTY_STATE=(
+            [fa]="کاتالوگ آنلاین در حال آماده‌سازی است"
+            [en]="The online catalog is being prepared"
+            [ar]="الكتالوج الإلكتروني قيد الإعداد"
+          )
+          declare -A CATALOG_SLUG
+
+          echo "== S1: homepage / =="
+          STATUS="$(http_status "$BASE_URL/")"
+          BODY_FILE="$(body_to_file "$BASE_URL/" "s1-home.html")"
+          if [ "$STATUS" = "200" ] && grep -qi '<html[^>]*lang="fa"[^>]*dir="rtl"' "$BODY_FILE"; then
+            pass "/ -> 200, <html lang=\"fa\" dir=\"rtl\">"
+          else
+            fail "/ expected 200 with <html lang=\"fa\" dir=\"rtl\">, got status $STATUS"
+          fi
+
+          echo "== S1b: homepage /ar =="
+          STATUS="$(http_status "$BASE_URL/ar")"
+          BODY_FILE="$(body_to_file "$BASE_URL/ar" "s1b-home-ar.html")"
+          if [ "$STATUS" = "200" ] && grep -qi '<html[^>]*lang="ar"[^>]*dir="rtl"' "$BODY_FILE"; then
+            pass "/ar -> 200, <html lang=\"ar\" dir=\"rtl\">"
+          else
+            fail "/ar expected 200 with <html lang=\"ar\" dir=\"rtl\">, got status $STATUS"
+          fi
+
+          echo "== S2: /fa redirects to the unprefixed default locale =="
+          STATUS="$(http_status "$BASE_URL/fa")"
+          TARGET="$(redirect_target "$BASE_URL/fa")"
+          if [ "$STATUS" = "308" ] && [ "$TARGET" = "$BASE_URL/" ]; then
+            pass "/fa -> 308 -> /"
+          else
+            fail "/fa expected 308 -> $BASE_URL/, got $STATUS -> $TARGET"
+          fi
+
+          echo "== S3: /en =="
+          STATUS="$(http_status "$BASE_URL/en")"
+          BODY_FILE="$(body_to_file "$BASE_URL/en" "s3-en.html")"
+          if [ "$STATUS" = "200" ] && grep -qi '<html[^>]*lang="en"[^>]*dir="ltr"' "$BODY_FILE"; then
+            pass "/en -> 200, <html lang=\"en\" dir=\"ltr\">"
+          else
+            fail "/en expected 200 with <html lang=\"en\" dir=\"ltr\">, got status $STATUS"
+          fi
+
+          echo "== S4: /services, /en/services, /ar/services =="
+          for p in "/services" "/en/services" "/ar/services"; do
+            STATUS="$(http_status "$BASE_URL$p")"
+            if [ "$STATUS" = "200" ]; then pass "$p -> 200"; else fail "$p expected 200, got $STATUS"; fi
+          done
+
+          echo "== S5: catalog index (fa/en/ar) =="
+          for LOC in fa en ar; do
+            PREFIX="${LOCALE_PREFIX[$LOC]}"
+            URL="$BASE_URL$PREFIX/products"
+            STATUS="$(http_status "$URL")"
+            PRODUCTS_BODY_FILE="$(body_to_file "$URL" "s5-products-$LOC.html")"
+            # A locale whose catalog is legitimately empty is a DOCUMENTED,
+            # supported state, never a failure: fa/en/ar publish completely
+            # independently of one another (docs/CATALOG_EDITORIAL_PUBLICATION.md
+            # §6 — "FA, EN, AR are independent per (entity, locale) rows —
+            # publishing FA never requires EN/AR to exist, and vice versa"),
+            # so `grep` finding no product link MUST fall through to the
+            # empty-catalog branch below.
+            #
+            # It previously did not. GitHub runs every `run:` block under
+            # `shell: /usr/bin/bash -e {0}`, and the `set -uo pipefail` at the
+            # top of this step does NOT clear that inherited errexit — so
+            # `grep`'s exit 1 ("no match") aborted this entire step mid-suite,
+            # before the branch written for exactly this case could execute.
+            # That is the defect that failed the first real production release
+            # (run 35533626395) on production's legitimately empty `en`
+            # catalog, after the fa iteration had already passed:
+            # docs/release/PRODUCTION_CANARY_SMOKE_GATE_FIX_REPORT.md.
+            #
+            # The former `| head -n1` is also gone, removing a second,
+            # still-latent instance of the same class of bug: under
+            # `pipefail`, `grep ... | head -n1` reports 141 (SIGPIPE) whenever
+            # the match list is large enough that `head` exits while `grep` is
+            # still writing — which would abort this step on a POPULATED
+            # catalog once the fa catalog outgrows the pipe buffer. The first
+            # match is now selected with parameter expansion instead (below).
+            #
+            # Fail-closed is preserved exactly: only status 1 ("no match") is
+            # tolerated. Any other grep status is a real harness error and
+            # still fails the gate, rather than being silently read as "this
+            # locale has an empty catalog."
+            SLUG=""
+            SLUG_HREF=""
+            GREP_STATUS=0
+            SLUG_HREF="$(grep -o "href=\"$PREFIX/products/[a-zA-Z0-9_-]\+\"" "$PRODUCTS_BODY_FILE")" || GREP_STATUS=$?
+            if [ "$GREP_STATUS" -gt 1 ]; then
+              echo "::error::SMOKE HARNESS ERROR — scanning $PRODUCTS_BODY_FILE for a [$LOC] catalog link failed with grep status $GREP_STATUS, which is not a 'no match'. Failing closed rather than reporting an unverified catalog as empty."
+              exit 1
+            fi
+            # Take the FIRST match only. Done with parameter expansion rather than
+            # `| head -n1`: `head` exiting early can hand `grep` a SIGPIPE, which
+            # `pipefail` then reports as 141 and errexit acts on — the same class
+            # of abort this whole fix exists to remove, just triggered by a LARGE
+            # catalog instead of an empty one. `grep -m1` is NOT a substitute:
+            # it stops after the first matching LINE, and a minified page puts
+            # every product link on one line, so `grep -o -m1` still emits every
+            # match and SLUG would become a multi-line value.
+            SLUG_HREF="${SLUG_HREF%%$'\n'*}"
+            if [ -n "$SLUG_HREF" ]; then
+              SLUG="$(printf '%s' "$SLUG_HREF" | sed -E "s#href=\"$PREFIX/products/([a-zA-Z0-9_-]+)\"#\1#")"
+            fi
+            CATALOG_SLUG[$LOC]="$SLUG"
+            if [ "$STATUS" != "200" ]; then
+              fail "$PREFIX/products [$LOC] expected 200, got $STATUS"
+            elif [ -n "$SLUG" ]; then
+              pass "$PREFIX/products [$LOC] -> 200, discovered a published catalog slug"
+            elif grep -q "${LOCALE_EMPTY_STATE[$LOC]}" "$PRODUCTS_BODY_FILE"; then
+              pass "$PREFIX/products [$LOC] -> 200, legitimate empty-catalog state"
+            else
+              fail "$PREFIX/products [$LOC] returned 200 but neither a product link nor the known empty-catalog state was found"
+            fi
+          done
+
+          echo "== S6: catalog detail (fa/en/ar) =="
+          for LOC in fa en ar; do
+            PREFIX="${LOCALE_PREFIX[$LOC]}"
+            SLUG="${CATALOG_SLUG[$LOC]}"
+            if [ -n "$SLUG" ]; then
+              URL="$BASE_URL$PREFIX/products/$SLUG"
+              STATUS="$(http_status "$URL")"
+              DETAIL_BODY_FILE="$(body_to_file "$URL" "s6-detail-$LOC.html")"
+              if [ "$STATUS" = "200" ] && grep -q '<h1' "$DETAIL_BODY_FILE"; then
+                pass "$PREFIX/products/$SLUG [$LOC] -> 200, <h1> present"
+              else
+                fail "$PREFIX/products/$SLUG [$LOC] expected 200 with an <h1>, got status $STATUS"
+              fi
+            else
+              URL="$BASE_URL$PREFIX/products/smoke-check-no-such-slug"
+              STATUS="$(http_status "$URL")"
+              if [ "$STATUS" = "404" ]; then
+                pass "no published catalog slug for [$LOC]; $PREFIX/products/<nonexistent> correctly 404s"
+              else
+                fail "$PREFIX/products/<nonexistent> [$LOC] expected 404 with an empty catalog, got $STATUS"
+              fi
+            fi
+          done
+
+          echo "== S7: RFQ page render (fa/en/ar) — no RFQ submitted =="
+          for LOC in fa en ar; do
+            PREFIX="${LOCALE_PREFIX[$LOC]}"
+            URL="$BASE_URL$PREFIX/contact"
+            STATUS="$(http_status "$URL")"
+            CONTACT_BODY_FILE="$(body_to_file "$URL" "s7-contact-$LOC.html")"
+            if [ "$STATUS" != "200" ]; then
+              fail "$PREFIX/contact [$LOC] expected 200, got $STATUS"
+            elif grep -q '<form' "$CONTACT_BODY_FILE" \
+              && grep -q 'name="company"' "$CONTACT_BODY_FILE" \
+              && grep -q 'name="phoneCountry"' "$CONTACT_BODY_FILE" \
+              && grep -q 'name="phoneLocal"' "$CONTACT_BODY_FILE" \
+              && grep -qi 'challenges\.cloudflare\.com/turnstile' "$CONTACT_BODY_FILE"; then
+              pass "$PREFIX/contact [$LOC] -> 200, <form> with company/phoneCountry/phoneLocal fields and Turnstile widget markup present (no RFQ submitted)"
+            else
+              fail "$PREFIX/contact [$LOC] returned 200 but the RFQ form/Turnstile markup was not found in the rendered HTML"
+            fi
+          done
+
+          echo "== S8: not-found handling =="
+          STATUS="$(http_status "$BASE_URL/products/smoke-check-route-that-does-not-exist")"
+          if [ "$STATUS" = "404" ]; then
+            pass "unknown catalog route -> 404 (not 500)"
+          else
+            fail "unknown catalog route expected 404, got $STATUS"
+          fi
+
+          echo "== S9: security headers =="
+          HEADERS_FILE="$SMOKE_DIR/s9-headers.txt"
+          curl -s -D - -o /dev/null --max-time 20 "$BASE_URL/" | tr -d '\r' > "$HEADERS_FILE"
+          for h in "x-content-type-options: nosniff" "x-frame-options: DENY" "referrer-policy: strict-origin-when-cross-origin"; do
+            if grep -qi "^${h}$" "$HEADERS_FILE"; then
+              pass "header present: $h"
+            else
+              fail "missing/incorrect security header: $h"
+            fi
+          done
+          if grep -qi "^permissions-policy:" "$HEADERS_FILE"; then
+            pass "header present: permissions-policy"
+          else
+            fail "missing permissions-policy header"
+          fi
+          if grep -qi "^content-security-policy" "$HEADERS_FILE"; then
+            pass "header present: content-security-policy (report-only or enforced)"
+          else
+            fail "missing content-security-policy header"
+          fi
+
+          echo "== S10: apex redirect =="
+          STATUS="$(http_status "$APEX_URL/")"
+          TARGET="$(redirect_target "$APEX_URL/")"
+          if [ "$STATUS" = "308" ] && [ "$TARGET" = "$BASE_URL/" ]; then
+            pass "apex -> 308 -> $BASE_URL/"
+          else
+            fail "apex expected 308 -> $BASE_URL/, got $STATUS -> $TARGET"
+          fi
+
+          echo ""
+          TOTAL_CHECKS=$((CHECKS_PASSED + FAILURES))
+          if [ "$FAILURES" -gt 0 ]; then
+            SMOKE_RESULT="FAILED ($FAILURES check(s), $CHECKS_PASSED/$TOTAL_CHECKS passed)"
+          else
+            SMOKE_RESULT="PASSED ($CHECKS_PASSED/$TOTAL_CHECKS)"
+          fi
+          echo "smoke_result=$SMOKE_RESULT" >> "$GITHUB_ENV"
+
+          {
+            echo ""
+            echo "### Production smoke checks"
+            echo ""
+            echo "**$SMOKE_RESULT**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$FAILURES" -gt 0 ]; then
+            echo "::error::$FAILURES production smoke check(s) failed. Traffic has ALREADY shifted to $NEW_VERSION_ID — this does not undo that. No automatic rollback is performed."
+            echo "::error::Rollback command (review before running): npx wrangler versions deploy \"$PREVIOUS_VERSION_ID@100\" --config dist/server/wrangler.json --yes"
+            {
+              echo ""
+              echo "Rollback command (review before running):"
+              echo '```'
+              echo "npx wrangler versions deploy \"$PREVIOUS_VERSION_ID@100\" --config dist/server/wrangler.json --yes"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "All production smoke checks passed."
+
+      # ---------------------------------------------------------------
+      # Phase 12 — the STABLE_100 ledger-row evidence. This workflow
+      # never commits to the repository (no contents: write) — the row
+      # below is emitted here, as a durable artifact and job-summary
+      # table, for a human/Claude to append to
+      # docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md as a separate,
+      # reviewed documentation commit. Once that row is appended,
+      # release_sha becomes the ledger's BASE_PRODUCTION_SHA for every
+      # release after it (RELEASE_POLICY.md S2/S4).
+      # ---------------------------------------------------------------
+      - name: Capture promotion evidence (STABLE_100 ledger row)
+        id: evidence
+        env:
+          SHA_INPUT: ${{ inputs.release_sha }}
+          CANARY_INPUT: ${{ inputs.canary_version_id }}
+          STABLE_INPUT: ${{ inputs.stable_version_id }}
+          OBS_STARTED_INPUT: ${{ inputs.observation_started_at }}
+          OBS_ENDED_INPUT: ${{ inputs.observation_ended_at }}
+          OBS_OWNER_INPUT: ${{ inputs.observation_owner }}
+          OBS_ATTESTATION_INPUT: ${{ inputs.observation_attestation }}
+        run: |
+          set -euo pipefail
+          PROMOTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "promoted_at=$PROMOTED_AT" >> "$GITHUB_OUTPUT"
+
+          EVIDENCE_FILE="$RUNNER_TEMP/production-promotion-evidence.json"
+          cat > "$EVIDENCE_FILE" <<EOF
+          {
+            "environment": "production",
+            "worker_name": "ahanassa-production",
+            "operation_type": "RELEASE",
+            "release_sha": "$SHA_INPUT",
+            "worker_version_id": "$CANARY_INPUT",
+            "release_state": "STABLE_100",
+            "final_traffic_percent": 100,
+            "staging_run_id": "${{ steps.release_evidence.outputs.staging_run_id }}",
+            "production_run_id": "${{ steps.release_evidence.outputs.production_run_id }}",
+            "promotion_run_id": "${{ github.run_id }}",
+            "rollback_version_id": "$STABLE_INPUT",
+            "final_risk": "LEGACY_IN_FLIGHT_RELEASE",
+            "result": "PASS",
+            "timestamp": "$PROMOTED_AT",
+            "observation_started_at": "$OBS_STARTED_INPUT",
+            "observation_ended_at": "$OBS_ENDED_INPUT",
+            "observation_owner": "$OBS_OWNER_INPUT",
+            "observation_attestation": "$OBS_ATTESTATION_INPUT",
+            "smoke_result": "${smoke_result:-unknown}",
+            "verification_run_id": "${{ inputs.verification_run_id }}",
+            "workflow_run_id": "${{ github.run_id }}",
+            "workflow_run_attempt": "${{ github.run_attempt }}"
+          }
+          EOF
+          echo "EVIDENCE_FILE=$EVIDENCE_FILE" >> "$GITHUB_ENV"
+
+          {
+            echo ""
+            echo "### Production promotion evidence — append to docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md"
+            echo ""
+            echo "| RELEASE_SHA | WORKER_VERSION_ID | RELEASE_STATE | FINAL_TRAFFIC_PERCENT | STAGING_RUN_ID | PRODUCTION_RUN_ID | PROMOTION_RUN_ID | ROLLBACK_VERSION_ID | FINAL_RISK | RESULT | TIMESTAMP |"
+            echo "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+            echo "| \`$SHA_INPUT\` | \`$CANARY_INPUT\` | STABLE_100 | 100 | \`${{ steps.release_evidence.outputs.staging_run_id }}\` | \`${{ steps.release_evidence.outputs.production_run_id }}\` | \`${{ github.run_id }}\` | \`$STABLE_INPUT\` | LEGACY_IN_FLIGHT_RELEASE | PASS | $PROMOTED_AT |"
+            echo ""
+            echo "Observation: $OBS_STARTED_INPUT -> $OBS_ENDED_INPUT, owner $OBS_OWNER_INPUT, attestation \`$OBS_ATTESTATION_INPUT\`."
+            echo ""
+            echo "This workflow never writes to the repository. Append the row above as a separate, human-reviewed documentation commit — after that row exists, $SHA_INPUT becomes BASE_PRODUCTION_SHA for every release after it (RELEASE_POLICY.md §2/§4)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload production promotion evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-promotion-evidence-${{ github.run_id }}
+          path: ${{ env.EVIDENCE_FILE }}
+          retention-days: 365

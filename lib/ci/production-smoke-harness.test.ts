@@ -473,3 +473,48 @@ test("verify-production.yml's smoke step binds the version ids its failure path 
   assert.match(header, /NEW_VERSION_ID:\s*\$\{\{\s*inputs\.expected_canary_version\s*\}\}/);
   assert.match(header, /PREVIOUS_VERSION_ID:\s*\$\{\{\s*inputs\.expected_stable_version\s*\}\}/);
 });
+
+// ---------------------------------------------------------------------------
+// promote-production.yml (docs/release/RELEASE_POLICY.md §11) is a THIRD
+// production workflow carrying this exact smoke suite — it runs it against
+// the version it just promoted to 100%, using the same rationale as the
+// deploy/verify pair above: keeping the gate logic versioned with the
+// WORKFLOW rather than the release under test. Same drift risk, same fix.
+// ---------------------------------------------------------------------------
+
+test("the smoke suite is byte-identical in deploy-production.yml and promote-production.yml", () => {
+  const promotePath = path.join(repoRoot, ".github", "workflows", "promote-production.yml");
+  assert.ok(existsSync(promotePath), "promote-production.yml must exist");
+
+  const promoteScript = smokeScript(readFileSync(promotePath, "utf8"), "promote-production.yml");
+
+  if (promoteScript !== SCRIPT) {
+    const deployLines = SCRIPT.split("\n");
+    const promoteLines = promoteScript.split("\n");
+    let firstDiff = -1;
+    for (let i = 0; i < Math.max(deployLines.length, promoteLines.length); i += 1) {
+      if (deployLines[i] !== promoteLines[i]) {
+        firstDiff = i;
+        break;
+      }
+    }
+    assert.fail(
+      "the production smoke suite has drifted between deploy-production.yml and " +
+        `promote-production.yml (first difference at line ${firstDiff + 1} of the extracted script):\n` +
+        `  deploy:  ${JSON.stringify(deployLines[firstDiff])}\n` +
+        `  promote: ${JSON.stringify(promoteLines[firstDiff])}\n` +
+        "Both copies must be updated together — see the comment above this test.",
+    );
+  }
+
+  assert.equal(promoteScript, SCRIPT);
+});
+
+test("promote-production.yml's smoke step binds the version ids its failure path prints", () => {
+  const promote = readFileSync(path.join(repoRoot, ".github", "workflows", "promote-production.yml"), "utf8");
+  const stepIdx = promote.indexOf("- name: Production smoke checks");
+  const runIdx = promote.indexOf("run: |", stepIdx);
+  const header = promote.slice(stepIdx, runIdx);
+  assert.match(header, /NEW_VERSION_ID:\s*\$\{\{\s*inputs\.canary_version_id\s*\}\}/);
+  assert.match(header, /PREVIOUS_VERSION_ID:\s*\$\{\{\s*inputs\.stable_version_id\s*\}\}/);
+});
