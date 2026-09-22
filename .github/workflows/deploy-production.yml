@@ -1422,7 +1422,9 @@ jobs:
             }' > "$AUDIT_FILE.base"
           fi
           GATE_RESULT="$(jq -r '.RESULT' "$AUDIT_FILE.base")"
-          if [ "$GATE_RESULT" != "PERMITTED" ]; then
+          if [ "$(jq -r '.BLOCK_CODE' "$AUDIT_FILE.base")" = "FAILED_BEFORE_POLICY_GATE" ]; then
+            RESULT="FAIL (stopped before the release policy gate; job status: $JOB_STATUS)"
+          elif [ "$GATE_RESULT" != "PERMITTED" ]; then
             RESULT="BLOCKED_BY_POLICY: $(jq -r '.BLOCK_CODE' "$AUDIT_FILE.base")"
           elif [ "$JOB_STATUS" = "success" ]; then
             RESULT="PASS"
