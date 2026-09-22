@@ -11,8 +11,8 @@
 - **ERP origin:** `https://odoo.ahanassa.com`
 - **Owner:** Cyan Sanat Iranian Co. LTD
 - **Document role:** Root-level implementation entry point
-- **Status:** Active — canonical control layer, project pre-implementation; homepage visual reference registered; customer account/portal future-phase architecture registered; release governance registered (§5b)
-- **Version:** 1.3.0
+- **Status:** Active — canonical control layer, project pre-implementation; homepage visual reference registered; customer account/portal future-phase architecture registered; release governance active (§5b)
+- **Version:** 1.4.0
 - **Last updated:** 2026-09-22
 
 ---
@@ -146,7 +146,7 @@ Responsive adaptation, and technical adaptations required for accessibility, Cor
 
 ## 5b. Release Governance — mandatory before staging/production release work
 
-**Lifecycle state: `BOOTSTRAP_MERGED`** (`docs/release/RELEASE_POLICY.md` §0) — PR #6/#7 merged (`docs/release/RELEASE_POLICY_BOOTSTRAP_MERGE_REPORT.md`); not yet `ACTIVE` — release-time enforcement is not wired into any workflow and `BASE_PRODUCTION_SHA` remains unresolved. `docs/release/RELEASE_POLICY.md` is the authoritative human policy; `lib/ci/release-risk-classifier.ts`, `lib/ci/release-ledger.ts`, `lib/ci/emergency-rollback.ts`, and `lib/ci/policy-bootstrap.ts` implement the classification/ledger/rollback **engine** (`POLICY_ENGINE_IMPLEMENTED: YES`) — this is not yet the same as **release-time enforcement** (`RELEASE_TIME_POLICY_ENFORCEMENT_ACTIVE: NO`; no workflow invokes it yet — `RELEASE_POLICY.md` §0.1). This section governs planning or executing any staging or production release, promotion, or emergency rollback of the website — it does not govern Odoo server/module deployment (`docs/release/RELEASE_POLICY.md` §1/§18).
+**Lifecycle state: `ACTIVE`** (`docs/release/RELEASE_POLICY.md` §0), effective when the enforcement change recorded in `docs/release/GLOBAL_RELEASE_POLICY_ENFORCEMENT_IMPLEMENTATION_REPORT.md` is merged into `feat/header-hero-integrated` — until that merge the live state is still `BOOTSTRAP_MERGED`. `BASE_PRODUCTION_SHA_RESOLVED: YES` (latest `STABLE_100` ledger row, first appended after `promote-production.yml` run `35719752606`). `GLOBAL_RELEASE_TIME_POLICY_ENFORCEMENT_ACTIVE: YES`: `deploy-production.yml`'s "Release policy gate" step runs `lib/ci/release-gate-cli.ts` before any production mutation — it resolves `BASE_PRODUCTION_SHA` from the ledger, classifies `BASE_PRODUCTION_SHA..deploy_ref` with `lib/ci/release-risk-classifier.ts`, requires an explicit `declared_risk`, computes `FINAL_RISK = max(declared, computed)`, and permits only the rollout that `FINAL_RISK`'s path allows (LOW/MEDIUM: 100; HIGH: 10% canary with staging provenance, then `verify-production.yml` → observation → `promote-production.yml`) — `RELEASE_POLICY.md` §0.2. The engine and ledger it uses are read from the workflow's own commit, never from the candidate. `docs/release/RELEASE_POLICY.md` is the authoritative human policy; `lib/ci/release-risk-classifier.ts`, `lib/ci/release-ledger.ts`, `lib/ci/release-gate.ts`, `lib/ci/emergency-rollback.ts`, and `lib/ci/policy-bootstrap.ts` implement the engine (`POLICY_ENGINE_IMPLEMENTED: YES`). This section governs planning or executing any staging or production release, promotion, or emergency rollback of the website — it does not govern Odoo server/module deployment (`docs/release/RELEASE_POLICY.md` §1/§18).
 
 **Before planning or executing a staging/production release, Claude Code MUST:**
 
@@ -168,6 +168,7 @@ Responsive adaptation, and technical adaptations required for accessibility, Cor
 - weaken GitHub Environment protection (reviewer gates, deployment branch policy) to work around a release-path requirement
 - treat `CLAUDE.md`, `PROJECT_OVERRIDES.md`, `DOCS_INDEX.md`, `DOCUMENT_AUDIT_REPORT.md`, `01-sources/**`, `docs/release/RELEASE_POLICY.md`, or `docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md` as LOW-risk documentation — every one is an explicit HIGH trigger
 - execute an emergency rollback to a target that is not already a recorded, validated Worker Version ID in the release ledger (`RELEASE_POLICY.md` §13)
+- work around the `deploy-production.yml` release policy gate (e.g. by editing the ledger, the classifier, or the gate's inputs to reach a lower `FINAL_RISK`), or treat a `CLASSIFICATION_REQUIRED` block as something to retry with different inputs
 - dispatch a production deploy, promotion, or rollback without the user's explicit, current-turn authorization — this section describes the governance process, it does not itself authorize a production mutation
 
 ---
@@ -192,7 +193,7 @@ Use `DOCS_INDEX.md` for the authoritative, per-document version of this table (i
 | Performance / caching | `01-sources/PERFORMANCE_GUIDELINES.md`, `01-sources/IMAGE_OPTIMIZATION.md`, `01-sources/FONT_STRATEGY.md`, `01-sources/CACHING_STRATEGY.md` — stale Vercel cache mechanics are superseded by the Cloudflare Workers/vinext model in `01-sources/TECHNICAL_ARCHITECTURE.md` §18/§20 |
 | Security | `01-sources/SECURITY_GUIDELINES.md` (Vercel-era hosting references superseded, control content otherwise active) |
 | Deployment / environments | `01-sources/DEPLOYMENT_ARCHITECTURE.md`, `01-sources/ENVIRONMENT_VARIABLES.md` |
-| Release governance / risk classification / production promotion / emergency rollback / CI-CD workflow changes | **Mandatory, see `CLAUDE.md` §5b:** `docs/release/RELEASE_POLICY.md` (authoritative policy, lifecycle state `BOOTSTRAP_MERGED`), `docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md` (the ledger), `lib/ci/release-risk-classifier.ts`, `lib/ci/release-ledger.ts`, `lib/ci/emergency-rollback.ts`, `lib/ci/policy-bootstrap.ts` (the policy **engine** — `POLICY_ENGINE_IMPLEMENTED: YES`; release-time enforcement is not yet wired into any workflow, `RELEASE_TIME_POLICY_ENFORCEMENT_ACTIVE: NO` — `RELEASE_POLICY.md` §0.1) — supersedes `docs/release/CI_CD_POLICY.md`'s pre-production-automation description for anything the newer policy covers |
+| Release governance / risk classification / production promotion / emergency rollback / CI-CD workflow changes | **Mandatory, see `CLAUDE.md` §5b:** `docs/release/RELEASE_POLICY.md` (authoritative policy, lifecycle state `ACTIVE` — §0/§0.2), `docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md` (the ledger), `lib/ci/release-risk-classifier.ts`, `lib/ci/release-ledger.ts`, `lib/ci/emergency-rollback.ts`, `lib/ci/policy-bootstrap.ts` (the policy **engine** — `POLICY_ENGINE_IMPLEMENTED: YES`), `lib/ci/release-gate.ts`/`lib/ci/release-gate-cli.ts` (the release-time gate `deploy-production.yml` runs before any production mutation — `GLOBAL_RELEASE_TIME_POLICY_ENFORCEMENT_ACTIVE: YES`, `RELEASE_POLICY.md` §0.2) — supersedes `docs/release/CI_CD_POLICY.md`'s pre-production-automation description for anything the newer policy covers |
 | Testing / QA / release gates | `01-sources/TESTING_STRATEGY.md`, `01-sources/QA_CHECKLIST.md`, `01-sources/SEO_QA_CHECKLIST.md`, `01-sources/RESPONSIVE_QA.md`, `01-sources/ACCESSIBILITY_QA.md`, `01-sources/PRE_DEPLOY_CHECKLIST.md`, `01-sources/POST_DEPLOY_CHECKLIST.md` |
 | Analytics | `01-sources/ANALYTICS_TRACKING.md` (provider still deferred per `01-sources/DECISIONS.md` OPEN-005); GTM/GSC requirement owner-confirmed in `PROJECT_OVERRIDES.md` §5 |
 

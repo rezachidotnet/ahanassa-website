@@ -104,3 +104,109 @@ export function parseLedgerTable(markdown: string): LedgerRow[] {
   }
   return rows;
 }
+
+// ---------------------------------------------------------------------------
+// Strict, release-time baseline resolution — RELEASE_POLICY.md §0.2/§2.
+//
+// parseLedgerTable above is deliberately lenient (positional, skips short
+// rows, defaults an empty RELEASE_STATE) so historical tooling can read the
+// file. A real release gate must never act on a lenient read: a reordered
+// header, a truncated row, an unknown RELEASE_STATE, or a malformed SHA could
+// silently shift which row counts as STABLE_100. resolveBaseProductionShaFromManifest
+// validates the whole authoritative table first and fails closed
+// (LEDGER_MALFORMED) on anything it cannot read unambiguously, then resolves
+// through the same resolveBaseProductionSha every other caller uses.
+// ---------------------------------------------------------------------------
+
+export const LEDGER_COLUMNS = [
+  "RELEASE_SHA",
+  "WORKER_VERSION_ID",
+  "RELEASE_STATE",
+  "FINAL_TRAFFIC_PERCENT",
+  "STAGING_RUN_ID",
+  "PRODUCTION_RUN_ID",
+  "PROMOTION_RUN_ID",
+  "ROLLBACK_VERSION_ID",
+  "FINAL_RISK",
+  "RESULT",
+  "TIMESTAMP",
+] as const;
+
+const RELEASE_STATES = new Set<string>(["STABLE_100", "CANARY_ACTIVE", "ROLLED_BACK", "SUPERSEDED", "LEGACY_IN_FLIGHT_RELEASE"]);
+
+/**
+ * FINAL_RISK values a ledger row may carry. LEGACY_IN_FLIGHT_RELEASE is the
+ * marker promote-production.yml emits for the pre-policy release
+ * (RELEASE_POLICY.md §17) — historical evidence, accepted as-is, never
+ * reinterpreted as a risk level.
+ */
+const LEDGER_FINAL_RISK_VALUES = new Set<string>(["LOW", "MEDIUM", "HIGH", "LEGACY_IN_FLIGHT_RELEASE"]);
+
+const FULL_SHA = /^[0-9a-f]{40}$/;
+const LEDGER_HEADER_LINE = /^\s*\|\s*RELEASE_SHA\s*\|/;
+const SEPARATOR_CELL = /^:?-{3,}:?$/;
+
+export type StrictBaseProductionShaResolution =
+  | BaseProductionShaResolution
+  | { ok: false; code: "LEDGER_MALFORMED"; reason: string };
+
+function splitRow(line: string): string[] {
+  return line
+    .split("|")
+    .slice(1, -1)
+    .map((c) => c.trim());
+}
+
+function unquote(v: string): string {
+  return v.replace(/^`|`$/g, "");
+}
+
+export function resolveBaseProductionShaFromManifest(markdown: string): StrictBaseProductionShaResolution {
+  const malformed = (reason: string): StrictBaseProductionShaResolution => ({ ok: false, code: "LEDGER_MALFORMED", reason });
+  const lines = markdown.split("\n");
+
+  const headerIdxs = lines.flatMap((l, i) => (LEDGER_HEADER_LINE.test(l) ? [i] : []));
+  if (headerIdxs.length === 0) return malformed("no ledger table with a RELEASE_SHA header was found");
+  if (headerIdxs.length > 1) {
+    return malformed(`${headerIdxs.length} ledger tables with a RELEASE_SHA header were found — exactly one authoritative table is required`);
+  }
+  const headerIdx = headerIdxs[0]!;
+
+  const header = splitRow(lines[headerIdx]!);
+  if (header.length < LEDGER_COLUMNS.length || LEDGER_COLUMNS.some((c, i) => header[i] !== c)) {
+    return malformed(`ledger header columns are [${header.join(", ")}] — the first ${LEDGER_COLUMNS.length} must be exactly [${LEDGER_COLUMNS.join(", ")}]`);
+  }
+
+  const separator = lines[headerIdx + 1];
+  if (separator === undefined || !separator.trim().startsWith("|")) return malformed("ledger header is not followed by a separator row");
+  const sepCells = splitRow(separator);
+  if (sepCells.length !== header.length || !sepCells.every((c) => SEPARATOR_CELL.test(c))) {
+    return malformed("ledger separator row does not match the header's column count/shape");
+  }
+
+  let dataRows = 0;
+  for (let i = headerIdx + 2; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (!line.trim().startsWith("|")) break;
+    dataRows++;
+    const where = `ledger row ${dataRows} (line ${i + 1})`;
+    const cells = splitRow(line);
+    if (cells.length !== header.length) {
+      return malformed(`${where} has ${cells.length} cells, expected ${header.length}`);
+    }
+    const releaseSha = unquote(cells[0]!);
+    const releaseState = unquote(cells[2]!);
+    const finalRisk = unquote(cells[8]!);
+    if (!FULL_SHA.test(releaseSha)) return malformed(`${where} RELEASE_SHA "${releaseSha}" is not a full 40-character lowercase commit SHA`);
+    if (!RELEASE_STATES.has(releaseState)) return malformed(`${where} RELEASE_STATE "${releaseState}" is not a recognized state`);
+    if (finalRisk !== "-" && finalRisk !== "" && !LEDGER_FINAL_RISK_VALUES.has(finalRisk)) {
+      return malformed(`${where} FINAL_RISK "${finalRisk}" is not a recognized value`);
+    }
+  }
+
+  const rows = parseLedgerTable(markdown);
+  if (rows.length !== dataRows) {
+    return malformed(`validated ${dataRows} ledger row(s) but the ledger parser read ${rows.length} — refusing to resolve from an inconsistent read`);
+  }
+  return resolveBaseProductionSha(rows);
+}

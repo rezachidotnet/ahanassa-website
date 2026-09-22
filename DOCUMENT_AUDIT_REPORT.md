@@ -1440,6 +1440,42 @@ Three issues found in code review of DAR-052's Homepage Product Architecture Har
 
 **Gate: BOOTSTRAP_STABLE_SHA: UNRESOLVED — FAIL CLOSED, self-resolving via the next 100% promotion. Full detail: `docs/release/RELEASE_POLICY_IMPLEMENTATION_REPORT.md`, `docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md`.**
 
+**Update 2026-09-22 (global release-policy enforcement, `docs/release/GLOBAL_RELEASE_POLICY_ENFORCEMENT_IMPLEMENTATION_REPORT.md`):** the self-resolving path above has occurred. `promote-production.yml` run `35719752606` promoted the `f2202ab5…` canary to 100% and its `STABLE_100` row was appended to the ledger (`docs/release/FIRST_PRODUCTION_100_PERCENT_PROMOTION_REPORT.md`); `lib/ci/release-ledger.ts#resolveBaseProductionShaFromManifest` — the strict resolver `deploy-production.yml`'s release policy gate now uses — resolves `BASE_PRODUCTION_SHA = f2202ab54a0cbbbd78f8c2625ed33e9c00fdbfb9`. **The historical fact stands unchanged:** the commit SHA behind the pre-canary stable version `b07d8697-…` remains unknown (`BOOTSTRAP_STABLE_SHA_UNRESOLVED` is still true as history, and nothing here infers it). That gap **no longer blocks** current or future baseline resolution, because resolution only ever needs the latest `STABLE_100` row, which now exists. **Status: CLOSED for baseline resolution; the historical `b07d8697-…` SHA remains UNRESOLVED and is not needed.**
+
+
+---
+
+### DAR-059 — Release policy §5 lists staging for LOW/MEDIUM paths; `deploy-production.yml` still honors the `skip_staging_provenance` break-glass for them (2026-09-22)
+
+**Severity:** LOW — **RECORDED, not changed; owner decision.**
+**Status:** OPEN.
+
+**Finding.** `RELEASE_POLICY.md` §5 describes the LOW path as "CI PASS → staging validation → …" and MEDIUM as "CI PASS → exact-SHA staging → staging verification → …", with no break-glass. `deploy-production.yml` has always had a `skip_staging_provenance` input (a reviewer-gated, loudly-recorded hotfix path, `docs/release/PRODUCTION_DEPLOY_WORKFLOW_DESIGN.md`). The two disagree for LOW/MEDIUM.
+
+**Disposition.** Per the enforcement task's Phase 6 ("LOW/MEDIUM remain subject to current workflow staging requirements unless the policy explicitly says otherwise … report the conflict before changing behavior"), the release policy gate does **not** reinterpret the policy text: for LOW/MEDIUM the break-glass keeps its existing behavior (honored, recorded in the job summary, evidence and audit artifact as `SKIP_STAGING_PROVENANCE: true` / `STAGING_PROVENANCE_RUN_ID: SKIPPED`); for HIGH it is refused twice (gate `HIGH_REQUIRES_STAGING_PROVENANCE`, and A2 itself). A2 now honors the break-glass only after the gate has classified the release. **To resolve:** the owner either amends §5 to recognize the LOW/MEDIUM break-glass explicitly, or directs its removal from `deploy-production.yml` (both are `HIGH_RELEASE_PATHS` changes).
+
+---
+
+### DAR-060 — Appending a ledger row is itself a HIGH change, so every release after a recorded release classifies HIGH (2026-09-22)
+
+**Severity:** MEDIUM (makes the LOW/MEDIUM direct-100 paths unreachable in practice) — **RECORDED, policy decision required; not changed.**
+**Status:** OPEN.
+
+**Finding.** `docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md` is in `HIGH_RELEASE_PATHS` (`RELEASE_POLICY.md` §7). `BASE_PRODUCTION_SHA` is the `RELEASE_SHA` of the latest `STABLE_100` row, and that row is necessarily appended in a commit *after* `RELEASE_SHA` (§3: a separate human-reviewed commit after the run). So for any candidate that includes the ledger append, `git diff BASE_PRODUCTION_SHA..CANDIDATE_SHA` contains the ledger file and computes HIGH — regardless of what else changed. Confirmed on the real repository: the current application-branch tip classifies HIGH with `TRIGGERED_RISK_RULES` including `HIGH_RELEASE_PATHS` (the manifest is among the changed files), and a synthetic docs-only change made on top of the ledger-carrying tip would still be HIGH. The gate is behaving exactly as the policy is written; the consequence is that the next release (and every one after it) takes the HIGH canary path unless the policy changes.
+
+**Disposition.** Not worked around (the enforcement task forbids silently coercing classification, and exempting the ledger is a `HIGH_RELEASE_PATHS` policy amendment). Options for the owner: (a) accept it — every production release is a HIGH canary release; (b) amend §7 so an append-only addition of rows to the ledger table (no edits/removals of existing rows) is classified LOW, implemented in `release-risk-classifier.ts` with content-aware checks limited to that one file; (c) move the ledger out of the application tree. Note that until one is chosen, reading the ledger from the trusted workflow commit rather than the candidate (as the gate does) does not change this — the diff is computed between commits, and the candidate normally descends from the ledger append.
+
+---
+
+### DAR-061 — `promote-production.yml` emits a hardcoded `final_risk: LEGACY_IN_FLIGHT_RELEASE` in its `STABLE_100` evidence (2026-09-22)
+
+**Severity:** MEDIUM for the next promotion (ledger evidence would be wrong) — **RECORDED; must be fixed before the first non-legacy promotion.**
+**Status:** OPEN.
+
+**Finding.** `promote-production.yml`'s "Capture promotion evidence (STABLE_100 ledger row)" step writes `"final_risk": "LEGACY_IN_FLIGHT_RELEASE"` and prints the same value in its ledger-row table, unconditionally. That was correct for the one legacy promotion it has performed (run `35719752606`). With the release policy gate active, every future canary is a HIGH-path release whose `production-release-evidence-<run_id>` artifact carries `final_risk` (and the full `release_policy` decision). A future promotion would record the wrong `FINAL_RISK` in the `STABLE_100` evidence unless the operator notices and corrects it by hand.
+
+**Disposition.** Out of this task's scope (`deploy-production.yml` enforcement; promote-production's proven behavior left untouched so its invariants keep passing). **To resolve:** have `promote-production.yml` read `final_risk` from the release-evidence artifact it already binds (`LEGACY_IN_FLIGHT_RELEASE` only when the ledger row's state is `LEGACY_IN_FLIGHT_RELEASE`), and require it to be `HIGH` for a `CANARY_ACTIVE` row — a `HIGH_RELEASE_PATHS` change with its own main sync.
+
 ---
 
 **End of `DOCUMENT_AUDIT_REPORT.md`**

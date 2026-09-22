@@ -1,6 +1,6 @@
 # Ahan Asa Website — Release Policy
 
-**Lifecycle state:** `BOOTSTRAP_MERGED`. PR #6 (`chore/release-policy` → `feat/header-hero-integrated`) and PR #7 (`chore/register-release-governance` → `main`) are both merged — this document, `CLAUDE.md` §5b, and the policy engine modules in `lib/ci/**` are now part of the application branch, and `main` carries a discoverable stub `CLAUDE.md` plus a byte-identical copy of this document (`docs/release/RELEASE_POLICY_BOOTSTRAP_MERGE_REPORT.md` records the merge). The release-time workflows (`.github/workflows/deploy-production.yml`/`deploy-staging.yml`/`verify-production.yml`) still do **not invoke** the classifier or gate on `FINAL_RISK`, and the ledger still has no resolvable `STABLE_100` baseline (`BASE_PRODUCTION_SHA: UNRESOLVED`) — both are required for `ACTIVE` (§0). Do not treat this document as `ACTIVE` policy until they are. See `docs/release/RELEASE_POLICY_IMPLEMENTATION_REPORT.md` and `docs/release/RELEASE_POLICY_BOOTSTRAP_MERGE_REPORT.md` for the audit trail.
+**Lifecycle state:** `ACTIVE` — effective when the enforcement change recorded in `docs/release/GLOBAL_RELEASE_POLICY_ENFORCEMENT_IMPLEMENTATION_REPORT.md` is merged into `feat/header-hero-integrated` (until that merge the live state remains `BOOTSTRAP_MERGED`). Every §0 `ACTIVE` criterion is then met: the policy and engine are merged on the application branch and discoverable from `main` (PR #6/#7, `docs/release/RELEASE_POLICY_BOOTSTRAP_MERGE_REPORT.md`); `BASE_PRODUCTION_SHA` resolves from the ledger's first `STABLE_100` row (appended after `promote-production.yml` run `35719752606`, `docs/release/FIRST_PRODUCTION_100_PERCENT_PROMOTION_REPORT.md`); `deploy-production.yml` invokes the classifier against the real diff and gates on `FINAL_RISK` before any production mutation (§0.2); and the only interim exception, the `LEGACY_IN_FLIGHT_RELEASE` canary (§17), has been promoted and closed. History of the earlier states: `docs/release/RELEASE_POLICY_IMPLEMENTATION_REPORT.md`, `docs/release/RELEASE_POLICY_BOOTSTRAP_MERGE_REPORT.md`.
 
 **Established by:** `POLICY_BOOTSTRAP` (2026-09-22), after R3 (`docs/release/PRODUCTION_R3_DETERMINISTIC_VERSION_SELECTION_REPORT.md`) closed and PR #5 merged to `main`.
 
@@ -14,8 +14,8 @@
 | --- | --- |
 | `BOOTSTRAP_PENDING` | Policy/engine authored locally; not yet registered via any PR. |
 | `BOOTSTRAP_REGISTERED` | Policy/engine committed, PR(s) open and reviewable, but not yet merged into the application branch. |
-| `BOOTSTRAP_MERGED` | Merged into the application branch (`feat/header-hero-integrated`) **and** discoverable from the default branch (`main`'s `CLAUDE.md`/`RELEASE_POLICY.md` sync) — but release-time enforcement is **not** wired into any workflow, and/or `BASE_PRODUCTION_SHA` is not yet resolvable. **← current state**, per `docs/release/RELEASE_POLICY_BOOTSTRAP_MERGE_REPORT.md`. |
-| `ACTIVE` | Everything `BOOTSTRAP_MERGED` requires, **and** release-time enforcement is wired in (§0.1), **and** `BASE_PRODUCTION_SHA` is resolvable or an explicit interim operating mode covering its absence is documented and owner-accepted. |
+| `BOOTSTRAP_MERGED` | Merged into the application branch (`feat/header-hero-integrated`) **and** discoverable from the default branch (`main`'s `CLAUDE.md`/`RELEASE_POLICY.md` sync) — but release-time enforcement is **not** wired into any workflow, and/or `BASE_PRODUCTION_SHA` is not yet resolvable. State from PR #6/#7 (`docs/release/RELEASE_POLICY_BOOTSTRAP_MERGE_REPORT.md`) until the §0.2 enforcement change merges. |
+| `ACTIVE` | Everything `BOOTSTRAP_MERGED` requires, **and** release-time enforcement is wired in (§0.1), **and** `BASE_PRODUCTION_SHA` is resolvable or an explicit interim operating mode covering its absence is documented and owner-accepted. **← current state** once the §0.2 enforcement change is merged into the application branch (`docs/release/GLOBAL_RELEASE_POLICY_ENFORCEMENT_IMPLEMENTATION_REPORT.md`). |
 
 A document's own text claiming "Active" is never sufficient evidence of activation — activation is evidenced by merged commits, a workflow that actually invokes the classifier, and a resolvable ledger baseline (or a documented, accepted exception).
 
@@ -24,9 +24,31 @@ A document's own text claiming "Active" is never sufficient evidence of activati
 These are two different claims and must never be conflated:
 
 - **`POLICY_ENGINE_IMPLEMENTED`** — the classifier/ledger/rollback/bootstrap logic exists, is correct, and is covered by tests (`lib/ci/release-risk-classifier.ts`, `lib/ci/release-ledger.ts`, `lib/ci/emergency-rollback.ts`, `lib/ci/policy-bootstrap.ts`, exercised by `npm test` via `.github/workflows/ci.yml` on every push/PR). **Current value: YES.**
-- **`RELEASE_TIME_POLICY_ENFORCEMENT_ACTIVE`** — an actual release (a `deploy-production.yml`/`deploy-staging.yml` run, or the future `promote-production.yml`) invokes the classifier against a real diff and gates on the resulting `FINAL_RISK` before proceeding. **Current value: NO.** `npm test` exercising the classifier against synthetic fixtures proves the engine is *correct*; it proves nothing about whether any real release run *consults* it. As of this document's current state, none does — verified by grepping every workflow file in `.github/workflows/` for any reference to the classifier/ledger/rollback modules, with zero matches.
+- **`RELEASE_TIME_POLICY_ENFORCEMENT_ACTIVE`** — an actual release (a `deploy-production.yml`/`deploy-staging.yml` run, or the future `promote-production.yml`) invokes the classifier against a real diff and gates on the resulting `FINAL_RISK` before proceeding. **Current value: YES** (named `GLOBAL_RELEASE_TIME_POLICY_ENFORCEMENT_ACTIVE` in the release reports) once the §0.2 change is merged: every `deploy-production.yml` run consults the classifier. `npm test` exercising the classifier against synthetic fixtures proves the engine is *correct*; §0.2's gate step is what makes a real release run *consult* it. Before that change this value was **NO** — no workflow referenced the classifier. `promote-production.yml` consults the ledger (not the classifier) for the canary it promotes (`PROMOTION_POLICY_ENFORCEMENT_ACTIVE: YES`, `docs/release/FIRST_PRODUCTION_100_PERCENT_PROMOTION_REPORT.md`); `deploy-staging.yml` is deliberately not gated — staging is the pre-production validation step every path requires, and classification is defined against `BASE_PRODUCTION_SHA`, i.e. for production releases.
 
-Wiring `RELEASE_TIME_POLICY_ENFORCEMENT_ACTIVE` to `YES` is a distinct, future, explicitly-scoped task: it means adding a step to `deploy-production.yml` (or a preflight it calls) that runs the classifier against `BASE_PRODUCTION_SHA..deploy_ref` and fails the run when `FINAL_RISK` doesn't match the declared release path (e.g. a HIGH-classified diff dispatched without a canary). That step does not exist yet. Until it does, this policy's LOW/MEDIUM/HIGH paths (§5) are **operator discipline backed by a correct, tested engine**, not yet a **release-time gate**.
+Wiring it to `YES` was scoped as a distinct task — a step in `deploy-production.yml` that runs the classifier against `BASE_PRODUCTION_SHA..deploy_ref` and fails the run when `FINAL_RISK` does not match the release path. That step now exists (§0.2); the LOW/MEDIUM/HIGH paths of §5 are a **release-time gate**, not only operator discipline.
+
+### 0.2 Release-time enforcement — `deploy-production.yml`'s release policy gate
+
+Implemented by `lib/ci/release-gate.ts` (decision logic) and `lib/ci/release-gate-cli.ts` (git/ledger/output wrapper), run by the "Release policy gate" step of `.github/workflows/deploy-production.yml`, tested by `lib/ci/release-gate.test.ts`. Full record: `docs/release/GLOBAL_RELEASE_POLICY_ENFORCEMENT_IMPLEMENTATION_REPORT.md`.
+
+- **Position.** After the exact-SHA checkout and before A1/A2/A3, `npm ci`, the build, Phase 1 (`wrangler versions upload`) and Phase 2 (`wrangler versions deploy`) — no production read or write happens before it passes.
+- **Trust.** The engine files and the ledger are read from the workflow's own commit (`github.sha` — the application branch, the only deployment branch the `production` Environment allows), never from the `deploy_ref` checkout. A candidate can never supply the classifier or ledger that judges it.
+- **Baseline.** `BASE_PRODUCTION_SHA` = `RELEASE_SHA` of the latest `STABLE_100` row (§2), read strictly: a missing/duplicated/reordered ledger table, a malformed row, an unknown `RELEASE_STATE`, no `STABLE_100` row, or a baseline commit absent from git history all stop the run.
+- **Change set.** `git diff --name-status -z -M -C BASE_PRODUCTION_SHA CANDIDATE_SHA` — adds, modifies, deletes, renames and copies with source and destination paths (§10). An unrecognized status stops the run.
+- **Risk.** `DECLARED_RISK` is a required input (exactly `LOW`/`MEDIUM`/`HIGH`; anything else stops the run). `COMPUTED_MINIMUM_RISK` comes only from `classifyDiff`; `AMBIGUOUS` stops the run as `CLASSIFICATION_REQUIRED` whatever was declared. `FINAL_RISK = max(DECLARED_RISK, COMPUTED_MINIMUM_RISK)` (§6).
+- **Release path by `FINAL_RISK`** (§5):
+
+  | `FINAL_RISK` | permitted `rollout_percentage` | staging provenance |
+  | --- | --- | --- |
+  | LOW | `100` only | required; the existing `skip_staging_provenance` break-glass is still honored (see `DOCUMENT_AUDIT_REPORT.md` DAR-059) |
+  | MEDIUM | `100` only | as LOW |
+  | HIGH | `10` only — the canary entry leg; 100% is reached only via `verify-production.yml`, the §12 observation record and `promote-production.yml` (§11) | required; `skip_staging_provenance=true` is refused |
+
+  No path uses `50`, so no `FINAL_RISK` permits it. An operator who wants a canary for a LOW/MEDIUM diff declares `HIGH` (§6 escalation).
+- **No bypass.** The step is unconditional; no input skips or overrides it.
+- **Audit (§15).** Every run writes the decision (`OPERATION_TYPE`, `BASE_PRODUCTION_SHA`, `CANDIDATE_SHA`, `DECLARED_RISK`, `COMPUTED_MINIMUM_RISK`, `FINAL_RISK`, `TRIGGERED_RISK_RULES`, `CHANGED_FILES`, `CLASSIFICATION_RESULT`, `STAGING_PROVENANCE_RUN_ID`, `EXPECTED_RELEASE_PATH`, `RESULT`) to the job summary and the `release-policy-audit-<run_id>` artifact (on every outcome, including blocked runs), and embeds it in `production-release-evidence-<run_id>`. The ledger row is still appended by a separate, human-reviewed commit (§3); the workflow keeps `contents: read`.
+- **Emergency rollback (§13)** is a separate `OPERATION_TYPE` and is not routed through this gate; `deploy-production.yml` gains no rollback path.
 
 ---
 
@@ -329,6 +351,8 @@ The 10/90 split live since 2026-09-20 (canary `4a32c5f9-…` @10%, stable `b07d8
 ```
 LEGACY_IN_FLIGHT_RELEASE
 ```
+
+**Closed 2026-09-22:** promoted to 100% by `promote-production.yml` run `35719752606`; the ledger's `STABLE_100` row for it is now `BASE_PRODUCTION_SHA` (`docs/release/FIRST_PRODUCTION_100_PERCENT_PROMOTION_REPORT.md`). The rest of this section is the original record.
 
 It is **not** redeployed or reclassified using the new classifier. It finishes using its existing evidence: staging provenance, the official 10% verification, R3's deterministic release-role evidence, and the future promotion-only workflow (§11). After a successful promotion to 100%, the promotion workflow must write the promoted release into the ledger as the new `STABLE_100` release — that entry becomes `BASE_PRODUCTION_SHA` for the next release.
 
