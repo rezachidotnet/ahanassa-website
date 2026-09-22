@@ -110,10 +110,10 @@ TYPECHECK: PASS (npx tsc --noEmit — clean)
 ## Branch / registration
 
 ```
-BOOTSTRAP_REGISTRATION_PR: not yet opened — see "Remaining actions"
+BOOTSTRAP_REGISTRATION_PR: https://github.com/rezachidotnet/ahanassa-website/pull/6 — OPEN, NOT MERGED
 ```
 
-Work was committed on `chore/release-policy`, branched from `feat/header-hero-integrated` (the real application branch — `main` and it have unrelated histories, confirmed by `git merge-base origin/main origin/feat/header-hero-integrated` returning no common ancestor, per `docs/release/PRODUCTION_BRANCH_POLICY_DECISION.md`).
+Work was committed on `chore/release-policy`, branched from `feat/header-hero-integrated` (the real application branch — `main` and it have unrelated histories, confirmed by `git merge-base origin/main origin/feat/header-hero-integrated` returning no common ancestor, per `docs/release/PRODUCTION_BRANCH_POLICY_DECISION.md`). PR #6 targets `feat/header-hero-integrated`, not `main` — see the next paragraph for why no `main` sync applies here.
 
 **No `main`-registration sync was required by this task**, unlike prior R1–R3 work. Every prior sync (`chore/register-production-workflow`, `chore/sync-production-workflow-hardening`, `chore/sync-production-smoke-gate-fix`, `chore/register-verify-production-workflow`, `chore/sync-r3-deterministic-version-selection`) existed because those tasks changed a `workflow_dispatch`-only file, and GitHub Actions only lists a `workflow_dispatch` workflow in its dispatch UI/API if a copy exists on the default branch (`main`). This task changed **no** `.github/workflows/*.yml` file. `.github/workflows/ci.yml` — the one workflow that actually consumes `lib/ci/**` (via `npm test`) — triggers on `push`/`pull_request` with no branch filter and always runs the copy present on the pushed ref itself; it needs no `main` registration to execute against `chore/release-policy`. The classifier/ledger/rollback/bootstrap modules are library code consumed by tests and by future workflow steps that will `actions/checkout` the application branch (or an exact `deploy_ref` on it) directly — never by anything that needs to exist on `main` for discovery. This was verified, not assumed: `.github/workflows/ci.yml` was read in full this task.
 
@@ -155,8 +155,8 @@ READY_TO_BUILD_PROMOTION_WORKFLOW: YES — the contract is fully specified in RE
 
 ## Remaining actions
 
-1. Open a PR from `chore/release-policy` to `main` (or to `feat/header-hero-integrated`, whichever the owner wants as the review target — note `main` cannot run `npm test` meaningfully today since it lacks `lib/ci/**` and most of this repository's application tree; review against `feat/header-hero-integrated` is the more meaningful diff). **Not opened by this task** — needs the same explicit "go ahead and open/merge" the prior five registration PRs each required.
-2. Once reviewed, merge `chore/release-policy` into `feat/header-hero-integrated` (this repository's real application branch/source of truth).
+1. ~~Open a PR~~ — done: [PR #6](https://github.com/rezachidotnet/ahanassa-website/pull/6), `chore/release-policy` → `feat/header-hero-integrated`, `OPEN`/`MERGEABLE`, not merged.
+2. Review and merge PR #6 — needs the same explicit "go ahead and merge" every prior registration PR in this repository's history has required before merge. **Not merged by this task.**
 3. `main` needs no separate sync for this task's deliverables (see "Branch / registration" above) — re-confirm this holds if a future task adds a new `workflow_dispatch` file that consumes `lib/ci/**` (it would then need the same two-step main-registration pattern used for R1–R3).
 4. The `BOOTSTRAP_STABLE_SHA_UNRESOLVED` gap (DAR-058) resolves itself the first time the future promotion workflow promotes the current canary to 100% — no separate action is required to "fix" it, only to build and use that workflow (a distinct future task, per Phase 22).
 5. Build `promote-production.yml` per the §11 contract, as its own explicitly-authorized task.
