@@ -534,3 +534,195 @@ test("promote-production.yml exposes an observation_attestation input with no de
   const block = RAW.slice(idx, nextInputIdx === -1 ? idx + 400 : nextInputIdx);
   assert.doesNotMatch(block, /default:/, "observation_attestation must never have a default value");
 });
+
+// ---------------------------------------------------------------------------
+// 36. REGRESSION — the verification-evidence artifact lookup.
+//
+// The first real promotion attempt failed closed at the
+// "Bind verification_run_id ..." step with gh's argument-parser error
+// `accepts 1 arg(s), received 4`, because the lookup passed jq's `--arg`
+// flag to `gh api`. `gh api` accepts exactly one positional (the endpoint)
+// and has no `--arg` of its own, so `--jq` swallowed the literal string
+// "--arg" as its query and the remaining three tokens became extra
+// positionals. The step aborted under `set -e` BEFORE its own
+// `if [ -z "$ARTIFACT_ID" ]` branch could produce a legible error, so a
+// pure CLI-usage defect surfaced as an opaque failure.
+//
+// Production was never mutated (the step runs long before any traffic
+// shift), so this is a fail-closed defect, not a safety hole — but it is
+// exactly the class of defect a static-only test suite misses: the shape
+// checks all passed on the defective file.
+//
+// Two independent nets below:
+//   (a) a static guard — no `gh api` invocation anywhere in the workflow may
+//       carry `--arg`, with a mutation test proving the guard bites;
+//   (b) an executed test — the marker-delimited lookup block is run under
+//       real `bash -e` with real `jq` against a stub `gh` that models the
+//       real CLI's contract (one positional, `--jq` takes one value, no
+//       `--arg`). The defective form fails under that stub; the shipped
+//       form resolves the artifact id.
+// ---------------------------------------------------------------------------
+
+/** `gh api` calls, normalized to one line each, comments excluded. */
+function ghApiInvocations(yaml: string): string[] {
+  return withoutComments(yaml)
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.includes("gh api"));
+}
+
+test("36a. no `gh api` invocation passes jq's --arg flag (gh api has no --arg; it aborts with 'accepts 1 arg(s)')", () => {
+  const offenders = ghApiInvocations(RAW).filter((l) => /gh api\b[^|]*--arg\b/.test(l));
+  assert.deepEqual(
+    offenders,
+    [],
+    `--arg is a jq flag, not a gh flag. Pipe gh api's JSON into a real jq --arg instead. Offending line(s):\n${offenders.join("\n")}`,
+  );
+});
+
+test("36b. mutation: reintroducing `gh api ... --jq --arg` is caught by the 36a guard", () => {
+  const mutated = RAW.replace(
+    /ARTIFACT_ID="\$\(jq -r --arg n /,
+    'ARTIFACT_ID="$(gh api "repos/o/r/actions/runs/$VERIFY_RUN_INPUT/artifacts" --jq --arg n ',
+  );
+  assert.notEqual(mutated, RAW, "the mutation must actually change the file");
+  const offenders = ghApiInvocations(mutated).filter((l) => /gh api\b[^|]*--arg\b/.test(l));
+  assert.notEqual(offenders.length, 0, "the guard must reject a reintroduced `gh api ... --arg`");
+});
+
+test("36c. the verification-artifact lookup is extractable and still passes the name as a jq --arg (never interpolated into the jq program)", () => {
+  const block = sliceBetween(
+    extractStepBody("Bind verification_run_id"),
+    "VERIFY ARTIFACT LOOKUP START",
+    "VERIFY ARTIFACT LOOKUP END",
+  );
+  assert.match(block, /jq -r --arg n "production-verification-evidence-\$VERIFY_RUN_INPUT"/);
+  assert.match(block, /select\(\.name == \$n and \.expired == false\)/, "must still match the exact name AND reject expired artifacts");
+  // Line-scoped and comment-excluded: the block's own explanatory comment
+  // quotes the defective `gh api ... --jq --arg` form on purpose, and a
+  // whole-block regex would otherwise span the gh line and the jq line.
+  assert.deepEqual(
+    ghApiInvocations(block).filter((l) => /gh api\b[^|]*--arg\b/.test(l)),
+    [],
+    "the artifact lookup's gh api call must carry no --arg",
+  );
+});
+
+/**
+ * Runs the extracted lookup block under real `bash -e` with real `jq`, and a
+ * stub `gh` on PATH that models the real CLI's argument contract. Returns the
+ * resolved ARTIFACT_ID (echoed by the harness) plus status/output.
+ */
+function runArtifactLookup(
+  script: string,
+  opts: { artifactsJson?: unknown; ghFails?: boolean; verifyRunInput?: string },
+): { status: number; stdout: string; artifactId: string } {
+  const dir = mkdtempSync(path.join(tmpdir(), "promote-artifact-lookup-"));
+  try {
+    writeFileSync(path.join(dir, "artifacts-response.json"), JSON.stringify(opts.artifactsJson ?? { artifacts: [] }));
+
+    // Stub `gh`: reproduces the real CLI's contract faithfully enough to
+    // expose this defect — `--jq`/`-q` and `--method` consume exactly one
+    // value, there is NO `--arg` flag, and more than one positional after
+    // the subcommand is a usage error with gh's own wording.
+    const ghStub = [
+      "#!/usr/bin/env bash",
+      "set -uo pipefail",
+      'if [ "${1:-}" != "api" ]; then echo "unknown command" >&2; exit 1; fi',
+      "shift",
+      "positionals=()",
+      "while [ $# -gt 0 ]; do",
+      '  case "$1" in',
+      "    --jq|-q|--method|-X|--template|-t|-H|--header|-f|-F) shift 2 ;;",
+      '    --*|-*) shift ;;',
+      '    *) positionals+=("$1"); shift ;;',
+      "  esac",
+      "done",
+      'if [ "${#positionals[@]}" -ne 1 ]; then',
+      '  echo "accepts 1 arg(s), received ${#positionals[@]}" >&2',
+      "  exit 1",
+      "fi",
+      opts.ghFails ? 'echo "gh: HTTP 404: Not Found" >&2; exit 1' : `cat "${path.join(dir, "artifacts-response.json")}"`,
+      "",
+    ].join("\n");
+
+    writeFileSync(path.join(dir, "gh"), ghStub, { mode: 0o755 });
+
+    const scriptPath = path.join(dir, "lookup.sh");
+    writeFileSync(scriptPath, `set -euo pipefail\n${script}\necho "RESOLVED_ARTIFACT_ID=$ARTIFACT_ID"`);
+    const res = spawnSync("bash", ["-e", scriptPath], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${dir}:${process.env.PATH ?? ""}`,
+        RUNNER_TEMP: dir,
+        VERIFY_RUN_INPUT: opts.verifyRunInput ?? SYN_VERIFY_RUN,
+      },
+    });
+    const stdout = res.stdout ?? "";
+    const m = stdout.match(/RESOLVED_ARTIFACT_ID=(.*)/);
+    return { status: res.status ?? -1, stdout: stdout + (res.stderr ?? ""), artifactId: m ? m[1].trim() : "" };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const SYN_VERIFY_RUN = "90000000001";
+const SYN_ARTIFACT_ID = "7000000001";
+
+const VERIFY_ARTIFACT_LOOKUP = sliceBetween(
+  extractStepBody("Bind verification_run_id"),
+  "VERIFY ARTIFACT LOOKUP START",
+  "VERIFY ARTIFACT LOOKUP END",
+  // The block references ${{ github.repository }}; neutralize the Actions
+  // expression so the extracted bash is runnable standalone.
+).replace(/\$\{\{\s*github\.repository\s*\}\}/g, "owner/repo");
+
+test("36d. REPRO: the defective `gh api ... --jq --arg` form fails with gh's 'accepts 1 arg(s)' usage error", () => {
+  // The exact shape that failed the first promotion attempt, reconstructed
+  // from the shipped block by moving --arg back onto gh api.
+  const defective = [
+    'ARTIFACTS_JSON="$RUNNER_TEMP/verify-run-artifacts.json"',
+    `ARTIFACT_ID="$(gh api "repos/owner/repo/actions/runs/$VERIFY_RUN_INPUT/artifacts" --jq --arg n "production-verification-evidence-$VERIFY_RUN_INPUT" '.artifacts[] | select(.name == $n and .expired == false) | .id' | head -n1)"`,
+  ].join("\n");
+  const r = runArtifactLookup(defective, {
+    artifactsJson: { artifacts: [{ name: `production-verification-evidence-${SYN_VERIFY_RUN}`, expired: false, id: SYN_ARTIFACT_ID }] },
+  });
+  assert.notEqual(r.status, 0, "the defective form must fail");
+  assert.match(r.stdout, /accepts 1 arg\(s\)/, "must fail with gh's argument-count usage error — the exact observed root cause");
+});
+
+test("36e. FIXED: the shipped lookup resolves the verification-evidence artifact id", () => {
+  const r = runArtifactLookup(VERIFY_ARTIFACT_LOOKUP, {
+    artifactsJson: {
+      artifacts: [
+        { name: "some-other-artifact", expired: false, id: "6000000009" },
+        { name: `production-verification-evidence-${SYN_VERIFY_RUN}`, expired: false, id: SYN_ARTIFACT_ID },
+      ],
+    },
+  });
+  assert.equal(r.status, 0, `expected success.\n${r.stdout}`);
+  assert.equal(r.artifactId, SYN_ARTIFACT_ID);
+});
+
+test("36f. FIXED: an expired verification-evidence artifact resolves to empty (so the existing fail-closed branch fires)", () => {
+  const r = runArtifactLookup(VERIFY_ARTIFACT_LOOKUP, {
+    artifactsJson: { artifacts: [{ name: `production-verification-evidence-${SYN_VERIFY_RUN}`, expired: true, id: SYN_ARTIFACT_ID }] },
+  });
+  assert.equal(r.status, 0, "the lookup itself must not abort — it must yield an empty id for the caller's fail-closed check");
+  assert.equal(r.artifactId, "", "an expired artifact must never be accepted");
+});
+
+test("36g. FIXED: a differently-named artifact on the same run resolves to empty (no loose/prefix matching)", () => {
+  const r = runArtifactLookup(VERIFY_ARTIFACT_LOOKUP, {
+    artifactsJson: { artifacts: [{ name: "production-verification-evidence-99999999999", expired: false, id: SYN_ARTIFACT_ID }] },
+  });
+  assert.equal(r.status, 0);
+  assert.equal(r.artifactId, "", "only the artifact named for THIS verification run may be accepted");
+});
+
+test("36h. FIXED: a failing artifacts API call fails closed with a legible error (not an opaque abort)", () => {
+  const r = runArtifactLookup(VERIFY_ARTIFACT_LOOKUP, { ghFails: true });
+  assert.notEqual(r.status, 0, "an API failure must fail the step closed");
+  assert.match(r.stdout, /VERIFICATION RUN ASSERTION FAILED/, "the failure must be reported as an explicit assertion failure");
+});

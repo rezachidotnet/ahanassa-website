@@ -201,4 +201,26 @@ READY_FOR_REAL_100_PERCENT_PROMOTION: NO — the implementation/registration PRs
 
 ---
 
-**End of `PROMOTE_PRODUCTION_WORKFLOW_IMPLEMENTATION_REPORT.md`. STOP — PR #9 not merged, PR #10 not merged, promote-production not dispatched, production traffic unchanged, no promotion to 100%.**
+## Post-registration addendum — 2026-09-22: first real dispatch failed closed (WORKFLOW_DEFECT)
+
+PR #9 and PR #10 were subsequently merged (2026-09-22T07:43:36Z / 07:44:12Z), registering `Promote Production` as workflow `364025513`. The first real dispatch, run `35703109593`, **failed closed during evidence binding with zero production mutation**. Full incident analysis: `docs/release/FIRST_PRODUCTION_PROMOTION_ATTEMPT_FAILURE_REPORT.md`.
+
+```
+FAILED_STEP:                 Bind verification_run_id to a successful Verify Production run and its evidence
+ROOT_CAUSE_CLASS:            WORKFLOW_DEFECT
+PRODUCTION_MUTATION_OCCURRED: NO
+TRAFFIC:                     10 / 90 (unchanged)
+SECURITY_CHECK_WEAKENED:     NO
+```
+
+**Root cause.** The verification-evidence artifact lookup passed jq's `--arg` flag to `gh api`. `gh api` accepts exactly one positional (the endpoint) and has no `--arg` of its own, so `--jq` consumed the literal `"--arg"` as its query and the remaining tokens became extra positionals — the CLI aborted on argument count (`accepts 1 arg(s), received 4`) before issuing any HTTP request. A secondary consequence: under `set -euo pipefail` the failure propagated out of the `ARTIFACT_ID="$( … )"` assignment and aborted the step, making the step's own `if [ -z "$ARTIFACT_ID" ]` error branch unreachable for every failure of the lookup itself.
+
+**Correction.** The `--arg` now goes to a real `jq` reading the API response from a file, and the `gh api` call is status-checked explicitly. The name is still passed as a jq `--arg` (never interpolated into the jq program), `select(.name == $n and .expired == false)` is byte-for-byte unchanged, and every downstream assertion is untouched — no evidence check was weakened, removed, or replaced with trust in operator input.
+
+**Correction to this report's own claims.** The "Tests" and design sections above described the artifact-lookup step as covered; that coverage was **static only** — every shape assertion passed on the defective file because the defect was CLI argument syntax, not assertion logic. Eight new tests (36a–36h) close that gap, including `36d`, which reproduces `accepts 1 arg(s)` in-suite, and a class-level guard (`36a`) forbidding `--arg` on any `gh api` invocation anywhere in the workflow. `npm test`: 1507/1507. `npx tsc --noEmit`: exit 0. The corrected lookup was dry-evaluated read-only against the real verification run `35567845828` and its real evidence artifact — every assertion resolves PASS.
+
+The fix ships as two further un-merged PRs (`fix/promote-production-verification-artifact-lookup` → `feat/header-hero-integrated`, `fix/register-promote-production-artifact-lookup` → `main`). Until both merge, a re-dispatch runs the defective file. `READY_TO_RERUN_PROMOTION: NO`.
+
+---
+
+**End of `PROMOTE_PRODUCTION_WORKFLOW_IMPLEMENTATION_REPORT.md`. STOP — PR #9/#10 merged and the workflow registered, but its first dispatch failed closed on a workflow defect; the fix PRs are open and un-merged, promotion not re-run, production traffic unchanged at 10/90.**
