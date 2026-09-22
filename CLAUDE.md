@@ -11,9 +11,9 @@
 - **ERP origin:** `https://odoo.ahanassa.com`
 - **Owner:** Cyan Sanat Iranian Co. LTD
 - **Document role:** Root-level implementation entry point
-- **Status:** Active — canonical control layer, project pre-implementation; homepage visual reference registered; customer account/portal future-phase architecture registered
-- **Version:** 1.2.0
-- **Last updated:** 2026-08-28
+- **Status:** Active — canonical control layer, project pre-implementation; homepage visual reference registered; customer account/portal future-phase architecture registered; release governance registered (§5b)
+- **Version:** 1.3.0
+- **Last updated:** 2026-09-22
 
 ---
 
@@ -144,6 +144,34 @@ Responsive adaptation, and technical adaptations required for accessibility, Cor
 
 ---
 
+## 5b. Release Governance — mandatory before staging/production release work
+
+**Lifecycle state: `BOOTSTRAP_REGISTERED`** (`docs/release/RELEASE_POLICY.md` §0) — registered by `POLICY_BOOTSTRAP` (2026-09-22), PR open, not yet merged, not yet wired into release-time workflows. `docs/release/RELEASE_POLICY.md` is the authoritative human policy; `lib/ci/release-risk-classifier.ts`, `lib/ci/release-ledger.ts`, `lib/ci/emergency-rollback.ts`, and `lib/ci/policy-bootstrap.ts` implement the classification/ledger/rollback **engine** (`POLICY_ENGINE_IMPLEMENTED: YES`) — this is not yet the same as **release-time enforcement** (`RELEASE_TIME_POLICY_ENFORCEMENT_ACTIVE: NO`; no workflow invokes it yet — `RELEASE_POLICY.md` §0.1). This section governs planning or executing any staging or production release, promotion, or emergency rollback of the website — it does not govern Odoo server/module deployment (`docs/release/RELEASE_POLICY.md` §1/§18).
+
+**Before planning or executing a staging/production release, Claude Code MUST:**
+
+1. Read `docs/release/RELEASE_POLICY.md` in full.
+2. Resolve `BASE_PRODUCTION_SHA` from the authoritative ledger (`docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md`'s "Ledger (RELEASE_POLICY.md schema)" table) — never from `main`, branch `HEAD`, the latest staging SHA, the latest commit, or the active canary's SHA.
+3. Compute the diff `BASE_PRODUCTION_SHA..CANDIDATE_SHA`.
+4. Classify risk deterministically (LOW/MEDIUM/HIGH per `RELEASE_POLICY.md` §5–§10, or `AMBIGUOUS`/`CLASSIFICATION_REQUIRED`).
+5. State the classification evidence (triggers, changed files, declared vs. computed risk).
+6. Follow the release path for the resulting `FINAL_RISK` — canary is required for HIGH only, never for LOW or MEDIUM (`RELEASE_POLICY.md` §5).
+7. **STOP on ambiguity.** `CLASSIFICATION_REQUIRED` is not resolved by picking a class that "seems reasonable" — it is resolved by the operator, or by amending `RELEASE_POLICY.md` itself (a `HIGH_RELEASE_PATHS` change).
+
+**Claude Code MUST NOT:**
+
+- classify release risk from memory or by reading the diff's content/commit-message wording — classification is path-based only (`RELEASE_POLICY.md` §18)
+- treat `main` as a production baseline — `main` and the real application branch have unrelated histories (`docs/release/PRODUCTION_BRANCH_POLICY_DECISION.md`); it exists only so GitHub Actions can discover `workflow_dispatch` workflow files
+- downgrade a machine-computed risk level — `FINAL_RISK = max(DECLARED_RISK, COMPUTED_MINIMUM_RISK)`, never less
+- assume every release requires a canary — LOW and MEDIUM explicitly do not (`RELEASE_POLICY.md` §5); this is deliberate, not an oversight
+- skip a required HIGH-release canary, or bypass staging provenance
+- weaken GitHub Environment protection (reviewer gates, deployment branch policy) to work around a release-path requirement
+- treat `CLAUDE.md`, `PROJECT_OVERRIDES.md`, `DOCS_INDEX.md`, `DOCUMENT_AUDIT_REPORT.md`, `01-sources/**`, `docs/release/RELEASE_POLICY.md`, or `docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md` as LOW-risk documentation — every one is an explicit HIGH trigger
+- execute an emergency rollback to a target that is not already a recorded, validated Worker Version ID in the release ledger (`RELEASE_POLICY.md` §13)
+- dispatch a production deploy, promotion, or rollback without the user's explicit, current-turn authorization — this section describes the governance process, it does not itself authorize a production mutation
+
+---
+
 ## 6. Task-to-Document Reading Map
 
 Use `DOCS_INDEX.md` for the authoritative, per-document version of this table (it also lists layer and status). Quick reference:
@@ -164,6 +192,7 @@ Use `DOCS_INDEX.md` for the authoritative, per-document version of this table (i
 | Performance / caching | `01-sources/PERFORMANCE_GUIDELINES.md`, `01-sources/IMAGE_OPTIMIZATION.md`, `01-sources/FONT_STRATEGY.md`, `01-sources/CACHING_STRATEGY.md` — stale Vercel cache mechanics are superseded by the Cloudflare Workers/vinext model in `01-sources/TECHNICAL_ARCHITECTURE.md` §18/§20 |
 | Security | `01-sources/SECURITY_GUIDELINES.md` (Vercel-era hosting references superseded, control content otherwise active) |
 | Deployment / environments | `01-sources/DEPLOYMENT_ARCHITECTURE.md`, `01-sources/ENVIRONMENT_VARIABLES.md` |
+| Release governance / risk classification / production promotion / emergency rollback / CI-CD workflow changes | **Mandatory, see `CLAUDE.md` §5b:** `docs/release/RELEASE_POLICY.md` (authoritative policy, lifecycle state `BOOTSTRAP_REGISTERED`), `docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md` (the ledger), `lib/ci/release-risk-classifier.ts`, `lib/ci/release-ledger.ts`, `lib/ci/emergency-rollback.ts`, `lib/ci/policy-bootstrap.ts` (the policy **engine** — `POLICY_ENGINE_IMPLEMENTED: YES`; release-time enforcement is not yet wired into any workflow, `RELEASE_TIME_POLICY_ENFORCEMENT_ACTIVE: NO` — `RELEASE_POLICY.md` §0.1) — supersedes `docs/release/CI_CD_POLICY.md`'s pre-production-automation description for anything the newer policy covers |
 | Testing / QA / release gates | `01-sources/TESTING_STRATEGY.md`, `01-sources/QA_CHECKLIST.md`, `01-sources/SEO_QA_CHECKLIST.md`, `01-sources/RESPONSIVE_QA.md`, `01-sources/ACCESSIBILITY_QA.md`, `01-sources/PRE_DEPLOY_CHECKLIST.md`, `01-sources/POST_DEPLOY_CHECKLIST.md` |
 | Analytics | `01-sources/ANALYTICS_TRACKING.md` (provider still deferred per `01-sources/DECISIONS.md` OPEN-005); GTM/GSC requirement owner-confirmed in `PROJECT_OVERRIDES.md` §5 |
 
