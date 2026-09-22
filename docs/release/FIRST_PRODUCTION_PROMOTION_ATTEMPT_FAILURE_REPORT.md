@@ -319,8 +319,10 @@ The corrected workflow is **not yet registered**. Per `RELEASE_POLICY.md` §7, `
 
 | PR | Branch | Target | State |
 | --- | --- | --- | --- |
-| Application | `fix/promote-production-verification-artifact-lookup` | `feat/header-hero-integrated` | OPEN — not merged |
-| Registration | `fix/register-promote-production-artifact-lookup` | `main` | OPEN — not merged |
+| [#11](https://github.com/rezachidotnet/ahanassa-website/pull/11) — application | `fix/promote-production-verification-artifact-lookup` | `feat/header-hero-integrated` | OPEN — not merged |
+| [#12](https://github.com/rezachidotnet/ahanassa-website/pull/12) — registration | `fix/register-promote-production-artifact-lookup` | `main` | OPEN — not merged |
+
+Both carry a byte-identical `promote-production.yml` (`sha256 3a880a5b96f48daeec7f8c5d56a2e21b57a18fa82c2359d8ee733aafa1fee189`). #11 additionally carries the regression tests, this report, and the implementation-report addendum; `main` carries no `lib/ci/` or ledger, per its own `CLAUDE.md`.
 
 `workflow_dispatch` availability is resolved from the **default branch**, so the registration PR to `main` is what makes the corrected file dispatchable. Until both merge, a re-dispatch would run the **defective** file and fail at the same step again.
 
@@ -337,14 +339,14 @@ The corrected workflow is **not yet registered**. Per `RELEASE_POLICY.md` §7, `
 - No evidence check was removed, relaxed, or replaced with trust in operator input.
 - No rollback was performed (none was warranted — traffic never moved).
 - No ledger row was appended. `BASE_PRODUCTION_SHA` remains `UNRESOLVED`, exactly as before the attempt.
-- Neither PR was merged.
+- Neither PR (#11, #12) was merged.
 
 ---
 
 ## 11. Required next actions, in order
 
-1. **Review and merge the application PR** into `feat/header-hero-integrated` — requires separate authorization.
-2. **Review and merge the registration PR** into `main`, so the corrected workflow is what `workflow_dispatch` resolves.
+1. **Review and merge PR #11** into `feat/header-hero-integrated` — requires separate authorization.
+2. **Review and merge PR #12** into `main`, so the corrected workflow is what `workflow_dispatch` resolves.
 3. Re-confirm byte-identity of `promote-production.yml` across `main` and `feat/header-hero-integrated` after both merges.
 4. Re-run the read-only preflight (all 15 items) and a **fresh** observation window — the previous window's timestamps describe checks performed on 2026-09-22T08:03–08:06Z and must not be reused for a later dispatch.
 5. Re-dispatch `Promote Production` from `feat/header-hero-integrated` with the **same eleven input values** except the two observation timestamps, which must describe the new window.

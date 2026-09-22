@@ -219,7 +219,7 @@ SECURITY_CHECK_WEAKENED:     NO
 
 **Correction to this report's own claims.** The "Tests" and design sections above described the artifact-lookup step as covered; that coverage was **static only** — every shape assertion passed on the defective file because the defect was CLI argument syntax, not assertion logic. Eight new tests (36a–36h) close that gap, including `36d`, which reproduces `accepts 1 arg(s)` in-suite, and a class-level guard (`36a`) forbidding `--arg` on any `gh api` invocation anywhere in the workflow. `npm test`: 1507/1507. `npx tsc --noEmit`: exit 0. The corrected lookup was dry-evaluated read-only against the real verification run `35567845828` and its real evidence artifact — every assertion resolves PASS.
 
-The fix ships as two further un-merged PRs (`fix/promote-production-verification-artifact-lookup` → `feat/header-hero-integrated`, `fix/register-promote-production-artifact-lookup` → `main`). Until both merge, a re-dispatch runs the defective file. `READY_TO_RERUN_PROMOTION: NO`.
+The fix ships as two further un-merged PRs — [#11](https://github.com/rezachidotnet/ahanassa-website/pull/11) (`fix/promote-production-verification-artifact-lookup` → `feat/header-hero-integrated`) and [#12](https://github.com/rezachidotnet/ahanassa-website/pull/12) (`fix/register-promote-production-artifact-lookup` → `main`). Until both merge, a re-dispatch runs the defective file. `READY_TO_RERUN_PROMOTION: NO`.
 
 ---
 
