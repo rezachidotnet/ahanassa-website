@@ -1,8 +1,31 @@
 # Ahan Asa Website — Release Policy
 
-**Status:** Active. Authoritative human policy for `docs/release/RELEASE_POLICY.md` §17 of `CLAUDE.md` mandates reading before any staging/production release work. Machine enforcement lives in `lib/ci/release-risk-classifier.ts`, `lib/ci/release-ledger.ts`, `lib/ci/emergency-rollback.ts`, `lib/ci/policy-bootstrap.ts`, and their test files, run as part of the ordinary `npm test` suite already gated by `.github/workflows/ci.yml` on every push and pull request.
+**Lifecycle state:** `BOOTSTRAP_REGISTERED`. This document, `CLAUDE.md` §5b, and the policy engine modules in `lib/ci/**` are committed and under review (PR #6, `chore/release-policy` → `feat/header-hero-integrated`), but **not yet merged**, and the release-time workflows (`.github/workflows/deploy-production.yml`/`deploy-staging.yml`/`verify-production.yml`) do **not yet invoke** the classifier or gate on `FINAL_RISK`. Do not treat this document as `ACTIVE` policy until the criteria in §0 are met. See `docs/release/RELEASE_POLICY_IMPLEMENTATION_REPORT.md` for the audit trail, including this correction.
 
-**Established by:** `POLICY_BOOTSTRAP` (this task), after R3 (`docs/release/PRODUCTION_R3_DETERMINISTIC_VERSION_SELECTION_REPORT.md`) closed and PR #5 merged to `main`. See `docs/release/RELEASE_POLICY_IMPLEMENTATION_REPORT.md` for the audit trail of this bootstrap.
+**Established by:** `POLICY_BOOTSTRAP` (2026-09-22), after R3 (`docs/release/PRODUCTION_R3_DETERMINISTIC_VERSION_SELECTION_REPORT.md`) closed and PR #5 merged to `main`.
+
+---
+
+## 0. Lifecycle states and the enforcement-vs-engine distinction
+
+**A minimal state model, replacing the earlier undifferentiated "Status: Active" claim** (an independent review correctly flagged that claim as premature — `docs/release/RELEASE_POLICY_IMPLEMENTATION_REPORT.md` records the correction):
+
+| State | Meaning |
+| --- | --- |
+| `BOOTSTRAP_PENDING` | Policy/engine authored locally; not yet registered via any PR. |
+| `BOOTSTRAP_REGISTERED` | Policy/engine committed, PR open and reviewable, but not yet merged into the application branch and/or not yet wired into release-time workflows. **← current state.** |
+| `ACTIVE` | Merged into the application branch, **and** release-time enforcement is wired in (§0.1), **and** `BASE_PRODUCTION_SHA` is resolvable or an explicit interim operating mode covering its absence is documented and owner-accepted. |
+
+A document's own text claiming "Active" is never sufficient evidence of activation — activation is evidenced by merged commits, a workflow that actually invokes the classifier, and a resolvable ledger baseline (or a documented, accepted exception).
+
+### 0.1 `POLICY_ENGINE_IMPLEMENTED` vs. `RELEASE_TIME_POLICY_ENFORCEMENT_ACTIVE`
+
+These are two different claims and must never be conflated:
+
+- **`POLICY_ENGINE_IMPLEMENTED`** — the classifier/ledger/rollback/bootstrap logic exists, is correct, and is covered by tests (`lib/ci/release-risk-classifier.ts`, `lib/ci/release-ledger.ts`, `lib/ci/emergency-rollback.ts`, `lib/ci/policy-bootstrap.ts`, exercised by `npm test` via `.github/workflows/ci.yml` on every push/PR). **Current value: YES.**
+- **`RELEASE_TIME_POLICY_ENFORCEMENT_ACTIVE`** — an actual release (a `deploy-production.yml`/`deploy-staging.yml` run, or the future `promote-production.yml`) invokes the classifier against a real diff and gates on the resulting `FINAL_RISK` before proceeding. **Current value: NO.** `npm test` exercising the classifier against synthetic fixtures proves the engine is *correct*; it proves nothing about whether any real release run *consults* it. As of this document's current state, none does — verified by grepping every workflow file in `.github/workflows/` for any reference to the classifier/ledger/rollback modules, with zero matches.
+
+Wiring `RELEASE_TIME_POLICY_ENFORCEMENT_ACTIVE` to `YES` is a distinct, future, explicitly-scoped task: it means adding a step to `deploy-production.yml` (or a preflight it calls) that runs the classifier against `BASE_PRODUCTION_SHA..deploy_ref` and fails the run when `FINAL_RISK` doesn't match the declared release path (e.g. a HIGH-classified diff dispatched without a canary). That step does not exist yet. Until it does, this policy's LOW/MEDIUM/HIGH paths (§5) are **operator discipline backed by a correct, tested engine**, not yet a **release-time gate**.
 
 ---
 
