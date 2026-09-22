@@ -138,8 +138,8 @@ Every binding resolves deterministically, with zero ambiguity, against real evid
 ## Phase 16 — registration
 
 ```
-APPLICATION_PR: pending — see "Remaining actions"
-REGISTRATION_PR: pending — see "Remaining actions"
+APPLICATION_PR: https://github.com/rezachidotnet/ahanassa-website/pull/9 — chore/promote-production-workflow -> feat/header-hero-integrated, OPEN, NOT MERGED
+REGISTRATION_PR: https://github.com/rezachidotnet/ahanassa-website/pull/10 — chore/register-promote-production-workflow -> main, OPEN, NOT MERGED
 ```
 
 Implemented on `chore/promote-production-workflow`, branched from `feat/header-hero-integrated` (this repository's real application branch). Files: `.github/workflows/promote-production.yml`, `lib/ci/promote-production-workflow.test.ts` (new), `lib/ci/workflow-invariants.test.ts` and `lib/ci/production-smoke-harness.test.ts` (extended in place).
@@ -192,13 +192,13 @@ READY_FOR_REAL_100_PERCENT_PROMOTION: NO — the implementation/registration PRs
 
 ## Remaining actions
 
-1. Open the application PR: `chore/promote-production-workflow` → `feat/header-hero-integrated`.
-2. Open the registration PR: `chore/register-promote-production-workflow` → `main` (workflow file only).
+1. ~~Open the application PR~~ — done: [PR #9](https://github.com/rezachidotnet/ahanassa-website/pull/9), `chore/promote-production-workflow` → `feat/header-hero-integrated`, `OPEN`/`MERGEABLE`, not merged.
+2. ~~Open the registration PR~~ — done: [PR #10](https://github.com/rezachidotnet/ahanassa-website/pull/10), `chore/register-promote-production-workflow` → `main`, `OPEN`/`MERGEABLE`, not merged.
 3. Review and merge both — **not performed by this task**.
 4. Once merged, `promote-production.yml` becomes dispatchable. A real dispatch remains its own separate, explicitly-authorized future action — this task does not authorize it.
-5. Build the future work Phase 22 of the original bootstrap deferred: wiring `RELEASE_TIME_POLICY_ENFORCEMENT_ACTIVE` to `YES` globally (the LOW/MEDIUM/HIGH classifier consulted by `deploy-staging.yml`/`deploy-production.yml` for an arbitrary future release) remains unbuilt and out of this task's scope.
+5. Wiring `RELEASE_TIME_POLICY_ENFORCEMENT_ACTIVE` to `YES` globally (the LOW/MEDIUM/HIGH classifier consulted by `deploy-staging.yml`/`deploy-production.yml` for an arbitrary future release) remains unbuilt and out of this task's scope.
 6. After a real, separately-authorized promotion, append the emitted `STABLE_100` row to `docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md` as the usual human-reviewed documentation commit — that row becomes `BASE_PRODUCTION_SHA` for the next release (`RELEASE_POLICY.md` §2/§4), closing DAR-058.
 
 ---
 
-**End of `PROMOTE_PRODUCTION_WORKFLOW_IMPLEMENTATION_REPORT.md`. STOP — PRs not opened yet (see below), promote-production not dispatched, production traffic unchanged, no promotion to 100%.**
+**End of `PROMOTE_PRODUCTION_WORKFLOW_IMPLEMENTATION_REPORT.md`. STOP — PR #9 not merged, PR #10 not merged, promote-production not dispatched, production traffic unchanged, no promotion to 100%.**
