@@ -150,6 +150,32 @@ on:
         required: false
         type: boolean
         default: false
+      expected_current_stable_version_id:
+        description: >-
+          Worker Version ID you expect PRODUCTION'S CURRENT STABLE version to
+          be (this deploy's rollback target), asserted against live
+          Cloudflare state before any traffic shifts. REQUIRED, together with
+          expected_current_canary_version_id, whenever production already has
+          2 active versions (a live canary split) — this workflow refuses to
+          guess which one is stable by array position (finding R3; see
+          docs/release/PRODUCTION_R3_DETERMINISTIC_VERSION_SELECTION_REPORT.md).
+          Leave both empty only when you are certain exactly one version is
+          currently serving 100% of production traffic — if you do provide it
+          in that case, it is still validated against that single live
+          version.
+        required: false
+        type: string
+        default: ""
+      expected_current_canary_version_id:
+        description: >-
+          Worker Version ID you expect PRODUCTION'S CURRENT CANARY version to
+          be (the non-rollback-target leg of a live split). REQUIRED together
+          with expected_current_stable_version_id whenever production has 2
+          active versions. Leave empty when exactly one version is currently
+          serving 100% of production traffic.
+        required: false
+        type: string
+        default: ""
 
 concurrency:
   group: deploy-production
@@ -169,6 +195,8 @@ jobs:
       deployed_sha: ${{ steps.resolve.outputs.deployed_sha }}
       new_version_id: ${{ steps.phase1_upload.outputs.new_version_id }}
       previous_version_id: ${{ steps.previous_version.outputs.previous_version_id }}
+      stable_version_id: ${{ steps.previous_version.outputs.stable_version_id }}
+      canary_version_id: ${{ steps.previous_version.outputs.canary_version_id }}
       rollout_percentage: ${{ inputs.rollout_percentage }}
       staging_provenance_run: ${{ steps.provenance.outputs.staging_provenance_run }}
       deployed_at: ${{ steps.evidence.outputs.deployed_at }}
@@ -178,6 +206,8 @@ jobs:
           CONFIRM_INPUT: ${{ inputs.confirm }}
           DEPLOY_REF_INPUT: ${{ inputs.deploy_ref }}
           ROLLOUT_INPUT: ${{ inputs.rollout_percentage }}
+          EXPECTED_STABLE_INPUT: ${{ inputs.expected_current_stable_version_id }}
+          EXPECTED_CANARY_INPUT: ${{ inputs.expected_current_canary_version_id }}
         run: |
           set -euo pipefail
           if [ "$CONFIRM_INPUT" != "deploy-production" ]; then
@@ -194,6 +224,25 @@ jobs:
           # checks above.
           if [[ "$ROLLOUT_INPUT" != "10" && "$ROLLOUT_INPUT" != "50" && "$ROLLOUT_INPUT" != "100" ]]; then
             echo "::error::rollout_percentage must be exactly one of 10, 50, or 100. Got: \"$ROLLOUT_INPUT\""
+            exit 1
+          fi
+          # Format-validate the two optional topology-declaration inputs
+          # (finding R3) at the earliest possible point, same discipline as
+          # deploy_ref/confirm/rollout_percentage above. Their presence/
+          # consistency against the LIVE deployment is checked later, by the
+          # "Capture PREVIOUS_VERSION_ID" step, once Cloudflare credentials
+          # are available — this only rejects a malformed value early.
+          UUID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          if [ -n "$EXPECTED_STABLE_INPUT" ] && ! [[ "$EXPECTED_STABLE_INPUT" =~ $UUID_RE ]]; then
+            echo "::error::expected_current_stable_version_id must be empty or a Worker Version UUID. Got: \"$EXPECTED_STABLE_INPUT\""
+            exit 1
+          fi
+          if [ -n "$EXPECTED_CANARY_INPUT" ] && ! [[ "$EXPECTED_CANARY_INPUT" =~ $UUID_RE ]]; then
+            echo "::error::expected_current_canary_version_id must be empty or a Worker Version UUID. Got: \"$EXPECTED_CANARY_INPUT\""
+            exit 1
+          fi
+          if [ -n "$EXPECTED_STABLE_INPUT" ] && [ -n "$EXPECTED_CANARY_INPUT" ] && [ "$EXPECTED_STABLE_INPUT" = "$EXPECTED_CANARY_INPUT" ]; then
+            echo "::error::expected_current_stable_version_id and expected_current_canary_version_id are identical ('$EXPECTED_STABLE_INPUT'). A canary split requires two distinct versions."
             exit 1
           fi
           echo "Requested deploy_ref (validated 40-hex SHA): $DEPLOY_REF_INPUT"
@@ -598,23 +647,162 @@ jobs:
       # Captured BEFORE Phase 1 uploads anything — "a release whose rollback
       # target was not captured is not a completed release"
       # (docs/release/PRODUCTION_DEPLOY_WORKFLOW_DESIGN.md §9). Fails closed:
-      # an empty result blocks the release rather than proceeding with no
-      # named rollback target.
+      # an empty result, or any topology this workflow cannot classify with
+      # certainty, blocks the release rather than proceeding with a guessed
+      # rollback target.
+      #
+      # DETERMINISTIC VERSION ROLE DISCOVERY — fixes finding R3
+      # (docs/release/PRODUCTION_CANARY_SMOKE_GATE_FIX_REPORT.md §5,
+      # docs/release/PRODUCTION_R3_DETERMINISTIC_VERSION_SELECTION_REPORT.md).
+      # -----------------------------------------------------------------
+      # Previously: `jq -r '.[-1].versions[0].version_id'` — picked whichever
+      # version happened to sort first inside the live deployment's
+      # `versions[]` array. That is safe ONLY while a single version serves
+      # 100% (array position and "the one version" are then the same thing).
+      # It is UNSAFE the moment production is already running a canary split:
+      # on the split live as of 2026-09-21 (canary 4a32c5f9… @10%, stable
+      # b07d8697… @90%), `.versions[0]` resolved to the CANARY, not the
+      # proven-stable rollback target — inverting PREVIOUS_VERSION_ID and
+      # handing an uncertified version 90% of traffic on the next split
+      # deploy while the real stable target dropped out of rollback reach.
+      #
+      # Fixed method — position-independent, the same technique
+      # verify-production.yml's V3 step already proved live against this
+      # exact production topology (run 35567845828,
+      # docs/release/PRODUCTION_10_PERCENT_OFFICIAL_VERIFICATION_REPORT.md):
+      #   1. Read the live deployment's versions[] (still `.[-1]` to pick the
+      #      newest deployment EVENT — an ordering guarantee, not the
+      #      array-position guess this fix removes; see the comment on that
+      #      line below).
+      #   2. Classify by COUNT, never by index:
+      #        - 1 version  -> it must be at 100%; that version IS stable,
+      #          unambiguously (there is nothing else it could be).
+      #        - 2 versions -> both expected_current_stable_version_id and
+      #          expected_current_canary_version_id inputs are REQUIRED; each
+      #          expected id is matched by exact version_id equality against
+      #          the live set, never by position, and any live version
+      #          matching neither expected id is an unexpected topology that
+      #          fails closed.
+      #        - anything else (0, or 3+) -> fails closed; this workflow does
+      #          not know how to classify that topology and does not guess.
+      #   3. Every live percentage is validated to be a well-formed integer
+      #      in (0, 100], and the total must be exactly 100, before any role
+      #      is trusted.
       - name: Capture PREVIOUS_VERSION_ID (rollback target, before any traffic shift)
         id: previous_version
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          EXPECTED_STABLE_INPUT: ${{ inputs.expected_current_stable_version_id }}
+          EXPECTED_CANARY_INPUT: ${{ inputs.expected_current_canary_version_id }}
         run: |
           set -euo pipefail
-          PREVIOUS_VERSION_ID="$(npx wrangler deployments list --config dist/server/wrangler.json --json | jq -r '.[-1].versions[0].version_id // empty')"
+          npx wrangler deployments list --config dist/server/wrangler.json --json > "$RUNNER_TEMP/deployments.json"
+
+          # wrangler sorts deployments ascending by created_on before
+          # printing JSON, so `.[-1]` is the newest deployment EVENT — an
+          # ordering guarantee (verified against wrangler 4.x's
+          # versionsDeploymentsListHandler; the same reasoning
+          # verify-production.yml's V3 step already relies on), never a
+          # positional guess about WHICH VERSION inside that event is stable
+          # — that guess is exactly what the rest of this step removes.
+          jq '.[-1]' "$RUNNER_TEMP/deployments.json" > "$RUNNER_TEMP/latest-deployment.json"
+
+          # --- ROLE DISCOVERY START (extracted verbatim by
+          #     lib/ci/production-version-role-discovery.test.ts) ---
+          COUNT="$(jq -r '.versions | length' "$RUNNER_TEMP/latest-deployment.json")"
+
+          # Every percentage must be a well-formed integer in (0, 100] before
+          # any role logic trusts it — a version listed as "receiving
+          # traffic" with a zero, negative, non-integer, or non-numeric
+          # percentage is an unverifiable/malformed topology, not a
+          # legitimate state to reason about.
+          BAD_PCT="$(jq -r '[.versions[] | select((.percentage | type != "number") or (.percentage <= 0) or (.percentage > 100) or ((.percentage | floor) != .percentage))] | length' "$RUNNER_TEMP/latest-deployment.json")"
+          if [ "$BAD_PCT" != "0" ]; then
+            echo "::error::ROLLBACK TARGET CAPTURE FAILED — the live deployment reports $BAD_PCT version(s) with a malformed traffic percentage (not a well-formed integer in (0, 100]). Refusing to guess a rollback target from an unverifiable topology."
+            exit 1
+          fi
+
+          TOTAL_PCT="$(jq -r '[.versions[].percentage] | add // 0' "$RUNNER_TEMP/latest-deployment.json")"
+          if [ "$TOTAL_PCT" != "100" ]; then
+            echo "::error::ROLLBACK TARGET CAPTURE FAILED — the live deployment's version percentages total ${TOTAL_PCT}%, not 100%. Refusing to guess a rollback target from an inconsistent topology."
+            exit 1
+          fi
+
+          STABLE_VERSION_ID=""
+          CANARY_VERSION_ID=""
+
+          if [ "$COUNT" = "1" ]; then
+            if [ -n "$EXPECTED_CANARY_INPUT" ]; then
+              echo "::error::ROLLBACK TARGET CAPTURE FAILED — expected_current_canary_version_id was provided ('$EXPECTED_CANARY_INPUT'), but production is currently serving exactly ONE version (no canary is live). Topology mismatch — refusing to guess."
+              exit 1
+            fi
+            # `.versions[]` (iterate-all), never `.versions[0]` (positional
+            # index) — COUNT is already confirmed to be exactly 1 above, so
+            # this yields exactly one line either way; the point is that
+            # nothing here is selected BY POSITION.
+            SOLE_ID="$(jq -r '.versions[] | .version_id' "$RUNNER_TEMP/latest-deployment.json")"
+            SOLE_PCT="$(jq -r '.versions[] | .percentage' "$RUNNER_TEMP/latest-deployment.json")"
+            if [ "$SOLE_PCT" != "100" ]; then
+              echo "::error::ROLLBACK TARGET CAPTURE FAILED — production has exactly one active version ($SOLE_ID) but it is serving ${SOLE_PCT}%, not 100%. This is not a topology this workflow recognizes — refusing to guess."
+              exit 1
+            fi
+            if [ -n "$EXPECTED_STABLE_INPUT" ] && [ "$EXPECTED_STABLE_INPUT" != "$SOLE_ID" ]; then
+              echo "::error::ROLLBACK TARGET CAPTURE FAILED — expected_current_stable_version_id ('$EXPECTED_STABLE_INPUT') does not match the single live version ($SOLE_ID). Refusing to guess."
+              exit 1
+            fi
+            STABLE_VERSION_ID="$SOLE_ID"
+            echo "Topology: single version at 100% — classified deterministically as stable (no ambiguity possible with one candidate)."
+          elif [ "$COUNT" = "2" ]; then
+            if [ -z "$EXPECTED_STABLE_INPUT" ] || [ -z "$EXPECTED_CANARY_INPUT" ]; then
+              echo "::error::ROLLBACK TARGET CAPTURE FAILED — production currently has 2 active versions (a live canary split). This workflow will not guess which one is the rollback target by array position (finding R3) — both expected_current_stable_version_id and expected_current_canary_version_id are required inputs whenever a canary is live. Re-dispatch with both set, after confirming the live topology (e.g. via Verify Production)."
+              exit 1
+            fi
+            if [ "$EXPECTED_STABLE_INPUT" = "$EXPECTED_CANARY_INPUT" ]; then
+              echo "::error::ROLLBACK TARGET CAPTURE FAILED — expected_current_stable_version_id and expected_current_canary_version_id are identical ('$EXPECTED_STABLE_INPUT'). Cannot establish distinct roles from a single id."
+              exit 1
+            fi
+            STABLE_PCT="$(jq -r --arg v "$EXPECTED_STABLE_INPUT" '[.versions[] | select(.version_id == $v) | .percentage] | first // empty' "$RUNNER_TEMP/latest-deployment.json")"
+            CANARY_PCT="$(jq -r --arg v "$EXPECTED_CANARY_INPUT" '[.versions[] | select(.version_id == $v) | .percentage] | first // empty' "$RUNNER_TEMP/latest-deployment.json")"
+            if [ -z "$STABLE_PCT" ]; then
+              echo "::error::ROLLBACK TARGET CAPTURE FAILED — expected_current_stable_version_id ('$EXPECTED_STABLE_INPUT') is not one of the versions currently receiving production traffic. Refusing to guess."
+              exit 1
+            fi
+            if [ -z "$CANARY_PCT" ]; then
+              echo "::error::ROLLBACK TARGET CAPTURE FAILED — expected_current_canary_version_id ('$EXPECTED_CANARY_INPUT') is not one of the versions currently receiving production traffic. Refusing to guess."
+              exit 1
+            fi
+            UNEXPECTED="$(jq -r --arg s "$EXPECTED_STABLE_INPUT" --arg c "$EXPECTED_CANARY_INPUT" '[.versions[] | select(.version_id != $s and .version_id != $c) | .version_id] | join(",")' "$RUNNER_TEMP/latest-deployment.json")"
+            if [ -n "$UNEXPECTED" ]; then
+              echo "::error::ROLLBACK TARGET CAPTURE FAILED — the live deployment has an unexpected version receiving traffic ($UNEXPECTED) that matches neither expected id. Refusing to guess."
+              exit 1
+            fi
+            STABLE_VERSION_ID="$EXPECTED_STABLE_INPUT"
+            CANARY_VERSION_ID="$EXPECTED_CANARY_INPUT"
+            echo "Topology: live 2-version canary split confirmed — stable $STABLE_VERSION_ID @ ${STABLE_PCT}%, canary $CANARY_VERSION_ID @ ${CANARY_PCT}%, matched by exact version id, never by array position."
+          else
+            echo "::error::ROLLBACK TARGET CAPTURE FAILED — production currently has $COUNT active version(s) receiving traffic. This workflow only recognizes exactly 1 (single stable) or 2 (an active canary split) — refusing to guess a rollback target for any other topology. Investigate manually before re-dispatching."
+            exit 1
+          fi
+
+          if [ -z "$STABLE_VERSION_ID" ]; then
+            echo "::error::ROLLBACK TARGET CAPTURE FAILED — could not determine the stable version deterministically. Aborting before any traffic shift."
+            exit 1
+          fi
+
+          PREVIOUS_VERSION_ID="$STABLE_VERSION_ID"
+          ROLLBACK_VERSION_ID="$STABLE_VERSION_ID"
+          # --- ROLE DISCOVERY END ---
+
           if [ -z "$PREVIOUS_VERSION_ID" ]; then
             echo "::error::ROLLBACK TARGET CAPTURE FAILED — could not determine the currently-serving Worker Version ID before deploying. Aborting before any traffic shift."
             exit 1
           fi
           echo "PREVIOUS_VERSION_ID=$PREVIOUS_VERSION_ID" >> "$GITHUB_ENV"
           echo "previous_version_id=$PREVIOUS_VERSION_ID" >> "$GITHUB_OUTPUT"
-          echo "Currently-serving version (rollback target): $PREVIOUS_VERSION_ID"
+          echo "stable_version_id=$STABLE_VERSION_ID" >> "$GITHUB_OUTPUT"
+          echo "canary_version_id=$CANARY_VERSION_ID" >> "$GITHUB_OUTPUT"
+          echo "Currently-serving stable version (rollback target): $PREVIOUS_VERSION_ID"
 
       # Phase 1 — zero traffic shift. Yields an addressable, inspectable
       # version handle before anything is promoted.
