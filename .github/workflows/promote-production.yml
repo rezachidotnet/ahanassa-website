@@ -470,7 +470,28 @@ jobs:
 
           EVIDENCE_ZIP="$RUNNER_TEMP/verify-evidence.zip"
           EVIDENCE_JSON="$RUNNER_TEMP/verify-evidence.json"
-          ARTIFACT_ID="$(gh api "repos/${{ github.repository }}/actions/runs/$VERIFY_RUN_INPUT/artifacts" --jq --arg n "production-verification-evidence-$VERIFY_RUN_INPUT" '.artifacts[] | select(.name == $n and .expired == false) | .id' | head -n1)"
+          # --- VERIFY ARTIFACT LOOKUP START (extracted verbatim by
+          #     lib/ci/promote-production-workflow.test.ts) ---
+          # `--arg` is a jq flag, NEVER a `gh api` flag: `gh api` accepts
+          # exactly one positional (the endpoint) and has no --arg of its
+          # own, so `gh api ... --jq --arg n VALUE 'PROGRAM'` makes gh
+          # consume "--arg" as the --jq value and then see 4 positionals,
+          # aborting with "accepts 1 arg(s), received 4" BEFORE the
+          # is-it-empty check below can run. That is exactly what failed the
+          # first real promotion attempt — see
+          # docs/release/FIRST_PRODUCTION_PROMOTION_ATTEMPT_FAILURE_REPORT.md.
+          # The artifact name is therefore still passed as a jq --arg (never
+          # interpolated into the jq program), but to the real jq, and the
+          # API call is status-checked explicitly so a lookup failure
+          # reports itself instead of aborting the step opaquely.
+          ARTIFACTS_JSON="$RUNNER_TEMP/verify-run-artifacts.json"
+          ARTIFACTS_ERR="$RUNNER_TEMP/verify-run-artifacts.err"
+          if ! gh api "repos/${{ github.repository }}/actions/runs/$VERIFY_RUN_INPUT/artifacts" > "$ARTIFACTS_JSON" 2> "$ARTIFACTS_ERR"; then
+            echo "::error::VERIFICATION RUN ASSERTION FAILED — could not list the artifacts of run $VERIFY_RUN_INPUT via the GitHub API. Details: $(cat "$ARTIFACTS_ERR")"
+            exit 1
+          fi
+          ARTIFACT_ID="$(jq -r --arg n "production-verification-evidence-$VERIFY_RUN_INPUT" '.artifacts[] | select(.name == $n and .expired == false) | .id' "$ARTIFACTS_JSON" | head -n1)"
+          # --- VERIFY ARTIFACT LOOKUP END ---
           if [ -z "$ARTIFACT_ID" ]; then
             echo "::error::VERIFICATION RUN ASSERTION FAILED — run $VERIFY_RUN_INPUT has no production-verification-evidence-$VERIFY_RUN_INPUT artifact (missing or expired)."
             exit 1
