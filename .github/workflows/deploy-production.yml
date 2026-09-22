@@ -1061,7 +1061,11 @@ jobs:
           # Embed the release policy gate's full decision (RELEASE_POLICY.md
           # §15) — base, declared/computed/final risk, triggered rules and
           # every changed file — plus the top-level fields a ledger row needs.
-          jq --slurpfile policy "$RUNNER_TEMP/release-policy-decision.json" \
+          # Traffic has already shifted at this point, so a merge failure must
+          # not abort this step and skip the smoke gate: it warns instead, and
+          # the always-run release-policy-audit artifact still carries the
+          # full decision.
+          if jq --slurpfile policy "$RUNNER_TEMP/release-policy-decision.json" \
             '. + {
               operation_type: $policy[0].OPERATION_TYPE,
               base_production_sha: $policy[0].BASE_PRODUCTION_SHA,
@@ -1070,8 +1074,11 @@ jobs:
               final_risk: $policy[0].FINAL_RISK,
               expected_release_path: $policy[0].EXPECTED_RELEASE_PATH,
               release_policy: $policy[0]
-            }' "$EVIDENCE_FILE" > "$EVIDENCE_FILE.tmp"
-          mv "$EVIDENCE_FILE.tmp" "$EVIDENCE_FILE"
+            }' "$EVIDENCE_FILE" > "$EVIDENCE_FILE.tmp"; then
+            mv "$EVIDENCE_FILE.tmp" "$EVIDENCE_FILE"
+          else
+            echo "::warning::Could not embed the release policy decision in the release evidence; it is still recorded in the release-policy-audit-${{ github.run_id }} artifact."
+          fi
           echo "EVIDENCE_FILE=$EVIDENCE_FILE" >> "$GITHUB_ENV"
 
           {
