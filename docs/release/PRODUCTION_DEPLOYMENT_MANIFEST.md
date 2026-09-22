@@ -23,13 +23,18 @@ BOOTSTRAP_STABLE_SHA_UNRESOLVED
 
 What resolving this the "hard way" would require: an owner-confirmed statement of the exact commit that was built and uploaded as `b07d8697-…`, or new durable evidence this task did not find. Recorded as `DOCUMENT_AUDIT_REPORT.md` DAR-058.
 
+**Update 2026-09-22:** the self-resolving path described above has occurred — see the `STABLE_100` row in the ledger below and the update note beneath it. The `b07d8697-…` commit SHA itself remains unknown (`BOOTSTRAP_STABLE_SHA_UNRESOLVED` stays true as a historical fact); it is no longer needed for `BASE_PRODUCTION_SHA` resolution.
+
 ## Ledger (RELEASE_POLICY.md schema)
 
 | RELEASE_SHA | WORKER_VERSION_ID | RELEASE_STATE | FINAL_TRAFFIC_PERCENT | STAGING_RUN_ID | PRODUCTION_RUN_ID | PROMOTION_RUN_ID | ROLLBACK_VERSION_ID | FINAL_RISK | RESULT | TIMESTAMP | NOTES |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `f2202ab54a0cbbbd78f8c2625ed33e9c00fdbfb9` | `4a32c5f9-3cfb-4c05-84b3-8e43ba9658ed` | LEGACY_IN_FLIGHT_RELEASE | 10 | `35532624537` | `35533626395` | - | `b07d8697-620c-485c-8fed-21b893ab602c` | - | PASS | 2026-09-20T19:53:09Z | Not yet promoted (10% in flight). FINAL_TRAFFIC_PERCENT/RESULT reflect the official verification-only gate (`PRODUCTION_10_PERCENT_OFFICIAL_VERIFICATION_REPORT.md`), not `deploy-production.yml`'s own inline smoke gate, which FAILED on a documented harness defect unrelated to the release (see legacy table below). FINAL_RISK is `-`: this release predates `RELEASE_POLICY.md` and was never machine-classified. |
+| `f2202ab54a0cbbbd78f8c2625ed33e9c00fdbfb9` | `4a32c5f9-3cfb-4c05-84b3-8e43ba9658ed` | STABLE_100 | 100 | `35532624537` | `35533626395` | `35719752606` | `b07d8697-620c-485c-8fed-21b893ab602c` | LEGACY_IN_FLIGHT_RELEASE | PASS | 2026-09-22T11:17:57Z | First STABLE_100 promotion: existing canary promoted 10% → 100% by `promote-production.yml` run [`35719752606`](https://github.com/rezachidotnet/ahanassa-website/actions/runs/35719752606) (zero upload; evidence artifact `production-promotion-evidence-35719752606`, id 10690913512; verification run `35567845828`; post-promotion smoke PASSED (23/23)). FINAL_RISK is the workflow-emitted legacy-release marker, not a classifier result. The earlier LEGACY_IN_FLIGHT_RELEASE row above is preserved as history. See `FIRST_PRODUCTION_100_PERCENT_PROMOTION_REPORT.md`. |
 
 No `STABLE_100` row exists yet — see "Bootstrap status" above. The next row appended to this table must be the future promotion workflow's `STABLE_100` record for this same release, once it exists.
+
+**Update 2026-09-22:** the `STABLE_100` row anticipated above now exists (second row of this table, appended from `promote-production.yml` run `35719752606`'s evidence artifact). `resolveBaseProductionSha` now resolves `BASE_PRODUCTION_SHA = f2202ab54a0cbbbd78f8c2625ed33e9c00fdbfb9` from that row. The two preceding "no `STABLE_100` row" statements are kept unedited as the historical bootstrap record — see `docs/release/FIRST_PRODUCTION_100_PERCENT_PROMOTION_REPORT.md`.
 
 ## Ledger (legacy format)
 
