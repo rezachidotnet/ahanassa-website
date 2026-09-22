@@ -33,6 +33,10 @@ const PRODUCTION_WORKFLOW = "deploy-production.yml";
 // reads them. See the narrow, self-guarding exception in the
 // "only deploy-production.yml may deploy to production" test below.
 const VERIFICATION_WORKFLOW = "verify-production.yml";
+// A third workflow permitted to name production resources — it moves
+// traffic between EXISTING Worker Versions (wrangler versions deploy) but
+// never uploads one. Full contract: lib/ci/promote-production-workflow.test.ts.
+const PROMOTION_WORKFLOW = "promote-production.yml";
 
 function readWorkflow(name: string): string {
   return readFileSync(path.join(workflowsDir, name), "utf8");
@@ -166,7 +170,10 @@ const PRODUCTION_MUTATING_COMMANDS: Array<{ re: RegExp; label: string }> = [
   { re: /wrangler\s+triggers\s+deploy\b/, label: "wrangler triggers deploy" },
   { re: /d1\s+migrations\s+apply\b/, label: "d1 migrations apply" },
   { re: /wrangler\s+d1\s+execute\b/, label: "wrangler d1 execute" },
-  { re: /wrangler\s+secret\b/, label: "wrangler secret" },
+  // `list` is read-only (promote-production.yml's post-promotion secrets-
+  // unchanged check legitimately calls it); only a subcommand that can
+  // actually change a secret's value counts as mutating here.
+  { re: /wrangler\s+secret\s+(put|bulk|delete)\b/, label: "wrangler secret (put/bulk/delete)" },
   { re: /wrangler\s+rollback\b/, label: "wrangler rollback" },
 ];
 
@@ -209,6 +216,33 @@ test("only deploy-production.yml may deploy to production — every other workfl
         mutations,
         [],
         `${file} may reference production ONLY while it stays verification-only — found mutating command(s): ${mutations.join(", ")}`,
+      );
+      continue;
+    }
+
+    // Third, NARROWER-STILL exception: `promote-production.yml` legitimately
+    // names production because it moves traffic to an EXISTING, already
+    // verified canary Worker Version (docs/release/RELEASE_POLICY.md §11).
+    // It earns that exception only by being provably incapable of doing
+    // anything BUT `wrangler versions deploy` — no upload, no build, no
+    // migration, no secret, no bare `wrangler deploy` — asserted HERE so the
+    // skip can never quietly widen into "any mutating command is fine."
+    // Its fuller promotion contract lives in
+    // lib/ci/promote-production-workflow.test.ts.
+    if (file === PROMOTION_WORKFLOW) {
+      const mutations = findMutatingProductionCommands(content).filter((label) => label !== "wrangler versions deploy");
+      assert.deepEqual(
+        mutations,
+        [],
+        `${file} may reference production ONLY while its sole mutating command stays 'wrangler versions deploy' — found: ${mutations.join(", ")}`,
+      );
+      const executable = content
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l !== "" && !l.startsWith("echo "));
+      assert.ok(
+        executable.some((l) => /wrangler\s+versions\s+deploy\b/.test(l)),
+        `${file} exists to run 'wrangler versions deploy' — its absence means the promotion step itself is missing`,
       );
       continue;
     }
