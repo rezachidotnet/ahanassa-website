@@ -1423,4 +1423,23 @@ Three issues found in code review of DAR-052's Homepage Product Architecture Har
 
 ---
 
+### DAR-058 — RELEASE_POLICY bootstrap: no source document states the exact commit SHA deployed as Worker Version `b07d8697-…`, the pre-canary production stable baseline (2026-09-22)
+
+**Severity:** MEDIUM (blocks deterministic `BASE_PRODUCTION_SHA` resolution for release-risk classification until self-resolved by the next 100% promotion) — **RECORDED, self-resolving, not blocking unrelated work.**
+**Status:** OPEN, by design. Per `docs/release/RELEASE_POLICY.md` §4 ("If the stable Worker Version can be identified but its exact release SHA cannot be proven: FAIL CLOSED").
+
+**Trigger:** `POLICY_BOOTSTRAP` (`docs/release/RELEASE_POLICY.md`, `docs/release/RELEASE_POLICY_IMPLEMENTATION_REPORT.md`) required resolving the release SHA of `b07d8697-620c-485c-8fed-21b893ab602c` — the Worker Version that served 100% of production immediately before the current 10/90 canary began — to seed the release ledger's first `STABLE_100` row.
+
+**Finding.** Every document in this repository that references `b07d8697-…` (`docs/release/PRODUCTION_CLOUDFLARE_DEPLOYMENT_READINESS_AUDIT.md`, `docs/release/PRODUCTION_RELEASE_PIPELINE_READINESS_AUDIT.md`, `docs/release/PRODUCTION_CICD_FINAL_READINESS_AUDIT.md`, `docs/release/PRODUCTION_PIPELINE_PRECHECKS_REPORT.md`, `docs/CICD_STAGING_FIRST_GITHUB_ACTIONS_DEPLOY_REPORT.md`, `docs/CICD_PROCESSING_SERVICES_STAGING_SYNC_REPORT.md`, `docs/CICD_STAGING_WORKFLOW_INDEXING_SAFETY_GATE.md`, `docs/review/ROUTING_RFQ_ENTRY_AUDIT.md`, `docs/contact/CONTACT_ADDRESS_CONSISTENCY_P1_REPORT.md` — a full repository grep for the version id, re-run this task) cites only its Worker Version ID and creation timestamp (`2026-09-03T19:00:45.838Z` / `19:00:48.218Z`), never a `commit <sha>` pairing. This is unlike the earlier version `878a1e82-…`, which `docs/CLOUDFLARE_DEPLOYMENT_STAGE1.md` §24 explicitly and verifiably ties to commit `6926aaa` ("Deployed source: commit `6926aaa`... Worker version uploaded: `878a1e82-...`"). The Cloudflare Version itself carries neither a Tag nor a Message (`docs/release/PRODUCTION_CLOUDFLARE_DEPLOYMENT_READINESS_AUDIT.md`'s own "Gaps" table). That same table additionally claims the source commit is "recorded only in prose, in a Stage-1 report" — re-checked directly this task by reading `docs/CLOUDFLARE_DEPLOYMENT_STAGE1.md` in full: no mention of `b07d8697` appears anywhere in that document (it only covers the earlier `878a1e82` release). That claim does not hold; no prose record of this SHA exists anywhere in the repository.
+
+**Disposition.** Per `RELEASE_POLICY.md` §4 and `CLAUDE.md` §8 ("do not invent... continue only with unaffected work"), this was **not** resolved by matching `b07d8697-…`'s creation timestamp to a nearby commit — timestamp proximity is not proof, and `RELEASE_POLICY.md` §4 explicitly forbids exactly that class of guess. `docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md`'s "Bootstrap status" section records `BOOTSTRAP_STABLE_SHA_UNRESOLVED`; no `STABLE_100` row was seeded. The current 10/90 canary is recorded as `LEGACY_IN_FLIGHT_RELEASE` evidence, not as a `STABLE_100` substitute. `BASE_PRODUCTION_SHA` for a hypothetical next release resolves deterministically to `BASE_PRODUCTION_SHA_UNRESOLVED` (`lib/ci/release-ledger.ts#resolveBaseProductionSha`, proven by `lib/ci/release-ledger.test.ts` tests 24–25) — a correct, documented, fail-closed answer, not a defect.
+
+**This is self-resolving, not a standing blocker.** `RELEASE_POLICY.md` §11's future `promote-production.yml`, once built and used to promote the current canary (deployed SHA `f2202ab54a0cbbbd78f8c2625ed33e9c00fdbfb9` — a SHA this repository DOES have deterministic evidence for, captured live by `deploy-production.yml`'s own `DEPLOYED_SHA` step) to 100%, appends the ledger's first real `STABLE_100` row and makes `f2202ab5…` the deterministic `BASE_PRODUCTION_SHA` for every release after it. Until that promotion happens, only work that genuinely needs `BASE_PRODUCTION_SHA` (a real risk classification against the ledger) is affected — this finding blocks nothing else.
+
+**What would resolve this the "hard way":** an owner-confirmed statement of the exact commit built and uploaded as `b07d8697-…`, or new durable evidence (e.g. a rediscovered deploy log) this task did not find.
+
+**Gate: BOOTSTRAP_STABLE_SHA: UNRESOLVED — FAIL CLOSED, self-resolving via the next 100% promotion. Full detail: `docs/release/RELEASE_POLICY_IMPLEMENTATION_REPORT.md`, `docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md`.**
+
+---
+
 **End of `DOCUMENT_AUDIT_REPORT.md`**
