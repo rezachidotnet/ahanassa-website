@@ -1,6 +1,6 @@
 # Ahan Asa Website — Release Policy
 
-**Lifecycle state:** `BOOTSTRAP_REGISTERED`. This document, `CLAUDE.md` §5b, and the policy engine modules in `lib/ci/**` are committed and under review (PR #6, `chore/release-policy` → `feat/header-hero-integrated`), but **not yet merged**, and the release-time workflows (`.github/workflows/deploy-production.yml`/`deploy-staging.yml`/`verify-production.yml`) do **not yet invoke** the classifier or gate on `FINAL_RISK`. Do not treat this document as `ACTIVE` policy until the criteria in §0 are met. See `docs/release/RELEASE_POLICY_IMPLEMENTATION_REPORT.md` for the audit trail, including this correction.
+**Lifecycle state:** `BOOTSTRAP_MERGED`. PR #6 (`chore/release-policy` → `feat/header-hero-integrated`) and PR #7 (`chore/register-release-governance` → `main`) are both merged — this document, `CLAUDE.md` §5b, and the policy engine modules in `lib/ci/**` are now part of the application branch, and `main` carries a discoverable stub `CLAUDE.md` plus a byte-identical copy of this document (`docs/release/RELEASE_POLICY_BOOTSTRAP_MERGE_REPORT.md` records the merge). The release-time workflows (`.github/workflows/deploy-production.yml`/`deploy-staging.yml`/`verify-production.yml`) still do **not invoke** the classifier or gate on `FINAL_RISK`, and the ledger still has no resolvable `STABLE_100` baseline (`BASE_PRODUCTION_SHA: UNRESOLVED`) — both are required for `ACTIVE` (§0). Do not treat this document as `ACTIVE` policy until they are. See `docs/release/RELEASE_POLICY_IMPLEMENTATION_REPORT.md` and `docs/release/RELEASE_POLICY_BOOTSTRAP_MERGE_REPORT.md` for the audit trail.
 
 **Established by:** `POLICY_BOOTSTRAP` (2026-09-22), after R3 (`docs/release/PRODUCTION_R3_DETERMINISTIC_VERSION_SELECTION_REPORT.md`) closed and PR #5 merged to `main`.
 
@@ -13,8 +13,9 @@
 | State | Meaning |
 | --- | --- |
 | `BOOTSTRAP_PENDING` | Policy/engine authored locally; not yet registered via any PR. |
-| `BOOTSTRAP_REGISTERED` | Policy/engine committed, PR open and reviewable, but not yet merged into the application branch and/or not yet wired into release-time workflows. **← current state.** |
-| `ACTIVE` | Merged into the application branch, **and** release-time enforcement is wired in (§0.1), **and** `BASE_PRODUCTION_SHA` is resolvable or an explicit interim operating mode covering its absence is documented and owner-accepted. |
+| `BOOTSTRAP_REGISTERED` | Policy/engine committed, PR(s) open and reviewable, but not yet merged into the application branch. |
+| `BOOTSTRAP_MERGED` | Merged into the application branch (`feat/header-hero-integrated`) **and** discoverable from the default branch (`main`'s `CLAUDE.md`/`RELEASE_POLICY.md` sync) — but release-time enforcement is **not** wired into any workflow, and/or `BASE_PRODUCTION_SHA` is not yet resolvable. **← current state**, per `docs/release/RELEASE_POLICY_BOOTSTRAP_MERGE_REPORT.md`. |
+| `ACTIVE` | Everything `BOOTSTRAP_MERGED` requires, **and** release-time enforcement is wired in (§0.1), **and** `BASE_PRODUCTION_SHA` is resolvable or an explicit interim operating mode covering its absence is documented and owner-accepted. |
 
 A document's own text claiming "Active" is never sufficient evidence of activation — activation is evidenced by merged commits, a workflow that actually invokes the classifier, and a resolvable ledger baseline (or a documented, accepted exception).
 
