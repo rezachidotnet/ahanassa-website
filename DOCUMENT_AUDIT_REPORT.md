@@ -1440,6 +1440,88 @@ Three issues found in code review of DAR-052's Homepage Product Architecture Har
 
 **Gate: BOOTSTRAP_STABLE_SHA: UNRESOLVED — FAIL CLOSED, self-resolving via the next 100% promotion. Full detail: `docs/release/RELEASE_POLICY_IMPLEMENTATION_REPORT.md`, `docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md`.**
 
+**Update 2026-09-22 (global release-policy enforcement, `docs/release/GLOBAL_RELEASE_POLICY_ENFORCEMENT_IMPLEMENTATION_REPORT.md`):** the self-resolving path above has occurred. `promote-production.yml` run `35719752606` promoted the `f2202ab5…` canary to 100% and its `STABLE_100` row was appended to the ledger (`docs/release/FIRST_PRODUCTION_100_PERCENT_PROMOTION_REPORT.md`); `lib/ci/release-ledger.ts#resolveBaseProductionShaFromManifest` — the strict resolver `deploy-production.yml`'s release policy gate now uses — resolves `BASE_PRODUCTION_SHA = f2202ab54a0cbbbd78f8c2625ed33e9c00fdbfb9`. **The historical fact stands unchanged:** the commit SHA behind the pre-canary stable version `b07d8697-…` remains unknown (`BOOTSTRAP_STABLE_SHA_UNRESOLVED` is still true as history, and nothing here infers it). That gap **no longer blocks** current or future baseline resolution, because resolution only ever needs the latest `STABLE_100` row, which now exists. **Status: CLOSED for baseline resolution; the historical `b07d8697-…` SHA remains UNRESOLVED and is not needed.**
+
+
+---
+
+### DAR-059 — Release policy §5 lists staging for LOW/MEDIUM paths; `deploy-production.yml` still honors the `skip_staging_provenance` break-glass for them (2026-09-22)
+
+**Severity:** LOW — **RECORDED, not changed; owner decision.**
+**Status:** RESOLVED 2026-09-23 (owner decision; see the resolution note at the end of this entry). The original finding and disposition below are preserved verbatim.
+
+**Finding.** `RELEASE_POLICY.md` §5 describes the LOW path as "CI PASS → staging validation → …" and MEDIUM as "CI PASS → exact-SHA staging → staging verification → …", with no break-glass. `deploy-production.yml` has always had a `skip_staging_provenance` input (a reviewer-gated, loudly-recorded hotfix path, `docs/release/PRODUCTION_DEPLOY_WORKFLOW_DESIGN.md`). The two disagree for LOW/MEDIUM.
+
+**Disposition.** Per the enforcement task's Phase 6 ("LOW/MEDIUM remain subject to current workflow staging requirements unless the policy explicitly says otherwise … report the conflict before changing behavior"), the release policy gate does **not** reinterpret the policy text: for LOW/MEDIUM the break-glass keeps its existing behavior (honored, recorded in the job summary, evidence and audit artifact as `SKIP_STAGING_PROVENANCE: true` / `STAGING_PROVENANCE_RUN_ID: SKIPPED`); for HIGH it is refused twice (gate `HIGH_REQUIRES_STAGING_PROVENANCE`, and A2 itself). A2 now honors the break-glass only after the gate has classified the release. **To resolve:** the owner either amends §5 to recognize the LOW/MEDIUM break-glass explicitly, or directs its removal from `deploy-production.yml` (both are `HIGH_RELEASE_PATHS` changes).
+
+**RESOLUTION — 2026-09-23 (owner decision: remove it).** Staging provenance is mandatory for `OPERATION_TYPE: RELEASE` at every `FINAL_RISK`:
+
+```
+LOW_REQUIRES_STAGING:           YES
+MEDIUM_REQUIRES_STAGING:        YES
+HIGH_REQUIRES_STAGING:          YES
+NORMAL_RELEASE_STAGING_BYPASS:  NO
+```
+
+What changed: the `skip_staging_provenance` input is **removed** from `.github/workflows/deploy-production.yml`; A2's log scan now has exactly two outcomes (a proven `Deploy Staging` run, or `exit 1`) and no longer emits `staging_provenance_run=SKIPPED`; the release policy gate hardcodes `RG_SKIP_STAGING_PROVENANCE="false"` and, as defense in depth, refuses the value `true` at **every** `FINAL_RISK` with the new block code `STAGING_PROVENANCE_REQUIRED` (replacing `HIGH_REQUIRES_STAGING_PROVENANCE`); the release evidence records `staging_provenance_required: true` instead of an operator flag. `RELEASE_POLICY.md` gains §5.1 and its §0.2/§5 tables now read "mandatory, no exception".
+
+Not repurposed as an emergency mechanism: `EMERGENCY_ROLLBACK` (§13) is untouched — a separate `OPERATION_TYPE` with its own recorded-target contract, not reachable from `deploy-production.yml` and not substituted for by anything here. Tests: `lib/ci/release-gate.test.ts` "21b/DAR-059" (LOW, MEDIUM and HIGH each blocked), "23b/DAR-059" (absent means false, `true` refused, garbage invalid), "24" (the input no longer exists), "34/DAR-059" (A2 has no skip branch at all), plus the rollback-contract assertion in "DAR-059. EMERGENCY_ROLLBACK is untouched".
+
+---
+
+### DAR-060 — Appending a ledger row is itself a HIGH change, so every release after a recorded release classifies HIGH (2026-09-22)
+
+**Severity:** MEDIUM (makes the LOW/MEDIUM direct-100 paths unreachable in practice) — **RECORDED, policy decision required; not changed.**
+**Status:** RESOLVED 2026-09-23 (owner decision: option (b), narrowly scoped and fail-closed). The original finding and disposition below are preserved verbatim.
+
+**Finding.** `docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md` is in `HIGH_RELEASE_PATHS` (`RELEASE_POLICY.md` §7). `BASE_PRODUCTION_SHA` is the `RELEASE_SHA` of the latest `STABLE_100` row, and that row is necessarily appended in a commit *after* `RELEASE_SHA` (§3: a separate human-reviewed commit after the run). So for any candidate that includes the ledger append, `git diff BASE_PRODUCTION_SHA..CANDIDATE_SHA` contains the ledger file and computes HIGH — regardless of what else changed. Confirmed on the real repository: the current application-branch tip classifies HIGH with `TRIGGERED_RISK_RULES` including `HIGH_RELEASE_PATHS` (the manifest is among the changed files), and a synthetic docs-only change made on top of the ledger-carrying tip would still be HIGH. The gate is behaving exactly as the policy is written; the consequence is that the next release (and every one after it) takes the HIGH canary path unless the policy changes.
+
+**Disposition.** Not worked around (the enforcement task forbids silently coercing classification, and exempting the ledger is a `HIGH_RELEASE_PATHS` policy amendment). Options for the owner: (a) accept it — every production release is a HIGH canary release; (b) amend §7 so an append-only addition of rows to the ledger table (no edits/removals of existing rows) is classified LOW, implemented in `release-risk-classifier.ts` with content-aware checks limited to that one file; (c) move the ledger out of the application tree. Note that until one is chosen, reading the ledger from the trusted workflow commit rather than the candidate (as the gate does) does not change this — the diff is computed between commits, and the candidate normally descends from the ledger append.
+
+**RESOLUTION — 2026-09-23 (owner decision: option (b), implemented as `VALIDATED_HISTORICAL_LEDGER_APPEND`).** The ledger file is **not** reclassified: it remains a `HIGH_RELEASE_PATHS` file and remains security/release-critical authority. What was added is a single, narrowly-scoped, fail-closed exemption that removes only a **proven historical append-only ledger change** from risk computation, leaving the rest of the candidate diff to classify normally.
+
+Implemented in tested TypeScript — `lib/ci/ledger-append-exemption.ts`, wired in by `lib/ci/release-gate.ts` — and explicitly **not** as path filtering in YAML or bash (a guard test asserts no workflow carries the exemption's decision vocabulary). The full 14-point validation contract, the NOT-EXEMPT vs. FAIL-CLOSED split, and the worked outcome table are in `RELEASE_POLICY.md` §7.1. In summary it validates that the ledger existed with its schema table at `BASE_PRODUCTION_SHA`; that the header/separator, every pre-existing row and all non-row content are byte-identical; that nothing was edited, deleted or reordered; that only rows were appended; that each appended row parses strictly and is completed historical release evidence; that no appended row names `CANDIDATE_SHA`; and that `BASE_PRODUCTION_SHA` still resolves identically from the candidate's own ledger.
+
+Outcomes, proven against real repository history with synthetic candidates: valid append alone → LOW; valid append + CSS → LOW; + ordinary component → MEDIUM; + workflow/security/RFQ → HIGH; edited/deleted/reordered row, schema change or prose edit → HIGH (exemption denied, no block); malformed row, self-certifying row or a baseline-moving append → `LEDGER_INTEGRITY_VIOLATION`, run stopped, no risk level assigned.
+
+Audit: every decision now records `LEDGER_CHANGE_PRESENT`, `LEDGER_APPEND_EXEMPTION_APPLIED` and `LEDGER_APPEND_VALIDATION_RESULT` (plus reasons and an appended-row summary) in the job summary, the `release-policy-audit-<run_id>` artifact and the embedded release evidence; an exempt ledger still appears in `CHANGED_FILES` with risk `EXEMPT`.
+
+**One honest consequence.** The exemption compares the ledger at `BASE_PRODUCTION_SHA` with the ledger at the candidate. The current baseline, `f2202ab5…`, predates the `RELEASE_POLICY.md`-schema table entirely (that table was created by `POLICY_BOOTSTRAP` two days later), so for the **next** release the exemption reports `LEDGER_TABLE_ABSENT_OR_MALFORMED_AT_BASE` and does not apply. That release is HIGH regardless — it carries `.github/workflows/**` and `lib/ci/**` changes. From the release after it, once the baseline is a commit that already carries the schema table, the LOW/MEDIUM paths are reachable. `RELEASE_POLICY.md` §3 and the manifest's "How to append a row" now state the corollary operator rule: a row-append commit must change nothing else in that file.
+
+Tests: `lib/ci/ledger-append-exemption.test.ts` (27 cases, L0–L23) and `lib/ci/release-gate.test.ts` "DAR-060 A"–"I" (end to end against real git).
+
+---
+
+### DAR-061 — `promote-production.yml` emits a hardcoded `final_risk: LEGACY_IN_FLIGHT_RELEASE` in its `STABLE_100` evidence (2026-09-22)
+
+**Severity:** MEDIUM for the next promotion (ledger evidence would be wrong) — **RECORDED; must be fixed before the first non-legacy promotion.**
+**Status:** RESOLVED 2026-09-23 (owner decision). The original finding and disposition below are preserved verbatim.
+
+**Finding.** `promote-production.yml`'s "Capture promotion evidence (STABLE_100 ledger row)" step writes `"final_risk": "LEGACY_IN_FLIGHT_RELEASE"` and prints the same value in its ledger-row table, unconditionally. That was correct for the one legacy promotion it has performed (run `35719752606`). With the release policy gate active, every future canary is a HIGH-path release whose `production-release-evidence-<run_id>` artifact carries `final_risk` (and the full `release_policy` decision). A future promotion would record the wrong `FINAL_RISK` in the `STABLE_100` evidence unless the operator notices and corrects it by hand.
+
+**Disposition.** Out of this task's scope (`deploy-production.yml` enforcement; promote-production's proven behavior left untouched so its invariants keep passing). **To resolve:** have `promote-production.yml` read `final_risk` from the release-evidence artifact it already binds (`LEGACY_IN_FLIGHT_RELEASE` only when the ledger row's state is `LEGACY_IN_FLIGHT_RELEASE`), and require it to be `HIGH` for a `CANARY_ACTIVE` row — a `HIGH_RELEASE_PATHS` change with its own main sync.
+
+**RESOLUTION — 2026-09-23 (owner decision).** `promote-production.yml`'s release-evidence binding step now carries a `FINAL_RISK BINDING` block that reads `final_risk` from the **same** `production-release-evidence-*` document it has already bound to `release_sha`, `canary_version_id`, `stable_version_id` and the originating `deploy-production.yml` run — after those bindings pass, before any live Cloudflare read or traffic shift. The value must be exactly `LOW`, `MEDIUM` or `HIGH`; missing, empty, `null`, non-string, `-`, `LEGACY_IN_FLIGHT_RELEASE` or anything else fails the run closed, with nothing defaulted or substituted. The validated value is exported as a step output and propagated verbatim into the promotion evidence JSON (`"final_risk": "$RELEASE_FINAL_RISK"`) and the `STABLE_100` ledger row printed in the job summary. No workflow input supplies or overrides it, and the shape check rejects any input whose name contains `risk`.
+
+Owner's note that a future policy-driven promotion is normally `HIGH` is reflected as a loud, non-blocking annotation when the recorded value is not HIGH (only a HIGH release uses a canary under §5, and only a canary is promotable) — the recorded value is still propagated exactly, never rewritten.
+
+Historical evidence is unchanged: the existing `STABLE_100` row for run `35719752606` keeps `FINAL_RISK = LEGACY_IN_FLIGHT_RELEASE` as the true record of what the workflow emitted then, and `lib/ci/release-ledger.ts` still *reads* that value. It is simply no longer a value the workflow can *write*. Every pre-existing promotion binding, the topology and post-promotion invariants, the zero-upload/zero-build guarantee and the blocking smoke gate are unchanged.
+
+Policy: `RELEASE_POLICY.md` §11 (contract item) and new §11.1. Tests: `lib/ci/promote-production-workflow.test.ts` "19/25", "20", "21", "22", "23", "23b", "24", "26/27/28", plus mutation guards for a reinstated literal, a removed marker, a removed read, a removed output and a hardcoded evidence value.
+
+---
+
+### DAR-062 — The first release after DAR-060's resolution still classifies HIGH, because the current baseline predates the ledger's policy-schema table (2026-09-23)
+
+**Severity:** INFORMATIONAL — **not a defect; recorded so it is not re-discovered as one.**
+**Status:** OPEN (self-resolving at the next recorded release).
+
+**Finding.** `VALIDATED_HISTORICAL_LEDGER_APPEND` (`RELEASE_POLICY.md` §7.1) requires the authoritative ledger table to have existed at `BASE_PRODUCTION_SHA`. The current baseline is `f2202ab54a0cbbbd78f8c2625ed33e9c00fdbfb9` (2026-09-20); the `Ledger (RELEASE_POLICY.md schema)` table was created by `POLICY_BOOTSTRAP` on 2026-09-22. So for any candidate classified against that baseline the exemption reports `LEDGER_TABLE_ABSENT_OR_MALFORMED_AT_BASE` and the ledger keeps its HIGH classification.
+
+**Why this is not a problem.** The next release is HIGH on its own merits anyway — it carries `.github/workflows/**`, `lib/ci/**` and governance-document changes. Once that release is recorded, `BASE_PRODUCTION_SHA` becomes a commit that already carries the schema table, and from then on a clean row-only append earns the exemption. Reachability of the LOW/MEDIUM paths is proven today with synthetic candidates over real history (`lib/ci/release-gate.test.ts` "DAR-060 A"–"D", and the read-only simulation in `docs/release/GLOBAL_RELEASE_POLICY_ENFORCEMENT_IMPLEMENTATION_REPORT.md`).
+
+**To close:** nothing to do. Confirm on the first release classified against a post-bootstrap baseline that `LEDGER_APPEND_EXEMPTION_APPLIED: true` appears in the audit record.
+
 ---
 
 **End of `DOCUMENT_AUDIT_REPORT.md`**
