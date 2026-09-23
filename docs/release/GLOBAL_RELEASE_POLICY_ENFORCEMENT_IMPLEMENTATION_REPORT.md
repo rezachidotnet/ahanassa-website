@@ -42,8 +42,8 @@ TEST_RESULTS: npm test — 1557 tests, 1557 pass, 0 fail (1507 before this task 
 TYPECHECK: PASS (npx tsc --noEmit)
 READ_ONLY_REAL_SIMULATION: PASS
 
-APPLICATION_PR: see "Pull requests" below
-MAIN_REGISTRATION_PR: see "Pull requests" below
+APPLICATION_PR: #13 (chore/activate-release-policy-enforcement -> feat/header-hero-integrated), OPEN
+MAIN_REGISTRATION_PR: #14 (chore/register-release-policy-enforcement -> main), OPEN
 
 PRODUCTION_WORKFLOW_DISPATCHED: NO
 PRODUCTION_TRAFFIC_CHANGED: NO
@@ -225,8 +225,8 @@ The always-run audit step was also executed locally for three cases: gate blocke
 
 ## Pull requests
 
-- **Application PR** (`chore/activate-release-policy-enforcement` → `feat/header-hero-integrated`): PENDING_PR_APP
-- **Main registration PR** (`chore/register-release-policy-enforcement` → `main`): PENDING_PR_MAIN
+- **Application PR** (`chore/activate-release-policy-enforcement` → `feat/header-hero-integrated`): [#13](https://github.com/rezachidotnet/ahanassa-website/pull/13) — OPEN, not merged
+- **Main registration PR** (`chore/register-release-policy-enforcement` → `main`): [#14](https://github.com/rezachidotnet/ahanassa-website/pull/14) — OPEN, not merged
 
 **What goes to `main`, and why only that.** `main` exists for `workflow_dispatch` discovery; every production dispatch runs from `feat/header-hero-integrated` (Environment branch policy), and the gate reads its engine and ledger from the dispatching commit. So `main` needs:
 
