@@ -115,6 +115,25 @@ name: Deploy Production
 # deploy_ref commit exists," now queries the GitHub REST API for the
 # commit before checkout ever runs, so a nonexistent (but format-valid)
 # deploy_ref fails closed with an unambiguous error first.
+#
+# RELEASE POLICY GATE (docs/release/RELEASE_POLICY.md §0.2,
+# docs/release/GLOBAL_RELEASE_POLICY_ENFORCEMENT_IMPLEMENTATION_REPORT.md)
+# -----------------------------------------------------------------------
+# Runs right after the exact-SHA checkout, BEFORE A1/A2/A3, npm ci, build,
+# Phase 1 upload and Phase 2 traffic shift — before anything touches
+# production. It resolves BASE_PRODUCTION_SHA from the ledger's latest
+# STABLE_100 row, classifies `git diff BASE_PRODUCTION_SHA..deploy_ref`,
+# computes FINAL_RISK = max(declared_risk, computed minimum) and refuses any
+# rollout the policy path for FINAL_RISK does not allow (LOW/MEDIUM: 100
+# only; HIGH: the 10% canary leg only, with staging provenance). AMBIGUOUS
+# (CLASSIFICATION_REQUIRED) stops the run. There is no input that skips it.
+#
+# TRUST: the engine (lib/ci/release-gate*.ts, release-risk-classifier.ts,
+# release-ledger.ts) and the ledger are read from THIS workflow's own commit
+# (github.sha) via `git archive`/`git show` — never from the deploy_ref
+# checkout, whose code must not run before A1 and which must never be able
+# to rewrite the classifier or the ledger that judges it. Path classification
+# lives only in release-risk-classifier.ts; this file never reimplements it.
 
 on:
   workflow_dispatch:
@@ -135,21 +154,25 @@ on:
           cross environments.
         required: true
         type: string
+      declared_risk:
+        description: >-
+          Your declared release risk (RELEASE_POLICY.md §5/§6). The run
+          computes the diff's minimum risk against BASE_PRODUCTION_SHA and
+          uses FINAL_RISK = max(declared, computed) — you can escalate,
+          never downgrade. LOW/MEDIUM must use rollout 100; HIGH must use
+          rollout 10 (the canary leg, promoted later by Promote Production).
+        required: true
+        type: choice
+        options: ["LOW", "MEDIUM", "HIGH"]
       rollout_percentage:
-        description: Traffic percentage for the newly uploaded version.
+        description: >-
+          Traffic percentage for the newly uploaded version. Must be one the
+          release policy permits for FINAL_RISK — 100 for LOW/MEDIUM, 10 for
+          HIGH — or the release policy gate stops the run.
         required: true
         type: choice
         options: ["10", "50", "100"]
         default: "100"
-      skip_staging_provenance:
-        description: >-
-          Break-glass only. Set true only for a hotfix SHA that legitimately
-          never went to staging. Still requires the environment's reviewer to
-          approve the run at all, and is loudly recorded in the job summary
-          and the production release evidence every time it is used.
-        required: false
-        type: boolean
-        default: false
       expected_current_stable_version_id:
         description: >-
           Worker Version ID you expect PRODUCTION'S CURRENT STABLE version to
@@ -198,6 +221,8 @@ jobs:
       stable_version_id: ${{ steps.previous_version.outputs.stable_version_id }}
       canary_version_id: ${{ steps.previous_version.outputs.canary_version_id }}
       rollout_percentage: ${{ inputs.rollout_percentage }}
+      base_production_sha: ${{ steps.policy_gate.outputs.base_production_sha }}
+      final_risk: ${{ steps.policy_gate.outputs.final_risk }}
       staging_provenance_run: ${{ steps.provenance.outputs.staging_provenance_run }}
       deployed_at: ${{ steps.evidence.outputs.deployed_at }}
     steps:
@@ -278,10 +303,15 @@ jobs:
           fi
           echo "Confirmed: commit $DEPLOY_REF_INPUT exists in this repository."
 
+      # fetch-depth: 0 — the release policy gate below needs BASE_PRODUCTION_SHA
+      # (an older commit) and this workflow's own commit (github.sha, the
+      # trusted engine/ledger source) in the local object store, not only
+      # deploy_ref. HEAD is still exactly deploy_ref (asserted next).
       - name: Checkout deploy_ref
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.deploy_ref }}
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Resolve deployed SHA
@@ -312,9 +342,70 @@ jobs:
             echo "| Cloudflare environment | \`production\` |"
             echo "| Worker | \`ahanassa-production\` |"
             echo "| rollout_percentage | \`${{ inputs.rollout_percentage }}\` |"
+            echo "| declared_risk | \`${{ inputs.declared_risk }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # A1 — Production target safety. Runs BEFORE setup-node / npm ci / build,
+      # Node is needed by the release policy gate (the engine is TypeScript,
+      # run with Node 24's type stripping). Setting it up executes nothing
+      # from deploy_ref — `cache: npm` only hashes package-lock.json.
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      # RELEASE POLICY GATE — see this file's header. Everything above is
+      # input validation and a read-only checkout; everything below that can
+      # reach production (A3's Cloudflare read, Phase 1 upload, Phase 2
+      # traffic shift) runs only if this step passes. The engine and the
+      # ledger come from POLICY_REF (this workflow's own commit), extracted
+      # outside the workspace, so no deploy_ref code runs and a candidate
+      # cannot supply its own classifier or ledger.
+      - name: "Release policy gate: classify BASE_PRODUCTION_SHA..deploy_ref (fail closed)"
+        id: policy_gate
+        env:
+          POLICY_REF: ${{ github.sha }}
+          DECLARED_RISK_INPUT: ${{ inputs.declared_risk }}
+          ROLLOUT_INPUT: ${{ inputs.rollout_percentage }}
+        run: |
+          set -euo pipefail
+          ENGINE_DIR="$RUNNER_TEMP/release-policy-engine"
+          DECISION_FILE="$RUNNER_TEMP/release-policy-decision.json"
+          rm -rf "$ENGINE_DIR" "$DECISION_FILE"
+          mkdir -p "$ENGINE_DIR"
+          if ! git cat-file -e "${POLICY_REF}^{commit}" 2>/dev/null; then
+            echo "::error::RELEASE POLICY GATE FAILED — this workflow's own commit ($POLICY_REF) is not in the local object store, so the trusted policy engine and ledger cannot be read. Refusing to classify with anything else."
+            exit 1
+          fi
+          # --- ENGINE EXTRACTION START (exercised by lib/ci/release-gate.test.ts) ---
+          git archive "$POLICY_REF" -- \
+            lib/ci/release-gate-cli.ts \
+            lib/ci/release-gate.ts \
+            lib/ci/release-risk-classifier.ts \
+            lib/ci/release-ledger.ts \
+            lib/ci/ledger-append-exemption.ts \
+            | tar -x -C "$ENGINE_DIR"
+          echo '{ "type": "module" }' > "$ENGINE_DIR/package.json"
+          RG_REPO_DIR="$GITHUB_WORKSPACE" \
+          RG_LEDGER_REF="$POLICY_REF" \
+          RG_CANDIDATE_SHA="$DEPLOYED_SHA" \
+          RG_DECLARED_RISK="$DECLARED_RISK_INPUT" \
+          RG_ROLLOUT_PERCENTAGE="$ROLLOUT_INPUT" \
+          RG_SKIP_STAGING_PROVENANCE="false" \
+          RG_DECISION_FILE="$DECISION_FILE" \
+            node --experimental-strip-types "$ENGINE_DIR/lib/ci/release-gate-cli.ts"
+          # --- ENGINE EXTRACTION END ---
+          # Belt and braces: a zero exit alone is not trusted — the decision
+          # record must exist and say PERMITTED with a real FINAL_RISK.
+          GATE_RESULT="$(jq -r '.RESULT' "$DECISION_FILE")"
+          GATE_FINAL_RISK="$(jq -r '.FINAL_RISK' "$DECISION_FILE")"
+          if [ "$GATE_RESULT" != "PERMITTED" ] || ! [[ "$GATE_FINAL_RISK" =~ ^(LOW|MEDIUM|HIGH)$ ]]; then
+            echo "::error::RELEASE POLICY GATE FAILED — the gate exited 0 but its decision record is not PERMITTED with a FINAL_RISK (RESULT='$GATE_RESULT', FINAL_RISK='$GATE_FINAL_RISK'). Failing closed."
+            exit 1
+          fi
+          echo "FINAL_RISK=$GATE_FINAL_RISK" >> "$GITHUB_ENV"
+
+      # A1 — Production target safety. Runs BEFORE npm ci / build,
       # so no code from the checked-out ref executes until the production
       # target is proven. This script is intentionally inline: it comes from
       # the workflow file on the dispatch branch, never from the (untrusted)
@@ -526,7 +617,6 @@ jobs:
         id: provenance
         env:
           GH_TOKEN: ${{ github.token }}
-          SKIP_PROVENANCE: ${{ inputs.skip_staging_provenance }}
         run: |
           set -uo pipefail
           STAGING_WORKFLOW_ID=361701517
@@ -576,16 +666,16 @@ jobs:
               echo ""
               echo "Confirmed via Deploy Staging (workflow $STAGING_WORKFLOW_ID) run [$FOUND_RUN](https://github.com/${{ github.repository }}/actions/runs/$FOUND_RUN)."
             } >> "$GITHUB_STEP_SUMMARY"
-          elif [ "$SKIP_PROVENANCE" = "true" ]; then
-            echo "::warning::STAGING PROVENANCE SKIPPED — skip_staging_provenance=true. Deploying $DEPLOYED_SHA with NO staging proof. This MUST be justified when the production deployment manifest is appended."
-            echo "staging_provenance_run=SKIPPED" >> "$GITHUB_OUTPUT"
-            {
-              echo ""
-              echo "### Staging provenance"
-              echo ""
-              echo "**SKIPPED** (\`skip_staging_provenance=true\`) — $DEPLOYED_SHA was deployed with NO staging proof. Break-glass path used; this run was still gated by the production environment's required reviewer."
-            } >> "$GITHUB_STEP_SUMMARY"
           else
+            # DOCUMENT_AUDIT_REPORT.md DAR-059 (owner decision, 2026-09-23):
+            # staging provenance is mandatory for every OPERATION_TYPE RELEASE
+            # at every FINAL_RISK — LOW, MEDIUM and HIGH alike. The former
+            # break-glass input is gone from this workflow, and the release
+            # policy gate refuses it (STAGING_PROVENANCE_REQUIRED) if it is
+            # ever reintroduced. There is no branch here that proceeds without
+            # a proven staging run. EMERGENCY_ROLLBACK (RELEASE_POLICY.md §13)
+            # remains a separate governed operation and is not reachable from
+            # this workflow at all.
             echo "::error::STAGING PROVENANCE ASSERTION FAILED — no successful Deploy Staging run (workflow $STAGING_WORKFLOW_ID) contains the log line 'Deploying exact commit: $DEPLOYED_SHA'. This SHA has not been proven on staging."
             exit 1
           fi
@@ -616,12 +706,6 @@ jobs:
           fi
 
           echo "Migration parity confirmed: DB_OPS and DB_PUBLIC both report no pending migrations on production."
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: npm
 
       - name: Install dependencies (immutable)
         run: npm ci
@@ -952,12 +1036,33 @@ jobs:
             "rollout_percentage": "${{ inputs.rollout_percentage }}",
             "rollout_deploy_specs": "$ROLLOUT_DEPLOY_SPECS",
             "staging_provenance_run": "${{ steps.provenance.outputs.staging_provenance_run }}",
-            "skip_staging_provenance": "${{ inputs.skip_staging_provenance }}",
+            "staging_provenance_required": true,
             "workflow_run_id": "${{ github.run_id }}",
             "workflow_run_attempt": "${{ github.run_attempt }}",
             "deployed_at": "$DEPLOYED_AT"
           }
           EOF
+          # Embed the release policy gate's full decision (RELEASE_POLICY.md
+          # §15) — base, declared/computed/final risk, triggered rules and
+          # every changed file — plus the top-level fields a ledger row needs.
+          # Traffic has already shifted at this point, so a merge failure must
+          # not abort this step and skip the smoke gate: it warns instead, and
+          # the always-run release-policy-audit artifact still carries the
+          # full decision.
+          if jq --slurpfile policy "$RUNNER_TEMP/release-policy-decision.json" \
+            '. + {
+              operation_type: $policy[0].OPERATION_TYPE,
+              base_production_sha: $policy[0].BASE_PRODUCTION_SHA,
+              declared_risk: $policy[0].DECLARED_RISK,
+              computed_minimum_risk: $policy[0].COMPUTED_MINIMUM_RISK,
+              final_risk: $policy[0].FINAL_RISK,
+              expected_release_path: $policy[0].EXPECTED_RELEASE_PATH,
+              release_policy: $policy[0]
+            }' "$EVIDENCE_FILE" > "$EVIDENCE_FILE.tmp"; then
+            mv "$EVIDENCE_FILE.tmp" "$EVIDENCE_FILE"
+          else
+            echo "::warning::Could not embed the release policy decision in the release evidence; it is still recorded in the release-policy-audit-${{ github.run_id }} artifact."
+          fi
           echo "EVIDENCE_FILE=$EVIDENCE_FILE" >> "$GITHUB_ENV"
 
           {
@@ -972,6 +1077,8 @@ jobs:
             echo "| Rollout percentage | \`${{ inputs.rollout_percentage }}%\` |"
             echo "| Deployed version-spec(s) | \`$ROLLOUT_DEPLOY_SPECS\` |"
             echo "| Staging provenance run | \`${{ steps.provenance.outputs.staging_provenance_run }}\` |"
+            echo "| BASE_PRODUCTION_SHA | \`${{ steps.policy_gate.outputs.base_production_sha }}\` |"
+            echo "| FINAL_RISK | \`${{ steps.policy_gate.outputs.final_risk }}\` |"
             echo "| Workflow run ID | \`${{ github.run_id }}\` |"
             echo "| Deployed at (UTC) | \`$DEPLOYED_AT\` |"
             echo ""
@@ -980,7 +1087,7 @@ jobs:
             echo "npx wrangler versions deploy \"$PREVIOUS_VERSION_ID@100\" --config dist/server/wrangler.json --yes"
             echo '```'
             echo ""
-            echo "Append a row to \`docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md\` recording this release (SHA, both version ids, rollout percentage, run ID, timestamp, smoke result below) — this workflow does not write to the repository itself."
+            echo "Append a row to \`docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md\` recording this release (SHA, both version ids, rollout percentage, run ID, timestamp, FINAL_RISK, smoke result below) — this workflow does not write to the repository itself."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload production release evidence
@@ -1274,3 +1381,78 @@ jobs:
             exit 1
           fi
           echo "All production smoke checks passed."
+
+      # RELEASE POLICY AUDIT RECORD (RELEASE_POLICY.md §15) — runs on every
+      # outcome, including a run the policy gate blocked or one that failed
+      # before the gate. Read-only: it only combines the gate's decision
+      # with what happened afterwards into the job summary and a durable
+      # artifact. It shifts no traffic and writes nothing to the repository.
+      - name: Release policy audit record (always)
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          STAGING_RUN: ${{ steps.provenance.outputs.staging_provenance_run }}
+          CANDIDATE_INPUT: ${{ inputs.deploy_ref }}
+          DECLARED_RISK_INPUT: ${{ inputs.declared_risk }}
+          ROLLOUT_INPUT: ${{ inputs.rollout_percentage }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -uo pipefail
+          DECISION_FILE="$RUNNER_TEMP/release-policy-decision.json"
+          AUDIT_FILE="$RUNNER_TEMP/release-policy-audit.json"
+          if [ -s "$DECISION_FILE" ]; then
+            cp "$DECISION_FILE" "$AUDIT_FILE.base"
+          else
+            jq -n --arg c "$CANDIDATE_INPUT" --arg d "$DECLARED_RISK_INPUT" --arg r "$ROLLOUT_INPUT" '{
+              OPERATION_TYPE: "RELEASE", RESULT: "BLOCKED", BLOCK_CODE: "FAILED_BEFORE_POLICY_GATE",
+              BLOCK_REASONS: ["the run stopped before the release policy gate produced a decision"],
+              BASE_PRODUCTION_SHA: null, CANDIDATE_SHA: $c, DECLARED_RISK: null, DECLARED_RISK_INPUT: $d,
+              COMPUTED_MINIMUM_RISK: null, FINAL_RISK: null, CLASSIFICATION_RESULT: "NOT_EVALUATED",
+              TRIGGERED_RISK_RULES: [], CHANGED_FILES: [], ROLLOUT_PERCENTAGE: $r, EXPECTED_RELEASE_PATH: null,
+              LEDGER_CHANGE_PRESENT: false, LEDGER_APPEND_EXEMPTION_APPLIED: false,
+              LEDGER_APPEND_VALIDATION_RESULT: "NOT_EVALUATED", LEDGER_APPEND_REASONS: [], LEDGER_APPENDED_ROWS: [],
+              STAGING_PROVENANCE_REQUIRED: true, SKIP_STAGING_PROVENANCE: false
+            }' > "$AUDIT_FILE.base"
+          fi
+          GATE_RESULT="$(jq -r '.RESULT' "$AUDIT_FILE.base")"
+          if [ "$(jq -r '.BLOCK_CODE' "$AUDIT_FILE.base")" = "FAILED_BEFORE_POLICY_GATE" ]; then
+            RESULT="FAIL (stopped before the release policy gate; job status: $JOB_STATUS)"
+          elif [ "$GATE_RESULT" != "PERMITTED" ]; then
+            RESULT="BLOCKED_BY_POLICY: $(jq -r '.BLOCK_CODE' "$AUDIT_FILE.base")"
+          elif [ "$JOB_STATUS" = "success" ]; then
+            RESULT="PASS"
+          else
+            RESULT="FAIL (job status: $JOB_STATUS)"
+          fi
+          jq --arg gate "$GATE_RESULT" --arg result "$RESULT" --arg staging "${STAGING_RUN:-NOT_REACHED}" \
+             --arg smoke "${smoke_result:-NOT_REACHED}" --arg newv "${NEW_VERSION_ID:-NONE}" \
+             --arg run "$RUN_ID" --arg attempt "$RUN_ATTEMPT" \
+            '. + {GATE_RESULT: $gate, RESULT: $result, STAGING_PROVENANCE_RUN_ID: $staging, SMOKE_RESULT: $smoke,
+                  NEW_VERSION_ID: $newv, PRODUCTION_RUN_ID: $run, PRODUCTION_RUN_ATTEMPT: $attempt}' \
+            "$AUDIT_FILE.base" > "$AUDIT_FILE"
+          rm -f "$AUDIT_FILE.base"
+          {
+            echo ""
+            echo "### Release policy audit record"
+            echo ""
+            echo "| field | value |"
+            echo "| --- | --- |"
+            jq -r '
+              ["OPERATION_TYPE","BASE_PRODUCTION_SHA","CANDIDATE_SHA","DECLARED_RISK","COMPUTED_MINIMUM_RISK","FINAL_RISK",
+               "CLASSIFICATION_RESULT","LEDGER_CHANGE_PRESENT","LEDGER_APPEND_EXEMPTION_APPLIED","LEDGER_APPEND_VALIDATION_RESULT",
+               "STAGING_PROVENANCE_REQUIRED","SKIP_STAGING_PROVENANCE","STAGING_PROVENANCE_RUN_ID","EXPECTED_RELEASE_PATH","GATE_RESULT","RESULT"] as $keys
+              | . as $d | $keys[] | "| \(.) | `\(if $d[.] == null then "-" else $d[.] end)` |"' "$AUDIT_FILE"
+            echo "| TRIGGERED_RISK_RULES | \`$(jq -r '.TRIGGERED_RISK_RULES | join(", ")' "$AUDIT_FILE")\` |"
+            echo "| CHANGED_FILES | $(jq -r '.CHANGED_FILES | length' "$AUDIT_FILE") (full list in the release-policy-audit artifact) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Release policy audit record: $RESULT"
+
+      - name: Upload release policy audit record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-policy-audit-${{ github.run_id }}
+          path: ${{ runner.temp }}/release-policy-audit.json
+          if-no-files-found: error
+          retention-days: 365
