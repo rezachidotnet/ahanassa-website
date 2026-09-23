@@ -44,6 +44,12 @@ No `STABLE_100` row exists yet — see "Bootstrap status" above. The next row ap
 
 ## How to append a row
 
+**Read this first (2026-09-23, `RELEASE_POLICY.md` §3/§7.1).** Every future row goes at the bottom of the **§Ledger (RELEASE_POLICY.md schema)** table above, and the commit that adds it **must change nothing else in this file** — not the header, not the separator, not an existing row, not a word of the surrounding prose, not the frozen legacy table. The release policy gate compares this file at `BASE_PRODUCTION_SHA` with this file at the release candidate byte-for-byte outside the table's data rows; a clean row-only append earns the `VALIDATED_HISTORICAL_LEDGER_APPEND` exemption, which is what keeps the LOW and MEDIUM release paths reachable (`DOCUMENT_AUDIT_REPORT.md` DAR-060). An append that also edits prose is not an error — it simply forfeits the exemption, and the next release classifies HIGH. Narrative belongs in that release's own report under `docs/release/`.
+
+An appended row must also be **completed historical release evidence**: a Worker Version UUID, a numeric `PRODUCTION_RUN_ID`, a recorded `FINAL_RISK`, a non-empty `RESULT`, a `YYYY-MM-DDTHH:MM:SSZ` `TIMESTAMP`, and — for a `STABLE_100` row — `FINAL_TRAFFIC_PERCENT` 100 with a numeric `PROMOTION_RUN_ID`. A row must never name the SHA of a release that has not happened yet.
+
+The table below describes the **frozen legacy format** only, and is kept for the historical row it documents.
+
 After a real `deploy-production.yml` run completes (success or failure past Phase 2), copy the values from that run's job summary / evidence artifact into a new row:
 
 | Column | Source |
@@ -53,7 +59,7 @@ After a real `deploy-production.yml` run completes (success or failure past Phas
 | New Worker Version ID | `new_version_id` |
 | Previous Worker Version ID (rollback target) | `previous_version_id` |
 | Rollout % | `rollout_percentage` |
-| Staging provenance run | `staging_provenance_run` (a Deploy Staging run ID, or `SKIPPED` if `skip_staging_provenance` was used — which must also be justified in the Notes column whenever it appears) |
+| Staging provenance run | `staging_provenance_run` (a Deploy Staging run ID; the `SKIPPED` value this column could once carry is no longer producible — the `skip_staging_provenance` break-glass was removed on 2026-09-23, `RELEASE_POLICY.md` §5.1 / `DOCUMENT_AUDIT_REPORT.md` DAR-059) |
 | Workflow run | the `deploy-production.yml` run ID/URL |
 | Smoke result | `PASSED (10/10)` or `FAILED (n check(s))` from the run's own smoke-gate step |
 | Notes | anything not captured above — e.g. a `skip_staging_provenance` justification, a post-release rollback, a known pre-existing catalog/empty-state condition |

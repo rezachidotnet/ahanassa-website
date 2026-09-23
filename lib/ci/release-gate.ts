@@ -15,13 +15,29 @@
  * logic is testable without a repository; release-gate-cli.ts supplies the
  * real implementations.
  *
+ * Two decisions sit alongside the taxonomy, both fail-closed:
+ *
+ *   - Staging provenance is mandatory for every OPERATION_TYPE RELEASE at
+ *     every FINAL_RISK (DAR-059). There is no break-glass for a normal
+ *     release; skip_staging_provenance is refused outright.
+ *   - A proven, append-only, historical ledger row addition is removed from
+ *     risk computation (DAR-060) by ledger-append-exemption.ts — and only by
+ *     it. Any other ledger change stays HIGH or stops the release.
+ *
  * OPERATION_TYPE is always RELEASE here. EMERGENCY_ROLLBACK (§13) is a
  * distinct operation with its own validator (emergency-rollback.ts) and is
- * never routed through, or blocked by, this gate.
+ * never routed through, or blocked by, this gate — removing the release
+ * break-glass does not change, weaken or substitute for it.
  */
 
 import { classifyDiff, classifyPath, computeFinalRisk, riskAtLeast, type ChangedFile, type RiskLevel } from "./release-risk-classifier.ts";
 import { resolveBaseProductionShaFromManifest, type LedgerRow } from "./release-ledger.ts";
+import {
+  LEDGER_PATH,
+  evaluateLedgerAppendExemption,
+  type AppendedRowSummary,
+  type LedgerAppendValidationCode,
+} from "./ledger-append-exemption.ts";
 
 export const RISK_LEVELS: readonly RiskLevel[] = ["LOW", "MEDIUM", "HIGH"];
 
@@ -63,15 +79,17 @@ export type BlockCode =
   | "BASE_COMMIT_MISSING"
   | "CANDIDATE_COMMIT_MISSING"
   | "CHANGESET_UNREADABLE"
+  | "LEDGER_INTEGRITY_VIOLATION"
   | "CLASSIFICATION_REQUIRED"
   | "ROLLOUT_NOT_PERMITTED_FOR_RISK"
-  | "HIGH_REQUIRES_STAGING_PROVENANCE";
+  | "STAGING_PROVENANCE_REQUIRED";
 
 export interface ChangedFileRecord {
   status: string;
   path: string;
   old_path?: string;
-  risk: RiskLevel | "AMBIGUOUS";
+  /** "EXEMPT" is only ever the validated historical ledger append (§7.1). */
+  risk: RiskLevel | "AMBIGUOUS" | "EXEMPT";
   rule: string;
   reason: string;
 }
@@ -93,9 +111,17 @@ export interface ReleasePolicyDecision {
   CLASSIFICATION_RESULT: "CLASSIFIED" | "CLASSIFICATION_REQUIRED" | "NOT_EVALUATED";
   TRIGGERED_RISK_RULES: string[];
   CHANGED_FILES: ChangedFileRecord[];
+  /** DAR-060 audit fields — RELEASE_POLICY.md §7.1/§15. */
+  LEDGER_CHANGE_PRESENT: boolean;
+  LEDGER_APPEND_EXEMPTION_APPLIED: boolean;
+  LEDGER_APPEND_VALIDATION_RESULT: LedgerAppendValidationCode | "NOT_EVALUATED";
+  LEDGER_APPEND_REASONS: string[];
+  LEDGER_APPENDED_ROWS: AppendedRowSummary[];
   ROLLOUT_PERCENTAGE: string;
   PERMITTED_ROLLOUT_PERCENTAGES: string[];
   CANARY_REQUIRED: boolean | null;
+  /** Always true for OPERATION_TYPE RELEASE — LOW, MEDIUM and HIGH alike (DAR-059). */
+  STAGING_PROVENANCE_REQUIRED: true;
   SKIP_STAGING_PROVENANCE: boolean | null;
   STAGING_PROVENANCE_RUN_ID: string;
   EXPECTED_RELEASE_PATH: string | null;
@@ -113,6 +139,8 @@ export interface ReleaseGateDeps {
   readLedger(): string | null;
   commitExists(sha: string): boolean;
   isAncestor(ancestor: string, descendant: string): boolean;
+  /** Reads a repository file at a commit; null when it does not exist there. */
+  readFileAtCommit(sha: string, filePath: string): string | null;
   /** Raw `git diff --name-status -z -M -C <base> <candidate>` output; throws on failure. */
   diffNameStatusZ(base: string, candidate: string): string;
 }
@@ -184,9 +212,15 @@ export function evaluateReleaseGate(input: ReleaseGateInput, deps: ReleaseGateDe
     CLASSIFICATION_RESULT: "NOT_EVALUATED",
     TRIGGERED_RISK_RULES: [],
     CHANGED_FILES: [],
+    LEDGER_CHANGE_PRESENT: false,
+    LEDGER_APPEND_EXEMPTION_APPLIED: false,
+    LEDGER_APPEND_VALIDATION_RESULT: "NOT_EVALUATED",
+    LEDGER_APPEND_REASONS: [],
+    LEDGER_APPENDED_ROWS: [],
     ROLLOUT_PERCENTAGE: input.rolloutPercentage ?? "",
     PERMITTED_ROLLOUT_PERCENTAGES: [],
     CANARY_REQUIRED: null,
+    STAGING_PROVENANCE_REQUIRED: true,
     SKIP_STAGING_PROVENANCE: null,
     STAGING_PROVENANCE_RUN_ID: "PENDING_A2",
     EXPECTED_RELEASE_PATH: null,
@@ -209,8 +243,13 @@ export function evaluateReleaseGate(input: ReleaseGateInput, deps: ReleaseGateDe
   if (!(ROLLOUT_INPUT_VALUES as readonly string[]).includes(input.rolloutPercentage ?? "")) {
     return block("ROLLOUT_INVALID", `rollout_percentage "${input.rolloutPercentage ?? ""}" is not one of ${ROLLOUT_INPUT_VALUES.join(", ")}`);
   }
-  if (input.skipStagingProvenance !== "true" && input.skipStagingProvenance !== "false") {
-    return block("SKIP_STAGING_PROVENANCE_INVALID", `skip_staging_provenance "${input.skipStagingProvenance ?? ""}" is not exactly "true" or "false"`);
+  // DAR-059: deploy-production.yml no longer exposes a skip_staging_provenance
+  // input at all, so the gate normally sees "false" or nothing. The value is
+  // still parsed (and "true" still refused below, after classification, so the
+  // audit record names the FINAL_RISK it was refused for) purely as defense in
+  // depth against the input being reintroduced.
+  if (input.skipStagingProvenance !== undefined && input.skipStagingProvenance !== "" && input.skipStagingProvenance !== "true" && input.skipStagingProvenance !== "false") {
+    return block("SKIP_STAGING_PROVENANCE_INVALID", `skip_staging_provenance "${input.skipStagingProvenance}" is not exactly "true" or "false"`);
   }
   d.SKIP_STAGING_PROVENANCE = input.skipStagingProvenance === "true";
 
@@ -240,14 +279,55 @@ export function evaluateReleaseGate(input: ReleaseGateInput, deps: ReleaseGateDe
   const parsed = parseNameStatusZ(raw);
   if (!parsed.ok) return block("CHANGESET_UNREADABLE", parsed.reason);
 
+  // --- Validated historical ledger append (RELEASE_POLICY.md §7.1, DAR-060) ---
+  // Evaluated BEFORE classification, because the only thing it can do is
+  // remove one proven append-only ledger change from the set classifyDiff
+  // sees. It never reclassifies anything, and it never lowers any other
+  // file's risk.
+  const ledgerAppend = evaluateLedgerAppendExemption({
+    changedFiles: parsed.files,
+    baseProductionSha: base.releaseSha,
+    candidateSha: input.candidateSha,
+    readFileAtCommit: deps.readFileAtCommit,
+  });
+  d.LEDGER_CHANGE_PRESENT = ledgerAppend.ledgerChangePresent;
+  d.LEDGER_APPEND_EXEMPTION_APPLIED = ledgerAppend.exemptionApplied;
+  d.LEDGER_APPEND_VALIDATION_RESULT = ledgerAppend.code;
+  d.LEDGER_APPEND_REASONS = ledgerAppend.reasons;
+  d.LEDGER_APPENDED_ROWS = ledgerAppend.appendedRows;
+  if (ledgerAppend.failClosed) {
+    return block(
+      "LEDGER_INTEGRITY_VIOLATION",
+      `the candidate's release ledger cannot be trusted (${ledgerAppend.code}) — no risk level can be assigned safely (RELEASE_POLICY.md §7.1)`,
+      ...ledgerAppend.reasons,
+    );
+  }
+
   // --- Classification (RELEASE_POLICY.md §6/§9) ---
-  const classification = classifyDiff(parsed.files);
-  d.CHANGED_FILES = classification.evidence.map((e, idx) => {
-    const file = parsed.files[idx]!;
+  const exemptIndex = ledgerAppend.exemptionApplied ? parsed.files.findIndex((f) => f.path === LEDGER_PATH) : -1;
+  const classifiable = parsed.files.filter((_, i) => i !== exemptIndex);
+  const classification = classifyDiff(classifiable);
+  const records: ChangedFileRecord[] = [];
+  let ei = 0;
+  for (let i = 0; i < parsed.files.length; i += 1) {
+    if (i === exemptIndex) {
+      records.push({
+        status: parsed.files[i]!.status,
+        path: LEDGER_PATH,
+        risk: "EXEMPT",
+        rule: "VALIDATED_HISTORICAL_LEDGER_APPEND",
+        reason: ledgerAppend.reasons[0] ?? "validated append-only historical ledger row addition (RELEASE_POLICY.md §7.1)",
+      });
+      continue;
+    }
+    const file = parsed.files[i]!;
+    const e = classification.evidence[ei]!;
+    ei += 1;
     const record: ChangedFileRecord = { status: e.status, path: e.path, risk: e.risk, rule: ruleFor(file, e.risk), reason: e.reason };
     if (e.oldPath !== undefined) record.old_path = e.oldPath;
-    return record;
-  });
+    records.push(record);
+  }
+  d.CHANGED_FILES = records;
 
   if (classification.status === "AMBIGUOUS") {
     d.CLASSIFICATION_RESULT = "CLASSIFICATION_REQUIRED";
@@ -279,10 +359,11 @@ export function evaluateReleaseGate(input: ReleaseGateInput, deps: ReleaseGateDe
         : `FINAL_RISK is ${finalRisk}: its policy path is a direct 100% release, so rollout_percentage must be 100 (got ${d.ROLLOUT_PERCENTAGE}). To run a canary, re-dispatch with declared_risk HIGH (RELEASE_POLICY.md §6 escalation)`,
     );
   }
-  if (finalRisk === "HIGH" && d.SKIP_STAGING_PROVENANCE) {
+  if (d.SKIP_STAGING_PROVENANCE) {
     return block(
-      "HIGH_REQUIRES_STAGING_PROVENANCE",
-      "FINAL_RISK is HIGH: skip_staging_provenance must be false — a HIGH release never bypasses staging provenance (RELEASE_POLICY.md §5)",
+      "STAGING_PROVENANCE_REQUIRED",
+      `FINAL_RISK is ${finalRisk}: staging provenance is mandatory for every OPERATION_TYPE RELEASE — LOW, MEDIUM and HIGH alike. A normal release has no staging-provenance bypass (RELEASE_POLICY.md §5, DOCUMENT_AUDIT_REPORT.md DAR-059)`,
+      "EMERGENCY_ROLLBACK (RELEASE_POLICY.md §13) is a separate operation with its own recorded-target contract — it is not a release-risk or staging bypass, and this input is never repurposed as one",
     );
   }
 
@@ -319,12 +400,20 @@ export function renderDecisionMarkdown(d: ReleasePolicyDecision): string {
     ["ROLLOUT_PERCENTAGE", code(d.ROLLOUT_PERCENTAGE)],
     ["PERMITTED_ROLLOUT_PERCENTAGES", d.PERMITTED_ROLLOUT_PERCENTAGES.length ? d.PERMITTED_ROLLOUT_PERCENTAGES.map((r) => code(r)).join(", ") : "-"],
     ["CANARY_REQUIRED", code(d.CANARY_REQUIRED === null ? null : String(d.CANARY_REQUIRED))],
+    ["LEDGER_CHANGE_PRESENT", code(String(d.LEDGER_CHANGE_PRESENT))],
+    ["LEDGER_APPEND_EXEMPTION_APPLIED", code(String(d.LEDGER_APPEND_EXEMPTION_APPLIED))],
+    ["LEDGER_APPEND_VALIDATION_RESULT", code(d.LEDGER_APPEND_VALIDATION_RESULT)],
+    ["STAGING_PROVENANCE_REQUIRED", code(String(d.STAGING_PROVENANCE_REQUIRED))],
     ["SKIP_STAGING_PROVENANCE", code(d.SKIP_STAGING_PROVENANCE === null ? null : String(d.SKIP_STAGING_PROVENANCE))],
     ["STAGING_PROVENANCE_RUN_ID", code(d.STAGING_PROVENANCE_RUN_ID)],
     ["EXPECTED_RELEASE_PATH", code(d.EXPECTED_RELEASE_PATH)],
     ["CHANGED_FILES", String(d.CHANGED_FILES.length)],
   ];
   for (const [k, v] of rows) out.push(`| ${k} | ${v} |`);
+  if (d.LEDGER_CHANGE_PRESENT && d.LEDGER_APPEND_REASONS.length) {
+    out.push("", `**Ledger append (\`${mdCell(d.LEDGER_APPEND_VALIDATION_RESULT)}\`):**`, "");
+    for (const r of d.LEDGER_APPEND_REASONS) out.push(`- ${r}`);
+  }
   if (d.BLOCK_REASONS.length) {
     out.push("", "**Block reasons:**", "");
     for (const r of d.BLOCK_REASONS) out.push(`- ${r}`);
@@ -355,6 +444,9 @@ export function decisionOutputs(d: ReleasePolicyDecision): Record<string, string
     computed_minimum_risk: d.COMPUTED_MINIMUM_RISK ?? "",
     final_risk: d.FINAL_RISK ?? "",
     classification_result: d.CLASSIFICATION_RESULT,
+    ledger_change_present: String(d.LEDGER_CHANGE_PRESENT),
+    ledger_append_exemption_applied: String(d.LEDGER_APPEND_EXEMPTION_APPLIED),
+    ledger_append_validation_result: d.LEDGER_APPEND_VALIDATION_RESULT,
     expected_release_path: d.EXPECTED_RELEASE_PATH ?? "",
   };
 }

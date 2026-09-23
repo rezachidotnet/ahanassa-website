@@ -15,7 +15,8 @@ import {
   type ReleaseGateDeps,
   type ReleaseGateInput,
 } from "./release-gate.ts";
-import { resolveBaseProductionShaFromManifest } from "./release-ledger.ts";
+import { parseLedgerTable, resolveBaseProductionShaFromManifest } from "./release-ledger.ts";
+import { validateRollbackTarget } from "./emergency-rollback.ts";
 
 // Release-time policy gate — docs/release/RELEASE_POLICY.md §0.2,
 // docs/release/GLOBAL_RELEASE_POLICY_ENFORCEMENT_IMPLEMENTATION_REPORT.md.
@@ -28,7 +29,7 @@ const repoRoot = path.resolve(here, "..", "..");
 const WORKFLOW_PATH = path.join(repoRoot, ".github", "workflows", "deploy-production.yml");
 const WORKFLOW = readFileSync(WORKFLOW_PATH, "utf8");
 const CLI_PATH = path.join(here, "release-gate-cli.ts");
-const ENGINE_FILES = ["release-gate-cli.ts", "release-gate.ts", "release-risk-classifier.ts", "release-ledger.ts"];
+const ENGINE_FILES = ["release-gate-cli.ts", "release-gate.ts", "release-risk-classifier.ts", "release-ledger.ts", "ledger-append-exemption.ts"];
 
 const BASE = "1".repeat(40);
 const OLDER = "2".repeat(40);
@@ -46,22 +47,32 @@ function ledgerRow(sha: string, state: string, finalRisk = "HIGH"): string {
   return `| \`${sha}\` | \`00000000-0000-4000-8000-000000000001\` | ${state} | 100 | \`900\` | \`901\` | - | \`00000000-0000-4000-8000-000000000002\` | ${finalRisk} | PASS | 2026-01-01T00:00:00Z | synthetic |`;
 }
 
+/** A row that is completed historical release evidence (RELEASE_POLICY.md §7.1). */
+function completedLedgerRow(sha: string, state: string, finalRisk = "HIGH"): string {
+  return `| \`${sha}\` | \`00000000-0000-4000-8000-000000000001\` | ${state} | 100 | \`900\` | \`901\` | \`902\` | \`00000000-0000-4000-8000-000000000002\` | ${finalRisk} | PASS | 2026-01-01T00:00:00Z | synthetic |`;
+}
+
 function ledger(...rows: string[]): string {
   return ["# Manifest", "", "## Ledger (RELEASE_POLICY.md schema)", "", HEADER, SEPARATOR, ...rows, "", "Trailing prose."].join("\n");
 }
 
 const STANDARD_LEDGER = ledger(ledgerRow(OLDER, "STABLE_100"), ledgerRow(BASE, "CANARY_ACTIVE"), ledgerRow(BASE, "STABLE_100"));
+/** Rows for the untouched EMERGENCY_ROLLBACK contract (RELEASE_POLICY.md §13). */
+const ROLLBACK_LEDGER_ROWS = parseLedgerTable(STANDARD_LEDGER);
 
 function z(...entries: string[][]): string {
   return entries.map((e) => e.join("\0")).join("\0") + (entries.length ? "\0" : "");
 }
 
-function deps(opts: { ledger?: string | null; diff?: string; missing?: string[]; diffThrows?: boolean } = {}): ReleaseGateDeps & { diffCalls: string[][] } {
+function deps(
+  opts: { ledger?: string | null; diff?: string; missing?: string[]; diffThrows?: boolean; filesAtCommit?: Record<string, string | null> } = {},
+): ReleaseGateDeps & { diffCalls: string[][] } {
   const diffCalls: string[][] = [];
   return {
     diffCalls,
     readLedger: () => (opts.ledger === undefined ? STANDARD_LEDGER : opts.ledger),
     commitExists: (sha) => !(opts.missing ?? []).includes(sha),
+    readFileAtCommit: (sha) => (opts.filesAtCommit ?? {})[sha] ?? null,
     isAncestor: () => true,
     diffNameStatusZ: (base, candidate) => {
       diffCalls.push([base, candidate]);
@@ -300,9 +311,33 @@ test("21. HIGH can use the approved 10% canary path, with staging provenance", (
   assert.match(d.EXPECTED_RELEASE_PATH!, /promote-production\.yml/);
 });
 
-test("21b. HIGH never uses the skip_staging_provenance break-glass", () => {
-  const d = evaluateReleaseGate(input({ declaredRisk: "HIGH", rolloutPercentage: "10", skipStagingProvenance: "true" }), deps({ diff: HIGH_DIFF }));
-  assert.equal(d.BLOCK_CODE, "HIGH_REQUIRES_STAGING_PROVENANCE");
+test("21b/DAR-059. no FINAL_RISK may bypass staging provenance — LOW, MEDIUM and HIGH alike", () => {
+  const cases: Array<[string, string, string]> = [
+    ["LOW", "100", LOW_DIFF],
+    ["MEDIUM", "100", MEDIUM_DIFF],
+    ["HIGH", "10", HIGH_DIFF],
+  ];
+  for (const [risk, rollout, diff] of cases) {
+    const d = evaluateReleaseGate(input({ declaredRisk: risk, rolloutPercentage: rollout, skipStagingProvenance: "true" }), deps({ diff }));
+    assert.equal(d.RESULT, "BLOCKED", risk);
+    assert.equal(d.BLOCK_CODE, "STAGING_PROVENANCE_REQUIRED", risk);
+    assert.equal(d.FINAL_RISK, risk, "the audit record must still name the FINAL_RISK it was refused for");
+    assert.equal(d.STAGING_PROVENANCE_REQUIRED, true);
+    assert.match(d.BLOCK_REASONS.join(" "), /LOW, MEDIUM and HIGH alike/);
+  }
+});
+
+test("DAR-059. EMERGENCY_ROLLBACK is untouched: it is a separate operation, not this input repurposed", () => {
+  const d = evaluateReleaseGate(input({ skipStagingProvenance: "true" }), deps({ diff: LOW_DIFF }));
+  assert.match(d.BLOCK_REASONS.join(" "), /EMERGENCY_ROLLBACK \(RELEASE_POLICY\.md §13\) is a separate operation/);
+  assert.equal(d.OPERATION_TYPE, "RELEASE", "this gate only ever evaluates OPERATION_TYPE RELEASE");
+  // The rollback validator is reached through its own module and is not
+  // affected by, or reachable from, the release gate.
+  const gateSrc = readFileSync(path.join(here, "release-gate.ts"), "utf8");
+  assert.ok(!/^import .*emergency-rollback/m.test(gateSrc), "the gate must not import or re-implement the rollback contract");
+  assert.ok(!gateSrc.includes("validateRollbackTarget"), "the gate must not call the rollback validator");
+  assert.equal(validateRollbackTarget("00000000-0000-4000-8000-000000000002", ROLLBACK_LEDGER_ROWS).ok, true);
+  assert.equal(validateRollbackTarget("00000000-0000-4000-8000-00000000ffff", ROLLBACK_LEDGER_ROWS).ok, false);
 });
 
 test("22. LOW direct production path allowed (100), canary legs refused", () => {
@@ -318,10 +353,13 @@ test("23. MEDIUM direct production path allowed (100)", () => {
   assert.equal(classify(MEDIUM_DIFF, "MEDIUM", "10").BLOCK_CODE, "ROLLOUT_NOT_PERMITTED_FOR_RISK");
 });
 
-test("23b. LOW/MEDIUM keep the existing break-glass staging behavior (conflict recorded, not changed)", () => {
-  const d = evaluateReleaseGate(input({ skipStagingProvenance: "true" }), deps({ diff: LOW_DIFF }));
-  assert.equal(d.RESULT, "PERMITTED");
-  assert.equal(d.SKIP_STAGING_PROVENANCE, true);
+test("23b/DAR-059. the break-glass input is gone: absent means false, \"true\" is refused, garbage is invalid", () => {
+  for (const absent of [undefined, ""]) {
+    const d = evaluateReleaseGate(input({ skipStagingProvenance: absent }), deps({ diff: LOW_DIFF }));
+    assert.equal(d.RESULT, "PERMITTED", `skip="${absent}"`);
+    assert.equal(d.SKIP_STAGING_PROVENANCE, false);
+  }
+  assert.equal(evaluateReleaseGate(input({ skipStagingProvenance: "true" }), deps({ diff: LOW_DIFF })).BLOCK_CODE, "STAGING_PROVENANCE_REQUIRED");
   assert.equal(evaluateReleaseGate(input({ skipStagingProvenance: "yes" }), deps({ diff: LOW_DIFF })).BLOCK_CODE, "SKIP_STAGING_PROVENANCE_INVALID");
   assert.equal(evaluateReleaseGate(input({ rolloutPercentage: "25" }), deps({ diff: LOW_DIFF })).BLOCK_CODE, "ROLLOUT_INVALID");
 });
@@ -344,6 +382,10 @@ const REQUIRED_AUDIT_FIELDS = [
   "TRIGGERED_RISK_RULES",
   "CHANGED_FILES",
   "CLASSIFICATION_RESULT",
+  "LEDGER_CHANGE_PRESENT",
+  "LEDGER_APPEND_EXEMPTION_APPLIED",
+  "LEDGER_APPEND_VALIDATION_RESULT",
+  "STAGING_PROVENANCE_REQUIRED",
   "STAGING_PROVENANCE_RUN_ID",
   "EXPECTED_RELEASE_PATH",
   "RESULT",
@@ -524,6 +566,278 @@ test("4b/3d. real git: missing candidate, missing baseline and a ref without a l
 });
 
 // ---------------------------------------------------------------------------
+// DAR-060 — VALIDATED_HISTORICAL_LEDGER_APPEND, end to end against real git.
+//
+// Every scenario below is the shape the policy actually produces: a release
+// commit (BASE), then the human-reviewed commit that appends that release's
+// STABLE_100 row, then the candidate's own change on top. Without the
+// exemption each of these classifies HIGH purely because the ledger is in the
+// diff — which is exactly what made the LOW/MEDIUM paths unreachable.
+// ---------------------------------------------------------------------------
+
+const LEDGER_FILE = "docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md";
+
+/**
+ * base   = a release commit whose ledger names only an OLDER STABLE_100 row
+ * mutate = everything the candidate does on top (the ledger append included)
+ * The ledger at the candidate is also the trusted POLICY_REF ledger, as in a
+ * real run where deploy_ref is the application branch tip.
+ */
+function ledgerAppendRepo(mutate: (repo: Repo, base: string, baseLedger: string) => void): { repo: Repo; base: string; candidate: string } {
+  const repo = new Repo();
+  const baseLedger = ledger(completedLedgerRow(OLDER, "STABLE_100"));
+  repo.write(LEDGER_FILE, baseLedger);
+  repo.write("lib/content/a.ts", "export const a = 1;\n");
+  repo.write("styles/globals.css", ".a { color: red; }\n");
+  repo.write("components/products/card.tsx", "export const Card = () => null;\n");
+  const base = repo.commit("release N");
+  mutate(repo, base, baseLedger);
+  const candidate = repo.commit("candidate");
+  return { repo, base, candidate };
+}
+
+/** The honest, policy-shaped append: exactly one new STABLE_100 row for BASE. */
+function appendStableRow(repo: Repo, base: string): void {
+  repo.write(LEDGER_FILE, ledger(completedLedgerRow(OLDER, "STABLE_100"), completedLedgerRow(base, "STABLE_100")));
+}
+
+/**
+ * `policyRef` defaults to the candidate — the normal shape, where deploy_ref
+ * IS the application-branch tip the workflow dispatched from. A scenario that
+ * tampers with the candidate's ledger passes "trusted", which pins the trusted
+ * ledger to a side branch instead: the workflow always reads the ledger from
+ * its own commit, so a tampered candidate must never move BASE_PRODUCTION_SHA.
+ */
+function classifyRepo(
+  scenario: { repo: Repo; base: string; candidate: string },
+  rollout = "100",
+  declared = "LOW",
+  policyRef: "candidate" | "trusted" = "candidate",
+) {
+  const ref =
+    policyRef === "candidate"
+      ? scenario.candidate
+      : commitLedgerOnSideBranch(scenario.repo, scenario.candidate, scenario.base, `trusted-${Math.random().toString(36).slice(2)}`);
+  return runCli(scenario.repo, {
+    RG_LEDGER_REF: ref,
+    RG_CANDIDATE_SHA: scenario.candidate,
+    RG_ROLLOUT_PERCENTAGE: rollout,
+    RG_DECLARED_RISK: declared,
+  });
+}
+
+test("DAR-060 A. a valid historical ledger append ALONE does not force HIGH", () => {
+  const sc = ledgerAppendRepo((repo, base) => appendStableRow(repo, base));
+  try {
+    const r = classifyRepo(sc);
+    assert.equal(r.status, 0, r.stdout);
+    assert.equal(r.decision.BASE_PRODUCTION_SHA, sc.base, "BASE_PRODUCTION_SHA must still resolve from the ledger");
+    assert.equal(r.decision.LEDGER_CHANGE_PRESENT, true);
+    assert.equal(r.decision.LEDGER_APPEND_EXEMPTION_APPLIED, true);
+    assert.equal(r.decision.LEDGER_APPEND_VALIDATION_RESULT, "VALIDATED_HISTORICAL_LEDGER_APPEND");
+    assert.equal(r.decision.COMPUTED_MINIMUM_RISK, "LOW");
+    assert.equal(r.decision.FINAL_RISK, "LOW");
+    assert.deepEqual(r.decision.CHANGED_FILES.map((f: { path: string; risk: string }) => [f.path, f.risk]), [[LEDGER_FILE, "EXEMPT"]]);
+  } finally {
+    sc.repo.cleanup();
+  }
+});
+
+test("DAR-060 B. valid ledger append + a CSS-only change => LOW (the LOW path is reachable)", () => {
+  const sc = ledgerAppendRepo((repo, base) => {
+    appendStableRow(repo, base);
+    repo.write("styles/globals.css", ".a { color: blue; }\n");
+  });
+  try {
+    const r = classifyRepo(sc);
+    assert.equal(r.status, 0, r.stdout);
+    assert.equal(r.decision.FINAL_RISK, "LOW");
+    assert.equal(r.decision.LEDGER_APPEND_EXEMPTION_APPLIED, true);
+    assert.equal(r.decision.RESULT, "PERMITTED");
+    assert.match(r.decision.EXPECTED_RELEASE_PATH, /DIRECT_100/);
+  } finally {
+    sc.repo.cleanup();
+  }
+});
+
+test("DAR-060 C. valid ledger append + an ordinary component change => MEDIUM (the MEDIUM path is reachable)", () => {
+  const sc = ledgerAppendRepo((repo, base) => {
+    appendStableRow(repo, base);
+    repo.write("components/products/card.tsx", "export const Card = () => 'x';\n");
+  });
+  try {
+    const r = classifyRepo(sc, "100", "MEDIUM");
+    assert.equal(r.status, 0, r.stdout);
+    assert.equal(r.decision.COMPUTED_MINIMUM_RISK, "MEDIUM");
+    assert.equal(r.decision.FINAL_RISK, "MEDIUM");
+    assert.equal(r.decision.CANARY_REQUIRED, false);
+    assert.equal(r.decision.LEDGER_APPEND_EXEMPTION_APPLIED, true);
+  } finally {
+    sc.repo.cleanup();
+  }
+});
+
+test("DAR-060 D. valid ledger append + a workflow/security/RFQ change => HIGH, exemption or not", () => {
+  for (const [label, file] of [
+    ["workflow", ".github/workflows/deploy-production.yml"],
+    ["security", "lib/security/turnstile.ts"],
+    ["RFQ", "lib/rfq/submit.ts"],
+  ]) {
+    const sc = ledgerAppendRepo((repo, base) => {
+      appendStableRow(repo, base);
+      repo.write(file!, "export const x = 1;\n");
+    });
+    try {
+      const r = classifyRepo(sc, "10", "LOW");
+      assert.equal(r.status, 0, `${label}: ${r.stdout}`);
+      assert.equal(r.decision.FINAL_RISK, "HIGH", label);
+      assert.equal(r.decision.LEDGER_APPEND_EXEMPTION_APPLIED, true, `${label}: the exemption removes only the ledger, never the real change`);
+      assert.equal(r.decision.CANARY_REQUIRED, true, label);
+    } finally {
+      sc.repo.cleanup();
+    }
+  }
+});
+
+test("DAR-060 E. an edited historical ledger row + a CSS change stays HIGH", () => {
+  const sc = ledgerAppendRepo((repo, base) => {
+    repo.write(LEDGER_FILE, ledger(completedLedgerRow(OLDER, "STABLE_100", "LOW"), completedLedgerRow(base, "STABLE_100")));
+    repo.write("styles/globals.css", ".a { color: blue; }\n");
+  });
+  try {
+    const r = classifyRepo(sc, "10", "LOW");
+    assert.equal(r.decision.LEDGER_APPEND_EXEMPTION_APPLIED, false);
+    assert.equal(r.decision.LEDGER_APPEND_VALIDATION_RESULT, "LEDGER_ROW_EDITED_OR_REORDERED");
+    assert.equal(r.decision.FINAL_RISK, "HIGH");
+    assert.ok(r.decision.TRIGGERED_RISK_RULES.includes("HIGH_RELEASE_PATHS"));
+  } finally {
+    sc.repo.cleanup();
+  }
+});
+
+test("DAR-060 F. a deleted historical row, a reorder, and a schema edit all stay HIGH", () => {
+  const cases: Array<[string, (base: string) => string, string]> = [
+    ["deleted row", (base) => ledger(completedLedgerRow(base, "STABLE_100")), "LEDGER_ROW_EDITED_OR_REORDERED"],
+    [
+      "reordered rows",
+      (base) => ledger(completedLedgerRow(base, "STABLE_100"), completedLedgerRow(OLDER, "STABLE_100")),
+      "LEDGER_ROW_EDITED_OR_REORDERED",
+    ],
+    [
+      "schema edit",
+      (base) =>
+        ledger(completedLedgerRow(OLDER, "STABLE_100"), completedLedgerRow(base, "STABLE_100")).replace("| FINAL_RISK |", "| FINAL_RISK_LEVEL |"),
+      "LEDGER_SCHEMA_CHANGED",
+    ],
+    [
+      "prose edit alongside the append",
+      (base) =>
+        `${ledger(completedLedgerRow(OLDER, "STABLE_100"), completedLedgerRow(base, "STABLE_100"))}\n\nAn extra narrative paragraph.`,
+      "LEDGER_NON_ROW_CONTENT_CHANGED",
+    ],
+  ];
+  for (const [label, build, expected] of cases) {
+    const sc = ledgerAppendRepo((repo, base) => {
+      repo.write(LEDGER_FILE, build(base));
+      repo.write("styles/globals.css", ".a { color: blue; }\n");
+    });
+    try {
+      const r = classifyRepo(sc, "10", "LOW", "trusted");
+      assert.equal(r.decision.BASE_PRODUCTION_SHA, sc.base, `${label}: a tampered candidate ledger must never move the baseline`);
+      assert.equal(r.decision.LEDGER_APPEND_VALIDATION_RESULT, expected, `${label}: ${r.stdout}`);
+      assert.equal(r.decision.LEDGER_APPEND_EXEMPTION_APPLIED, false, label);
+      assert.equal(r.decision.FINAL_RISK, "HIGH", label);
+    } finally {
+      sc.repo.cleanup();
+    }
+  }
+});
+
+test("DAR-060 G. a malformed, self-certifying, or baseline-moving append fails the release closed", () => {
+  const cases: Array<[string, (base: string, candidate: string) => string, string]> = [
+    [
+      "malformed appended row",
+      (base) => `${ledger(completedLedgerRow(OLDER, "STABLE_100"))}`.replace("\n\nTrailing prose.", `\n| \`${base}\` | truncated |\n\nTrailing prose.`),
+      "LEDGER_APPENDED_ROW_MALFORMED",
+    ],
+    [
+      "appended row that is not completed evidence",
+      (base) => ledger(completedLedgerRow(OLDER, "STABLE_100"), completedLedgerRow(base, "STABLE_100").replace("| `902` |", "| - |")),
+      "LEDGER_APPENDED_ROW_NOT_COMPLETED_EVIDENCE",
+    ],
+  ];
+  for (const [label, build, expected] of cases) {
+    const sc = ledgerAppendRepo((repo, base) => {
+      repo.write(LEDGER_FILE, build(base, ""));
+      repo.write("styles/globals.css", ".a { color: blue; }\n");
+    });
+    try {
+      const r = classifyRepo(sc, "100", "LOW", "trusted");
+      assert.equal(r.status, 1, `${label} must block: ${r.stdout}`);
+      assert.equal(r.decision.BLOCK_CODE, "LEDGER_INTEGRITY_VIOLATION", label);
+      assert.equal(r.decision.LEDGER_APPEND_VALIDATION_RESULT, expected, label);
+      assert.equal(r.decision.FINAL_RISK, null, `${label}: no risk level may be assigned`);
+    } finally {
+      sc.repo.cleanup();
+    }
+  }
+});
+
+test("DAR-060 H. an appended row claiming CANDIDATE_SHA as already released fails closed", () => {
+  // A commit cannot contain a ledger row naming its own SHA (the SHA hashes
+  // the tree that holds the row), so this is injected at the gate's dependency
+  // boundary — the check exists precisely so a ledger that somehow carries such
+  // a row can never be treated as historical evidence.
+  const baseLedger = ledger(completedLedgerRow(OLDER, "STABLE_100"), completedLedgerRow(BASE, "STABLE_100"));
+  const selfClaiming = ledger(
+    completedLedgerRow(OLDER, "STABLE_100"),
+    completedLedgerRow(BASE, "STABLE_100"),
+    completedLedgerRow(CANDIDATE, "STABLE_100"),
+  );
+  const d = evaluateReleaseGate(
+    input(),
+    deps({ diff: z(["M", "docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md"]), filesAtCommit: { [BASE]: baseLedger, [CANDIDATE]: selfClaiming } }),
+  );
+  assert.equal(d.RESULT, "BLOCKED");
+  assert.equal(d.BLOCK_CODE, "LEDGER_INTEGRITY_VIOLATION");
+  assert.equal(d.LEDGER_APPEND_VALIDATION_RESULT, "LEDGER_APPENDED_ROW_CLAIMS_CANDIDATE");
+  assert.equal(d.FINAL_RISK, null);
+});
+
+test("DAR-060 H2. an append that would move BASE_PRODUCTION_SHA resolution fails closed", () => {
+  const baseLedger = ledger(completedLedgerRow(OLDER, "STABLE_100"), completedLedgerRow(BASE, "STABLE_100"));
+  const moved = ledger(
+    completedLedgerRow(OLDER, "STABLE_100"),
+    completedLedgerRow(BASE, "STABLE_100"),
+    completedLedgerRow("7".repeat(40), "STABLE_100"),
+  );
+  const d = evaluateReleaseGate(
+    input(),
+    deps({ diff: z(["M", "docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md"]), filesAtCommit: { [BASE]: baseLedger, [CANDIDATE]: moved } }),
+  );
+  assert.equal(d.BLOCK_CODE, "LEDGER_INTEGRITY_VIOLATION");
+  assert.equal(d.LEDGER_APPEND_VALIDATION_RESULT, "LEDGER_BASE_RESOLUTION_NONDETERMINISTIC");
+});
+
+test("DAR-060 I. the exemption never lowers any other file's risk, and never hides the ledger from the audit record", () => {
+  const sc = ledgerAppendRepo((repo, base) => {
+    appendStableRow(repo, base);
+    repo.write("lib/odoo/adapter.ts", "export const x = 1;\n");
+  });
+  try {
+    const r = classifyRepo(sc, "10", "LOW");
+    assert.equal(r.decision.FINAL_RISK, "HIGH");
+    const paths = r.decision.CHANGED_FILES.map((f: { path: string }) => f.path);
+    assert.ok(paths.includes(LEDGER_FILE), "the exempt ledger must still appear in CHANGED_FILES");
+    assert.ok(paths.includes("lib/odoo/adapter.ts"));
+    assert.match(r.summary, /LEDGER_APPEND_EXEMPTION_APPLIED/);
+    assert.match(r.output, /^ledger_append_validation_result=VALIDATED_HISTORICAL_LEDGER_APPEND$/m);
+  } finally {
+    sc.repo.cleanup();
+  }
+});
+
+// ---------------------------------------------------------------------------
 // The workflow step itself, executed for real (engine extraction trust model)
 // ---------------------------------------------------------------------------
 
@@ -553,7 +867,7 @@ function stepScript(name: string): string {
 
 const GATE_STEP = '"Release policy gate: classify';
 
-function runGateStep(repo: Repo, policyRef: string, candidate: string, inputs: { declared: string; rollout: string; skip?: string }) {
+function runGateStep(repo: Repo, policyRef: string, candidate: string, inputs: { declared: string; rollout: string }) {
   const temp = mkdtempSync(path.join(tmpdir(), "release-gate-runner-"));
   const githubEnv = path.join(temp, "github_env");
   const githubOutput = path.join(temp, "github_output");
@@ -572,7 +886,6 @@ function runGateStep(repo: Repo, policyRef: string, candidate: string, inputs: {
       POLICY_REF: policyRef,
       DECLARED_RISK_INPUT: inputs.declared,
       ROLLOUT_INPUT: inputs.rollout,
-      SKIP_PROVENANCE_INPUT: inputs.skip ?? "false",
     } as unknown as NodeJS.ProcessEnv,
     encoding: "utf8",
   });
@@ -733,10 +1046,13 @@ test("24. no classifier bypass: no bypass/override input, no skip flag reaches t
     "confirm",
     "declared_risk",
     "rollout_percentage",
-    "skip_staging_provenance",
     "expected_current_stable_version_id",
     "expected_current_canary_version_id",
   ]);
+  // DAR-059: the break-glass input is removed outright, and the gate step
+  // hardcodes "false" so nothing an operator types can reach the engine.
+  assert.ok(!/^      skip_staging_provenance:/m.test(WORKFLOW), "the skip_staging_provenance input must not exist");
+  assert.ok(stepBlock('"Release policy gate: classify').includes('RG_SKIP_STAGING_PROVENANCE="false"'));
   for (const name of inputNames) {
     assert.doesNotMatch(name!, /bypass|override|force|policy|classif|computed|final_risk/, `input "${name}" looks like a policy bypass`);
   }
@@ -830,16 +1146,18 @@ test("33. deploy-production.yml selects no Worker Version by array position", ()
   assert.doesNotMatch(withoutComments(WORKFLOW), /\.versions\[\d+\]/);
 });
 
-test("34. staging provenance is not weakened: A2 log scan intact, HIGH never honors the break-glass", () => {
+test("34/DAR-059. staging provenance is strengthened, never weakened: A2's log scan is intact and has no skip branch at all", () => {
   const a2 = stepBlock('"A2: verify staging provenance');
   assert.ok(a2.includes('grep -qF "Deploying exact commit: $DEPLOYED_SHA"'));
   assert.ok(a2.includes("STAGING PROVENANCE ASSERTION FAILED"));
-  const skipBranches = [...a2.matchAll(/elif \[ "\$SKIP_PROVENANCE" = "true" \]([^\n]*)/g)].map((m) => m[1]!);
-  assert.equal(skipBranches.length, 2);
-  assert.match(skipBranches[0]!, /\$\{FINAL_RISK:-\}" = "HIGH" \]; then/);
-  assert.match(skipBranches[1]!, /-n "\$\{FINAL_RISK:-\}" \]; then/, "the break-glass is honored only after the gate classified the release");
-  const highBranch = a2.slice(a2.indexOf(skipBranches[0]!), a2.indexOf(skipBranches[1]!));
-  assert.match(highBranch, /exit 1/);
+  const code = withoutComments(a2);
+  assert.ok(!code.includes("SKIP_PROVENANCE"), "A2 must carry no skip branch for any FINAL_RISK");
+  assert.ok(!code.includes("staging_provenance_run=SKIPPED"), "A2 must never record SKIPPED provenance");
+  // Exactly two outcomes remain: a proven staging run, or exit 1.
+  const branches = [...code.matchAll(/^\s+(if|elif|else)\b/gm)].map((m) => m[1]);
+  assert.deepEqual(branches.filter((b) => b === "elif"), [], "no conditional branch may sit between 'found a staging run' and 'fail'");
+  assert.match(code.slice(code.indexOf("          else")), /exit 1/);
+  assert.ok(!withoutComments(WORKFLOW).includes("inputs.skip_staging_provenance"), "no step may read the removed input");
 });
 
 test("35/36/37. no D1 mutation, no secret mutation, no environment-protection mutation, no repository write", () => {

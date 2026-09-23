@@ -55,6 +55,8 @@ READY_TO_MERGE_ENFORCEMENT: YES (after review)
 READY_FOR_NEXT_APPLICATION_RELEASE: NO (until both PRs are reviewed and merged, and DAR-061 is addressed before the next promotion)
 ```
 
+> **Superseded in part — see "Addendum, 2026-09-23" at the end of this report.** The block above is the record of the 2026-09-22 enforcement task and is kept unedited. DAR-059, DAR-060 and DAR-061, listed there as open findings, have since been resolved on the same branch (PR #13); the corrected result block, tests and simulation are in the addendum. Nothing above is retracted — the behavior it describes is what shipped on 2026-09-22 and what the addendum then changed.
+
 ---
 
 ## Phase 0 — Fresh state (verified this task, not from memory)
@@ -256,3 +258,132 @@ It does **not** get the ledger, `lib/ci/**`, or any application file. The histor
 - DAR-061: make `promote-production.yml` propagate `FINAL_RISK` before the next promotion.
 - Review and merge the application PR, then the main registration PR. The policy becomes `ACTIVE` on the application merge.
 - First real gated dispatch: the next release will classify HIGH (at minimum because of this task's own `lib/ci/**`, workflow and governance changes), so it must be dispatched with `rollout_percentage=10` and staging provenance.
+
+
+---
+
+# Addendum — 2026-09-23: DAR-059 / DAR-060 / DAR-061 resolved
+
+**Task:** resolve the three findings this report raised, before PR #13 and PR #14 are merged.
+**Date:** 2026-09-23
+**Branch:** `chore/activate-release-policy-enforcement` (PR #13) — the same branch, updated in place rather than opening overlapping application PRs.
+**Authority:** owner decisions of 2026-09-23, recorded in `RELEASE_POLICY.md` §5.1, §7.1, §11.1 and `DOCUMENT_AUDIT_REPORT.md` DAR-059/060/061.
+
+No production workflow was dispatched. No traffic, Worker Version, D1 database, secret, or GitHub Environment setting was touched.
+
+## Corrected result block
+
+```
+RESULT: PASS
+
+DAR_059: RESOLVED
+DAR_060: RESOLVED
+DAR_061: RESOLVED
+
+LOW_PATH_REACHABLE: YES
+MEDIUM_PATH_REACHABLE: YES
+HIGH_PATH_REACHABLE: YES
+
+ALL_NORMAL_RELEASES_REQUIRE_STAGING: YES
+NORMAL_RELEASE_STAGING_BYPASS: NO
+EMERGENCY_ROLLBACK_CONTRACT_CHANGED: NO
+
+VALIDATED_LEDGER_APPEND_EXEMPTION: YES (lib/ci/ledger-append-exemption.ts, tested TypeScript — never YAML/bash)
+LEDGER_TAMPERING_STILL_HIGH_OR_BLOCKED: YES
+LEDGER_REMAINS_A_HIGH_RELEASE_PATH: YES
+
+PROMOTION_PROPAGATES_RELEASE_FINAL_RISK: YES
+PROMOTION_OPERATOR_CAN_OVERRIDE_RISK: NO
+LEGACY_HISTORICAL_EVIDENCE_CHANGED: NO
+
+GLOBAL_RELEASE_TIME_POLICY_ENFORCEMENT_ACTIVE_ON_MERGE: YES
+POLICY_LIFECYCLE_ON_MERGE: ACTIVE (BOOTSTRAP_MERGED until the corrected PR #13 merges)
+
+TEST_RESULTS: npm test — 1605 tests, 1605 pass, 0 fail (1557 before this addendum; +48)
+TYPECHECK: PASS (npx tsc --noEmit)
+BUILD: PASS (npm run build)
+READ_ONLY_SIMULATION: PASS
+
+PRODUCTION_WORKFLOW_DISPATCHED: NO
+PRODUCTION_TRAFFIC_CHANGED: NO
+NEW_WORKER_VERSION_CREATED: NO
+D1_CHANGED: NO
+SECRETS_CHANGED: NO
+```
+
+## DAR-059 — staging provenance is mandatory for every release
+
+| Change | Where |
+| --- | --- |
+| `skip_staging_provenance` input removed outright | `.github/workflows/deploy-production.yml` `workflow_dispatch.inputs` |
+| A2 reduced to two outcomes: a proven `Deploy Staging` run, or `exit 1` | A2 step (both `elif` break-glass branches deleted; `staging_provenance_run=SKIPPED` can no longer be emitted) |
+| Gate passes a hardcoded `RG_SKIP_STAGING_PROVENANCE="false"` | release policy gate step |
+| New block code `STAGING_PROVENANCE_REQUIRED` refuses `true` at **every** `FINAL_RISK` (replacing `HIGH_REQUIRES_STAGING_PROVENANCE`) | `lib/ci/release-gate.ts` |
+| Decision record carries `STAGING_PROVENANCE_REQUIRED: true` | audit record, job summary, evidence |
+| Release evidence records `staging_provenance_required: true` instead of an operator flag | evidence step |
+| Policy text | `RELEASE_POLICY.md` §0.2 table, §5 paths, new §5.1 |
+
+`EMERGENCY_ROLLBACK` (§13) is untouched and is explicitly **not** the replacement break-glass: it is a separate `OPERATION_TYPE`, not reachable from `deploy-production.yml`, still requiring a recorded validated Worker Version ID, human approval, immediate smoke and a `ROLLED_BACK` row. A test asserts the gate neither imports nor calls its validator, and that the validator still behaves as before.
+
+## DAR-060 — `VALIDATED_HISTORICAL_LEDGER_APPEND`
+
+New module `lib/ci/ledger-append-exemption.ts` (tested TypeScript), wired in by `lib/ci/release-gate.ts` and extracted into the trusted engine by the gate step's `git archive`. The ledger is **not** reclassified — it stays a `HIGH_RELEASE_PATHS` file. The exemption removes exactly one thing from risk computation: a proven append-only historical row addition. The 14-point contract is `RELEASE_POLICY.md` §7.1.
+
+Two distinct non-exempt outcomes, by design:
+
+- **NOT EXEMPT (stays HIGH):** row edited / deleted / reordered, schema or header change, prose or legacy-table change, no row appended, rename/delete/add of the ledger, no ledger or no table at `BASE_PRODUCTION_SHA`.
+- **FAIL CLOSED (`LEDGER_INTEGRITY_VIOLATION`, no risk level assigned):** malformed or duplicated table in the candidate, malformed appended row, appended row that is not completed historical evidence, appended row naming `CANDIDATE_SHA`, or an append that would move `BASE_PRODUCTION_SHA` resolution.
+
+Audit fields added to every decision: `LEDGER_CHANGE_PRESENT`, `LEDGER_APPEND_EXEMPTION_APPLIED`, `LEDGER_APPEND_VALIDATION_RESULT`, plus `LEDGER_APPEND_REASONS` and `LEDGER_APPENDED_ROWS`. An exempt ledger still appears in `CHANGED_FILES` with risk `EXEMPT`.
+
+A guard test asserts no workflow carries the exemption's decision vocabulary — the logic is never path filtering in YAML or bash.
+
+**Known, recorded consequence (DAR-062):** the current baseline `f2202ab5…` predates the policy-schema ledger table, so the exemption does not apply to the very next release. That release is HIGH on its own merits anyway. From the release after it, the LOW/MEDIUM paths are reachable.
+
+## DAR-061 — promotion propagates the real `FINAL_RISK`
+
+`promote-production.yml`'s release-evidence binding step gained a `FINAL_RISK BINDING` block (extracted and executed verbatim by the test suite). It reads `final_risk` from the same bound `production-release-evidence-*` document, after the existing `release_sha` / canary / stable / staging-provenance bindings pass and before any live Cloudflare read. It must be `LOW`, `MEDIUM` or `HIGH`; anything else — including `LEGACY_IN_FLIGHT_RELEASE` — fails closed. The validated value is exported as a step output and propagated verbatim into the promotion evidence JSON and the `STABLE_100` ledger row. No input supplies, defaults or overrides it. Historical evidence, including the existing `LEGACY_IN_FLIGHT_RELEASE` ledger row, is unchanged.
+
+## Tests
+
+| File | Tests | Note |
+| --- | --- | --- |
+| `lib/ci/ledger-append-exemption.test.ts` | 27 (new) | L0–L23, the exemption's unit contract |
+| `lib/ci/release-gate.test.ts` | 61 (was 50) | DAR-059 staging cases; `DAR-060 A`–`I` end to end against real git |
+| `lib/ci/promote-production-workflow.test.ts` | 52 (was 42) | DAR-061 shape, executed binding block, mutation guards |
+| **`npm test` total** | **1605 pass / 0 fail** | 1557 before this addendum |
+
+`npx tsc --noEmit`: PASS. `npm run build`: PASS.
+
+## Read-only simulation (real repository history, synthetic candidates)
+
+Run in a throwaway clone. No remote operation, no workflow dispatch, no Cloudflare call. Each scenario builds a synthetic release commit `R` on the real branch tip, appends `R`'s `STABLE_100` row to the real manifest as a row-only commit, then adds the candidate's own change; the gate CLI is run with the candidate as both `POLICY_REF` and `CANDIDATE_SHA` except where a tampered ledger requires a trusted side ref.
+
+| # | Candidate diff (on top of a real-history base) | Declared | Rollout | Computed | Final | Exemption | Result |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| A | ledger append + CSS-only change | LOW | 100 | LOW | **LOW** | applied | PERMITTED |
+| B | ledger append + ordinary component change | LOW | 100 | MEDIUM | **MEDIUM** | applied | PERMITTED |
+| B2 | same, declared MEDIUM | MEDIUM | 100 | MEDIUM | **MEDIUM** | applied | PERMITTED |
+| C | ledger append + workflow change | LOW | 10 | HIGH | **HIGH** | applied | PERMITTED (canary leg) |
+| C2 | same, attempted direct 100% | LOW | 100 | HIGH | **HIGH** | applied | BLOCKED `ROLLOUT_NOT_PERMITTED_FOR_RISK` |
+| D | tampered ledger (historical row edited) + CSS | LOW | 10 | HIGH | **HIGH** | **denied** (`LEDGER_ROW_EDITED_OR_REORDERED`) | PERMITTED only on the HIGH path; baseline unmoved |
+| E | LOW release attempting a staging-provenance bypass | LOW | 100 | LOW | LOW | — | BLOCKED `STAGING_PROVENANCE_REQUIRED` |
+| F | future HIGH promotion: `final_risk` read from release evidence, emitted in `STABLE_100` evidence | — | — | — | **HIGH in → HIGH out** | — | PASS (evidence JSON and job-summary ledger row both `HIGH`) |
+
+`BASE_PRODUCTION_SHA` resolved deterministically from the real ledger in every run (`f2202ab54a0cbbbd78f8c2625ed33e9c00fdbfb9` for the real file; the synthetic release commit in each scenario).
+
+## Documents updated
+
+- `docs/release/RELEASE_POLICY.md` — §0 lifecycle wording (ACTIVE on the **corrected** merge), §0.2, §3, §5 paths, new §5.1, new §7.1, §11 contract item, new §11.1, §15, §17.
+- `docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md` — "How to append a row" now states the row-only rule and the completed-evidence requirements; the `SKIPPED` provenance value is marked no longer producible. **No ledger row was added, edited or removed.**
+- `DOCUMENT_AUDIT_REPORT.md` — DAR-059/060/061 marked RESOLVED with resolution notes appended beneath the preserved original findings; new informational DAR-062.
+- `CLAUDE.md` §5b — reflects mandatory staging, the ledger-append exemption and promotion risk propagation.
+
+## Remaining governance actions (updated)
+
+- `MINIMUM_OBSERVATION_DURATION` — still `TBE` (§12); unchanged by design.
+- Queue/DLQ backlog observability for the §12 observation record — still manual.
+- `prevent_self_review` on the `production` Environment — still `false`; decision deferred, not touched.
+- DAR-062 — informational; closes itself at the first release classified against a post-bootstrap baseline.
+- Review and merge PR #13, then PR #14. The policy becomes `ACTIVE` on the PR #13 merge.
+- First real gated dispatch: still HIGH (this branch carries `.github/workflows/**`, `lib/ci/**` and governance-document changes), so `rollout_percentage=10` with real staging provenance.

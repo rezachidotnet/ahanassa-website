@@ -143,8 +143,51 @@ const RELEASE_STATES = new Set<string>(["STABLE_100", "CANARY_ACTIVE", "ROLLED_B
 const LEDGER_FINAL_RISK_VALUES = new Set<string>(["LOW", "MEDIUM", "HIGH", "LEGACY_IN_FLIGHT_RELEASE"]);
 
 const FULL_SHA = /^[0-9a-f]{40}$/;
-const LEDGER_HEADER_LINE = /^\s*\|\s*RELEASE_SHA\s*\|/;
+/** The authoritative ledger table's header line. Exactly one may exist in the file. */
+export const LEDGER_HEADER_LINE = /^\s*\|\s*RELEASE_SHA\s*\|/;
 const SEPARATOR_CELL = /^:?-{3,}:?$/;
+
+/**
+ * Where the one authoritative ledger table sits inside a manifest, and the
+ * exact lines its rows occupy. Purely structural — it validates nothing about
+ * a row's contents (resolveBaseProductionShaFromManifest does that) — so a
+ * caller that needs to compare two revisions of the ledger line-by-line
+ * (lib/ci/ledger-append-exemption.ts) can do so without re-deriving where the
+ * table starts and ends.
+ */
+export interface LedgerTableLocation {
+  headerIndex: number;
+  headerLine: string;
+  separatorIndex: number;
+  separatorLine: string;
+  /** Data-row lines in file order, verbatim (never trimmed or normalized). */
+  rowLines: string[];
+  /** Index of the first line AFTER the last data row. */
+  endIndex: number;
+}
+
+export function locateLedgerTable(markdown: string): { ok: true; table: LedgerTableLocation } | { ok: false; reason: string } {
+  const lines = markdown.split("\n");
+  const headerIdxs = lines.flatMap((l, i) => (LEDGER_HEADER_LINE.test(l) ? [i] : []));
+  if (headerIdxs.length === 0) return { ok: false, reason: "no ledger table with a RELEASE_SHA header was found" };
+  if (headerIdxs.length > 1) {
+    return { ok: false, reason: `${headerIdxs.length} ledger tables with a RELEASE_SHA header were found — exactly one authoritative table is required` };
+  }
+  const headerIndex = headerIdxs[0]!;
+  const separatorIndex = headerIndex + 1;
+  const separatorLine = lines[separatorIndex];
+  if (separatorLine === undefined || !separatorLine.trim().startsWith("|")) {
+    return { ok: false, reason: "ledger header is not followed by a separator row" };
+  }
+  const rowLines: string[] = [];
+  let i = separatorIndex + 1;
+  for (; i < lines.length; i += 1) {
+    const line = lines[i]!;
+    if (!line.trim().startsWith("|")) break;
+    rowLines.push(line);
+  }
+  return { ok: true, table: { headerIndex, headerLine: lines[headerIndex]!, separatorIndex, separatorLine, rowLines, endIndex: i } };
+}
 
 export type StrictBaseProductionShaResolution =
   | BaseProductionShaResolution

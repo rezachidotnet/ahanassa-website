@@ -173,15 +173,6 @@ on:
         type: choice
         options: ["10", "50", "100"]
         default: "100"
-      skip_staging_provenance:
-        description: >-
-          Break-glass only. Set true only for a hotfix SHA that legitimately
-          never went to staging. Still requires the environment's reviewer to
-          approve the run at all, and is loudly recorded in the job summary
-          and the production release evidence every time it is used.
-        required: false
-        type: boolean
-        default: false
       expected_current_stable_version_id:
         description: >-
           Worker Version ID you expect PRODUCTION'S CURRENT STABLE version to
@@ -376,7 +367,6 @@ jobs:
           POLICY_REF: ${{ github.sha }}
           DECLARED_RISK_INPUT: ${{ inputs.declared_risk }}
           ROLLOUT_INPUT: ${{ inputs.rollout_percentage }}
-          SKIP_PROVENANCE_INPUT: ${{ inputs.skip_staging_provenance }}
         run: |
           set -euo pipefail
           ENGINE_DIR="$RUNNER_TEMP/release-policy-engine"
@@ -393,6 +383,7 @@ jobs:
             lib/ci/release-gate.ts \
             lib/ci/release-risk-classifier.ts \
             lib/ci/release-ledger.ts \
+            lib/ci/ledger-append-exemption.ts \
             | tar -x -C "$ENGINE_DIR"
           echo '{ "type": "module" }' > "$ENGINE_DIR/package.json"
           RG_REPO_DIR="$GITHUB_WORKSPACE" \
@@ -400,7 +391,7 @@ jobs:
           RG_CANDIDATE_SHA="$DEPLOYED_SHA" \
           RG_DECLARED_RISK="$DECLARED_RISK_INPUT" \
           RG_ROLLOUT_PERCENTAGE="$ROLLOUT_INPUT" \
-          RG_SKIP_STAGING_PROVENANCE="$SKIP_PROVENANCE_INPUT" \
+          RG_SKIP_STAGING_PROVENANCE="false" \
           RG_DECISION_FILE="$DECISION_FILE" \
             node --experimental-strip-types "$ENGINE_DIR/lib/ci/release-gate-cli.ts"
           # --- ENGINE EXTRACTION END ---
@@ -626,7 +617,6 @@ jobs:
         id: provenance
         env:
           GH_TOKEN: ${{ github.token }}
-          SKIP_PROVENANCE: ${{ inputs.skip_staging_provenance }}
         run: |
           set -uo pipefail
           STAGING_WORKFLOW_ID=361701517
@@ -676,22 +666,16 @@ jobs:
               echo ""
               echo "Confirmed via Deploy Staging (workflow $STAGING_WORKFLOW_ID) run [$FOUND_RUN](https://github.com/${{ github.repository }}/actions/runs/$FOUND_RUN)."
             } >> "$GITHUB_STEP_SUMMARY"
-          elif [ "$SKIP_PROVENANCE" = "true" ] && [ "${FINAL_RISK:-}" = "HIGH" ]; then
-            # Defense in depth: the release policy gate already refuses this
-            # combination (HIGH_REQUIRES_STAGING_PROVENANCE). A HIGH release
-            # never uses the break-glass path (RELEASE_POLICY.md §5).
-            echo "::error::STAGING PROVENANCE ASSERTION FAILED — FINAL_RISK is HIGH and no successful Deploy Staging run contains 'Deploying exact commit: $DEPLOYED_SHA'. skip_staging_provenance is never honored for a HIGH release."
-            exit 1
-          elif [ "$SKIP_PROVENANCE" = "true" ] && [ -n "${FINAL_RISK:-}" ]; then
-            echo "::warning::STAGING PROVENANCE SKIPPED — skip_staging_provenance=true. Deploying $DEPLOYED_SHA with NO staging proof. This MUST be justified when the production deployment manifest is appended."
-            echo "staging_provenance_run=SKIPPED" >> "$GITHUB_OUTPUT"
-            {
-              echo ""
-              echo "### Staging provenance"
-              echo ""
-              echo "**SKIPPED** (\`skip_staging_provenance=true\`) — $DEPLOYED_SHA was deployed with NO staging proof. Break-glass path used; this run was still gated by the production environment's required reviewer."
-            } >> "$GITHUB_STEP_SUMMARY"
           else
+            # DOCUMENT_AUDIT_REPORT.md DAR-059 (owner decision, 2026-09-23):
+            # staging provenance is mandatory for every OPERATION_TYPE RELEASE
+            # at every FINAL_RISK — LOW, MEDIUM and HIGH alike. The former
+            # break-glass input is gone from this workflow, and the release
+            # policy gate refuses it (STAGING_PROVENANCE_REQUIRED) if it is
+            # ever reintroduced. There is no branch here that proceeds without
+            # a proven staging run. EMERGENCY_ROLLBACK (RELEASE_POLICY.md §13)
+            # remains a separate governed operation and is not reachable from
+            # this workflow at all.
             echo "::error::STAGING PROVENANCE ASSERTION FAILED — no successful Deploy Staging run (workflow $STAGING_WORKFLOW_ID) contains the log line 'Deploying exact commit: $DEPLOYED_SHA'. This SHA has not been proven on staging."
             exit 1
           fi
@@ -1052,7 +1036,7 @@ jobs:
             "rollout_percentage": "${{ inputs.rollout_percentage }}",
             "rollout_deploy_specs": "$ROLLOUT_DEPLOY_SPECS",
             "staging_provenance_run": "${{ steps.provenance.outputs.staging_provenance_run }}",
-            "skip_staging_provenance": "${{ inputs.skip_staging_provenance }}",
+            "staging_provenance_required": true,
             "workflow_run_id": "${{ github.run_id }}",
             "workflow_run_attempt": "${{ github.run_attempt }}",
             "deployed_at": "$DEPLOYED_AT"
@@ -1425,7 +1409,10 @@ jobs:
               BLOCK_REASONS: ["the run stopped before the release policy gate produced a decision"],
               BASE_PRODUCTION_SHA: null, CANDIDATE_SHA: $c, DECLARED_RISK: null, DECLARED_RISK_INPUT: $d,
               COMPUTED_MINIMUM_RISK: null, FINAL_RISK: null, CLASSIFICATION_RESULT: "NOT_EVALUATED",
-              TRIGGERED_RISK_RULES: [], CHANGED_FILES: [], ROLLOUT_PERCENTAGE: $r, EXPECTED_RELEASE_PATH: null
+              TRIGGERED_RISK_RULES: [], CHANGED_FILES: [], ROLLOUT_PERCENTAGE: $r, EXPECTED_RELEASE_PATH: null,
+              LEDGER_CHANGE_PRESENT: false, LEDGER_APPEND_EXEMPTION_APPLIED: false,
+              LEDGER_APPEND_VALIDATION_RESULT: "NOT_EVALUATED", LEDGER_APPEND_REASONS: [], LEDGER_APPENDED_ROWS: [],
+              STAGING_PROVENANCE_REQUIRED: true, SKIP_STAGING_PROVENANCE: false
             }' > "$AUDIT_FILE.base"
           fi
           GATE_RESULT="$(jq -r '.RESULT' "$AUDIT_FILE.base")"
@@ -1453,8 +1440,9 @@ jobs:
             echo "| --- | --- |"
             jq -r '
               ["OPERATION_TYPE","BASE_PRODUCTION_SHA","CANDIDATE_SHA","DECLARED_RISK","COMPUTED_MINIMUM_RISK","FINAL_RISK",
-               "CLASSIFICATION_RESULT","STAGING_PROVENANCE_RUN_ID","EXPECTED_RELEASE_PATH","GATE_RESULT","RESULT"] as $keys
-              | . as $d | $keys[] | "| \(.) | `\($d[.] // "-")` |"' "$AUDIT_FILE"
+               "CLASSIFICATION_RESULT","LEDGER_CHANGE_PRESENT","LEDGER_APPEND_EXEMPTION_APPLIED","LEDGER_APPEND_VALIDATION_RESULT",
+               "STAGING_PROVENANCE_REQUIRED","SKIP_STAGING_PROVENANCE","STAGING_PROVENANCE_RUN_ID","EXPECTED_RELEASE_PATH","GATE_RESULT","RESULT"] as $keys
+              | . as $d | $keys[] | "| \(.) | `\(if $d[.] == null then "-" else $d[.] end)` |"' "$AUDIT_FILE"
             echo "| TRIGGERED_RISK_RULES | \`$(jq -r '.TRIGGERED_RISK_RULES | join(", ")' "$AUDIT_FILE")\` |"
             echo "| CHANGED_FILES | $(jq -r '.CHANGED_FILES | length' "$AUDIT_FILE") (full list in the release-policy-audit artifact) |"
           } >> "$GITHUB_STEP_SUMMARY"

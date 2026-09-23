@@ -49,6 +49,11 @@ function executableLines(yaml: string): string[] {
 // in workflow-invariants.test.ts.
 // ---------------------------------------------------------------------------
 
+/** DAR-061 item 5: no operator input may supply or override the promoted release's risk. */
+function assertNoRiskInput(inputName: string, violations: string[]): void {
+  if (/risk/i.test(inputName)) violations.push(`input "${inputName}" could let an operator supply the promotion's FINAL_RISK`);
+}
+
 function validatePromoteProductionWorkflowShape(content: string): string[] {
   const violations: string[] = [];
   const code = withoutComments(content);
@@ -158,6 +163,27 @@ function validatePromoteProductionWorkflowShape(content: string): string[] {
   if (/\bskip_\w+|bypass|break[- ]glass/i.test(code)) violations.push("must expose no bypass/skip-verification/break-glass input");
   if (!code.includes('if [ "$FAILURES" -gt 0 ]; then\n            echo "::error::$FAILURES production smoke')) {
     violations.push("the smoke suite must fail closed on the actual failure branch (exit non-zero after reporting failed checks)");
+  }
+
+  // DAR-061. FINAL_RISK is read from the bound release evidence, never
+  // hardcoded and never operator-supplied.
+  if (!content.includes("FINAL_RISK BINDING START") || !content.includes("FINAL_RISK BINDING END")) {
+    violations.push("must carry an extractable FINAL_RISK BINDING block");
+  }
+  if (/"final_risk":\s*"LEGACY_IN_FLIGHT_RELEASE"/.test(code) || /\| LEGACY_IN_FLIGHT_RELEASE \| PASS \|/.test(code)) {
+    violations.push("must never emit a hardcoded final_risk of LEGACY_IN_FLIGHT_RELEASE in promotion evidence");
+  }
+  if (!code.includes('EV_FINAL_RISK="$(jq -r')) violations.push("must read final_risk from the bound release-evidence document");
+  if (!/echo "final_risk=\$EV_FINAL_RISK" >> "\$GITHUB_OUTPUT"/.test(code)) {
+    violations.push("must export the bound final_risk as a step output");
+  }
+  if (!code.includes("RELEASE_FINAL_RISK: ${{ steps.release_evidence.outputs.final_risk }}")) {
+    violations.push("the promotion evidence step must source FINAL_RISK from the release-evidence binding step's output");
+  }
+  if (!code.includes('"final_risk": "$RELEASE_FINAL_RISK"')) violations.push("promotion evidence must record the bound FINAL_RISK verbatim");
+  if (!/\| \$RELEASE_FINAL_RISK \| PASS \|/.test(code)) violations.push("the job-summary ledger row must carry the bound FINAL_RISK");
+  for (const inputName of [...code.matchAll(/^      (\w+):\s*$/gm)].map((m) => m[1]!)) {
+    assertNoRiskInput(inputName, violations);
   }
 
   // 34. ledger evidence payload contains STABLE_100 data.
@@ -725,4 +751,140 @@ test("36h. FIXED: a failing artifacts API call fails closed with a legible error
   const r = runArtifactLookup(VERIFY_ARTIFACT_LOOKUP, { ghFails: true });
   assert.notEqual(r.status, 0, "an API failure must fail the step closed");
   assert.match(r.stdout, /VERIFICATION RUN ASSERTION FAILED/, "the failure must be reported as an explicit assertion failure");
+});
+
+// ---------------------------------------------------------------------------
+// DAR-061 — the promoted release's FINAL_RISK comes from the trusted
+// production release-evidence artifact, is validated before any traffic moves,
+// and is propagated verbatim into the STABLE_100 promotion evidence.
+// ---------------------------------------------------------------------------
+
+const FINAL_RISK_BINDING = sliceBetween(
+  extractStepBody("Bind release_sha/canary/stable"),
+  "FINAL_RISK BINDING START",
+  "FINAL_RISK BINDING END",
+);
+
+function runFinalRiskBinding(evidence: Record<string, unknown> | string): { status: number; stdout: string; finalRisk: string } {
+  const dir = mkdtempSync(path.join(tmpdir(), "promote-final-risk-"));
+  try {
+    const evidencePath = path.join(dir, "release-evidence.json");
+    writeFileSync(evidencePath, typeof evidence === "string" ? evidence : JSON.stringify(evidence));
+    const outputPath = path.join(dir, "github_output");
+    writeFileSync(outputPath, "");
+    const scriptPath = path.join(dir, "bind.sh");
+    writeFileSync(scriptPath, `set -euo pipefail\nMATCHED="${evidencePath}"\n${FINAL_RISK_BINDING}\n`);
+    const res = spawnSync("bash", ["-e", scriptPath], {
+      encoding: "utf8",
+      env: { ...process.env, GITHUB_OUTPUT: outputPath, CANARY_INPUT: SYN_CANARY },
+    });
+    const out = readFileSync(outputPath, "utf8");
+    const m = out.match(/^final_risk=(.*)$/m);
+    return { status: res.status ?? -1, stdout: (res.stdout ?? "") + (res.stderr ?? ""), finalRisk: m ? m[1]!.trim() : "" };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** The shape deploy-production.yml's release policy gate writes today. */
+function releaseEvidence(finalRisk: unknown): Record<string, unknown> {
+  const ev: Record<string, unknown> = {
+    new_version_id: SYN_CANARY,
+    previous_version_id: SYN_STABLE,
+    deployed_sha: "0".repeat(40),
+    rollout_percentage: "10",
+    staging_provenance_run: "90000000009",
+    workflow_run_id: "90000000010",
+    operation_type: "RELEASE",
+  };
+  if (finalRisk !== undefined) ev.final_risk = finalRisk;
+  return ev;
+}
+
+test("19/25. DAR-061: a future promotion reads FINAL_RISK from the release evidence and exports it verbatim", () => {
+  for (const risk of ["HIGH", "MEDIUM", "LOW"]) {
+    const r = runFinalRiskBinding(releaseEvidence(risk));
+    assert.equal(r.status, 0, `${risk}: ${r.stdout}`);
+    assert.equal(r.finalRisk, risk, `${risk} must be propagated exactly as recorded`);
+  }
+});
+
+test("22. DAR-061: a missing final_risk fails closed", () => {
+  const r = runFinalRiskBinding(releaseEvidence(undefined));
+  assert.notEqual(r.status, 0, "a release evidence document with no final_risk must not be promotable");
+  assert.match(r.stdout, /RELEASE EVIDENCE ASSERTION FAILED/);
+  assert.equal(r.finalRisk, "");
+});
+
+test("23. DAR-061: an invalid final_risk — including the legacy marker — fails closed", () => {
+  const invalid: unknown[] = ["LEGACY_IN_FLIGHT_RELEASE", "", "-", "high", "CRITICAL", "AMBIGUOUS", null, 3, true, ["HIGH"]];
+  for (const v of invalid) {
+    const r = runFinalRiskBinding(releaseEvidence(v));
+    assert.notEqual(r.status, 0, `final_risk=${JSON.stringify(v)} must fail closed`);
+    assert.match(r.stdout, /not a policy-computed LOW, MEDIUM or HIGH/);
+    assert.equal(r.finalRisk, "");
+  }
+});
+
+test("23b. DAR-061: an unreadable release-evidence document fails closed, never defaults", () => {
+  const r = runFinalRiskBinding("{ not json");
+  assert.notEqual(r.status, 0);
+  assert.equal(r.finalRisk, "");
+});
+
+test("21. DAR-061: the FINAL_RISK binding sits inside the step that already bound sha/canary/stable/run", () => {
+  const step = extractStepBody("Bind release_sha/canary/stable");
+  for (const bound of ['EV_SHA="$(jq -r', 'EV_PREV="$(jq -r', 'EV_RUN="$(jq -r', 'EV_STAGING="$(jq -r']) {
+    assert.ok(step.includes(bound), `the pre-existing binding ${bound} must be preserved`);
+  }
+  assert.ok(step.indexOf("FINAL_RISK BINDING START") > step.indexOf('EV_STAGING="$(jq -r'), "FINAL_RISK is read only after the evidence is bound");
+  assert.ok(FINAL_RISK_BINDING.includes('"$MATCHED"'), "FINAL_RISK must be read from the matched evidence document, not re-fetched");
+  // Mismatched evidence still fails closed before FINAL_RISK is ever read.
+  for (const guard of ["not the claimed release_sha", "not the claimed stable_version_id", "no real staging provenance"]) {
+    assert.ok(step.includes(guard), `the pre-existing fail-closed guard "${guard}" must be preserved`);
+  }
+});
+
+test("20. DAR-061: no operator input can supply, override or default the promotion's FINAL_RISK", () => {
+  const inputsBlock = RAW.slice(RAW.indexOf("inputs:"), RAW.indexOf("concurrency:") === -1 ? RAW.indexOf("jobs:") : RAW.indexOf("concurrency:"));
+  const inputNames = [...inputsBlock.matchAll(/^      (\w+):\s*$/gm)].map((m) => m[1]!);
+  assert.ok(inputNames.length > 0, "the workflow must declare inputs");
+  for (const name of inputNames) assert.doesNotMatch(name, /risk|classif|override|force/i, `input "${name}" must not influence FINAL_RISK`);
+  const evidenceStep = extractStepBody("Capture promotion evidence");
+  assert.ok(!/inputs\.\w*risk/i.test(evidenceStep), "the evidence payload must not read any risk-shaped input");
+});
+
+test("24. DAR-061: the historical legacy ledger row and its evidence are left untouched", () => {
+  const manifest = readFileSync(path.join(repoRoot, "docs", "release", "PRODUCTION_DEPLOYMENT_MANIFEST.md"), "utf8");
+  assert.ok(manifest.includes("| LEGACY_IN_FLIGHT_RELEASE | PASS |"), "the completed legacy promotion's recorded FINAL_RISK must stay in the ledger as history");
+  assert.ok(manifest.includes("LEGACY_IN_FLIGHT_RELEASE | 10 |"), "the original in-flight row must stay unedited");
+});
+
+test("26/27/28. DAR-061 changes nothing about upload, topology or the smoke gate", () => {
+  assert.deepEqual(validatePromoteProductionWorkflowShape(RAW), []);
+  const exec = executableLines(RAW);
+  assert.ok(!exec.some((l) => /wrangler\s+versions\s+upload\b/.test(l)), "zero Worker upload");
+  assert.ok(!exec.some((l) => /\bnpm\s+ci\b/.test(l)), "zero build");
+  assert.ok(RAW.includes("TOPOLOGY CHECK START") && RAW.includes("POST-PROMOTION CHECK START"), "topology invariants preserved");
+  assert.ok(RAW.includes('if [ "$FAILURES" -gt 0 ]; then'), "the smoke gate remains blocking");
+});
+
+test("mutation: reinstating a hardcoded final_risk fails the shape check", () => {
+  const mutated = RAW.replace('"final_risk": "$RELEASE_FINAL_RISK"', '"final_risk": "LEGACY_IN_FLIGHT_RELEASE"');
+  assert.notEqual(mutated, RAW);
+  const v = validatePromoteProductionWorkflowShape(mutated);
+  assert.ok(v.some((x) => x.includes("hardcoded final_risk")), v.join("; "));
+});
+
+test("mutation: removing the FINAL_RISK binding, its marker, or its output fails the shape check", () => {
+  const mutations: Array<[string, string]> = [
+    ["marker removed", RAW.replace("# --- FINAL_RISK BINDING START (extracted and executed verbatim by", "# ---")],
+    ["read removed", RAW.replace('EV_FINAL_RISK="$(jq -r', 'EV_UNUSED="$(jq -r')],
+    ["output removed", RAW.replace('echo "final_risk=$EV_FINAL_RISK" >> "$GITHUB_OUTPUT"', 'echo "bound"')],
+    ["evidence no longer sources the binding", RAW.replace("RELEASE_FINAL_RISK: ${{ steps.release_evidence.outputs.final_risk }}", "RELEASE_FINAL_RISK: HIGH")],
+  ];
+  for (const [label, mutated] of mutations) {
+    assert.notEqual(mutated, RAW, `${label}: mutation did not apply`);
+    assert.ok(validatePromoteProductionWorkflowShape(mutated).length > 0, `${label}: mutation must be caught`);
+  }
 });

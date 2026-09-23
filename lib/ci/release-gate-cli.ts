@@ -9,7 +9,9 @@
  *   RG_CANDIDATE_SHA            deploy_ref, already resolved to a full SHA
  *   RG_DECLARED_RISK            declared_risk input (LOW | MEDIUM | HIGH)
  *   RG_ROLLOUT_PERCENTAGE       rollout_percentage input
- *   RG_SKIP_STAGING_PROVENANCE  skip_staging_provenance input ("true" | "false")
+ *   RG_SKIP_STAGING_PROVENANCE  legacy break-glass input, kept only so a
+ *                               reintroduced "true" is refused (DAR-059);
+ *                               deploy-production.yml always passes "false"
  *   RG_DECISION_FILE            where to write the decision JSON (required)
  *   GITHUB_STEP_SUMMARY / GITHUB_OUTPUT  appended to when set
  *
@@ -43,6 +45,14 @@ function gitDeps(repoDir: string, ledgerRef: string): ReleaseGateDeps {
       }
     },
     commitExists: (sha) => succeeds(["cat-file", "-e", `${sha}^{commit}`]),
+    readFileAtCommit(sha, filePath) {
+      if (!/^[0-9a-f]{40}$/.test(sha)) return null;
+      try {
+        return git(["show", `${sha}:${filePath}`]);
+      } catch {
+        return null;
+      }
+    },
     isAncestor: (a, b) => succeeds(["merge-base", "--is-ancestor", a, b]),
     diffNameStatusZ: (base, candidate) => git(["diff", "--name-status", "-z", "-M", "-C", "--no-ext-diff", base, candidate, "--"]),
   };
@@ -80,6 +90,9 @@ function main(): number {
   console.log(`CANDIDATE_SHA=${decision.CANDIDATE_SHA}`);
   console.log(`DECLARED_RISK=${decision.DECLARED_RISK ?? "INVALID"} COMPUTED_MINIMUM_RISK=${decision.COMPUTED_MINIMUM_RISK ?? "-"} FINAL_RISK=${decision.FINAL_RISK ?? "-"}`);
   console.log(`CLASSIFICATION_RESULT=${decision.CLASSIFICATION_RESULT} CHANGED_FILES=${decision.CHANGED_FILES.length} TRIGGERED_RISK_RULES=${decision.TRIGGERED_RISK_RULES.join(",") || "-"}`);
+  console.log(
+    `LEDGER_CHANGE_PRESENT=${decision.LEDGER_CHANGE_PRESENT} LEDGER_APPEND_EXEMPTION_APPLIED=${decision.LEDGER_APPEND_EXEMPTION_APPLIED} LEDGER_APPEND_VALIDATION_RESULT=${decision.LEDGER_APPEND_VALIDATION_RESULT}`,
+  );
 
   if (decision.RESULT !== "PERMITTED") {
     console.log(`::error::RELEASE POLICY GATE BLOCKED — ${decision.BLOCK_CODE}: ${decision.BLOCK_REASONS[0] ?? ""}`);
