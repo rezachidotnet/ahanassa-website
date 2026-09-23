@@ -49,6 +49,11 @@ name: Promote Production
 #        and whose smoke_result started with "PASSED".
 #   7. staging_provenance_run recorded on the release-evidence artifact must
 #      be a real run id, never "SKIPPED".
+#   8. final_risk recorded on that same release-evidence artifact must be a
+#      policy-computed LOW/MEDIUM/HIGH, and is propagated verbatim into the
+#      STABLE_100 promotion evidence (DOCUMENT_AUDIT_REPORT.md DAR-061). No
+#      operator input supplies, overrides or defaults it, and no literal is
+#      ever substituted for it.
 #   9/10. the release ledger (docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md,
 #        parsed by lib/ci/release-ledger.ts) must carry exactly one row for
 #        release_sha, in a RELEASE_STATE this workflow recognizes as
@@ -59,7 +64,7 @@ name: Promote Production
 # repairs, guesses, or silently proceeds on a partial match.
 #
 # LEGACY EXCEPTION, NOT A CLASSIFIER RETROFIT (RELEASE_POLICY.md §17, this
-# task's Phase 5)
+# task's Phase 5) — CLOSED 2026-09-22, see DAR-061 below
 # -------------------------------------------------------------------------
 # This workflow does NOT invoke the LOW/MEDIUM/HIGH risk classifier
 # (lib/ci/release-risk-classifier.ts) against the release under promotion —
@@ -72,6 +77,16 @@ name: Promote Production
 # to be one of the two states already recognized as "a live, unpromoted
 # canary this workflow may act on." There is no separate, permanent bypass
 # path — the same two states are the only ones ever accepted.
+#
+# What HAS changed (DOCUMENT_AUDIT_REPORT.md DAR-061, owner decision
+# 2026-09-23): this workflow no longer emits a hardcoded
+# `final_risk: LEGACY_IN_FLIGHT_RELEASE` in its STABLE_100 evidence. That
+# literal was correct for exactly one completed promotion (run 35719752606,
+# whose ledger row stays untouched) and wrong for every release after it.
+# FINAL_RISK is now read from the bound release evidence and must be
+# LOW/MEDIUM/HIGH — normally HIGH, since under RELEASE_POLICY.md §5 only a
+# HIGH release reaches production through a canary at all. The legacy marker
+# is no longer an accepted value here.
 #
 # NO BREAK-GLASS, NO BYPASS
 # -------------------------------------------------------------------------
@@ -429,6 +444,35 @@ jobs:
             echo "::error::RELEASE EVIDENCE ASSERTION FAILED — the release that produced $CANARY_INPUT has no real staging provenance (staging_provenance_run='$EV_STAGING'). Refusing to promote a release with no proof it was ever staged."
             exit 1
           fi
+
+          # --- FINAL_RISK BINDING START (extracted and executed verbatim by
+          #     lib/ci/promote-production-workflow.test.ts) ---
+          # DOCUMENT_AUDIT_REPORT.md DAR-061. The promoted release's FINAL_RISK
+          # is read from the same trusted production-release-evidence document
+          # this step has already bound to release_sha, canary_version_id,
+          # stable_version_id and the originating Deploy Production run. It is
+          # never an operator input, never inferred, and never a fixed literal:
+          # deploy-production.yml's release policy gate (RELEASE_POLICY.md
+          # §0.2) is what computed and recorded it. Missing, empty, null, or
+          # any value outside LOW/MEDIUM/HIGH — including the historical
+          # LEGACY_IN_FLIGHT_RELEASE marker, which belongs only to the already
+          # closed pre-policy release (§17) — fails closed here, before any
+          # traffic moves. A STABLE_100 ledger row must never claim a risk
+          # level nobody computed.
+          EV_FINAL_RISK="$(jq -r 'if (.final_risk | type) == "string" then .final_risk else "" end' "$MATCHED")"
+          case "$EV_FINAL_RISK" in
+            LOW|MEDIUM|HIGH) ;;
+            *)
+              echo "::error::RELEASE EVIDENCE ASSERTION FAILED — the release evidence for $CANARY_INPUT records final_risk='$EV_FINAL_RISK', which is not a policy-computed LOW, MEDIUM or HIGH. Refusing to promote a release whose FINAL_RISK was never validly recorded, and refusing to substitute one."
+              exit 1
+              ;;
+          esac
+          if [ "$EV_FINAL_RISK" != "HIGH" ]; then
+            echo "::warning::PROMOTION RISK NOTICE — the release evidence records FINAL_RISK=$EV_FINAL_RISK, yet this version is being promoted from a canary. Under RELEASE_POLICY.md §5 only a HIGH release uses a canary; the recorded value is propagated exactly as found and must be reconciled when the ledger row is appended."
+          fi
+          echo "Release FINAL_RISK bound from recorded release evidence: $EV_FINAL_RISK"
+          echo "final_risk=$EV_FINAL_RISK" >> "$GITHUB_OUTPUT"
+          # --- FINAL_RISK BINDING END ---
 
           echo "Release evidence confirmed: run $EV_RUN deployed $EV_SHA as $CANARY_INPUT at ${EV_ROLLOUT}%, over previous $EV_PREV, staged in run $EV_STAGING."
           echo "production_run_id=$EV_RUN" >> "$GITHUB_OUTPUT"
@@ -1102,8 +1146,19 @@ jobs:
           OBS_ENDED_INPUT: ${{ inputs.observation_ended_at }}
           OBS_OWNER_INPUT: ${{ inputs.observation_owner }}
           OBS_ATTESTATION_INPUT: ${{ inputs.observation_attestation }}
+          RELEASE_FINAL_RISK: ${{ steps.release_evidence.outputs.final_risk }}
         run: |
           set -euo pipefail
+          # DAR-061: FINAL_RISK is whatever the bound release evidence recorded
+          # — propagated verbatim, never re-derived here. The pre-promotion
+          # binding step already refused anything but LOW/MEDIUM/HIGH, so the
+          # guard below is unreachable; it records the anomaly instead of
+          # aborting because traffic has already shifted at this point and the
+          # post-promotion smoke gate must still run.
+          if ! [[ "$RELEASE_FINAL_RISK" =~ ^(LOW|MEDIUM|HIGH)$ ]]; then
+            echo "::error::PROMOTION EVIDENCE — FINAL_RISK '$RELEASE_FINAL_RISK' is not LOW/MEDIUM/HIGH. Recording UNVALIDATED_FINAL_RISK; do not append a ledger row from this evidence without re-deriving FINAL_RISK from the release-evidence artifact."
+            RELEASE_FINAL_RISK="UNVALIDATED_FINAL_RISK"
+          fi
           PROMOTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           echo "promoted_at=$PROMOTED_AT" >> "$GITHUB_OUTPUT"
 
@@ -1121,7 +1176,7 @@ jobs:
             "production_run_id": "${{ steps.release_evidence.outputs.production_run_id }}",
             "promotion_run_id": "${{ github.run_id }}",
             "rollback_version_id": "$STABLE_INPUT",
-            "final_risk": "LEGACY_IN_FLIGHT_RELEASE",
+            "final_risk": "$RELEASE_FINAL_RISK",
             "result": "PASS",
             "timestamp": "$PROMOTED_AT",
             "observation_started_at": "$OBS_STARTED_INPUT",
@@ -1142,7 +1197,7 @@ jobs:
             echo ""
             echo "| RELEASE_SHA | WORKER_VERSION_ID | RELEASE_STATE | FINAL_TRAFFIC_PERCENT | STAGING_RUN_ID | PRODUCTION_RUN_ID | PROMOTION_RUN_ID | ROLLBACK_VERSION_ID | FINAL_RISK | RESULT | TIMESTAMP |"
             echo "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
-            echo "| \`$SHA_INPUT\` | \`$CANARY_INPUT\` | STABLE_100 | 100 | \`${{ steps.release_evidence.outputs.staging_run_id }}\` | \`${{ steps.release_evidence.outputs.production_run_id }}\` | \`${{ github.run_id }}\` | \`$STABLE_INPUT\` | LEGACY_IN_FLIGHT_RELEASE | PASS | $PROMOTED_AT |"
+            echo "| \`$SHA_INPUT\` | \`$CANARY_INPUT\` | STABLE_100 | 100 | \`${{ steps.release_evidence.outputs.staging_run_id }}\` | \`${{ steps.release_evidence.outputs.production_run_id }}\` | \`${{ github.run_id }}\` | \`$STABLE_INPUT\` | $RELEASE_FINAL_RISK | PASS | $PROMOTED_AT |"
             echo ""
             echo "Observation: $OBS_STARTED_INPUT -> $OBS_ENDED_INPUT, owner $OBS_OWNER_INPUT, attestation \`$OBS_ATTESTATION_INPUT\`."
             echo ""
