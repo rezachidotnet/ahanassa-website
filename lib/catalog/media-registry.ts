@@ -76,6 +76,47 @@ const FAMILY_DEFAULT_IMAGES: Record<string, string> = {};
 const GENERIC_FALLBACK_IMAGE = `${PRODUCTS_DIR}/steel-placeholder.svg`;
 
 /**
+ * Website public category images, keyed by the Odoo public category `code`
+ * (`/api/v1/catalog/categories`) — owner-approved mapping, 2026-09-28. The
+ * one place a category's picture is chosen; no component hardcodes a path.
+ * Paths are stored exactly as the files are named on disk; `categoryImageSrc`
+ * percent-encodes them (several contain spaces).
+ */
+const CATEGORY_IMAGES: Record<string, string> = {
+  REBAR: `${PRODUCTS_DIR}/rebar.png`,
+  BEAM: `${PRODUCTS_DIR}/IPE.jpg`,
+  ANGLE: `${PRODUCTS_DIR}/angle inventory.jpg`,
+  CHANNEL: `${PRODUCTS_DIR}/u channel.jpg`,
+  BOX_SECTION: `${PRODUCTS_DIR}/box-shs.jpg`,
+  SHEET_PLATE: `${PRODUCTS_DIR}/sheet-plate.png`,
+  PIPE: `${PRODUCTS_DIR}/steel-pipe.jpg`,
+};
+
+export type CategoryMediaSource = "category" | "generic_fallback";
+
+export interface ResolvedCategoryMedia {
+  /** The on-disk public path (unencoded) — what tests and the asset check compare against. */
+  path: string;
+  /** URL-safe `src` for `<Image>`/`<img>`. */
+  src: string;
+  source: CategoryMediaSource;
+}
+
+/**
+ * Image for a public category. A category Odoo adds later that has no
+ * approved photo yet renders the neutral generic illustration — never
+ * another category's photo, never a broken reference.
+ */
+export function resolveCategoryMedia(code: string): ResolvedCategoryMedia {
+  const mapped = CATEGORY_IMAGES[code];
+  const path = mapped ?? GENERIC_FALLBACK_IMAGE;
+  return { path, src: encodeURI(path), source: mapped ? "category" : "generic_fallback" };
+}
+
+/** Every mapped category image path — for the asset-existence test only. */
+export const CATEGORY_IMAGE_PATHS: readonly string[] = Object.values(CATEGORY_IMAGES);
+
+/**
  * Never returns a broken reference — always resolves to *some* src, per this
  * task's "no broken images allowed; missing mapping must still render
  * safely" requirement.

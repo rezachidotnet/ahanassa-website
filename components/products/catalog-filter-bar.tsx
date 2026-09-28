@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { localizedPath, type Locale } from "@/config/locales";
-import { buildQueryString, toggleFilterQueryValue, type CatalogFilterQueryKey } from "@/lib/catalog/catalog-filters";
+import { buildQueryString, selectCategoryQuery, toggleFilterQueryValue, type CatalogFilterQueryKey } from "@/lib/catalog/catalog-filters";
 import type { CatalogFilterFacets } from "@/lib/catalog/editorial-repository";
+import type { PublicCatalogCategory } from "@/lib/catalog/types";
 import { cn } from "@/lib/utils";
 
 const dimensionLabel: Record<CatalogFilterQueryKey, Record<Locale, string>> = {
+  category: { fa: "دسته‌بندی", en: "Category", ar: "الفئة" },
   family: { fa: "خانواده کالایی", en: "Family", ar: "الفئة" },
   group: { fa: "گروه", en: "Group", ar: "المجموعة" },
   form: { fa: "شکل محصول", en: "Form", ar: "الشكل" },
@@ -17,19 +19,27 @@ const dimensionLabel: Record<CatalogFilterQueryKey, Record<Locale, string>> = {
  * a plain `<Link>`, no client JS. Facets are pre-derived from published
  * templates only (`getPublicCatalogFilterFacets`), so a dimension with zero
  * real public results never appears.
+ *
+ * The Category row is different on purpose: it lists every Odoo public
+ * category in Odoo's order (the same set the Homepage and Header show), and
+ * replaces the technical `group` facet as the visible grouping — BOX_SECTION
+ * already covers RHS + SHS, so offering both levels would duplicate the
+ * choice. `?group=` still filters when present (older links keep working).
  */
 export function CatalogFilterBar({
   locale,
+  categories,
   facets,
   active,
 }: {
   locale: Locale;
+  categories: PublicCatalogCategory[];
   facets: CatalogFilterFacets;
   active: Partial<Record<CatalogFilterQueryKey, string>>;
 }) {
   const dimensions: { key: CatalogFilterQueryKey; options: CatalogFilterFacets[keyof CatalogFilterFacets] }[] = [
+    { key: "category", options: categories.map((c) => ({ code: c.code, name: c.name })) },
     { key: "family", options: facets.family },
-    { key: "group", options: facets.group },
     { key: "form", options: facets.form },
     { key: "grade", options: facets.grade },
     { key: "standard", options: facets.standard },
@@ -47,7 +57,7 @@ export function CatalogFilterBar({
             {dimension.options.map((option) => {
               if (!option.code) return null;
               const isActive = active[dimension.key] === option.code;
-              const nextParams = toggleFilterQueryValue(active, dimension.key, option.code);
+              const nextParams = dimension.key === "category" ? selectCategoryQuery(active, option.code) : toggleFilterQueryValue(active, dimension.key, option.code);
               const href = `${localizedPath(locale, "/products")}${buildQueryString(nextParams)}`;
               return (
                 <Link

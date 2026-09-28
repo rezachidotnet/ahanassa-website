@@ -11,8 +11,7 @@ import { BuyerValue } from "@/components/home/buyer-value";
 import { Industries } from "@/components/home/industries";
 import { FinalCta } from "@/components/home/final-cta";
 import type { PublicPriceStripItem } from "@/lib/pricing/types";
-import type { HomepageProductCandidate } from "@/lib/catalog/types";
-import { resolveHomepageRankingMode } from "@/lib/ranking/score";
+import type { PublicCatalogCategory } from "@/lib/catalog/types";
 
 /**
  * HOMEPAGE COMPOSITION — frozen by
@@ -149,32 +148,28 @@ export default async function HomePage({ params }: PageProps) {
     priceStripItems = await getHomepagePriceStrip(env as CloudflareEnv, locale);
   }
 
-  // Homepage Product Projection (this task's Homepage Product Architecture
-  // Hardening) — always real, publication-eligible DB_PUBLIC data, never
-  // lib/content/catalog-sample.ts. Ranking mode defaults safely to "base"
-  // on a missing/invalid HOMEPAGE_RANKING_MODE (resolveHomepageRankingMode
-  // never throws) — unlike the price strip, this section is never fully
-  // disabled by a flag; the flag only controls whether demand ranking
-  // layers on top of the deterministic base order.
+  // Product Showcase data: Odoo's public categories for this locale, read
+  // from the DB_PUBLIC snapshot (lib/catalog/category-sync-runner.ts keeps
+  // it current) — never a live Odoo call at render time (CLAUDE.md §5), never
+  // lib/content/catalog-sample.ts. Order and names are Odoo's.
   //
   // Failure isolation (Product Showcase V2.0 §80.2: "If Public Product
   // Family Projection cannot be safely read -> Product Showcase omitted,
   // Homepage remains healthy ... must not return 500 because of Product
   // Showcase failure"). The catch is scoped tightly to this ONE read: an
-  // empty candidate list makes `ProductShowcase` omit its own section while
-  // the Hero, Price Strip, and every other Homepage section render normally.
-  // Nothing else on this page is inside the try, so an unrelated Homepage
-  // error still propagates instead of being silently swallowed.
+  // empty list makes `ProductShowcase` omit its own section while the Hero,
+  // Price Strip, and every other Homepage section render normally. Nothing
+  // else on this page is inside the try, so an unrelated Homepage error
+  // still propagates instead of being silently swallowed.
   //
   // Same logging convention as the Header's own projection reads in
   // app/[locale]/layout.tsx (HEADER_PRODUCT_FAMILIES_READ_ERROR /
   // HEADER_SERVICE_GROUPS_READ_ERROR): one greppable tag plus a JSON message,
   // no PII, no request/user data.
-  let homepageProducts: HomepageProductCandidate[] = [];
+  let homepageCategories: PublicCatalogCategory[] = [];
   try {
-    const { listHomepageProductCandidates } = await import("@/lib/catalog/editorial-repository");
-    const homepageRankingMode = resolveHomepageRankingMode(env.HOMEPAGE_RANKING_MODE);
-    homepageProducts = await listHomepageProductCandidates(locale, { mode: homepageRankingMode });
+    const { listPublicCatalogCategories } = await import("@/lib/catalog/editorial-repository");
+    homepageCategories = await listPublicCatalogCategories(locale);
   } catch (error) {
     console.error("HOMEPAGE_PRODUCT_SHOWCASE_READ_ERROR", JSON.stringify({ message: error instanceof Error ? error.message : String(error) }));
   }
@@ -183,7 +178,7 @@ export default async function HomePage({ params }: PageProps) {
     <>
       <Hero locale={locale} />
       <PriceStrip locale={locale} items={priceStripItems} />
-      <ProductShowcase locale={locale} items={homepageProducts} />
+      <ProductShowcase locale={locale} items={homepageCategories} />
       <BuyerValue locale={locale} />
       <Industries locale={locale} />
       <FinalCta locale={locale} />

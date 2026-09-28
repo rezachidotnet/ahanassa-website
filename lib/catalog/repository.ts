@@ -1,6 +1,6 @@
 import { getPublicDb } from "@/lib/db/public";
 import { ulid } from "@/lib/rfq/ulid";
-import type { ClassificationRef, ProductVariant } from "./types";
+import type { ClassificationRef, ProductVariant, PublicCatalogCategory } from "./types";
 import type { VariantCommercialPatch, VariantCreateInput } from "./sync";
 import type { CatalogLocale } from "./odoo-api-client";
 import type { GroupLabel } from "./group-label-sync";
@@ -311,6 +311,31 @@ function isUniqueConstraintError(err: unknown): boolean {
  * `group_code` is the stable identity; only `name` varies by `locale`
  * here, matching the migration's own `PRIMARY KEY (group_code, locale)`.
  */
+/**
+ * Replaces one locale's public-category snapshot (migrations_public/0011) in
+ * a single D1 batch — D1 runs a batch as one transaction, so readers see
+ * either the previous complete set or the new complete set, never a mix.
+ * `position` records Odoo's response order. Callers only pass a non-empty,
+ * fully validated list (lib/catalog/category-sync.ts).
+ */
+export async function replaceCatalogPublicCategories(locale: CatalogLocale, categories: PublicCatalogCategory[]): Promise<void> {
+  if (categories.length === 0) return;
+  const db = getPublicDb();
+  const now = new Date().toISOString();
+  const statements = [
+    db.prepare(`DELETE FROM catalog_public_categories WHERE locale = ?`).bind(locale),
+    ...categories.map((c, position) =>
+      db
+        .prepare(
+          `INSERT INTO catalog_public_categories (code, locale, name, position, sequence, group_codes_json, template_count, variant_count, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(c.code, locale, c.name, position, c.sequence, JSON.stringify(c.groupCodes), c.templateCount, c.variantCount, now),
+    ),
+  ];
+  await db.batch(statements);
+}
+
 export async function upsertCatalogGroupLabels(locale: CatalogLocale, labels: GroupLabel[]): Promise<void> {
   if (labels.length === 0) return;
   const db = getPublicDb();

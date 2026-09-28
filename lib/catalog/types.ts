@@ -202,7 +202,25 @@ export interface HomepageProductCandidate {
   score: number;
 }
 
-export type SeoEntityType = "category" | "product" | "variant" | "price_page";
+/**
+ * A website public category — the DB_PUBLIC projection of one row of Odoo's
+ * `GET /api/v1/catalog/categories` for one locale
+ * (migrations_public/0011_catalog_public_categories.sql). Odoo owns every
+ * field; the website never edits, re-orders, renames, or re-maps them.
+ * `code` is the stable website key (links, React keys, media lookup);
+ * `groupCodes` is the set of `product_variants.group_code` values the
+ * category covers, used verbatim for /products filtering.
+ */
+export interface PublicCatalogCategory {
+  code: string;
+  name: string;
+  sequence: number;
+  groupCodes: string[];
+  templateCount: number;
+  variantCount: number;
+}
+
+export type SeoEntityType ="category" | "product" | "variant" | "price_page";
 export type IndexStatus = "index" | "noindex" | "draft";
 export type ContentQualityStatus = "incomplete" | "review" | "approved";
 

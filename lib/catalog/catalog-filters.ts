@@ -9,6 +9,14 @@ import type { ClassificationRef } from "./types";
  */
 
 export interface CatalogFilterInput {
+  /** Website public category code (`?category=`) — resolved to `groupCodes` by the caller from the synced Odoo category list. */
+  categoryCode?: string;
+  /**
+   * The Odoo-supplied technical group set of the selected category
+   * (e.g. BOX_SECTION -> ["RHS","SHS"]). `undefined` = no restriction;
+   * an empty array = the requested category is unknown, so nothing matches.
+   */
+  groupCodes?: string[];
   familyCode?: string;
   groupCode?: string;
   formCode?: string;
@@ -22,7 +30,7 @@ export interface TemplateFilterCondition {
   value: string;
 }
 
-const FILTER_COLUMN_MAP: [keyof CatalogFilterInput, TemplateFilterCondition["column"]][] = [
+const FILTER_COLUMN_MAP: [DimensionKey, TemplateFilterCondition["column"]][] = [
   ["familyCode", "family_code"],
   ["groupCode", "group_code"],
   ["formCode", "form_code"],
@@ -46,6 +54,19 @@ export function buildTemplateFilterConditions(filters: CatalogFilterInput): Temp
 }
 
 /**
+ * The `group_code IN (...)` restriction for a selected category, as a
+ * parameterized SQL fragment over `pv` — `null` when no category is
+ * selected. An empty set yields a never-true clause so an unknown category
+ * shows the honest no-match state rather than silently widening to all
+ * products. Only placeholders are interpolated, never a value.
+ */
+export function groupCodeSetClause(groupCodes: string[] | undefined): { sql: string; params: string[] } | null {
+  if (groupCodes === undefined) return null;
+  if (groupCodes.length === 0) return { sql: "0 = 1", params: [] };
+  return { sql: `pv.group_code IN (${groupCodes.map(() => "?").join(", ")})`, params: [...groupCodes] };
+}
+
+/**
  * Deduplicates a list of `{code, name}` pairs by `code`, drops entries with
  * no code (nothing to filter on), and returns them in stable, deterministic
  * `code` order — never in insertion/row order, which would depend on
@@ -60,14 +81,17 @@ export function dedupeClassificationRefs(refs: ClassificationRef[]): Classificat
 }
 
 /**
- * A URL-safe query-param object (`?family=...&group=...`) parsed into
+ * A URL-safe query-param object (`?category=...&family=...`) parsed into
  * `CatalogFilterInput` — only recognized param names are read; anything
- * else (e.g. the legacy sample-catalog `?category=`) is silently ignored,
- * never crashes.
+ * else is silently ignored, never crashes. `category` carries a website
+ * public category code (Odoo `/api/v1/catalog/categories`); resolving it
+ * to `groupCodes` needs the synced category list, so that is the caller's
+ * step (lib/catalog/public-categories.ts#resolveCategoryGroupCodes).
  */
 export function parseCatalogFilterParams(searchParams: Record<string, string | string[] | undefined>): CatalogFilterInput {
   const first = (v: string | string[] | undefined): string | undefined => (Array.isArray(v) ? v[0] : v);
   return {
+    categoryCode: first(searchParams.category),
     familyCode: first(searchParams.family),
     groupCode: first(searchParams.group),
     formCode: first(searchParams.form),
@@ -76,7 +100,7 @@ export function parseCatalogFilterParams(searchParams: Record<string, string | s
   };
 }
 
-export const CATALOG_FILTER_QUERY_KEYS = ["family", "group", "form", "grade", "standard"] as const;
+export const CATALOG_FILTER_QUERY_KEYS = ["category", "family", "group", "form", "grade", "standard"] as const;
 export type CatalogFilterQueryKey = (typeof CATALOG_FILTER_QUERY_KEYS)[number];
 
 /**
@@ -91,6 +115,16 @@ export function toggleFilterQueryValue(current: Partial<Record<CatalogFilterQuer
   if (next[key] === value) delete next[key];
   else next[key] = value;
   return next;
+}
+
+/**
+ * Category links select exactly one category and clear every other
+ * dimension: the category row lists every Odoo public category (not a
+ * conditional facet), so keeping e.g. a REBAR-only grade while switching to
+ * PIPE could only ever dead-end. Clicking the active category clears it.
+ */
+export function selectCategoryQuery(current: Partial<Record<CatalogFilterQueryKey, string>>, code: string): Partial<Record<CatalogFilterQueryKey, string>> {
+  return current.category === code ? {} : { category: code };
 }
 
 /** Deterministic `?a=1&b=2` serialization (fixed key order) — never depends on object insertion order. */
@@ -141,8 +175,9 @@ export interface CatalogFilterFacets {
   standard: import("./types.ts").ClassificationRef[];
 }
 
-const DIMENSION_ACTIVE_KEYS: (keyof CatalogFilterInput)[] = ["familyCode", "groupCode", "formCode", "gradeCode", "standardCode"];
-const DIMENSION_ROW_KEY: Record<keyof CatalogFilterInput, keyof ClassificationRow> = {
+type DimensionKey = "familyCode" | "groupCode" | "formCode" | "gradeCode" | "standardCode";
+const DIMENSION_ACTIVE_KEYS: DimensionKey[] = ["familyCode", "groupCode", "formCode", "gradeCode", "standardCode"];
+const DIMENSION_ROW_KEY: Record<DimensionKey, keyof ClassificationRow> = {
   familyCode: "familyCode",
   groupCode: "groupCode",
   formCode: "formCode",
@@ -150,7 +185,10 @@ const DIMENSION_ROW_KEY: Record<keyof CatalogFilterInput, keyof ClassificationRo
   standardCode: "standardCode",
 };
 
-function rowMatchesActiveExcept(row: ClassificationRow, active: CatalogFilterInput, excludeKey: keyof CatalogFilterInput): boolean {
+function rowMatchesActiveExcept(row: ClassificationRow, active: CatalogFilterInput, excludeKey: DimensionKey): boolean {
+  // The selected category's group set always applies — it is not one of
+  // the conditional dimensions, so no dimension excludes it.
+  if (active.groupCodes !== undefined && !(row.groupCode !== null && active.groupCodes.includes(row.groupCode))) return false;
   for (const key of DIMENSION_ACTIVE_KEYS) {
     if (key === excludeKey) continue;
     const activeValue = active[key];

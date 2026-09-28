@@ -117,6 +117,25 @@ export interface CatalogMetaPayload {
   standards: CatalogClassificationEntry[];
 }
 
+/**
+ * One public category from `GET /api/v1/catalog/categories?locale=` —
+ * Odoo's own curated, ordered set of website-facing categories (verified
+ * live 2026-09-28: 7 rows, REBAR..PIPE). `code` is the stable,
+ * locale-invariant identity; `name` is resolved per requested locale;
+ * `group_codes` lists the technical `classification.group.code` values
+ * the category covers (e.g. BOX_SECTION -> [RHS, SHS]) — the website never
+ * re-derives that mapping itself. Not yet described in
+ * docs/integrations/odoo/catalog-v1/ (documentation gap, reported).
+ */
+export interface CatalogApiCategory {
+  code: string;
+  name: string;
+  sequence: number;
+  group_codes: string[];
+  template_count: number;
+  variant_count: number;
+}
+
 export type CatalogLocale = "fa" | "en" | "ar";
 
 export interface CatalogListParams {
@@ -298,6 +317,26 @@ export async function fetchCatalogProductByXid(
   return result;
 }
 
+/**
+ * The public category list for one locale, in the exact order Odoo
+ * returned it. Any malformed row fails the whole response (same
+ * all-or-nothing rule as the product list) — a partial category set must
+ * never replace a previously-synced complete one.
+ */
+export async function fetchCatalogCategories(locale: CatalogLocale, options: ConditionalRequestOptions = {}): Promise<CatalogApiResult<CatalogApiCategory[]>> {
+  const result = await request<CatalogApiCategory[]>("/api/v1/catalog/categories", { locale }, options);
+  if (result.status !== "ok") return result;
+
+  const rows = result.data;
+  if (!Array.isArray(rows) || !rows.every(isValidCategory)) {
+    return { status: "failed", reasonCode: "CATALOG_API_UNEXPECTED_SHAPE" };
+  }
+  if (new Set(rows.map((r) => r.code)).size !== rows.length) {
+    return { status: "failed", reasonCode: "CATALOG_API_DUPLICATE_CATEGORY_CODE" };
+  }
+  return { ...result, data: rows };
+}
+
 // --- Minimal structural validation (no schema-validation dependency — matches lib/rfq/validation.ts's own precedent of hand-rolled validation for a small, stable shape). ---
 
 function isValidProduct(value: unknown): value is CatalogApiProduct {
@@ -320,6 +359,28 @@ function isValidProduct(value: unknown): value is CatalogApiProduct {
     p.dimensions !== null &&
     typeof p.nominal_weight === "object" &&
     p.nominal_weight !== null
+  );
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+function isValidCategory(value: unknown): value is CatalogApiCategory {
+  if (typeof value !== "object" || value === null) return false;
+  const c = value as Record<string, unknown>;
+  return (
+    typeof c.code === "string" &&
+    c.code.length > 0 &&
+    typeof c.name === "string" &&
+    c.name.length > 0 &&
+    typeof c.sequence === "number" &&
+    Number.isFinite(c.sequence) &&
+    Array.isArray(c.group_codes) &&
+    c.group_codes.length > 0 &&
+    c.group_codes.every((g) => typeof g === "string" && g.length > 0) &&
+    isNonNegativeInteger(c.template_count) &&
+    isNonNegativeInteger(c.variant_count)
   );
 }
 

@@ -3,6 +3,7 @@ import { handleOdooSyncBatch, type QueueBatchLike, type QueueMessageLike } from 
 import { dispatchPendingOutboxEvents } from "@/lib/queue/outbox";
 import { runScheduledCatalogSync } from "@/lib/catalog/scheduled-sync";
 import { runGroupLabelSync } from "@/lib/catalog/group-label-sync-runner";
+import { runCatalogCategorySync } from "@/lib/catalog/category-sync-runner";
 import { runScheduledProcessingSync } from "@/lib/processing/scheduled-sync";
 
 /**
@@ -72,6 +73,13 @@ export default {
         // unrelated sync domains (task §14/§25).
         ctx.waitUntil(runScheduledCatalogSync("incremental"));
         ctx.waitUntil(runScheduledProcessingSync());
+        // Website public categories (Odoo /api/v1/catalog/categories) — the
+        // Header menu, Homepage Showcase and /products category filter all
+        // read this snapshot. On this trigger rather than the daily one
+        // because it is the only cron staging registers, and three small
+        // requests every 3h are negligible. Independent waitUntil, same
+        // failure isolation as the two jobs above.
+        ctx.waitUntil(runCatalogCategorySync());
         return;
       case CATALOG_FULL_RECONCILIATION_CRON:
         ctx.waitUntil(runScheduledCatalogSync("full"));

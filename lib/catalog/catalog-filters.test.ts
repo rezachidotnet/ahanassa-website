@@ -68,12 +68,12 @@ test("dedupeClassificationRefs returns an empty array for an empty input, never 
 
 test("parseCatalogFilterParams reads only the recognized query-param names", () => {
   const result = parseCatalogFilterParams({ family: "LONG_PRODUCTS", group: "REBAR", unrelated: "ignored" });
-  assert.deepEqual(result, { familyCode: "LONG_PRODUCTS", groupCode: "REBAR", formCode: undefined, gradeCode: undefined, standardCode: undefined });
+  assert.deepEqual(result, { categoryCode: undefined, familyCode: "LONG_PRODUCTS", groupCode: "REBAR", formCode: undefined, gradeCode: undefined, standardCode: undefined });
 });
 
-test("parseCatalogFilterParams silently ignores the legacy sample-catalog ?category= param instead of crashing", () => {
-  const result = parseCatalogFilterParams({ category: "long" });
-  assert.deepEqual(result, { familyCode: undefined, groupCode: undefined, formCode: undefined, gradeCode: undefined, standardCode: undefined });
+test("parseCatalogFilterParams reads ?category= as a public category code (resolved to group codes later, by the caller)", () => {
+  const result = parseCatalogFilterParams({ category: "BOX_SECTION" });
+  assert.deepEqual(result, { categoryCode: "BOX_SECTION", familyCode: undefined, groupCode: undefined, formCode: undefined, gradeCode: undefined, standardCode: undefined });
 });
 
 test("parseCatalogFilterParams takes the first value when a param repeats", () => {

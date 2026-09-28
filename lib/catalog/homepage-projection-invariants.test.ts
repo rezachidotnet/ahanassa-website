@@ -56,9 +56,10 @@ test("listHomepageProductCandidates reads a candidate's slug from product_seo_co
   assert.ok(fnBody.includes("JOIN product_seo_contents s ON s.entity_type = 'product'"), "must join product_seo_contents at entity_type='product', matching /products/[slug]'s own resolver");
 });
 
-test("ProductShowcase builds every card href from the candidate's own slug field via the standard /products/{slug} path — never a guessed/hardcoded/sample slug", () => {
+test("ProductShowcase builds every card href from the Odoo category code via the shared categoryListingPath builder — never a guessed/hardcoded/sample path or a translated name", () => {
   const source = readSource("components/home/product-showcase.tsx");
-  assert.ok(source.includes("localizedPath(locale, `/products/${p.slug}`)"), "href must be built from p.slug (the real HomepageProductCandidate field), matching the detail route pattern exactly");
+  assert.ok(source.includes("localizedPath(locale, categoryListingPath(category.code))"), "href must be the locale-prefixed /products?category=<code> link from the one shared builder");
+  assert.ok(!source.includes("categoryListingPath(category.name)"), "a translated name must never become a link key");
 });
 
 // PS-P3 (docs/homepage/PRODUCT_SHOWCASE_STAGING_DEFECT_FIX_REPORT.md):

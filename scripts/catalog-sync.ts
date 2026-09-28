@@ -22,10 +22,12 @@ import {
   buildRecordFailureSql,
   buildRecordSuccessSql,
   buildReleaseLeaseSql,
+  buildReplaceCatalogPublicCategoriesSql,
   buildSelectCatalogProductByTemplateXidSql,
   buildSelectSyncStateSql,
   buildUpdateVariantCommercialFieldsSql,
 } from "../lib/catalog/sync-sql.ts";
+import { fetchPublicCategoriesForLocale } from "../lib/catalog/category-sync.ts";
 import { ulid } from "../lib/rfq/ulid.ts";
 import type { CatalogApiProduct } from "../lib/catalog/odoo-api-client.ts";
 import type { ProductVariant } from "../lib/catalog/types.ts";
@@ -355,6 +357,33 @@ async function cmdFull(flags: ReturnType<typeof parseArgs>["flags"]): Promise<vo
   }
 }
 
+/**
+ * Public-category snapshot refresh (Odoo /api/v1/catalog/categories ->
+ * catalog_public_categories) — the manual twin of
+ * lib/catalog/category-sync-runner.ts, e.g. right after migration 0011 is
+ * applied so the Header/Homepage don't wait for the next 3-hourly cron.
+ * Independent of the catalog lease/watermark: it touches only its own table.
+ */
+async function cmdCategories(flags: ReturnType<typeof parseArgs>["flags"]): Promise<void> {
+  const envResult = resolveWriteEnvironment(flags);
+  if (!envResult.ok) throw new Error(describeEnvironmentError(envResult));
+  const env = envResult.env;
+  const dryRun = flagBoolean(flags, "dry-run");
+  console.log(`\nPublic categories — env=${env} dryRun=${dryRun}`);
+
+  for (const locale of ["fa", "en", "ar"] as const) {
+    const result = await fetchPublicCategoriesForLocale(locale);
+    if (result.status !== "ok") {
+      console.error(`  ${locale}: status=${result.status} reasonCode=${result.reasonCode ?? ""} — previous snapshot left untouched`);
+      process.exitCode = 1;
+      continue;
+    }
+    console.log(`  ${locale}: ${result.categories.map((c) => `${c.code}[${c.groupCodes.join("+")}]`).join(", ")}`);
+    if (!dryRun) runD1(env, buildReplaceCatalogPublicCategoriesSql(locale, result.categories, nowIso()));
+  }
+  if (dryRun) console.log("(dry run — no write performed)");
+}
+
 /** For the (rare) case a failure needs recording before/without ever acquiring the lease (e.g. the upstream fetch itself failed) — writes state directly, no lease involved since nothing else was touched. */
 function runOutsideLease(_env: CliEnv, _type: CatalogSyncType, fn: () => void): void {
   fn();
@@ -367,8 +396,9 @@ Ahan Asa Catalog synchronization operator CLI (docs/CATALOG_SYNC_OPERATIONS.md)
   status [--env local|staging|production]
   incremental --env <env> [--dry-run]
   full --env <env> [--confirm-production] [--dry-run]
+  categories --env <env> [--confirm-production] [--dry-run]
 
---env is REQUIRED for incremental/full (no default; a write can never silently land on production).
+--env is REQUIRED for incremental/full/categories (no default; a write can never silently land on production).
 --env production additionally requires --confirm-production.
 `);
 }
@@ -383,6 +413,8 @@ async function main(): Promise<void> {
         return await cmdIncremental(flags);
       case "full":
         return await cmdFull(flags);
+      case "categories":
+        return await cmdCategories(flags);
       default:
         printUsage();
         process.exitCode = command ? 1 : 0;

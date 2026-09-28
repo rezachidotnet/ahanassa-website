@@ -7,6 +7,7 @@ import { ChevronDown, Phone, X } from "lucide-react";
 import { locales, localeConfig, localizedPath, type Locale } from "@/config/locales";
 import type { NavLink } from "@/lib/content/nav";
 import type { HeaderProductFamilyShortcut } from "@/lib/catalog/editorial-repository";
+import { categoryListingPath } from "@/lib/catalog/public-categories";
 import type { PublicProcessingGroup } from "@/lib/processing/public-repository";
 import { CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 import { stripLocalePrefix } from "@/components/layout/header-language-selector";
@@ -180,7 +181,7 @@ export function MobileNavDrawer({
                 // matching SiteHeader.tsx's identical desktop-dropdown choice.
                 const items: { code: string; name: string; href: string }[] =
                   key === "products"
-                    ? productFamilies.map((f) => ({ code: f.code, name: f.name, href: `${href}?group=${f.code}` })) // see SiteHeader.tsx's comment on the same query-key choice
+                    ? productFamilies.map((f) => ({ code: f.code, name: f.name, href: localizedPath(locale, categoryListingPath(f.code)) })) // same shared builder as SiteHeader.tsx
                     : serviceGroups.map((g) => ({ code: g.id, name: g.name, href }));
                 const isOpen = openAccordion === key;
                 return (

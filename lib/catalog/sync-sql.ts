@@ -1,6 +1,6 @@
 import { sqliteLiteral } from "./editorial-cli.ts";
 import type { CatalogSyncType } from "./sync-state-repository.ts";
-import type { ClassificationRef } from "./types.ts";
+import type { ClassificationRef, PublicCatalogCategory } from "./types.ts";
 import type { VariantCommercialPatch, VariantCreateInput } from "./sync.ts";
 
 /**
@@ -139,4 +139,24 @@ export function buildRecordSuccessSql(type: CatalogSyncType, totalSeen: number, 
 /** Mirrors `sync-state-repository.ts#recordSyncFailure` — never touches the durable watermark/upstream-count columns. */
 export function buildRecordFailureSql(type: CatalogSyncType, reasonCode: string, now: string): string {
   return `UPDATE catalog_sync_state SET last_failure_at = ${sqliteLiteral(now)}, last_failure_type = ${sqliteLiteral(type)}, last_failure_reason_code = ${sqliteLiteral(reasonCode)}, consecutive_failure_count = consecutive_failure_count + 1, updated_at = ${sqliteLiteral(now)} WHERE id = 'catalog';`;
+}
+
+// --- mirrors lib/catalog/repository.ts#replaceCatalogPublicCategories ---
+
+/**
+ * One locale's full public-category replacement (migrations_public/0011) as
+ * a single SQL script: delete that locale's rows, then insert the new set
+ * with `position` = Odoo's response order. Refuses an empty list, matching
+ * `category-sync.ts`'s empty-upstream guard.
+ */
+export function buildReplaceCatalogPublicCategoriesSql(locale: string, categories: PublicCatalogCategory[], now: string): string {
+  if (categories.length === 0) throw new Error("Refusing to replace public categories with an empty set");
+  const rows = categories.map(
+    (c, position) =>
+      `(${sqliteLiteral(c.code)}, ${sqliteLiteral(locale)}, ${sqliteLiteral(c.name)}, ${sqliteLiteral(position)}, ${sqliteLiteral(c.sequence)}, ${sqliteLiteral(JSON.stringify(c.groupCodes))}, ${sqliteLiteral(c.templateCount)}, ${sqliteLiteral(c.variantCount)}, ${sqliteLiteral(now)})`,
+  );
+  return (
+    `DELETE FROM catalog_public_categories WHERE locale = ${sqliteLiteral(locale)}; ` +
+    `INSERT INTO catalog_public_categories (code, locale, name, position, sequence, group_codes_json, template_count, variant_count, synced_at) VALUES ${rows.join(", ")};`
+  );
 }

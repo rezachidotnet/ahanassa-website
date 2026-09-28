@@ -40,7 +40,7 @@ test("components/home/product-showcase.tsx does not hardcode a featured-slug arr
 
 test("components/home/product-showcase.tsx receives its product data as a prop, never fetches sample data itself", () => {
   const source = readSource("components/home/product-showcase.tsx");
-  assert.ok(source.includes("items: HomepageProductCandidate[]"), "ProductShowcase must be prop-driven by real HomepageProductCandidate data");
+  assert.ok(source.includes("items: PublicCatalogCategory[]"), "ProductShowcase must be prop-driven by the real, synced Odoo public-category data");
 });
 
 test("app/[locale]/products/page.tsx does not import lib/content/catalog-sample", () => {

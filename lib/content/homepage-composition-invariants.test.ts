@@ -289,7 +289,7 @@ test("conditional sections fail INDEPENDENTLY — one failure cannot suppress an
   // §9: "A Price Strip failure MUST NOT suppress products, and an evidence
   // failure MUST NOT suppress Industries or Final CTA."
   const priceAt = PAGE_CODE.indexOf("getHomepagePriceStrip");
-  const tryAt = PAGE_CODE.indexOf("try {", PAGE_CODE.indexOf("let homepageProducts"));
+  const tryAt = PAGE_CODE.indexOf("try {", PAGE_CODE.indexOf("let homepageCategories"));
   const catchAt = PAGE_CODE.indexOf("} catch (error) {", tryAt);
 
   assert.ok(priceAt > -1 && tryAt > priceAt, "the price read runs on its own path, before and outside the Showcase's failure boundary");
@@ -303,8 +303,8 @@ test("a Product Showcase data failure still leaves every other section rendering
   // Value -> [Evidence] -> [Industries] -> Final CTA. Since the Showcase's
   // catch only empties its own candidate list, that state falls out
   // automatically — nothing else reads `homepageProducts`.
-  assert.equal((PAGE_CODE.match(/homepageProducts/g) ?? []).length, 3, "declaration, assignment, and exactly one consumer");
-  assert.match(PAGE_CODE, /<ProductShowcase locale=\{locale\} items=\{homepageProducts\} \/>/, "only the Showcase consumes the candidate list");
+  assert.equal((PAGE_CODE.match(/homepageCategories/g) ?? []).length, 3, "declaration, assignment, and exactly one consumer");
+  assert.match(PAGE_CODE, /<ProductShowcase locale=\{locale\} items=\{homepageCategories\} \/>/, "only the Showcase consumes the category list");
 });
 
 // ---------------------------------------------------------------------------
@@ -317,7 +317,7 @@ test("Product Showcase remains part of the required Homepage architecture (§16.
   // runtime is a data state; its absence from this file would be an
   // architecture change, and that is what this test forbids.
   assert.ok(orderOf("ProductShowcase") > -1, "the component must stay in the composition even when it renders zero cards");
-  assert.match(PAGE_CODE, /listHomepageProductCandidates/, "the projection read must stay wired up");
+  assert.match(PAGE_CODE, /listPublicCatalogCategories/, "the category-snapshot read must stay wired up");
 });
 
 test("the Homepage never renders sample/fabricated catalog data (§6.3)", () => {

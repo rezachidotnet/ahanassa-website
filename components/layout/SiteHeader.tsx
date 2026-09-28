@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Menu, Phone } from "lucide-react";
 import { localizedPath, type Locale } from "@/config/locales";
+import { categoryListingPath } from "@/lib/catalog/public-categories";
 import { siteConfig } from "@/lib/metadata/site";
 import { navLinks, primaryCta, headerPhoneLabel, dropdownViewAllLabel, dropdownDisclosureAccessibleName } from "@/lib/content/nav";
 import { CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
@@ -106,19 +107,16 @@ export function SiteHeader({
     };
   }, [mobileOpen]);
 
-  // `?group=` — HeaderProductFamilyShortcut.code is a product_variants.group_code
-  // value (e.g. "REBAR"), which lib/catalog/catalog-filters.ts#parseCatalogFilterParams
-  // maps from the `group` query key, NOT `family` (a distinct, broader
-  // classification level, e.g. "LONG_PRODUCTS") — using the wrong key here
-  // would silently filter the real /products listing down to zero results.
-  const productItems = productFamilies.map((f) => ({ code: f.code, name: f.name, path: `/products?group=${f.code}` }));
+  // HeaderProductFamilyShortcut.code is an Odoo public category code (e.g.
+  // "BOX_SECTION"); `categoryListingPath` is the one shared builder for the
+  // `/products?category=` link (also used by the Homepage Showcase and the
+  // mobile drawer), and /products resolves the code to Odoo's group_codes.
+  // Locale-prefixed, so /en and /ar visitors stay in their own locale.
+  const productItems = productFamilies.map((f) => ({ code: f.code, name: f.name, path: localizedPath(locale, categoryListingPath(f.code)) }));
   // No `/services/<slug>` route exists yet (P6 §8, deliberately deferred —
   // do not fabricate one here); every group links to the same real,
-  // existing `/services` destination, matching `productItems`'s own
-  // unprefixed-path convention immediately above exactly (this component
-  // does not `localizedPath()`-wrap dropdown item hrefs for either
-  // Products or Services — an existing, pre-P6 convention, left unchanged
-  // rather than introduced net-new here).
+  // existing `/services` destination (unprefixed — a pre-existing P6
+  // convention, left unchanged here).
   const serviceItems = serviceGroups.map((g) => ({ code: g.id, name: g.name, path: "/services" }));
 
   return (

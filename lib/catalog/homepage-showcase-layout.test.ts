@@ -234,7 +234,7 @@ test("the Showcase grid uses no carousel/horizontal-scroll mechanism (§32/§82)
 test("component emits data-count from the shared helper rather than a dynamically-built Tailwind class", () => {
   const source = readSource("components/home/product-showcase.tsx");
 
-  assert.ok(source.includes("showcaseCountAttribute(items.length)"), "the <ul> must label itself with the canonical count attribute");
+  assert.ok(source.includes("showcaseCountAttribute(cards.length)"), "the <ul> must label itself with the canonical count attribute of the (8-capped) rendered cards");
   assert.ok(source.includes("aa-showcase-grid"), "the <ul> must carry the composition class the stylesheet targets");
   // Dynamically interpolated utility classes are invisible to Tailwind's
   // scanner and would be purged from the compiled CSS.

@@ -2,12 +2,13 @@ import { getPublicDb } from "../db/public.ts";
 import { ulid } from "../rfq/ulid.ts";
 import type { Locale } from "../../config/locales.ts";
 import { canPublish, canSubmitForReview, isValidContentStatusTransition } from "./editorial.ts";
-import { buildTemplateFilterConditions, computeConditionalFacets, type CatalogFilterInput, type CatalogFilterFacets, type ClassificationRow } from "./catalog-filters.ts";
+import { buildTemplateFilterConditions, computeConditionalFacets, groupCodeSetClause, type CatalogFilterInput, type CatalogFilterFacets, type ClassificationRow } from "./catalog-filters.ts";
+import { parseCategoryRow, type CategoryRow } from "./public-categories.ts";
 import { resolveCatalogMedia, type ResolvedCatalogMedia } from "./media-registry.ts";
 import { formatCompactVariantSpecification } from "./specification-presenter.ts";
 import { computeHomepageScore, sortByHomepageScore, type HomepageRankingMode } from "../ranking/score.ts";
 import { HOMEPAGE_PRODUCT_DISPLAY_COUNT } from "./homepage-config.ts";
-import type { CatalogProduct, ProductSeoContent, ProductVariant, ContentQualityStatus, IndexStatus, HomepageProductCandidate } from "./types.ts";
+import type { CatalogProduct, ProductSeoContent, ProductVariant, ContentQualityStatus, IndexStatus, HomepageProductCandidate, PublicCatalogCategory } from "./types.ts";
 
 /**
  * Editorial/publication repository — DOCUMENT_AUDIT_REPORT.md DAR-036/DAR-037,
@@ -627,10 +628,18 @@ const TEMPLATE_SEO_COLUMNS = `s.id as seo_id, s.entity_type as seo_entity_type, 
 
 /** Turns the pure `buildTemplateFilterConditions` output into parameterized SQL `EXISTS` clauses — only the fixed column set that function returns is ever interpolated, never a caller-supplied string. */
 function filterConditions(filters: CatalogFilterInput, params: unknown[]): string[] {
-  return buildTemplateFilterConditions(filters).map(({ column, value }) => {
+  const clauses = buildTemplateFilterConditions(filters).map(({ column, value }) => {
     params.push(value);
     return `EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = cp.id AND pv.is_active = 1 AND pv.is_public = 1 AND pv.${column} = ?)`;
   });
+  // Selected public category: a template matches when any of its public
+  // variants carries one of the category's Odoo-supplied group codes.
+  const categoryClause = groupCodeSetClause(filters.groupCodes);
+  if (categoryClause) {
+    params.push(...categoryClause.params);
+    clauses.push(`EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = cp.id AND pv.is_active = 1 AND pv.is_public = 1 AND ${categoryClause.sql})`);
+  }
+  return clauses;
 }
 
 /**
@@ -995,79 +1004,62 @@ export async function getPublicCatalogFilterFacets(locale: Locale, activeFilters
   return computeConditionalFacets(rows, activeFilters);
 }
 
+// --- Website public categories (Odoo /api/v1/catalog/categories, migrations_public/0011) ---
+
+/**
+ * The website's public categories for `locale`, in exactly the order Odoo
+ * returned them (`position`) — the single read behind the Homepage Product
+ * Showcase, the Header Products menu and the /products category filter.
+ * Odoo decides which categories are public; this read neither adds a
+ * publication gate of its own nor re-sorts. Rows with an unreadable group
+ * set are dropped (`parseCategoryRow`). An empty result (never synced yet,
+ * or sync refused) is a valid state every caller renders gracefully.
+ */
+export async function listPublicCatalogCategories(locale: Locale): Promise<PublicCatalogCategory[]> {
+  const db = getPublicDb();
+  const result = await db
+    .prepare(
+      `SELECT code, name, sequence, group_codes_json, template_count, variant_count
+       FROM catalog_public_categories
+       WHERE locale = ?
+       ORDER BY position ASC`,
+    )
+    .bind(locale)
+    .all<CategoryRow>();
+
+  return (result.results ?? []).map(parseCategoryRow).filter((c): c is PublicCatalogCategory => c !== null);
+}
+
 // --- Header Product Family shortcuts (docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md §3-4) ---
 
 export interface HeaderProductFamilyShortcut {
-  /** `product_variants.group_code` — this codebase's existing "stable Product Master classification" concept (see `RfqCatalogSelection.groupCode`'s own doc comment) — used here as the Header's "Product Family" navigation level, never SKU/variant/size/grade. */
+  /** Website public category code (Odoo `/api/v1/catalog/categories` `code`, e.g. "BOX_SECTION") — the stable, locale-invariant link key. */
   code: string;
+  /** Odoo's per-locale category name. */
   name: string;
 }
 
 /**
  * Frozen V2.0 §5 hard cap — the Products dropdown never renders more than
- * this many direct shortcuts, regardless of how many real groups are
- * publication-eligible (NAV-P1 §20: a regression guard against future
- * catalog growth, not a guess at the current count — only 3 groups are
- * eligible today, but this constant is never "3" or "7"). "View all
- * products" (a separate, existing link) remains available regardless.
+ * this many direct shortcuts, regardless of how many public categories Odoo
+ * returns (NAV-P1 §20: a regression guard against future catalog growth,
+ * not a guess at the current count). "View all products" (a separate,
+ * existing link) remains available regardless.
  */
 export const MAX_HEADER_PRODUCT_SHORTCUTS = 8;
 
 /**
- * Real Odoo -> Public Product Projection -> Header data source (frozen
- * spec §4.3/§58.2) — deliberately NOT a frontend-hardcoded commercial list.
- * Derives the DISTINCT group classification among variants belonging to
- * currently publication-eligible templates only (the exact same
- * `TEMPLATE_PUBLICATION_WHERE_CONDITIONS` gate every other public read
- * uses), so the Header can never link to/imply a family with zero real
- * published products behind it.
- *
- * NAV-P1: `name` is now locale-aware. The Odoo Public Catalog API v1
- * genuinely resolves classification names per `locale=fa|en|ar`
- * (docs/integrations/odoo/catalog-v1/PUBLIC_CATALOG_API_V1.md), but the
- * existing full/incremental sync only ever persisted the `fa` result into
- * `product_variants.group_name` (a single, non-per-locale column) — this
- * query now prefers the real, per-locale name synced separately into
- * `catalog_group_labels` (migrations_public/0009,
- * `lib/catalog/group-label-sync-runner.ts`) via a `LEFT JOIN`, falling
- * back to the historical single-locale `pv.group_name` column ONLY when no
- * row has been synced yet for this exact `(group_code, locale)` pair —
- * never `undefined`/a raw translation key/an empty string (NAV-P1 §17's
- * fallback policy: requested locale -> this table's authoritative value ->
- * the historical column as a stable, always-real neutral fallback, never a
- * fabricated one).
- *
- * Ordering is `pv.group_code` (the stable, locale-invariant identity), not
- * any name — NAV-P1 §19: sorting by a translated label would make the
- * Products dropdown's visible order silently vary per locale, which the
- * frozen spec's "controlled navigation ordering" requirement forbids. No
- * dedicated navigation-sequence field exists for Catalog groups in the
- * real, currently-fed v1 schema (verified: `sort_order` only exists on the
- * unrelated, not-fed-by-this-integration `catalog_categories`/
- * `attribute_definitions`/`attribute_values` tables) — `group_code` is the
- * smallest correct, already-stable substitute, not a new field invented
- * for this purpose.
+ * Real Odoo -> DB_PUBLIC -> Header data source (frozen spec §4.3/§58.2) —
+ * never a frontend-hardcoded list. Since the Odoo public-category endpoint
+ * went live, the Header's Product Family level IS the Odoo public category:
+ * the same `listPublicCatalogCategories` snapshot the Homepage Showcase and
+ * /products filter use, so the three surfaces can never disagree. Names are
+ * Odoo's own per-locale translations; order is Odoo's (never re-sorted by a
+ * translated label, NAV-P1 §19).
  */
 export async function listHeaderProductFamilyShortcuts(locale: Locale): Promise<HeaderProductFamilyShortcut[]> {
-  const db = getPublicDb();
-  const where = TEMPLATE_PUBLICATION_WHERE_CONDITIONS;
-  const result = await db
-    .prepare(
-      `SELECT DISTINCT pv.group_code as group_code, COALESCE(l.name, pv.group_name) as group_name
-       FROM product_variants pv
-       JOIN catalog_products cp ON cp.id = pv.product_id
-       JOIN product_seo_contents s ON s.entity_type = 'product' AND s.entity_id = cp.id
-       LEFT JOIN catalog_group_labels l ON l.group_code = pv.group_code AND l.locale = ?
-       WHERE pv.is_active = 1 AND pv.is_public = 1 AND pv.group_code IS NOT NULL AND ${where.join(" AND ")}
-       ORDER BY pv.group_code ASC`,
-    )
-    .bind(locale, locale)
-    .all<{ group_code: string; group_name: string | null }>();
-
-  return (result.results ?? [])
-    .filter((r) => r.group_name)
-    .map((r) => ({ code: r.group_code, name: r.group_name! }))
-    .slice(0, MAX_HEADER_PRODUCT_SHORTCUTS);
+  const categories = await listPublicCatalogCategories(locale);
+  return categories.map((c) => ({ code: c.code, name: c.name })).slice(0, MAX_HEADER_PRODUCT_SHORTCUTS);
 }
 
 // --- Sitemap boundary (docs/CATALOG_PUBLIC_ROUTES.md §Sitemap) ---

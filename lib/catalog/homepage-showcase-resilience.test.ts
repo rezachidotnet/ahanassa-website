@@ -45,19 +45,19 @@ function readCode(relativePath: string): string {
 test("the homepage catalog read is wrapped so a projection failure degrades to an empty list", () => {
   const page = readSource("app/[locale]/page.tsx");
 
-  assert.ok(/let homepageProducts: HomepageProductCandidate\[\] = \[\];/.test(page), "the candidate list must start empty so a failed read yields an omitted section, not undefined");
+  assert.ok(/let homepageCategories: PublicCatalogCategory\[\] = \[\];/.test(page), "the category list must start empty so a failed read yields an omitted section, not undefined");
 
-  const tryStart = page.indexOf("try {", page.indexOf("let homepageProducts"));
+  const tryStart = page.indexOf("try {", page.indexOf("let homepageCategories"));
   const catchStart = page.indexOf("} catch (error) {", tryStart);
   assert.ok(tryStart !== -1 && catchStart > tryStart, "the read must be wrapped in try/catch");
 
   const tryBody = page.slice(tryStart, catchStart);
-  assert.ok(tryBody.includes("listHomepageProductCandidates"), "the guarded call must be the Showcase's own projection read");
+  assert.ok(tryBody.includes("listPublicCatalogCategories"), "the guarded call must be the Showcase's own category-snapshot read");
 });
 
 test("the catch is scoped tightly to the Showcase read — it must not swallow unrelated Homepage failures", () => {
   const page = readSource("app/[locale]/page.tsx");
-  const tryStart = page.indexOf("try {", page.indexOf("let homepageProducts"));
+  const tryStart = page.indexOf("try {", page.indexOf("let homepageCategories"));
   const catchStart = page.indexOf("} catch (error) {", tryStart);
   const tryBody = page.slice(tryStart, catchStart);
 
@@ -75,7 +75,7 @@ test("the catch is scoped tightly to the Showcase read — it must not swallow u
 
 test("the failure is logged with the codebase's existing tag+JSON convention, and carries no PII", () => {
   const page = readSource("app/[locale]/page.tsx");
-  const catchBody = page.slice(page.indexOf("} catch (error) {", page.indexOf("let homepageProducts")), page.indexOf("return ("));
+  const catchBody = page.slice(page.indexOf("} catch (error) {", page.indexOf("let homepageCategories")), page.indexOf("return ("));
 
   assert.ok(catchBody.includes('console.error("HOMEPAGE_PRODUCT_SHOWCASE_READ_ERROR"'), "must use a greppable SCREAMING_SNAKE tag like the Header's own reads");
   assert.ok(catchBody.includes("error instanceof Error ? error.message : String(error)"), "must log a message string, matching HEADER_PRODUCT_FAMILIES_READ_ERROR's shape");
@@ -93,14 +93,14 @@ test("the failure is logged with the codebase's existing tag+JSON convention, an
 // Zero-product behaviour (§35 / §82)
 // ---------------------------------------------------------------------------
 
-test("zero candidates omit the entire section — no heading, no empty state, no placeholder", () => {
+test("zero categories omit the entire section — no heading, no empty state, no placeholder", () => {
   const source = readSource("components/home/product-showcase.tsx");
   const code = readCode("components/home/product-showcase.tsx");
 
-  assert.ok(/if \(items\.length === 0\) return null;/.test(code), "0 candidates must render nothing at all");
+  assert.ok(/if \(cards\.length === 0\) return null;/.test(code), "0 categories must render nothing at all");
 
   // The early return must precede the JSX, so no part of the section escapes it.
-  assert.ok(code.indexOf("items.length === 0") < code.indexOf("<section"), "the zero check must short-circuit before any markup is returned");
+  assert.ok(code.indexOf("cards.length === 0") < code.indexOf("<section"), "the zero check must short-circuit before any markup is returned");
 
   assert.ok(!code.includes("CatalogEmptyState"), "the Showcase must no longer render the 'catalog is being prepared' empty state");
   assert.ok(!source.includes('from "@/components/products/catalog-empty-state"'), "the empty-state import must be dropped entirely");
@@ -143,7 +143,7 @@ test("each card remains exactly one whole-card link with no nested interactive c
   assert.ok(source.includes("<ul"), "must keep a list");
   assert.ok(source.includes("<Reveal as=\"li\""), "each card must be a list item");
 
-  const cardStart = source.indexOf("<Link", source.indexOf("items.map"));
+  const cardStart = source.indexOf("<Link", source.indexOf("cards.map"));
   const cardEnd = source.indexOf("</Link>", cardStart);
   const card = source.slice(cardStart, cardEnd);
 
@@ -152,7 +152,7 @@ test("each card remains exactly one whole-card link with no nested interactive c
     assert.ok(!card.includes(nested), `the card link must not contain ${nested}`);
   }
 
-  assert.ok(card.includes("localizedPath(locale, `/products/${p.slug}`)"), "the href must still be built from the candidate's own slug");
+  assert.ok(card.includes("localizedPath(locale, categoryListingPath(category.code))"), "the href must be the shared category listing link, built from the stable code");
 });
 
 test("the section is explicitly labelled by its own heading (§72.1)", () => {
@@ -167,11 +167,15 @@ test("the section is explicitly labelled by its own heading (§72.1)", () => {
   assert.ok(/headingId\?: string/.test(heading), "headingId must be optional so existing callers are unaffected");
 });
 
-test("the card image is decorative — its alt is empty, not a duplicate of the visible title (§56/§78)", () => {
+test("the card image has localized, meaningful alt text, while the card link is named by its visible title alone (owner instruction 2026-09-28, superseding §56/§78's empty alt)", () => {
   const source = readSource("components/home/product-showcase.tsx");
-  assert.ok(source.includes('alt=""'), "the representative image must use an empty alt");
-  assert.ok(!source.includes("alt={p.title}"), "alt must not duplicate the adjacent h3 text");
-  assert.ok(source.includes("{p.title}"), "the title must still be rendered as visible text");
+  assert.ok(source.includes("alt={imageAlt[locale](category.name)}"), "alt must be the locale's sentence built from Odoo's translated category name");
+  for (const locale of ["fa", "en", "ar"]) {
+    assert.match(source, new RegExp(`\\b${locale}: \\(name\\) => \`[^\`]*\\$\\{name\\}`), `a ${locale} alt template must exist and include the category name`);
+  }
+  assert.ok(!source.includes('alt=""'), "the category photo is no longer marked decorative");
+  assert.ok(source.includes("aria-labelledby={titleId}") && source.includes("id={titleId}"), "the link takes its accessible name from the h3, so the alt is not announced twice");
+  assert.ok(source.includes("{category.name}"), "the title must still be rendered as visible text");
 });
 
 // ---------------------------------------------------------------------------

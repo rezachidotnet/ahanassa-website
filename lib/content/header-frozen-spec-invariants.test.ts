@@ -131,13 +131,16 @@ test("SiteHeader sources Products data from a prop (server-fetched Public Produc
   assert.ok(!/const\s+products\s*=\s*\[/.test(source), "no inline hardcoded products array");
 });
 
-test("the real Header product-family query is gated by the same publication-eligibility conditions every other public catalog read uses", () => {
+test("the real Header product-family query reads the same Odoo public-category snapshot the Homepage Showcase and /products filter use", () => {
   const source = readSource("lib/catalog/editorial-repository.ts");
   const fnStart = source.indexOf("export async function listHeaderProductFamilyShortcuts");
   assert.ok(fnStart >= 0, "listHeaderProductFamilyShortcuts must exist");
   const fnBody = source.slice(fnStart, source.indexOf("\nexport ", fnStart + 10));
-  assert.match(fnBody, /TEMPLATE_PUBLICATION_WHERE_CONDITIONS/, "must reuse the shared publication gate, never a separately duplicated condition");
-  assert.match(fnBody, /pv\.is_active = 1 AND pv\.is_public = 1/, "must also gate on the variant's own active/public state");
+  assert.match(fnBody, /listPublicCatalogCategories\(locale\)/, "must reuse the single category read, never a separately duplicated query");
+  const readStart = source.indexOf("export async function listPublicCatalogCategories");
+  const readBody = source.slice(readStart, source.indexOf("\nexport ", readStart + 10));
+  assert.match(readBody, /FROM catalog_public_categories/, "must read the synced Odoo category snapshot");
+  assert.match(readBody, /WHERE locale = \?/, "must read only the requested locale's rows");
 });
 
 // --- P6: the real Header service-group query (mirrors the Product test immediately above) ---
@@ -419,33 +422,38 @@ test("addendum §5: x-default hreflang resolution is already authoritative (poin
 // verified live against local D1 as part of NAV-P1 (see
 // docs/navigation/NAV_P1_PRODUCT_GROUP_LOCALIZATION_REPORT.md).
 
-test("NAV-P1: the Header product-family query prefers the real, per-locale catalog_group_labels row, falling back to the historical single-locale column — never a raw translation key or empty string", () => {
+test("NAV-P1: Header product-family names are Odoo's own per-locale category names — never a raw translation key or a website-side map", () => {
   const source = readSource("lib/catalog/editorial-repository.ts");
   const fnStart = source.indexOf("export async function listHeaderProductFamilyShortcuts");
   const fnBody = source.slice(fnStart, source.indexOf("\nexport ", fnStart + 10));
-  assert.match(fnBody, /LEFT JOIN catalog_group_labels l ON l\.group_code = pv\.group_code AND l\.locale = \?/, "must LEFT JOIN the real per-locale labels table, never an inner join that would exclude ungrouped rows");
-  assert.match(fnBody, /COALESCE\(l\.name, pv\.group_name\)/, "must fall back to the historical column, never to undefined/null/a placeholder");
+  assert.match(fnBody, /name:\s*c\.name/, "the shortcut name must be the synced Odoo category name");
+  const migration = readSource("migrations_public/0011_catalog_public_categories.sql");
+  assert.match(migration, /name\s+TEXT NOT NULL/, "a category row can never exist without its localized name");
+  assert.match(migration, /PRIMARY KEY \(code, locale\)/, "names are stored per locale");
 });
 
-test("NAV-P1: Header product-family ordering is by the stable, locale-invariant group_code — never by the (now-translated) name, which would silently reshuffle the dropdown per locale", () => {
+test("NAV-P1: Header product-family ordering is Odoo's locale-invariant category order — never by the (translated) name, which would silently reshuffle the dropdown per locale", () => {
   const source = readSource("lib/catalog/editorial-repository.ts");
   const fnStart = source.indexOf("export async function listHeaderProductFamilyShortcuts");
   const fnBody = source.slice(fnStart, source.indexOf("\nexport ", fnStart + 10));
-  assert.match(fnBody, /ORDER BY pv\.group_code ASC/);
-  assert.ok(!/ORDER BY pv\.group_name/.test(fnBody), "must never sort by the translated display name");
+  assert.ok(!/\.sort\(/.test(fnBody), "the Header must never re-sort Odoo's order");
+  const readStart = source.indexOf("export async function listPublicCatalogCategories");
+  const readBody = source.slice(readStart, source.indexOf("\nexport ", readStart + 10));
+  assert.match(readBody, /ORDER BY position ASC/, "Odoo's response order, identical in every locale");
+  assert.ok(!/ORDER BY name/.test(readBody), "must never sort by the translated display name");
 });
 
-test("NAV-P1: the returned shortcut's stable `code` always comes from group_code, never derived from the localized `name` — route/identity stability across locales", () => {
+test("NAV-P1: the returned shortcut's stable `code` always comes from the Odoo category code, never derived from the localized `name` — route/identity stability across locales", () => {
   const source = readSource("lib/catalog/editorial-repository.ts");
   const fnStart = source.indexOf("export async function listHeaderProductFamilyShortcuts");
   const fnBody = source.slice(fnStart, source.indexOf("\nexport ", fnStart + 10));
-  assert.match(fnBody, /code:\s*r\.group_code/, "the shortcut's stable identity must be the untranslated group_code");
+  assert.match(fnBody, /code:\s*c\.code/, "the shortcut's stable identity must be the untranslated Odoo category code");
 });
 
 test("NAV-P1: SiteHeader builds the Products dropdown href from the stable code, never the localized name — a translated label can never change where a link points", () => {
   const source = stripComments(readSource("components/layout/SiteHeader.tsx"));
-  assert.match(source, /\?group=\$\{f\.code\}/, "the ?group= query value must come from f.code");
-  assert.ok(!/\?group=\$\{f\.name\}/.test(source), "must never build the filter query from the translated name");
+  assert.match(source, /categoryListingPath\(f\.code\)/, "the ?category= link must be built from f.code by the shared builder");
+  assert.ok(!/categoryListingPath\(f\.name\)/.test(source), "must never build the filter query from the translated name");
 });
 
 test("NAV-P1: max 8 Product shortcuts is an explicit, named constant — never a magic number, never hardcoded to today's actual count (3)", () => {
