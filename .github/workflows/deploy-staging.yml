@@ -409,12 +409,35 @@ jobs:
           echo "== S5: catalog route /products =="
           STATUS="$(http_status "$STAGING_BASE_URL/products")"
           PRODUCTS_BODY="$(body_of "$STAGING_BASE_URL/products")"
-          CATALOG_SLUG="$(printf '%s' "$PRODUCTS_BODY" | grep -o 'href="/products/[a-zA-Z0-9_-]\+"' | head -n1 | sed -E 's#href="/products/([a-zA-Z0-9_-]+)"#\1#')"
+          # Same fix as deploy-production.yml's S5 (run 35533626395): GitHub
+          # wraps this step in `bash -e`, so an unguarded `$(... | grep ... |
+          # head -n1 ...)` aborted the whole step — exit 1 when the catalog is
+          # legitimately empty (grep: no match), exit 141 when the link list
+          # outgrows the pipe buffer (head SIGPIPEs grep). Only grep status 1
+          # ("no match") is tolerated; anything else still fails closed. The
+          # first match is taken with parameter expansion, not `head -n1`.
+          CATALOG_SLUG=""
+          SLUG_HREF=""
+          GREP_STATUS=0
+          SLUG_HREF="$(grep -o 'href="/products/[a-zA-Z0-9_-]\+"' <<<"$PRODUCTS_BODY")" || GREP_STATUS=$?
+          if [ "$GREP_STATUS" -gt 1 ]; then
+            echo "::error::SMOKE HARNESS ERROR — scanning /products for a catalog link failed with grep status $GREP_STATUS, which is not a 'no match'. Failing closed."
+            exit 1
+          fi
+          SLUG_HREF="${SLUG_HREF%%$'\n'*}"
+          if [ -n "$SLUG_HREF" ]; then
+            CATALOG_SLUG="$(sed -E 's#href="/products/([a-zA-Z0-9_-]+)"#\1#' <<<"$SLUG_HREF")"
+          fi
           if [ "$STATUS" != "200" ]; then
             fail "/products expected 200, got $STATUS"
           elif [ -n "$CATALOG_SLUG" ]; then
             pass "/products -> 200, discovered a published catalog slug"
-          elif printf '%s' "$PRODUCTS_BODY" | grep -q "کاتالوگ آنلاین در حال آماده‌سازی است"; then
+          # Body checks use a here-string, never `printf '%s' "$BODY" | grep -q`:
+          # under `pipefail`, grep -q exits at its first match, printf takes
+          # SIGPIPE on a body larger than the pipe buffer, and the pipeline
+          # reports 141 even though the match exists. /contact crossed that
+          # size once the full catalog was published and S7 failed falsely.
+          elif grep -q "کاتالوگ آنلاین در حال آماده‌سازی است" <<<"$PRODUCTS_BODY"; then
             pass "/products -> 200, legitimate empty-catalog state (no templates currently published on staging)"
           else
             fail "/products returned 200 but neither a product link nor the known empty-catalog state was found"
@@ -445,9 +468,9 @@ jobs:
           CONTACT_BODY="$(body_of "$STAGING_BASE_URL/contact")"
           if [ "$STATUS" != "200" ]; then
             fail "/contact expected 200, got $STATUS"
-          elif printf '%s' "$CONTACT_BODY" | grep -q 'id="website"' \
-            && printf '%s' "$CONTACT_BODY" | grep -q 'id="email"' \
-            && printf '%s' "$CONTACT_BODY" | grep -q 'name="message"'; then
+          elif grep -q 'id="website"' <<<"$CONTACT_BODY" \
+            && grep -q 'id="email"' <<<"$CONTACT_BODY" \
+            && grep -q 'name="message"' <<<"$CONTACT_BODY"; then
             pass "/contact -> 200, RFQ form server-rendered (no RFQ submitted)"
           else
             fail "/contact returned 200 but the RFQ form fields were not found in the rendered HTML"
