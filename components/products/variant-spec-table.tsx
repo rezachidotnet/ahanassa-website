@@ -145,7 +145,9 @@ export function VariantSpecTable({ locale, variants, highlightXid }: { locale: L
                     <span dir="ltr">{variant.sku}</span>
                   </td>
                   <td className="px-3 py-2.5">
+                    {/* prefetch={false}: one link per Variant row (up to 38 per page) would otherwise prefetch a /contact RSC payload each on scroll/hover — the bursts behind staging's exceededCpu events. Navigation itself is unchanged. */}
                     <Link
+                      prefetch={false}
                       href={`${localizedPath(locale, "/contact")}?variant=${encodeURIComponent(variant.xid)}`}
                       aria-label={t.requestAria(variant.commercialSize ?? variant.sectionSize ?? variant.sku)}
                       className="text-copper text-xs font-semibold whitespace-nowrap hover:underline"

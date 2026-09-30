@@ -13,6 +13,8 @@ function item(overrides: Partial<RfqSelectableCatalogItem> = {}): RfqSelectableC
     categoryCode: "LONG_PRODUCTS",
     categoryLabel: "مقاطع طولی",
     groupCode: "REBAR",
+    publicCategoryCode: "REBAR",
+    publicCategoryLabel: "میلگرد",
     ...overrides,
   };
 }
@@ -20,7 +22,7 @@ function item(overrides: Partial<RfqSelectableCatalogItem> = {}): RfqSelectableC
 test("groupCatalogItemsForSelector groups variants under their template under their category", () => {
   const groups = groupCatalogItemsForSelector([item()]);
   assert.equal(groups.length, 1);
-  assert.equal(groups[0].categoryCode, "LONG_PRODUCTS");
+  assert.equal(groups[0].categoryCode, "REBAR");
   assert.equal(groups[0].templates.length, 1);
   assert.equal(groups[0].templates[0].templateXid, "ahanassa_marketplace.product_tmpl_rb_aj340");
   assert.equal(groups[0].templates[0].variants.length, 1);
@@ -47,14 +49,14 @@ test("groupCatalogItemsForSelector separates two different templates under the s
 
 test("groupCatalogItemsForSelector separates two different categories", () => {
   const groups = groupCatalogItemsForSelector([
-    item({ variantXid: "v1", categoryCode: "LONG_PRODUCTS", categoryLabel: "Long" }),
-    item({ variantXid: "v2", categoryCode: "FLAT_PRODUCTS", categoryLabel: "Flat", templateXid: "tmpl-b" }),
+    item({ variantXid: "v1", publicCategoryCode: "REBAR", publicCategoryLabel: "Rebar" }),
+    item({ variantXid: "v2", publicCategoryCode: "SHEET_PLATE", publicCategoryLabel: "Sheet & Plate", templateXid: "tmpl-b" }),
   ]);
   assert.equal(groups.length, 2);
 });
 
 test("groupCatalogItemsForSelector groups a null-category variant under a labeled fallback bucket, never drops it", () => {
-  const groups = groupCatalogItemsForSelector([item({ categoryCode: null, categoryLabel: null })], "en");
+  const groups = groupCatalogItemsForSelector([item({ publicCategoryCode: null, publicCategoryLabel: null })], "en");
   assert.equal(groups.length, 1);
   assert.equal(groups[0].categoryCode, null);
   assert.equal(groups[0].categoryLabel, "Other categories");

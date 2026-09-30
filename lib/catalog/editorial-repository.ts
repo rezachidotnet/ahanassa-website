@@ -6,6 +6,7 @@ import { buildTemplateFilterConditions, computeConditionalFacets, groupCodeSetCl
 import { parseCategoryRow, type CategoryRow } from "./public-categories.ts";
 import { resolveCatalogMedia, type ResolvedCatalogMedia } from "./media-registry.ts";
 import { formatCompactVariantSpecification } from "./specification-presenter.ts";
+import { attachRfqPublicCategories, type RfqSelectableCatalogItem } from "../rfq/catalog-selector.ts";
 import { computeHomepageScore, sortByHomepageScore, type HomepageRankingMode } from "../ranking/score.ts";
 import { HOMEPAGE_PRODUCT_DISPLAY_COUNT } from "./homepage-config.ts";
 import type { CatalogProduct, ProductSeoContent, ProductVariant, ContentQualityStatus, IndexStatus, HomepageProductCandidate, PublicCatalogCategory } from "./types.ts";
@@ -1164,10 +1165,22 @@ export async function resolveRfqCatalogVariant(variantXid: string, locale: Local
  * re-queried per row, and never returns an unpublished/archived/private
  * Variant or price/stock/Supplier data (this read touches only the same
  * columns `resolveRfqCatalogVariant` already exposes).
+ *
+ * Each Variant's selector category comes from this locale's public-category
+ * snapshot — the same one Homepage, Header and /products use — read once
+ * alongside the Variant query (two reads per render, never one per Variant).
+ * `family_name` is Persian-only, so it is no longer the selector label.
  */
-export async function listRfqSelectableCatalogItems(locale: Locale): Promise<RfqCatalogSelection[]> {
+export async function listRfqSelectableCatalogItems(locale: Locale): Promise<RfqSelectableCatalogItem[]> {
   const db = getPublicDb();
-  const result = await db
+  // A failed snapshot read (e.g. migration 0011 not yet applied) must not take
+  // down the RFQ form: it degrades to the unresolved fallback (fa family_name,
+  // en/ar group_code), logged like the Homepage/Header category reads.
+  const categoriesRead = listPublicCatalogCategories(locale).catch((error: unknown) => {
+    console.error("RFQ_SELECTOR_CATEGORIES_READ_ERROR", JSON.stringify({ locale, message: error instanceof Error ? error.message : String(error) }));
+    return [] as PublicCatalogCategory[];
+  });
+  const [categories, result] = await Promise.all([categoriesRead, db
     .prepare(
       `SELECT v.xid, v.sku, v.commercial_size, v.section_size, v.family_code, v.family_name, v.group_code, cp.template_xid, s.h1 as template_h1, s.slug as template_slug
        FROM product_variants v
@@ -1179,9 +1192,9 @@ export async function listRfqSelectableCatalogItems(locale: Locale): Promise<Rfq
        ORDER BY v.family_name ASC, s.h1 ASC, v.commercial_size ASC`,
     )
     .bind(locale)
-    .all<{ xid: string; sku: string; commercial_size: string | null; section_size: string | null; family_code: string | null; family_name: string | null; group_code: string | null; template_xid: string; template_h1: string; template_slug: string }>();
+    .all<{ xid: string; sku: string; commercial_size: string | null; section_size: string | null; family_code: string | null; family_name: string | null; group_code: string | null; template_xid: string; template_h1: string; template_slug: string }>()]);
 
-  return (result.results ?? []).map((row) => ({
+  const selections: RfqCatalogSelection[] = (result.results ?? []).map((row) => ({
     variantXid: row.xid,
     templateXid: row.template_xid,
     sku: row.sku,
@@ -1192,4 +1205,10 @@ export async function listRfqSelectableCatalogItems(locale: Locale): Promise<Rfq
     categoryLabel: row.family_name,
     groupCode: row.group_code,
   }));
+
+  const { items, unresolvedGroupCodes } = attachRfqPublicCategories(selections, categories, locale);
+  for (const groupCode of unresolvedGroupCodes) {
+    console.warn("RFQ_SELECTOR_CATEGORY_UNRESOLVED", JSON.stringify({ locale, groupCode }));
+  }
+  return items;
 }

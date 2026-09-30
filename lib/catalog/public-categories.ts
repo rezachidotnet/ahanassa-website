@@ -82,3 +82,52 @@ export function resolveCategoryGroupCodes(categories: PublicCatalogCategory[], c
   if (!code) return undefined;
   return findCategoryByCode(categories, code)?.groupCodes ?? [];
 }
+
+/**
+ * The public category a variant's technical `group_code` belongs to, taken
+ * from the SAME per-locale snapshot and the SAME `group_codes` membership
+ * `/products?category=` filters on (`resolveCategoryGroupCodes`) — so the
+ * RFQ selector's category and the category listing can never disagree
+ * (e.g. RHS and SHS both land in BOX_SECTION because Odoo lists them in its
+ * `group_codes`, not because the Website maps them).
+ */
+export interface RfqPublicCategory {
+  /** Selector grouping key: the public category code, or `group:<group_code>` for an unresolved group (never collides with a real code), or null when the variant has no group_code at all. */
+  code: string | null;
+  /** Display label; null only when nothing safe exists, and the selector then shows its own localized "other" bucket. */
+  label: string | null;
+  /** The category's snapshot position (home/header order); unresolved groups sort after every real category. */
+  position: number;
+  resolved: boolean;
+}
+
+export type PublicCategoryGroupIndex = Map<string, { category: PublicCatalogCategory; position: number }>;
+
+/** group_code -> (category, snapshot position). The first category listing a group wins, matching snapshot order. */
+export function indexPublicCategoriesByGroupCode(categories: PublicCatalogCategory[]): PublicCategoryGroupIndex {
+  const index: PublicCategoryGroupIndex = new Map();
+  categories.forEach((category, position) => {
+    for (const groupCode of category.groupCodes) {
+      if (!index.has(groupCode)) index.set(groupCode, { category, position });
+    }
+  });
+  return index;
+}
+
+/**
+ * Resolves one variant's RFQ category. Unresolved (the group is in no public
+ * category for this locale — e.g. the snapshot has not synced yet): fa falls
+ * back to the variant's own Persian `family_name`, en/ar to the neutral
+ * technical `group_code`, so a Persian label can never reach an en/ar page.
+ */
+export function resolveRfqPublicCategory(
+  index: PublicCategoryGroupIndex,
+  locale: "fa" | "en" | "ar",
+  groupCode: string | null,
+  familyName: string | null,
+): RfqPublicCategory {
+  const hit = groupCode ? index.get(groupCode) : undefined;
+  if (hit) return { code: hit.category.code, label: hit.category.name, position: hit.position, resolved: true };
+  const label = locale === "fa" ? (familyName ?? groupCode) : groupCode;
+  return { code: groupCode ? `group:${groupCode}` : null, label, position: Number.MAX_SAFE_INTEGER, resolved: false };
+}

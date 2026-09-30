@@ -18,8 +18,45 @@
  */
 
 import type { RfqCatalogSelection } from "@/lib/catalog/editorial-repository";
+import type { PublicCatalogCategory } from "@/lib/catalog/types";
+import { indexPublicCategoriesByGroupCode, resolveRfqPublicCategory } from "../catalog/public-categories.ts";
 
-export type RfqSelectableCatalogItem = RfqCatalogSelection;
+/**
+ * A selectable Variant plus its DISPLAY category for the selector. The
+ * inherited `categoryCode`/`categoryLabel` (Product Master family) are left
+ * exactly as before — they are what an RFQ persists
+ * (`buildCatalogItemRecord` -> rfq_items.category_ref/category_label) — while
+ * the selector groups by `publicCategoryCode`/`publicCategoryLabel`, the
+ * locale's own public category.
+ */
+export interface RfqSelectableCatalogItem extends RfqCatalogSelection {
+  publicCategoryCode: string | null;
+  publicCategoryLabel: string | null;
+}
+
+/**
+ * Attaches each Variant's public category from the locale's
+ * `catalog_public_categories` snapshot (`resolveRfqPublicCategory`) and
+ * orders the list by the snapshot's category position — the same order the
+ * Homepage and Header use. The sort is stable, so the query's own
+ * product/size order is kept inside each category. Returns the group codes
+ * no public category covers, so the caller can log them once each.
+ */
+export function attachRfqPublicCategories(
+  items: RfqCatalogSelection[],
+  categories: PublicCatalogCategory[],
+  locale: "fa" | "en" | "ar",
+): { items: RfqSelectableCatalogItem[]; unresolvedGroupCodes: string[] } {
+  const index = indexPublicCategoriesByGroupCode(categories);
+  const unresolved = new Set<string>();
+  const withPosition = items.map((item) => {
+    const category = resolveRfqPublicCategory(index, locale, item.groupCode, item.categoryLabel);
+    if (!category.resolved) unresolved.add(item.groupCode ?? "(none)");
+    return { position: category.position, item: { ...item, publicCategoryCode: category.code, publicCategoryLabel: category.label } };
+  });
+  withPosition.sort((a, b) => a.position - b.position);
+  return { items: withPosition.map((w) => w.item), unresolvedGroupCodes: [...unresolved] };
+}
 
 export interface CatalogTemplateGroup {
   templateXid: string;
@@ -30,7 +67,7 @@ export interface CatalogTemplateGroup {
 }
 
 export interface CatalogCategoryGroup {
-  /** `null` sentinel key for the (expected-rare) case a real Variant has no family_code/family_name in DB_PUBLIC — grouped, never silently dropped. */
+  /** The locale's public category code (`attachRfqPublicCategories`); `null` for the rare Variant with no group_code at all — grouped, never silently dropped. */
   categoryCode: string | null;
   categoryLabel: string;
   templates: CatalogTemplateGroup[];
@@ -46,17 +83,17 @@ const UNCATEGORIZED_LABEL: Record<"fa" | "en" | "ar", string> = {
  * Groups a flat, already-eligible Variant list into Category -> Template ->
  * Variant, preserving the input's own ordering within each group (the
  * caller/query already orders it sensibly). Never fabricates a category —
- * a Variant with no `categoryLabel` is grouped under a clearly-labeled
+ * a Variant with no `publicCategoryLabel` is grouped under a clearly-labeled
  * fallback bucket rather than dropped.
  */
 export function groupCatalogItemsForSelector(items: RfqSelectableCatalogItem[], locale: "fa" | "en" | "ar" = "fa"): CatalogCategoryGroup[] {
   const categories = new Map<string, CatalogCategoryGroup>();
 
   for (const item of items) {
-    const categoryKey = item.categoryCode ?? "__uncategorized__";
+    const categoryKey = item.publicCategoryCode ?? "__uncategorized__";
     let category = categories.get(categoryKey);
     if (!category) {
-      category = { categoryCode: item.categoryCode, categoryLabel: item.categoryLabel ?? UNCATEGORIZED_LABEL[locale], templates: [] };
+      category = { categoryCode: item.publicCategoryCode, categoryLabel: item.publicCategoryLabel ?? UNCATEGORIZED_LABEL[locale], templates: [] };
       categories.set(categoryKey, category);
     }
 

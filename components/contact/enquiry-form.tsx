@@ -8,7 +8,7 @@ import type { Locale } from "@/config/locales";
 import type { RfqItemInput, RfqResponse } from "@/lib/rfq/types";
 import type { RfqCatalogSelection } from "@/lib/catalog/editorial-repository";
 import { TURNSTILE_RFQ_ACTION } from "@/lib/security/turnstile-action";
-import { groupCatalogItemsForSelector, type RfqSelectableCatalogItem } from "@/lib/rfq/catalog-selector";
+import { findCatalogItemByXid, groupCatalogItemsForSelector, type RfqSelectableCatalogItem } from "@/lib/rfq/catalog-selector";
 import {
   buildRfqItemInput,
   createCatalogRowFromSelection,
@@ -259,7 +259,12 @@ export function EnquiryForm({
   const [turnstileStatus, setTurnstileStatus] = useState<"verifying" | "interactive" | "failed" | "success">("verifying");
   const [rows, setRows] = useState<RfqRow[]>(() => [
     catalogPreselection
-      ? createCatalogRowFromSelection({ categoryCode: catalogPreselection.categoryCode, templateXid: catalogPreselection.templateXid, variantXid: catalogPreselection.variantXid })
+      ? createCatalogRowFromSelection({
+          // The selector groups by public category; the preselected Variant is always in `catalogItems` (same eligibility predicate), so its group is read from there — no extra query.
+          categoryCode: findCatalogItemByXid(catalogItems, catalogPreselection.variantXid)?.publicCategoryCode ?? null,
+          templateXid: catalogPreselection.templateXid,
+          variantXid: catalogPreselection.variantXid,
+        })
       : createEmptyCatalogRow(),
   ]);
   const [rowErrors, setRowErrors] = useState<Record<string, RfqRowFieldKey[]>>({});
