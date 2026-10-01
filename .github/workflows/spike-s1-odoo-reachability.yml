@@ -15,6 +15,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: GET /api/v1/catalog/meta
-        run: curl -sS -o /dev/null --max-time 30 -w "GET /api/v1/catalog/meta -> %{http_code} total=%{time_total}s connect=%{time_connect}s tls=%{time_appconnect}s ttfb=%{time_starttransfer}s ip=%{remote_ip}\n" https://odoo.ahanassa.com/api/v1/catalog/meta
+        run: |
+          curl -sS -o /dev/null --max-time 30 -w "GET /api/v1/catalog/meta -> %{http_code} total=%{time_total}s connect=%{time_connect}s tls=%{time_appconnect}s ttfb=%{time_starttransfer}s ip=%{remote_ip}\n" https://odoo.ahanassa.com/api/v1/catalog/meta
       - name: POST /api/v1/rfq (unauthenticated, empty body)
-        run: curl -sS -o /dev/null --max-time 30 -X POST -H "Content-Type: application/json" --data '{}' -w "POST /api/v1/rfq (no auth) -> %{http_code} total=%{time_total}s ttfb=%{time_starttransfer}s\n" https://odoo.ahanassa.com/api/v1/rfq
+        run: |
+          curl -sS -o /dev/null --max-time 30 -X POST -H "Content-Type: application/json" --data '{}' -w "POST /api/v1/rfq (no auth) -> %{http_code} total=%{time_total}s ttfb=%{time_starttransfer}s\n" https://odoo.ahanassa.com/api/v1/rfq
