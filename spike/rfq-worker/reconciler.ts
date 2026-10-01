@@ -1,4 +1,29 @@
 import { handleOdooSyncBatch, type QueueMessageLike } from "@/lib/queue/consumer";
+import { mapRfqToApiPayload, buildOutboundRfqIdempotencyKey } from "@/lib/odoo/rfq-payload-mapper";
+import { postRfqToOdoo } from "@/lib/odoo/rfq-api-client";
+
+/** Spike profiling only: same reads + mapping (+ optional stub POST) as the consumer, no writes. */
+async function profileReadMap(db: D1Database, rfqId: string, post: boolean): Promise<void> {
+  const rfq = await db
+    .prepare(`SELECT r.id, r.company_name, r.message, r.locale, c.full_name, c.email_normalized, c.phone_e164, c.phone_national FROM rfqs r JOIN rfq_contacts c ON c.rfq_id = r.id WHERE r.id = ?`)
+    .bind(rfqId)
+    .first<{ id: string; company_name: string | null; message: string | null; locale: string; full_name: string; email_normalized: string | null; phone_e164: string | null; phone_national: string | null }>();
+  if (!rfq) return;
+  const { results } = await db
+    .prepare(`SELECT line_number, variant_ref, sku_snapshot, freeform_title, description, quantity_text, quantity_value, quantity_scale, unit_ref, length_mm FROM rfq_items WHERE rfq_id = ? ORDER BY line_number ASC`)
+    .bind(rfqId)
+    .all<Record<string, never>>();
+  const mapping = mapRfqToApiPayload({
+    locale: rfq.locale,
+    fullName: rfq.full_name,
+    companyName: rfq.company_name,
+    phone: rfq.phone_e164 ?? rfq.phone_national,
+    email: rfq.email_normalized,
+    message: rfq.message,
+    items: results.map((i: Record<string, never>) => ({ lineNumber: i.line_number, variantRef: i.variant_ref, skuSnapshot: i.sku_snapshot, freeformTitle: i.freeform_title, description: i.description, quantityText: i.quantity_text, quantityValue: i.quantity_value, quantityScale: i.quantity_scale, unitCode: i.unit_ref, lengthMm: i.length_mm })),
+  });
+  if (post && mapping.ok) await postRfqToOdoo(mapping.payload, buildOutboundRfqIdempotencyKey(rfq.id));
+}
 
 /**
  * Spike S1 — direct reconciler (architecture V1.1-RC1 §6.4): works without
@@ -7,7 +32,7 @@ import { handleOdooSyncBatch, type QueueMessageLike } from "@/lib/queue/consumer
  * through the SAME consumer logic the Queue path uses
  * (lib/queue/consumer.ts handleOdooSyncBatch), via in-memory messages.
  */
-export async function spikeReconcile(db: D1Database, max = 3): Promise<{ picked: number; acked: number; retried: number }> {
+export async function spikeReconcile(db: D1Database, max = 3, selectOnly = false, profileMode: "map" | "post" | null = null): Promise<{ picked: number; acked: number; retried: number }> {
   const now = new Date().toISOString();
   const { results } = await db
     .prepare(
@@ -22,6 +47,11 @@ export async function spikeReconcile(db: D1Database, max = 3): Promise<{ picked:
     .bind(now, max)
     .all<{ event_id: string; payload_json: string; attempt_count: number }>();
 
+  if (selectOnly) return { picked: results.length, acked: 0, retried: 0 };
+  if (profileMode) {
+    for (const row of results) await profileReadMap(db, (JSON.parse(row.payload_json) as { aggregate_id: string }).aggregate_id, profileMode === "post");
+    return { picked: results.length, acked: 0, retried: 0 };
+  }
   let acked = 0;
   let retried = 0;
   const outcomes: { eventId: string; acked: boolean; attempts: number }[] = [];

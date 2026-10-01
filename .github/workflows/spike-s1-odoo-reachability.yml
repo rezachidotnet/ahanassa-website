@@ -1,0 +1,20 @@
+# Spike S1 (architecture V1.1-RC1 §13.3) — TEMPORARY, removed in the next commit.
+# Non-mutating Odoo reachability from a GitHub-hosted runner. Prints status
+# codes and timings only. The POST carries NO Authorization header and an
+# empty JSON body, so it cannot create anything (expected 401).
+name: Spike S1 Odoo reachability (temporary)
+on:
+  push:
+    branches: [spike/s1-static-export]
+    paths: [".github/workflows/spike-s1-odoo-reachability.yml"]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: GET /api/v1/catalog/meta
+        run: curl -sS -o /dev/null --max-time 30 -w "GET /api/v1/catalog/meta -> %{http_code} total=%{time_total}s connect=%{time_connect}s tls=%{time_appconnect}s ttfb=%{time_starttransfer}s ip=%{remote_ip}\n" https://odoo.ahanassa.com/api/v1/catalog/meta
+      - name: POST /api/v1/rfq (unauthenticated, empty body)
+        run: curl -sS -o /dev/null --max-time 30 -X POST -H "Content-Type: application/json" --data '{}' -w "POST /api/v1/rfq (no auth) -> %{http_code} total=%{time_total}s ttfb=%{time_starttransfer}s\n" https://odoo.ahanassa.com/api/v1/rfq

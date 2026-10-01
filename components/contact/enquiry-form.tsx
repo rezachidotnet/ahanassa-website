@@ -566,7 +566,9 @@ export function EnquiryForm({
                     </option>
                   )}
                   {PHONE_COUNTRIES.map((c) => (
-                    <option key={c.iso2} value={c.iso2}>
+                    // Spike S1: Intl.DisplayNames output differs between the build runtime's ICU
+                    // (Node) and the browser's, which broke hydration of the static page (React #418).
+                    <option key={c.iso2} value={c.iso2} suppressHydrationWarning>
                       +{c.dialCode} {getCountryLabel(c.iso2, locale)}
                     </option>
                   ))}

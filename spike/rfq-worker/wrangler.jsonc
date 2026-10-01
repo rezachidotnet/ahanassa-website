@@ -12,7 +12,7 @@
   "preview_urls": false,
   "observability": { "enabled": true },
   "d1_databases": [
-    { "binding": "DB_OPS", "database_name": "ahanassa-spike-s1-ops", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "../../migrations" }
+    { "binding": "DB_OPS", "database_name": "ahanassa-spike-s1-ops", "database_id": "c1a0a7fe-842a-48b5-8c20-af7c6086c93a", "migrations_dir": "../../migrations" }
   ],
   // Spike limit is deliberately high so the CPU measurement rounds are not
   // throttled; the binding is still exercised on every request.

@@ -111,7 +111,11 @@ export default {
     }
     const admin = Boolean(env.SPIKE_ADMIN_TOKEN) && request.headers.get("authorization") === `Bearer ${env.SPIKE_ADMIN_TOKEN}`;
     if (pathname === "/__spike/reconcile" && request.method === "POST" && admin) {
-      return json(200, await spikeReconcile(getOpsDb(), 3));
+      // Profiling knobs (spike only): ?max=1..3 rows per run; ?mode=select runs only the pick query.
+      const params = new URL(request.url).searchParams;
+      const max = Math.min(3, Math.max(1, Number(params.get("max") ?? 3) || 3));
+      const mode = params.get("mode");
+      return json(200, await spikeReconcile(getOpsDb(), max, mode === "select", mode === "map" || mode === "post" ? mode : null));
     }
     if (pathname === "/__spike/odoo-reachability" && request.method === "GET" && admin && env.ENABLE_REACHABILITY_ROUTE === "1") {
       return reachability();
