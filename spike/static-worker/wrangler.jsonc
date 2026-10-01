@@ -1,0 +1,16 @@
+// Spike S1 — assets-only Worker for the fully static site. workers.dev only;
+// no routes, no custom domain, no bindings. Deleted at the end of the spike.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ahanassa-spike-s1-static",
+  "main": "sentinel.ts",
+  "compatibility_date": "2026-08-26",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "../../dist/client",
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash"
+  },
+  "observability": { "enabled": true }
+}

@@ -10,6 +10,23 @@ export interface CreateRfqResult {
   reference: string;
   /** True when this call created a new RFQ; false when an existing one with the same idempotency key was found. */
   created: boolean;
+  /** Spike S1: true when the idempotency key already exists with a DIFFERENT payload fingerprint (caller answers 409). */
+  conflict?: boolean;
+}
+
+/**
+ * Spike S1 (architecture V1.1-RC1 §5.2/§6.5) — optional extras. When
+ * `payloadFingerprint` is given, the RFQ row stores it (plus the catalog
+ * snapshot version the form was built from), a replay with a different
+ * fingerprint is reported as a conflict, and a concurrent same-key insert
+ * that loses the race on the idempotency unique index returns the winner's
+ * reference instead of failing. Without it, behaviour is unchanged.
+ */
+export interface CreateRfqOptions {
+  payloadFingerprint?: string;
+  catalogSnapshotVersion?: string | null;
+  /** Spike: do not attempt the Queue fast path (the spike Worker has no Queue binding). */
+  skipQueuePublish?: boolean;
 }
 
 const MAX_REFERENCE_RETRIES = 5;
@@ -30,16 +47,25 @@ export async function createRfq(
   input: ValidatedRfq,
   idempotencyKeyHash: string,
   correlationId: string,
+  options: CreateRfqOptions = {},
 ): Promise<CreateRfqResult> {
   const db = getOpsDb();
+  const withFingerprint = options.payloadFingerprint !== undefined;
 
-  const existing = await db
-    .prepare(`SELECT reference_number FROM rfqs WHERE idempotency_key_hash = ?`)
-    .bind(idempotencyKeyHash)
-    .first<{ reference_number: string }>();
-  if (existing) {
-    return { reference: existing.reference_number, created: false };
-  }
+  const findExisting = async (): Promise<CreateRfqResult | null> => {
+    const row = await db
+      .prepare(withFingerprint ? `SELECT reference_number, payload_fingerprint FROM rfqs WHERE idempotency_key_hash = ?` : `SELECT reference_number FROM rfqs WHERE idempotency_key_hash = ?`)
+      .bind(idempotencyKeyHash)
+      .first<{ reference_number: string; payload_fingerprint?: string | null }>();
+    if (!row) return null;
+    if (withFingerprint && row.payload_fingerprint !== options.payloadFingerprint) {
+      return { reference: row.reference_number, created: false, conflict: true };
+    }
+    return { reference: row.reference_number, created: false };
+  };
+
+  const existing = await findExisting();
+  if (existing) return existing;
 
   const rfqId = ulid();
   const now = new Date().toISOString();
@@ -54,27 +80,52 @@ export async function createRfq(
   for (;;) {
     try {
       await db.batch([
-        db
-          .prepare(
-            `INSERT INTO rfqs (
+        withFingerprint
+          ? db
+              .prepare(
+                `INSERT INTO rfqs (
+              id, reference_number, idempotency_key_hash, status, locale, submission_method,
+              company_name, project_name, project_city, message, item_count, attachment_count,
+              source_channel, sync_status, sync_version, submitted_at, created_at, updated_at,
+              payload_fingerprint, catalog_snapshot_version
+            ) VALUES (?, ?, ?, 'received', ?, 'structured', ?, NULL, ?, ?, ?, 0, 'website', 'pending', 0, ?, ?, ?, ?, ?)`,
+              )
+              .bind(
+                rfqId,
+                reference,
+                idempotencyKeyHash,
+                input.locale,
+                input.companyName,
+                input.deliveryLocation,
+                input.message,
+                input.items.length,
+                now,
+                now,
+                now,
+                options.payloadFingerprint,
+                options.catalogSnapshotVersion ?? null,
+              )
+          : db
+              .prepare(
+                `INSERT INTO rfqs (
               id, reference_number, idempotency_key_hash, status, locale, submission_method,
               company_name, project_name, project_city, message, item_count, attachment_count,
               source_channel, sync_status, sync_version, submitted_at, created_at, updated_at
             ) VALUES (?, ?, ?, 'received', ?, 'structured', ?, NULL, ?, ?, ?, 0, 'website', 'pending', 0, ?, ?, ?)`,
-          )
-          .bind(
-            rfqId,
-            reference,
-            idempotencyKeyHash,
-            input.locale,
-            input.companyName,
-            input.deliveryLocation,
-            input.message,
-            input.items.length,
-            now,
-            now,
-            now,
-          ),
+              )
+              .bind(
+                rfqId,
+                reference,
+                idempotencyKeyHash,
+                input.locale,
+                input.companyName,
+                input.deliveryLocation,
+                input.message,
+                input.items.length,
+                now,
+                now,
+                now,
+              ),
         db
           .prepare(
             `INSERT INTO rfq_contacts (
@@ -146,6 +197,12 @@ export async function createRfq(
       break;
     } catch (err) {
       attempt++;
+      // Spike S1: a concurrent request with the same idempotency key won the
+      // race — answer with its result (replay or conflict), never a 500.
+      if (withFingerprint && isUniqueConstraintError(err)) {
+        const winner = await findExisting();
+        if (winner) return winner;
+      }
       if (isUniqueConstraintError(err) && attempt < MAX_REFERENCE_RETRIES) {
         reference = generateRfqReference();
         continue;
@@ -156,7 +213,7 @@ export async function createRfq(
 
   // Fast-path publish, best-effort — see lib/queue/outbox.ts for why a
   // failure here does not fail the request.
-  await tryPublishOutboxEvent(event);
+  if (!options.skipQueuePublish) await tryPublishOutboxEvent(event);
 
   return { reference, created: true };
 }

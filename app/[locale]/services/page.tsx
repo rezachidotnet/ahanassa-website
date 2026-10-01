@@ -1,3 +1,4 @@
+export { localeStaticParams as generateStaticParams } from "@/lib/static/export-mode";
 import type { Metadata } from "next";
 import { isLocale, type Locale } from "@/config/locales";
 import { buildPageMetadata } from "@/lib/metadata/resolve";

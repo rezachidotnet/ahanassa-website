@@ -3,6 +3,7 @@ import { localizedPath, type Locale } from "@/config/locales";
 import { buildQueryString, selectCategoryQuery, toggleFilterQueryValue, type CatalogFilterQueryKey } from "@/lib/catalog/catalog-filters";
 import type { CatalogFilterFacets } from "@/lib/catalog/editorial-repository";
 import type { PublicCatalogCategory } from "@/lib/catalog/types";
+import { categoryListingPath } from "@/lib/catalog/public-categories";
 import { cn } from "@/lib/utils";
 
 const dimensionLabel: Record<CatalogFilterQueryKey, Record<Locale, string>> = {
@@ -31,11 +32,14 @@ export function CatalogFilterBar({
   categories,
   facets,
   active,
+  categoryOnly = false,
 }: {
   locale: Locale;
   categories: PublicCatalogCategory[];
   facets: CatalogFilterFacets;
   active: Partial<Record<CatalogFilterQueryKey, string>>;
+  /** Spike S1: static output — only the category row (static routes); query-string facets have no static equivalent. */
+  categoryOnly?: boolean;
 }) {
   const dimensions: { key: CatalogFilterQueryKey; options: CatalogFilterFacets[keyof CatalogFilterFacets] }[] = [
     { key: "category", options: categories.map((c) => ({ code: c.code, name: c.name })) },
@@ -45,7 +49,7 @@ export function CatalogFilterBar({
     { key: "standard", options: facets.standard },
   ];
 
-  const visible = dimensions.filter((d) => d.options.length > 0);
+  const visible = dimensions.filter((d) => d.options.length > 0 && (!categoryOnly || d.key === "category"));
   if (visible.length === 0) return null;
 
   return (
@@ -58,7 +62,10 @@ export function CatalogFilterBar({
               if (!option.code) return null;
               const isActive = active[dimension.key] === option.code;
               const nextParams = dimension.key === "category" ? selectCategoryQuery(active, option.code) : toggleFilterQueryValue(active, dimension.key, option.code);
-              const href = `${localizedPath(locale, "/products")}${buildQueryString(nextParams)}`;
+              const href =
+                dimension.key === "category"
+                  ? localizedPath(locale, isActive ? "/products" : categoryListingPath(option.code))
+                  : `${localizedPath(locale, "/products")}${buildQueryString(nextParams)}`;
               return (
                 <Link
                   key={option.code}

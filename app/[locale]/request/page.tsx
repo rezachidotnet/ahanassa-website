@@ -1,5 +1,11 @@
 import { permanentRedirect } from "next/navigation";
 import { isLocale, localizedPath } from "@/config/locales";
+import { isStaticExport, localeStaticParams } from "@/lib/static/export-mode";
+
+/** Spike S1: no page in the static export — /request is a static _redirects rule (spike/static/_redirects). */
+export function generateStaticParams() {
+  return isStaticExport ? [] : localeStaticParams();
+}
 
 interface PageProps {
   params: Promise<{ locale: string }>;

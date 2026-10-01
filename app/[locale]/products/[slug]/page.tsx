@@ -3,11 +3,11 @@ import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import { isLocale, localizedPath, type Locale } from "@/config/locales";
 import { buildPageMetadata, buildLanguageAlternatesFromEntries } from "@/lib/metadata/resolve";
-import { getPublishedCatalogTemplateBySlug, listPublishedLocalesForProduct } from "@/lib/catalog/editorial-repository";
+import { getPublishedCatalogTemplateBySlug, listPublishedCatalogTemplates, listPublishedLocalesForProduct } from "@/lib/catalog/editorial-repository";
 import { resolveRouteRedirect } from "@/lib/catalog/route-redirects";
 import { PageHero } from "@/components/ui/page-hero";
 import { VariantSpecTable, variantRowAnchorId } from "@/components/products/variant-spec-table";
-import { ScrollToAnchor } from "@/components/products/scroll-to-anchor";
+import { VariantHighlightFromQuery } from "@/components/products/variant-highlight-from-query";
 import { CtaBand } from "@/components/ui/cta-band";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { breadcrumbListSchema, jsonLdGraph } from "@/lib/seo/schema";
@@ -16,14 +16,22 @@ import { primaryCta } from "@/lib/content/nav";
 
 interface PageProps {
   params: Promise<{ locale: string; slug: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-const chrome: Record<Locale, { productsLabel: string; specs: string; back: string }> = {
-  fa: { productsLabel: "محصولات", specs: "مشخصات فنی و اندازه‌های موجود", back: "بازگشت به همه محصولات" },
-  en: { productsLabel: "Products", specs: "Technical specifications and available sizes", back: "Back to all products" },
-  ar: { productsLabel: "المنتجات", specs: "المواصفات الفنية والمقاسات المتاحة", back: "العودة إلى جميع المنتجات" },
+const chrome: Record<Locale, { productsLabel: string; specs: string; back: string; selected: string }> = {
+  fa: { productsLabel: "محصولات", specs: "مشخصات فنی و اندازه‌های موجود", back: "بازگشت به همه محصولات", selected: "قلم انتخاب‌شده" },
+  en: { productsLabel: "Products", specs: "Technical specifications and available sizes", back: "Back to all products", selected: "Selected item" },
+  ar: { productsLabel: "المنتجات", specs: "المواصفات الفنية والمقاسات المتاحة", back: "العودة إلى جميع المنتجات", selected: "الصنف المحدد" },
 };
+
+/** Spike S1: every published template for the locale, from the snapshot (same publication gate as the listing). */
+export async function generateStaticParams({ params }: { params: { locale: string } }) {
+  const locale = isLocale(params.locale) ? params.locale : "fa";
+  const templates = await listPublishedCatalogTemplates(locale);
+  return templates.map((t) => ({ slug: t.seo.slug }));
+}
+
+export const dynamicParams = false;
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { locale: rawLocale, slug } = await params;
@@ -64,7 +72,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
  * the template is not (yet) publicly eligible; both render identically to
  * avoid leaking publication state to an unauthenticated visitor.
  */
-export default async function ProductDetailPage({ params, searchParams }: PageProps) {
+export default async function ProductDetailPage({ params }: PageProps) {
   const { locale: rawLocale, slug } = await params;
   const locale: Locale = isLocale(rawLocale) ? rawLocale : "fa";
   const entry = await getPublishedCatalogTemplateBySlug(locale, slug);
@@ -94,15 +102,10 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
   const t = chrome[locale];
   const { product, seo, variants } = entry;
 
-  // Preserve/highlight a specific Variant within its Template page
-  // (Go-Live Readiness variant-navigation audit) — never a dedicated
-  // Variant SEO page. Only a `?variant=` value that actually matches one of
-  // THIS template's own currently-public variants is honored; anything else
-  // (unknown, archived, or belonging to a different template) is silently
-  // ignored rather than shown as a fabricated match.
-  const rawVariantParam = (await searchParams).variant;
-  const requestedVariantXid = Array.isArray(rawVariantParam) ? rawVariantParam[0] : rawVariantParam;
-  const highlightedVariant = requestedVariantXid ? variants.find((v) => v.xid === requestedVariantXid) : undefined;
+  // Spike S1: `?variant=` row highlight moved to the browser
+  // (VariantHighlightFromQuery) — only this template's own public variants
+  // are in its lookup map, so unknown values are ignored as before.
+  const variantRowIds = Object.fromEntries(variants.map((v) => [v.xid, variantRowAnchorId(v.sku)]));
 
   const breadcrumbJsonLd = jsonLdGraph([
     breadcrumbListSchema([
@@ -129,9 +132,9 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
         <div className="container-x">
           <h2 className="text-navy text-lg font-bold">{t.specs}</h2>
           <div className="mt-6">
-            <VariantSpecTable locale={locale} variants={variants} highlightXid={highlightedVariant?.xid} />
+            <VariantSpecTable locale={locale} variants={variants} />
           </div>
-          {highlightedVariant && <ScrollToAnchor anchorId={variantRowAnchorId(highlightedVariant.sku)} />}
+          <VariantHighlightFromQuery rows={variantRowIds} selectedLabel={t.selected} />
 
           <Link href={localizedPath(locale, "/contact")} className="bg-navy hover:bg-navy-700 mt-10 inline-flex items-center gap-2.5 px-7 py-4 text-sm font-semibold tracking-wide text-white transition-colors">
             {primaryCta[locale].full}

@@ -1,0 +1,27 @@
+// Spike S1 — standalone RFQ Worker. workers.dev only; no routes; temporary
+// D1 "ahanassa-spike-s1-ops". Odoo delivery goes to an in-process stub
+// (ODOO_BASE_URL=https://odoo-stub.spike.invalid). Turnstile uses Cloudflare's
+// documented always-pass TEST secret. Deleted at the end of the spike.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ahanassa-spike-s1-rfq",
+  "main": "index.ts",
+  "compatibility_date": "2026-08-26",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": { "enabled": true },
+  "d1_databases": [
+    { "binding": "DB_OPS", "database_name": "ahanassa-spike-s1-ops", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "../../migrations" }
+  ],
+  // Spike limit is deliberately high so the CPU measurement rounds are not
+  // throttled; the binding is still exercised on every request.
+  "ratelimits": [{ "name": "RFQ_RATE_LIMITER", "namespace_id": "9101", "simple": { "limit": 1000, "period": 60 } }],
+  "vars": {
+    "APP_ENV": "spike",
+    "ODOO_BASE_URL": "https://odoo-stub.spike.invalid",
+    "ODOO_RFQ_API_TOKEN": "spike-stub-token-not-a-secret",
+    "TURNSTILE_SECRET_KEY": "1x0000000000000000000000000000000AA",
+    "ALLOWED_ORIGIN": "https://ahanassa-spike-s1-static.nova-b1e6f0.workers.dev"
+  }
+}

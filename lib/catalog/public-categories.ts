@@ -68,7 +68,19 @@ export function findCategoryByCode(categories: PublicCatalogCategory[], code: st
 
 /** Unprefixed listing path for a category — callers apply `localizedPath` where they already do for other links. */
 export function categoryListingPath(code: string): string {
-  return `/products?${CATEGORY_QUERY_KEY}=${encodeURIComponent(code)}`;
+  // Spike S1: one static route per category instead of `/products?category=`
+  // (a query string cannot select a static file). The legacy query form is
+  // redirected client-side by /products (components/products/legacy-category-redirect.tsx).
+  return `/products/category/${categoryPathSegment(code)}`;
+}
+
+/** Spike S1: URL segment for a category code — BOX_SECTION -> box-section. Resolved back only against the snapshot (findCategoryByPathSegment). */
+export function categoryPathSegment(code: string): string {
+  return code.toLowerCase().replace(/_/g, "-");
+}
+
+export function findCategoryByPathSegment(categories: PublicCatalogCategory[], segment: string): PublicCatalogCategory | undefined {
+  return categories.find((c) => categoryPathSegment(c.code) === segment);
 }
 
 /**

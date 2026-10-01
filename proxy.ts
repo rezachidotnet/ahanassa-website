@@ -12,6 +12,10 @@ import { applySecurityHeaders } from "@/lib/security/headers";
  * its unprefixed equivalent — fa never gets a visible prefix.
  */
 export function proxy(request: NextRequest) {
+  // Spike S1: the static export has no middleware at visit time (fa-at-root
+  // is produced by the output layout, headers by _headers). During the
+  // export prerender it must render /fa/... as-is instead of 308-ing.
+  if (process.env.SPIKE_STATIC_EXPORT === "1") return NextResponse.next();
   const { pathname } = request.nextUrl;
   const segments = pathname.split("/").filter(Boolean);
   const firstSegment = segments[0];
