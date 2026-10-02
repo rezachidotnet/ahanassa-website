@@ -5,7 +5,7 @@ import Script from "next/script";
 import { Plus, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Locale } from "@/config/locales";
-import type { RfqItemInput, RfqResponse } from "@/lib/rfq/types";
+import type { RfqItemInput } from "@/lib/rfq/types";
 import type { RfqCatalogSelection } from "@/lib/catalog/editorial-repository";
 import { TURNSTILE_RFQ_ACTION } from "@/lib/security/turnstile-action";
 import { findCatalogItemByXid, groupCatalogItemsForSelector, type PublicRfqCatalogItem } from "@/lib/rfq/catalog-selector";
@@ -22,6 +22,7 @@ import {
 import { RfqItemRow } from "@/components/contact/rfq-item-row";
 import { getDefaultPhoneCountry, getCountryLabel, PHONE_COUNTRIES } from "@/lib/rfq/phone-country-registry";
 import { normalizeDigits } from "@/lib/rfq/quantity";
+import { submitRfqWithRetry } from "@/lib/rfq/submit-with-retry";
 
 /**
  * Multi-item RFQ / purchase-list form (docs/RFQ_MULTI_ITEM_FORM.md).
@@ -449,26 +450,23 @@ export function EnquiryForm({
     setErrorMessage(null);
 
     try {
-      const res = await fetch(rfqEndpoint, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const body: RfqResponse = await res.json();
+      // Network error / 5xx: up to 2 retries with the SAME body (same idempotencyKey);
+      // never on 4xx (architecture V1.1 r3 §8.3). A 200 replay is success.
+      const { body } = await submitRfqWithRetry(rfqEndpoint, payload);
 
-      if (body.ok) {
+      if (body?.ok) {
         setReference(body.reference);
         setStatus("success");
         return;
       }
 
-      if (body.code === "RATE_LIMITED") {
+      if (body?.code === "RATE_LIMITED") {
         setErrorMessage(t.rateLimited);
-      } else if (body.code === "VERIFICATION_FAILED") {
+      } else if (body?.code === "VERIFICATION_FAILED") {
         setErrorMessage(t.verificationError);
-      } else if (body.code === "SERVICE_UNAVAILABLE") {
+      } else if (body?.code === "SERVICE_UNAVAILABLE") {
         setErrorMessage(t.serviceUnavailable);
-      } else if (body.code === "VALIDATION_ERROR") {
+      } else if (body?.code === "VALIDATION_ERROR") {
         setErrorMessage(t.validationError);
       } else {
         setErrorMessage(t.networkError);
