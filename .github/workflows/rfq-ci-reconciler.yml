@@ -1,0 +1,72 @@
+# Architecture V1.1 §4.3 (R2-5) + §15: the CI fallback reconciler — an
+# independent, monitored recovery path for RFQs the Worker paths have not
+# delivered for [30] minutes. Same logic as the Worker (lib/rfq-worker/delivery.ts).
+# After delivering it publishes the delivery health as the job summary and
+# FAILS the job when any RFQ is undelivered for more than 30 minutes (W3).
+#
+# STAGING ONLY. Delivers to the v11 contract stub, never to Odoo (§6.7).
+# TODO(production cutover): add a separate production job/environment with the
+# real Odoo base URL and the production ODOO_RFQ_API_TOKEN, and its own
+# schedule (§15: every 15 min in business hours, hourly otherwise). Not in W3.
+#
+# BRANCH NOTE (until cutover): this file lives on `main` only so GitHub will schedule/dispatch it
+# (CLAUDE.md §5b). main and the application branch have unrelated histories, so the job checks out
+# feat/v11-static-site for the reconciler script and its dependencies. At cutover, change `ref` below to the
+# real application branch (or remove it once main carries the v11 code).
+#
+# GitHub runs `schedule` and accepts `workflow_dispatch` only for workflow
+# files on the default branch (main) — until this file is there, neither fires.
+name: RFQ CI reconciler (staging)
+
+on:
+  workflow_dispatch:
+    inputs:
+      max:
+        description: "Maximum RFQs to deliver in this run"
+        required: false
+        default: "10"
+  schedule:
+    # Hourly, staging. TODO(production): business-hours */15 schedule for production (see header).
+    - cron: "17 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rfq-ci-reconciler-staging
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: reconcile (staging)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: feat/v11-static-site
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies (immutable)
+        run: npm ci
+
+      - name: Reconcile (one RFQ per delivery, idempotent) + delivery health summary
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Staging delivers to the contract stub only (§6.7), never to Odoo.
+          ODOO_BASE_URL: https://ahanassa-v11-odoo-stub-staging.nova-b1e6f0.workers.dev
+          ODOO_RFQ_API_TOKEN: ${{ secrets.V11_STAGING_ODOO_STUB_BEARER }}
+          ODOO_INTAKE_V11: "1"
+          MAX: ${{ inputs.max || '10' }}
+        run: |
+          set -euo pipefail
+          node scripts/rfq/ci-reconciler.ts --config workers/rfq/wrangler.jsonc --env staging --database DB_OPS --max "$MAX"
