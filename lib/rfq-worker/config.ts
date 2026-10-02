@@ -33,6 +33,8 @@ export interface RfqWorkerEnv {
   ADMIN_TOKEN?: string;
   /** "1" enables the test routes — which exist only in the staging entry (index.staging.ts). */
   TEST_HOOKS?: string;
+  /** "1" = Turnstile test path (staging entry only; measurement windows). */
+  TURNSTILE_TEST_MODE?: string;
 }
 
 export const csv = (value: string | undefined): string[] =>

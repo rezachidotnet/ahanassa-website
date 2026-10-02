@@ -42,6 +42,8 @@ async function queueHandoff(env: RfqWorkerEnv, event: OdooSyncEvent): Promise<vo
 export interface RfqWorkerOptions {
   /** Extra authenticated /__admin/* routes — staging test routes only. */
   adminExtension?: AdminExtension;
+  /** Staging only: may swap the Turnstile verification (test path) for one request. */
+  prepareSubmit?: (env: RfqWorkerEnv) => { env: RfqWorkerEnv; fetchImpl?: typeof fetch };
 }
 
 export function createRfqWorker(options: RfqWorkerOptions = {}) {
@@ -50,7 +52,9 @@ export function createRfqWorker(options: RfqWorkerOptions = {}) {
       const url = new URL(request.url);
       if (url.pathname === "/api/rfqs") {
         if (request.method === "OPTIONS") return preflightResponse(request, csv(env.ALLOWED_ORIGINS));
-        return handleRfqSubmit(request, env, {
+        const prepared = options.prepareSubmit?.(env) ?? { env };
+        return handleRfqSubmit(request, prepared.env, {
+          fetchImpl: prepared.fetchImpl,
           afterCommit: async (event) => {
             ctx.waitUntil(queueHandoff(env, event));
           },
