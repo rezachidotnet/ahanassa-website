@@ -13,6 +13,8 @@ import { FinalCta } from "@/components/home/final-cta";
 import type { PublicPriceStripItem } from "@/lib/pricing/types";
 import type { PublicCatalogCategory } from "@/lib/catalog/types";
 
+export { generateLocaleStaticParams as generateStaticParams } from "@/lib/static/locale-params";
+
 /**
  * HOMEPAGE COMPOSITION — frozen by
  * docs/homepage/AHANASSA_HOMEPAGE_COMPOSITION_AND_CUSTOMER_JOURNEY_FREEZE_V1.0.md §4:

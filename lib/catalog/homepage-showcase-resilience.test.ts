@@ -108,8 +108,9 @@ test("zero categories omit the entire section — no heading, no empty state, no
 
 test("CatalogEmptyState itself is preserved for the /products listing, which legitimately needs it", () => {
   // Removing the Showcase's usage must not delete a component another route
-  // depends on.
-  const products = readSource("app/[locale]/products/page.tsx");
+  // depends on. /products and /products/category/<segment> render through
+  // the shared listing component (architecture V1.1 A2).
+  const products = readSource("components/products/products-listing.tsx");
   assert.ok(products.includes("CatalogEmptyState"), "/products must still use the empty state");
   assert.doesNotThrow(() => readSource("components/products/catalog-empty-state.tsx"), "the component file must still exist");
 });

@@ -1,5 +1,11 @@
 import { permanentRedirect } from "next/navigation";
 import { isLocale, localizedPath } from "@/config/locales";
+import { generateLocaleStaticParams, isStaticExportBuild } from "@/lib/static/locale-params";
+
+/** No page in the static export: /request is a static `_redirects` rule there (lib/static/static-rules.ts). */
+export function generateStaticParams() {
+  return isStaticExportBuild() ? [] : generateLocaleStaticParams();
+}
 
 interface PageProps {
   params: Promise<{ locale: string }>;

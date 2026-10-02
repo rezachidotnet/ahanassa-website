@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import Link from "@/components/ui/link";
+import { usePublicPathname } from "@/components/layout/use-public-pathname";
 import { ChevronDown } from "lucide-react";
 import { locales, localeConfig, localizedPath, type Locale } from "@/config/locales";
 import { cn } from "@/lib/utils";
@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
  * homepage. Keyboard/focus/Escape per §43.11.
  */
 export function HeaderLanguageSelector({ locale, srLabel }: { locale: Locale; srLabel: string }) {
-  const pathname = usePathname();
+  const pathname = usePublicPathname();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);

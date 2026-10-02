@@ -5,8 +5,8 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fetchCatalogCategories, type CatalogApiCategory } from "./odoo-api-client.ts";
 import { fetchPublicCategoriesForLocale } from "./category-sync.ts";
-import { categoryListingPath, findCategoryByCode, parseCategoryRow, resolveCategoryGroupCodes, toPublicCatalogCategory } from "./public-categories.ts";
-import { computeConditionalFacets, groupCodeSetClause, parseCatalogFilterParams, selectCategoryQuery, type ClassificationRow } from "./catalog-filters.ts";
+import { categoryListingPath, categoryPathSegment, findCategoryByCode, findCategoryByPathSegment, legacyCategoryQueryTarget, parseCategoryRow, resolveCategoryGroupCodes, toPublicCatalogCategory } from "./public-categories.ts";
+import { groupCodeSetClause } from "./catalog-filters.ts";
 import { CATEGORY_IMAGE_PATHS, resolveCategoryMedia } from "./media-registry.ts";
 import { buildReplaceCatalogPublicCategoriesSql } from "./sync-sql.ts";
 import { getDirection, localizedPath } from "../../config/locales.ts";
@@ -140,45 +140,48 @@ test("no category / unknown category: no restriction vs. match-nothing (a stale 
   assert.deepEqual(groupCodeSetClause([]), { sql: "0 = 1", params: [] });
 });
 
-test("facets narrow to the selected category's groups: BOX_SECTION keeps RHS and SHS rows only", () => {
-  const row = (groupCode: string, formCode: string): ClassificationRow => ({
-    familyCode: "F",
-    familyName: "F",
-    groupCode,
-    groupName: groupCode,
-    formCode,
-    formName: formCode,
-    gradeCode: null,
-    gradeName: null,
-    standardCode: null,
-    standardName: null,
-  });
-  const rows = [row("RHS", "RHS_FORM"), row("SHS", "SHS_FORM"), row("REBAR", "RIBBED_REBAR")];
-  const facets = computeConditionalFacets(rows, { groupCodes: ["RHS", "SHS"] });
-  assert.deepEqual(facets.form.map((f) => f.code), ["RHS_FORM", "SHS_FORM"]);
-  assert.deepEqual(facets.group.map((g) => g.code), ["RHS", "SHS"]);
+test("category links open the static category route, locale-prefixed, keyed by the code's path segment (architecture V1.1 A2)", () => {
+  assert.equal(categoryPathSegment("BOX_SECTION"), "box-section");
+  assert.equal(categoryListingPath("BOX_SECTION"), "/products/category/box-section");
+  assert.equal(localizedPath("fa", categoryListingPath("PIPE")), "/products/category/pipe");
+  assert.equal(localizedPath("en", categoryListingPath("PIPE")), "/en/products/category/pipe");
+  assert.equal(localizedPath("ar", categoryListingPath("SHEET_PLATE")), "/ar/products/category/sheet-plate");
 });
 
-test("category links open /products with that category selected, locale-prefixed, keyed by code", () => {
-  assert.equal(categoryListingPath("BOX_SECTION"), "/products?category=BOX_SECTION");
-  assert.equal(localizedPath("fa", categoryListingPath("PIPE")), "/products?category=PIPE");
-  assert.equal(localizedPath("en", categoryListingPath("PIPE")), "/en/products?category=PIPE");
-  assert.equal(localizedPath("ar", categoryListingPath("PIPE")), "/ar/products?category=PIPE");
-  assert.equal(parseCatalogFilterParams({ category: "PIPE" }).categoryCode, "PIPE");
+test("a path segment resolves back only against the snapshot; anything else is not a category", () => {
+  const categories = [toPublicCatalogCategory(LIVE.en[4]), toPublicCatalogCategory(LIVE.en[6])];
+  assert.equal(findCategoryByPathSegment(categories, "box-section")?.code, "BOX_SECTION");
+  assert.equal(findCategoryByPathSegment(categories, "BOX_SECTION"), undefined);
+  assert.equal(findCategoryByPathSegment(categories, "box_section"), undefined);
+  assert.equal(findCategoryByPathSegment(categories, "rebar"), undefined);
 });
 
-test("selecting a category clears other dimensions; clicking the active one clears it", () => {
-  assert.deepEqual(selectCategoryQuery({ grade: "AJ340", family: "LONG_PRODUCTS" }, "PIPE"), { category: "PIPE" });
-  assert.deepEqual(selectCategoryQuery({ category: "PIPE" }, "PIPE"), {});
+test("legacy ?category= links are forwarded to the static route; non-code values are ignored, never reformatted", () => {
+  assert.equal(legacyCategoryQueryTarget("?category=BOX_SECTION"), "/products/category/box-section");
+  assert.equal(legacyCategoryQueryTarget("?family=X&category=PIPE"), "/products/category/pipe");
+  assert.equal(legacyCategoryQueryTarget(""), null);
+  assert.equal(legacyCategoryQueryTarget("?category=../../etc"), null);
+  assert.equal(legacyCategoryQueryTarget("?category=%3Cscript%3E"), null);
+  assert.equal(legacyCategoryQueryTarget("?category=box-section"), null);
+  const redirect = readSource("components/products/legacy-category-redirect.tsx");
+  assert.match(redirect, /legacyCategoryQueryTarget\(window\.location\.search\)/);
+  assert.match(redirect, /window\.location\.replace\(/);
+  assert.match(readSource("app/[locale]/products/page.tsx"), /<LegacyCategoryRedirect /);
 });
 
-test("the listing SQL filters templates by an EXISTS over the category's group set", () => {
+test("the listing SQL filters templates by an EXISTS over the selected category's group set, and the category route uses the snapshot", () => {
   const repo = readSource("lib/catalog/editorial-repository.ts");
   const fn = repo.slice(repo.indexOf("function filterConditions"), repo.indexOf("const TEMPLATE_PUBLICATION_WHERE_CONDITIONS"));
   assert.match(fn, /groupCodeSetClause\(filters\.groupCodes\)/);
   assert.match(fn, /pv\.is_active = 1 AND pv\.is_public = 1 AND \$\{categoryClause\.sql\}/);
-  const page = readSource("app/[locale]/products/page.tsx");
-  assert.match(page, /groupCodes: resolveCategoryGroupCodes\(categories, parsed\.categoryCode\)/, "/products must resolve ?category= through the synced Odoo categories");
+  const listing = readSource("components/products/products-listing.tsx");
+  assert.match(listing, /groupCodes: resolveCategoryGroupCodes\(categories, category\.code\)/, "a category listing must resolve its group set through the synced Odoo categories");
+  const route = readSource("app/[locale]/products/category/[category]/page.tsx");
+  assert.match(route, /generateStaticParams/);
+  assert.match(route, /categoryPathSegment\(c\.code\)/);
+  assert.match(route, /findCategoryByPathSegment\(/);
+  assert.match(route, /notFound\(\)/);
+  assert.doesNotMatch(readCode("app/[locale]/products/page.tsx"), /searchParams/, "/products is static: no searchParams");
 });
 
 // --- 7-10: images -------------------------------------------------------------
@@ -262,7 +265,7 @@ test("a failed category read never crashes the Homepage, the /products listing, 
   const home = readSource("app/[locale]/page.tsx");
   const homeTry = home.slice(home.indexOf("try {", home.indexOf("let homepageCategories")), home.indexOf("} catch (error) {", home.indexOf("let homepageCategories")));
   assert.match(homeTry, /listPublicCatalogCategories\(locale\)/);
-  const products = readSource("app/[locale]/products/page.tsx");
+  const products = readSource("components/products/products-listing.tsx");
   const productsTry = products.slice(products.indexOf("try {", products.indexOf("let categories")), products.indexOf("} catch (error) {", products.indexOf("let categories")));
   assert.match(productsTry, /listPublicCatalogCategories\(locale\)/);
   assert.match(products, /PRODUCTS_CATEGORY_LIST_READ_ERROR/);
@@ -271,7 +274,7 @@ test("a failed category read never crashes the Homepage, the /products listing, 
 });
 
 test("public rendering never calls Odoo: pages/components read only the DB_PUBLIC snapshot", () => {
-  for (const file of ["app/[locale]/page.tsx", "app/[locale]/products/page.tsx", "app/[locale]/layout.tsx", "components/home/product-showcase.tsx", "components/layout/SiteHeader.tsx", "components/products/catalog-filter-bar.tsx"]) {
+  for (const file of ["app/[locale]/page.tsx", "app/[locale]/products/page.tsx", "app/[locale]/products/category/[category]/page.tsx", "components/products/products-listing.tsx", "app/[locale]/layout.tsx", "components/home/product-showcase.tsx", "components/layout/SiteHeader.tsx", "components/products/catalog-filter-bar.tsx"]) {
     const code = readCode(file);
     assert.ok(!code.includes("odoo-api-client") && !code.includes("category-sync") && !code.includes("fetch("), `${file} must not reach Odoo`);
   }
@@ -316,5 +319,5 @@ test("fa and ar render RTL, en renders LTR", () => {
 test("React keys are the unique category code on every surface (the API rejects duplicate codes)", () => {
   assert.equal(new Set(categories.map((c) => c.code)).size, categories.length);
   assert.match(readSource("components/home/product-showcase.tsx"), /key=\{category\.code\}/);
-  assert.match(readSource("components/products/catalog-filter-bar.tsx"), /key=\{option\.code\}/);
+  assert.match(readSource("components/products/catalog-filter-bar.tsx"), /key=\{category\.code\}/);
 });

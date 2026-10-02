@@ -1,5 +1,5 @@
 import * as React from "react";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import type { VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";

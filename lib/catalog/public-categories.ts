@@ -14,8 +14,16 @@ import type { PublicCatalogCategory } from "./types.ts";
  * category link can never drift between surfaces.
  */
 
-/** The /products query key a category selection travels under. */
-export const CATEGORY_QUERY_KEY = "category";
+/**
+ * The legacy /products query key (`/products?category=CODE`). Architecture
+ * V1.1 §4.2 (A2): no internal link, sitemap entry or canonical uses it any
+ * more; it is only read in the browser to forward an old link to
+ * `categoryListingPath` (components/products/legacy-category-redirect.tsx).
+ */
+export const LEGACY_CATEGORY_QUERY_KEY = "category";
+
+/** Odoo public category code shape — the only values the legacy forward accepts. */
+export const CATEGORY_CODE_PATTERN = /^[A-Z0-9_]{1,64}$/;
 
 /** Maps one API row to the domain shape. Order is the caller's — never re-sorted here. */
 export function toPublicCatalogCategory(row: CatalogApiCategory): PublicCatalogCategory {
@@ -66,13 +74,33 @@ export function findCategoryByCode(categories: PublicCatalogCategory[], code: st
   return categories.find((c) => c.code === code);
 }
 
-/** Unprefixed listing path for a category — callers apply `localizedPath` where they already do for other links. */
+/**
+ * URL segment for a category code (architecture V1.1 §4.1): lower case,
+ * `_` -> `-` (BOX_SECTION -> box-section). Only ever resolved back
+ * against the snapshot (`findCategoryByPathSegment`), never parsed.
+ */
+export function categoryPathSegment(code: string): string {
+  return code.toLowerCase().replace(/_/g, "-");
+}
+
+export function findCategoryByPathSegment(categories: PublicCatalogCategory[], segment: string): PublicCatalogCategory | undefined {
+  return categories.find((c) => categoryPathSegment(c.code) === segment);
+}
+
+/** Unprefixed static listing path for a category — callers apply `localizedPath` where they already do for other links. */
 export function categoryListingPath(code: string): string {
-  return `/products?${CATEGORY_QUERY_KEY}=${encodeURIComponent(code)}`;
+  return `/products/category/${categoryPathSegment(code)}`;
+}
+
+/** Legacy `?category=` value -> static listing path, or null for anything that is not a category code (no reformatting of arbitrary input). */
+export function legacyCategoryQueryTarget(search: string): string | null {
+  const code = new URLSearchParams(search).get(LEGACY_CATEGORY_QUERY_KEY);
+  if (!code || !CATEGORY_CODE_PATTERN.test(code)) return null;
+  return categoryListingPath(code);
 }
 
 /**
- * Resolves the technical `group_code` set a `?category=` value filters on.
+ * Resolves the technical `group_code` set a selected category filters on.
  * `undefined` = no category requested (no restriction). An unknown code
  * resolves to an empty set, which the repository turns into "matches
  * nothing" — a stale/removed category link shows the honest no-match

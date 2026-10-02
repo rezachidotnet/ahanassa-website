@@ -98,9 +98,10 @@ test("contact page: the RFQ form is not width-constrained by the old collision-f
   assert.ok(!source.includes("Go-Live Readiness RFQ-layout-collision fix"), "the obsolete side-by-side collision comment must be removed, not left describing a layout that no longer exists");
 });
 
-test("contact page: EnquiryForm renders inside a plain full-width container-x section, not a fractional grid column", () => {
+test("contact page: the RFQ form (StaticEnquiryForm -> EnquiryForm) renders inside a plain full-width container-x section, not a fractional grid column", () => {
   const source = readContactPageSource();
-  const formIdx = source.indexOf("<EnquiryForm");
+  // The static page renders the form through StaticEnquiryForm (architecture V1.1 §4.2).
+  const formIdx = source.indexOf("<StaticEnquiryForm");
   assert.ok(formIdx >= 0);
   // Walk backwards from the EnquiryForm usage to its nearest ancestor <div className="container-x">
   const before = source.slice(0, formIdx);
@@ -132,7 +133,7 @@ test("contact page: RFQ, Next Steps, and Head Office are each their own top-leve
   const sectionStarts = [...source.matchAll(/<section className="border-border bg-background border-b/g)].map((m) => m.index!);
   assert.equal(sectionStarts.length, 3, "expected exactly three top-level sections (RFQ, Next Steps, Head Office) using this section's styling convention");
 
-  const formIdx = source.indexOf("<EnquiryForm");
+  const formIdx = source.indexOf("<StaticEnquiryForm");
   const nextStepsIdx = source.indexOf("{t.nextTitle}");
   const headOfficeIdx = source.indexOf("{t.officeTitle}");
 

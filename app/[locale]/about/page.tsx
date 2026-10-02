@@ -5,6 +5,8 @@ import { aboutCopy } from "@/lib/content/pages";
 import { PageHero } from "@/components/ui/page-hero";
 import { CtaBand } from "@/components/ui/cta-band";
 
+export { generateLocaleStaticParams as generateStaticParams } from "@/lib/static/locale-params";
+
 interface PageProps {
   params: Promise<{ locale: string }>;
 }

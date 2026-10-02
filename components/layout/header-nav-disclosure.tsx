@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import Link from "@/components/ui/link";
+import { usePublicPathname } from "@/components/layout/use-public-pathname";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -66,7 +66,7 @@ export function HeaderNavDisclosure({
   const rootRef = useRef<HTMLDivElement>(null);
   const chevronRef = useRef<HTMLButtonElement>(null);
   const panelId = useId();
-  const pathname = usePathname();
+  const pathname = usePublicPathname();
 
   useEffect(() => setOpen(false), [pathname]);
 

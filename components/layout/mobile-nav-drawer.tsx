@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import Link from "@/components/ui/link";
+import { usePublicPathname } from "@/components/layout/use-public-pathname";
 import { ChevronDown, Phone, X } from "lucide-react";
 import { locales, localeConfig, localizedPath, type Locale } from "@/config/locales";
 import type { NavLink } from "@/lib/content/nav";
@@ -66,7 +66,7 @@ export function MobileNavDrawer({
   /** The modal dialog panel's own name — deliberately DIFFERENT from `navLabel` (addendum §4: both are simultaneously exposed while open, so their purposes must be distinguishable). */
   drawerLabel: string;
 }) {
-  const pathname = usePathname();
+  const pathname = usePublicPathname();
   const drawerRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [openAccordion, setOpenAccordion] = useState<"products" | "services" | null>(null);

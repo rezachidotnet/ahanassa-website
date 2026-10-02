@@ -45,3 +45,17 @@ export function localizedPath(locale: Locale, path: string = "/"): string {
   if (path === "/") return prefix || "/";
   return `${prefix}${path.startsWith("/") ? path : `/${path}`}`;
 }
+
+/**
+ * The public URL path for an internal route path. fa is unprefixed in public
+ * URLs, but the static export renders fa pages at `/fa/...` (no middleware
+ * rewrite exists at build time; the output is moved to the root afterwards),
+ * so a pathname read during that render starts with `/fa`. Both forms map
+ * to the same public path. Pure — see usePublicPathname for the hook.
+ */
+export function toPublicPathname(pathname: string): string {
+  const prefix = `/${defaultLocale}`;
+  if (pathname === prefix) return "/";
+  if (pathname.startsWith(`${prefix}/`)) return pathname.slice(prefix.length);
+  return pathname;
+}

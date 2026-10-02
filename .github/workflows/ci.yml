@@ -42,3 +42,38 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # Architecture V1.1 §7.1 steps 4–6 (website W1): build the static site from
+  # the committed snapshot.v1 fixture, run the artifact.v1 gate (separation,
+  # checksums, SEO, leak/Persian scan) and the hydration/no-RSC check on every
+  # page in headless Chrome. Build-only: no deploy, no credentials, no D1.
+  static-export:
+    name: static-export
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies (immutable)
+        run: npm ci
+
+      - name: Static build (staging flags) + artifact gate
+        run: npm run build:static -- --snapshot fixtures/snapshot/staging-2026-10-01.snapshot.json --target staging --out .artifact
+
+      - name: Re-run artifact gate
+        run: npm run static:gate -- .artifact
+
+      - name: Hydration and no-RSC check (all pages, headless Chrome)
+        env:
+          CHROME_PATH: google-chrome
+        run: npm run static:hydration -- .artifact/public-assets --all
+
+      - name: Static build (production flags) + artifact gate
+        run: npm run build:static -- --snapshot fixtures/snapshot/staging-2026-10-01.snapshot.json --target production --out .artifact-production

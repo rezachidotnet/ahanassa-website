@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { ArrowUpRight } from "lucide-react";
 import { localizedPath, type Locale } from "@/config/locales";
 import type { PublishedCatalogTemplate } from "@/lib/catalog/editorial-repository";

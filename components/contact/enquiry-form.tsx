@@ -8,7 +8,7 @@ import type { Locale } from "@/config/locales";
 import type { RfqItemInput, RfqResponse } from "@/lib/rfq/types";
 import type { RfqCatalogSelection } from "@/lib/catalog/editorial-repository";
 import { TURNSTILE_RFQ_ACTION } from "@/lib/security/turnstile-action";
-import { findCatalogItemByXid, groupCatalogItemsForSelector, type RfqSelectableCatalogItem } from "@/lib/rfq/catalog-selector";
+import { findCatalogItemByXid, groupCatalogItemsForSelector, type PublicRfqCatalogItem } from "@/lib/rfq/catalog-selector";
 import {
   buildRfqItemInput,
   createCatalogRowFromSelection,
@@ -243,12 +243,12 @@ export function EnquiryForm({
 }: {
   locale: Locale;
   turnstileSiteKey?: string;
-  /** Already server-resolved by app/[locale]/contact/page.tsx — every field here is real Website-derived Catalog data, never a raw URL value (docs/CATALOG_RFQ_INTEGRATION.md). */
-  catalogPreselection?: RfqCatalogSelection | null;
+  /** The `?variant=` value resolved against `catalogItems` (StaticEnquiryForm) — only ever a Variant from that published list, never a raw URL value (docs/CATALOG_RFQ_INTEGRATION.md). The server re-validates every submitted variant. */
+  catalogPreselection?: Pick<RfqCatalogSelection, "variantXid" | "templateXid"> | null;
   /** True when a `?variant=` was present in the URL but did not resolve to a real, currently RFQ-eligible Variant. */
   catalogPreselectionInvalid?: boolean;
-  /** Every RFQ-selectable Catalog Variant for this locale, fetched once server-side and shared across every Catalog row's selects — never re-fetched per row (docs/RFQ_MULTI_ITEM_FORM.md "Performance"). */
-  catalogItems?: RfqSelectableCatalogItem[];
+  /** Every RFQ-selectable Catalog Variant for this locale (`/data/rfq-catalog.<locale>.json`), loaded once and shared across every Catalog row's selects — never re-fetched per row (docs/RFQ_MULTI_ITEM_FORM.md "Performance"). */
+  catalogItems?: PublicRfqCatalogItem[];
 }) {
   const [status, setStatus] = useState<Status>("idle");
   const [reference, setReference] = useState<string | null>(null);
@@ -278,6 +278,16 @@ export function EnquiryForm({
   const [phoneLocal, setPhoneLocal] = useState("");
 
   const catalogGroups = useMemo(() => groupCatalogItemsForSelector(catalogItems, locale), [catalogItems, locale]);
+
+  // Country names come from Intl.DisplayNames, whose output differs between
+  // the build runtime's ICU and the browser's (Spike S1: React #418 on the
+  // static /contact). Architecture V1.1 §4.2 (A7): no ICU-dependent text in
+  // static HTML — the prerendered option shows "+<dial> <ISO-2>", and the
+  // localized name is filled in after hydration.
+  const [countryLabels, setCountryLabels] = useState<Record<string, string> | null>(null);
+  useEffect(() => {
+    setCountryLabels(Object.fromEntries(PHONE_COUNTRIES.map((c) => [c.iso2, getCountryLabel(c.iso2, locale)])));
+  }, [locale]);
 
   const resetTurnstile = useCallback(() => {
     setTurnstileToken(null);
@@ -560,7 +570,7 @@ export function EnquiryForm({
                   )}
                   {PHONE_COUNTRIES.map((c) => (
                     <option key={c.iso2} value={c.iso2}>
-                      +{c.dialCode} {getCountryLabel(c.iso2, locale)}
+                      +{c.dialCode} {countryLabels?.[c.iso2] ?? c.iso2}
                     </option>
                   ))}
                 </select>

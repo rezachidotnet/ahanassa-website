@@ -124,9 +124,12 @@ test("uses real <ul>/<li> list semantics", () => {
   assert.ok(/<li\b/.test(source));
 });
 
-test("uses next/link (a real <a>) for the linked-card path, not a div with a click handler", () => {
+test("uses the project Link (a real <a>) for the linked-card path, not a div with a click handler", () => {
+  // Architecture V1.1 §4.2 (A1): internal links are plain anchors via
+  // components/ui/link.tsx — never next/link (no RSC navigation/prefetch).
   const source = readSource();
-  assert.ok(source.includes('from "next/link"'));
+  assert.ok(source.includes('from "@/components/ui/link"'));
+  assert.ok(!source.includes('from "next/link"'));
   assert.ok(!/onClick=\{.*router\.push/.test(source), "must not simulate navigation via a click handler on a non-anchor element");
 });
 

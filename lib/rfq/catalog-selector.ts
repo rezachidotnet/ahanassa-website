@@ -58,12 +58,27 @@ export function attachRfqPublicCategories(
   return { items: withPosition.map((w) => w.item), unresolvedGroupCodes: [...unresolved] };
 }
 
+/**
+ * The browser-facing shape of a selectable Variant — what
+ * `/data/rfq-catalog.<locale>.json` carries (artifact.v1 `publicRfqCatalog`).
+ * `categoryLabel` (the Product Master family name, Persian-only today) is
+ * server-side data: it is persisted by `buildCatalogItemRecord` from the
+ * server's own resolution, the selector never shows it, and architecture
+ * V1.1 §7.1 (A6) forbids it in public JSON.
+ */
+export type PublicRfqCatalogItem = Omit<RfqSelectableCatalogItem, "categoryLabel">;
+
+export function toPublicRfqCatalogItem(item: RfqSelectableCatalogItem): PublicRfqCatalogItem {
+  const { categoryLabel: _serverOnly, ...publicItem } = item;
+  return publicItem;
+}
+
 export interface CatalogTemplateGroup {
   templateXid: string;
   productLabel: string;
   /** Every variant under one template shares the same Product Master group_code — captured once here so a row's Unit selector can look up its Launch UoM policy (lib/rfq/uom-policy.ts) without re-deriving it per variant. */
   groupCode: string | null;
-  variants: RfqSelectableCatalogItem[];
+  variants: PublicRfqCatalogItem[];
 }
 
 export interface CatalogCategoryGroup {
@@ -86,7 +101,7 @@ const UNCATEGORIZED_LABEL: Record<"fa" | "en" | "ar", string> = {
  * a Variant with no `publicCategoryLabel` is grouped under a clearly-labeled
  * fallback bucket rather than dropped.
  */
-export function groupCatalogItemsForSelector(items: RfqSelectableCatalogItem[], locale: "fa" | "en" | "ar" = "fa"): CatalogCategoryGroup[] {
+export function groupCatalogItemsForSelector(items: PublicRfqCatalogItem[], locale: "fa" | "en" | "ar" = "fa"): CatalogCategoryGroup[] {
   const categories = new Map<string, CatalogCategoryGroup>();
 
   for (const item of items) {
@@ -110,6 +125,6 @@ export function groupCatalogItemsForSelector(items: RfqSelectableCatalogItem[], 
 }
 
 /** Finds one Variant's full record by xid within an already-fetched flat list — used to resolve a preselected/previously-chosen xid back into its display fields without a second lookup. */
-export function findCatalogItemByXid(items: RfqSelectableCatalogItem[], variantXid: string): RfqSelectableCatalogItem | null {
+export function findCatalogItemByXid<T extends PublicRfqCatalogItem>(items: T[], variantXid: string): T | null {
   return items.find((item) => item.variantXid === variantXid) ?? null;
 }

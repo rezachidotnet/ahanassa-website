@@ -491,7 +491,8 @@ test("components/ui/cta-band.tsx is NOT superseded, NOT modified, and still serv
   assert.match(ctaBand, /localizedPath\(locale, "\/contact"\)/, "and its own /contact destination, which the Homepage no longer uses");
 
   for (const consumer of [
-    "app/[locale]/products/page.tsx",
+    // /products renders through the shared listing component (static category routes, architecture V1.1 A2).
+    "components/products/products-listing.tsx",
     "app/[locale]/products/[slug]/page.tsx",
     "app/[locale]/industries/page.tsx",
     "app/[locale]/markets/page.tsx",

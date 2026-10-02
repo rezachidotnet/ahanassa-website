@@ -1,81 +1,45 @@
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { localizedPath, type Locale } from "@/config/locales";
-import { buildQueryString, selectCategoryQuery, toggleFilterQueryValue, type CatalogFilterQueryKey } from "@/lib/catalog/catalog-filters";
-import type { CatalogFilterFacets } from "@/lib/catalog/editorial-repository";
+import { categoryListingPath } from "@/lib/catalog/public-categories";
 import type { PublicCatalogCategory } from "@/lib/catalog/types";
 import { cn } from "@/lib/utils";
 
-const dimensionLabel: Record<CatalogFilterQueryKey, Record<Locale, string>> = {
-  category: { fa: "دسته‌بندی", en: "Category", ar: "الفئة" },
-  family: { fa: "خانواده کالایی", en: "Family", ar: "الفئة" },
-  group: { fa: "گروه", en: "Group", ar: "المجموعة" },
-  form: { fa: "شکل محصول", en: "Form", ar: "الشكل" },
-  grade: { fa: "گرید", en: "Grade", ar: "الدرجة" },
-  standard: { fa: "استاندارد", en: "Standard", ar: "المعيار" },
-};
+const categoryLegend: Record<Locale, string> = { fa: "دسته‌بندی", en: "Category", ar: "الفئة" };
 
 /**
- * Server-rendered, URL/query-param-based filters (Stage F) — every option is
- * a plain `<Link>`, no client JS. Facets are pre-derived from published
- * templates only (`getPublicCatalogFilterFacets`), so a dimension with zero
- * real public results never appears.
- *
- * The Category row is different on purpose: it lists every Odoo public
- * category in Odoo's order (the same set the Homepage and Header show), and
- * replaces the technical `group` facet as the visible grouping — BOX_SECTION
- * already covers RHS + SHS, so offering both levels would duplicate the
- * choice. `?group=` still filters when present (older links keep working).
+ * The /products category row: every Odoo public category in Odoo's order
+ * (the same set the Homepage and Header show), each a plain link to its
+ * static listing (`/products/category/<segment>`). Clicking the active
+ * category returns to /products. Architecture V1.1 §4.2 (A3): this is the
+ * only listing filter in the static release — the family/form/grade/
+ * standard query facets were removed.
  */
-export function CatalogFilterBar({
-  locale,
-  categories,
-  facets,
-  active,
-}: {
-  locale: Locale;
-  categories: PublicCatalogCategory[];
-  facets: CatalogFilterFacets;
-  active: Partial<Record<CatalogFilterQueryKey, string>>;
-}) {
-  const dimensions: { key: CatalogFilterQueryKey; options: CatalogFilterFacets[keyof CatalogFilterFacets] }[] = [
-    { key: "category", options: categories.map((c) => ({ code: c.code, name: c.name })) },
-    { key: "family", options: facets.family },
-    { key: "form", options: facets.form },
-    { key: "grade", options: facets.grade },
-    { key: "standard", options: facets.standard },
-  ];
-
-  const visible = dimensions.filter((d) => d.options.length > 0);
-  if (visible.length === 0) return null;
+export function CatalogFilterBar({ locale, categories, activeCategoryCode }: { locale: Locale; categories: PublicCatalogCategory[]; activeCategoryCode?: string }) {
+  if (categories.length === 0) return null;
 
   return (
     <div className="border-border flex flex-wrap gap-x-8 gap-y-4 border-b pb-6">
-      {visible.map((dimension) => (
-        <fieldset key={dimension.key}>
-          <legend className="eyebrow text-muted-foreground mb-2">{dimensionLabel[dimension.key][locale]}</legend>
-          <div className="flex flex-wrap gap-2">
-            {dimension.options.map((option) => {
-              if (!option.code) return null;
-              const isActive = active[dimension.key] === option.code;
-              const nextParams = dimension.key === "category" ? selectCategoryQuery(active, option.code) : toggleFilterQueryValue(active, dimension.key, option.code);
-              const href = `${localizedPath(locale, "/products")}${buildQueryString(nextParams)}`;
-              return (
-                <Link
-                  key={option.code}
-                  href={href}
-                  aria-current={isActive ? "true" : undefined}
-                  className={cn(
-                    "inline-flex items-center border px-3 py-1.5 text-[13px] font-semibold transition-colors",
-                    isActive ? "border-navy bg-navy text-white" : "border-border text-navy-600 hover:border-navy hover:text-navy",
-                  )}
-                >
-                  {option.name ?? option.code}
-                </Link>
-              );
-            })}
-          </div>
-        </fieldset>
-      ))}
+      <fieldset>
+        <legend className="eyebrow text-muted-foreground mb-2">{categoryLegend[locale]}</legend>
+        <div className="flex flex-wrap gap-2">
+          {categories.map((category) => {
+            const isActive = activeCategoryCode === category.code;
+            return (
+              <Link
+                key={category.code}
+                href={localizedPath(locale, isActive ? "/products" : categoryListingPath(category.code))}
+                aria-current={isActive ? "true" : undefined}
+                className={cn(
+                  "inline-flex items-center border px-3 py-1.5 text-[13px] font-semibold transition-colors",
+                  isActive ? "border-navy bg-navy text-white" : "border-border text-navy-600 hover:border-navy hover:text-navy",
+                )}
+              >
+                {category.name}
+              </Link>
+            );
+          })}
+        </div>
+      </fieldset>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { localizedPath, type Locale } from "@/config/locales";
 import { normalizeVariantDimensions, normalizeVariantNominalWeight, normalizeVariantSpecifications, NOMINAL_WEIGHT_DISCLAIMER } from "@/lib/catalog/specification-presenter";
 import type { ProductVariant } from "@/lib/catalog/types";
@@ -53,15 +53,12 @@ export function variantRowAnchorId(sku: string): string {
  * never constructed or resolved client-side, and never an ecommerce
  * "Buy"/"Add to cart" control.
  *
- * `highlightXid` — an optional Variant identity (from the page's own
- * `?variant=` query param, server-resolved against `variants` before this
- * component ever renders) whose row gets a visible highlight and an `id`
- * anchor (`variantRowAnchorId`) — pure server-side CSS, no client JS. Lets a
- * Variant-scoped link (e.g. a shared/bookmarked URL, or a future deep link)
- * land the visitor directly on the intended row within the Template page,
- * without ever creating an independent Variant SEO page.
+ * Every row carries an `id` anchor (`variantRowAnchorId`). A Variant-scoped
+ * link (`/products/<slug>?variant=<xid>`) is highlighted in the browser by
+ * `VariantHighlightFromQuery` — the page is static and takes no searchParams
+ * (architecture V1.1 §4.2) — without ever creating a Variant SEO page.
  */
-export function VariantSpecTable({ locale, variants, highlightXid }: { locale: Locale; variants: ProductVariant[]; highlightXid?: string }) {
+export function VariantSpecTable({ locale, variants }: { locale: Locale; variants: ProductVariant[] }) {
   if (variants.length === 0) return null;
   const t = chrome[locale];
 
@@ -120,16 +117,14 @@ export function VariantSpecTable({ locale, variants, highlightXid }: { locale: L
               const spec = normalizeVariantSpecifications(variant, locale);
               const dimByKey = new Map(spec.dimensions.map((r) => [r.key, r.value]));
               const weightByKey = new Map(spec.nominalWeight.map((r) => [r.key, r.value]));
-              const isHighlighted = highlightXid !== undefined && variant.xid === highlightXid;
               return (
                 <tr
                   key={variant.id}
                   id={variantRowAnchorId(variant.sku)}
-                  className={isHighlighted ? "bg-copper/10 outline-copper -outline-offset-2 outline-2 scroll-mt-24" : "scroll-mt-24"}
+                  className="scroll-mt-24"
                 >
                   <th scope="row" className="text-navy px-3 py-2.5 text-start font-semibold">
                     <span dir="ltr">{variant.commercialSize ?? variant.sectionSize ?? "—"}</span>
-                    {isHighlighted && <span className="text-copper ms-2 align-middle text-[11px] font-semibold">({t.selected})</span>}
                   </th>
                   {dimensionColumns.map((c) => (
                     <td key={c.key} className="text-muted-foreground px-3 py-2.5">
@@ -145,9 +140,8 @@ export function VariantSpecTable({ locale, variants, highlightXid }: { locale: L
                     <span dir="ltr">{variant.sku}</span>
                   </td>
                   <td className="px-3 py-2.5">
-                    {/* prefetch={false}: one link per Variant row (up to 38 per page) would otherwise prefetch a /contact RSC payload each on scroll/hover — the bursts behind staging's exceededCpu events. Navigation itself is unchanged. */}
+                    {/* Plain <a> (components/ui/link.tsx): no prefetch of any kind, so 38 per-variant links cost nothing until clicked. */}
                     <Link
-                      prefetch={false}
                       href={`${localizedPath(locale, "/contact")}?variant=${encodeURIComponent(variant.xid)}`}
                       aria-label={t.requestAria(variant.commercialSize ?? variant.sectionSize ?? variant.sku)}
                       className="text-copper text-xs font-semibold whitespace-nowrap hover:underline"
@@ -166,4 +160,9 @@ export function VariantSpecTable({ locale, variants, highlightXid }: { locale: L
       {commonUnits && <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{t.units(commonUnits)}</p>}
     </div>
   );
+}
+
+/** The "selected item" label the browser-side `?variant=` highlight appends to the row header. */
+export function variantSelectedLabel(locale: Locale): string {
+  return chrome[locale].selected;
 }

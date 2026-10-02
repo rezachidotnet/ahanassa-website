@@ -8,6 +8,8 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { Reveal } from "@/components/ui/reveal";
 import { CtaBand } from "@/components/ui/cta-band";
 
+export { generateLocaleStaticParams as generateStaticParams } from "@/lib/static/locale-params";
+
 interface PageProps {
   params: Promise<{ locale: string }>;
 }

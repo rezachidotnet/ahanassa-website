@@ -2,7 +2,7 @@ import { getPublicDb } from "../db/public.ts";
 import { ulid } from "../rfq/ulid.ts";
 import type { Locale } from "../../config/locales.ts";
 import { canPublish, canSubmitForReview, isValidContentStatusTransition } from "./editorial.ts";
-import { buildTemplateFilterConditions, computeConditionalFacets, groupCodeSetClause, type CatalogFilterInput, type CatalogFilterFacets, type ClassificationRow } from "./catalog-filters.ts";
+import { groupCodeSetClause, type CatalogFilterInput } from "./catalog-filters.ts";
 import { parseCategoryRow, type CategoryRow } from "./public-categories.ts";
 import { resolveCatalogMedia, type ResolvedCatalogMedia } from "./media-registry.ts";
 import { formatCompactVariantSpecification } from "./specification-presenter.ts";
@@ -34,10 +34,11 @@ import type { CatalogProduct, ProductSeoContent, ProductVariant, ContentQualityS
  *     DAR-037 adds the TEMPLATE-level (`entity_type='product'`) public reads
  *     that back the site's primary indexable catalog pages
  *     (docs/CATALOG_PUBLIC_ROUTES.md — hybrid SEO model). The pre-existing
- *     variant-level public reads (`getPublishedCatalogProducts`/
- *     `getPublishedCatalogProductBySlug`, DAR-036) remain exactly as they
- *     were, now serving the deliberately rare "a variant earns its own
- *     dedicated page" exception rather than the default path.
+ *     variant-level public read (`getPublishedCatalogProductBySlug`,
+ *     DAR-036) remains, serving the deliberately rare "a variant earns its
+ *     own dedicated page" exception rather than the default path. (Its
+ *     list counterpart, with family/group query filters, was removed with
+ *     the query facets — architecture V1.1 A3.)
  *
  * All read functions return domain types (camelCase) — SQL/row-shape
  * details never leak past this file, matching lib/catalog/repository.ts's
@@ -521,51 +522,6 @@ export interface PublishedCatalogProduct {
   seo: ProductSeoContent;
 }
 
-export interface PublishedCatalogFilters {
-  groupCode?: string;
-  familyCode?: string;
-}
-
-/**
- * Structurally cannot return an unpublished/inactive/editorially-incomplete
- * row — the `WHERE` clause below is the SQL form of
- * `lib/catalog/editorial.ts#evaluatePublicationEligibility`'s `visible`
- * rule. This is the dedicated-VARIANT-page exception path
- * (docs/CATALOG_PUBLIC_ROUTES.md §"Variant-level editorial exception") — the
- * site's default, primary indexable page is the TEMPLATE, not the variant;
- * see `getPublishedCatalogTemplateBySlug` below for that path.
- */
-export async function getPublishedCatalogProducts(locale: Locale, filters: PublishedCatalogFilters = {}): Promise<PublishedCatalogProduct[]> {
-  const db = getPublicDb();
-  const conditions = ["v.is_active = 1", "v.is_public = 1", "s.locale = ?", "s.content_quality_status = 'approved'", "s.published_at IS NOT NULL", "s.h1 IS NOT NULL"];
-  const params: unknown[] = [locale];
-  if (filters.groupCode) {
-    conditions.push("v.group_code = ?");
-    params.push(filters.groupCode);
-  }
-  if (filters.familyCode) {
-    conditions.push("v.family_code = ?");
-    params.push(filters.familyCode);
-  }
-
-  const result = await db
-    .prepare(
-      `SELECT v.*, s.id as seo_id, s.entity_type as seo_entity_type, s.entity_id as seo_entity_id, s.locale as seo_locale,
-              s.slug as seo_slug, s.h1 as seo_h1, s.intro as seo_intro, s.body_json as seo_body_json,
-              s.seo_title as seo_seo_title, s.seo_description as seo_seo_description, s.faq_json as seo_faq_json,
-              s.index_status as seo_index_status, s.content_quality_status as seo_content_quality_status,
-              s.published_at as seo_published_at, s.updated_at as seo_updated_at
-       FROM product_variants v
-       JOIN product_seo_contents s ON s.entity_type = 'variant' AND s.entity_id = v.id
-       WHERE ${conditions.join(" AND ")}
-       ORDER BY v.commercial_name ASC`,
-    )
-    .bind(...params)
-    .all<VariantRow & Record<string, unknown>>();
-
-  return (result.results ?? []).map((row) => rowToPublishedVariant(row));
-}
-
 export async function getPublishedCatalogProductBySlug(locale: Locale, slug: string): Promise<PublishedCatalogProduct | null> {
   const db = getPublicDb();
   const row = await db
@@ -627,12 +583,9 @@ const TEMPLATE_SEO_COLUMNS = `s.id as seo_id, s.entity_type as seo_entity_type, 
               s.index_status as seo_index_status, s.content_quality_status as seo_content_quality_status,
               s.published_at as seo_published_at, s.updated_at as seo_updated_at`;
 
-/** Turns the pure `buildTemplateFilterConditions` output into parameterized SQL `EXISTS` clauses — only the fixed column set that function returns is ever interpolated, never a caller-supplied string. */
+/** The listing's only filter (architecture V1.1 A3): the selected public category, as a parameterized EXISTS clause. */
 function filterConditions(filters: CatalogFilterInput, params: unknown[]): string[] {
-  const clauses = buildTemplateFilterConditions(filters).map(({ column, value }) => {
-    params.push(value);
-    return `EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = cp.id AND pv.is_active = 1 AND pv.is_public = 1 AND pv.${column} = ?)`;
-  });
+  const clauses: string[] = [];
   // Selected public category: a template matches when any of its public
   // variants carries one of the category's Odoo-supplied group codes.
   const categoryClause = groupCodeSetClause(filters.groupCodes);
@@ -963,47 +916,6 @@ export async function listPublishedLocalesForProduct(entityId: string): Promise<
   return (result.results ?? []).map((row) => ({ locale: row.locale as Locale, slug: row.slug }));
 }
 
-export type { CatalogFilterFacets };
-
-/**
- * Filter values drawn ONLY from variants that belong to a currently-published
- * template and are themselves active+public — never from the full 237-row
- * commercial universe. Conditioned on `activeFilters` (Go-Live Readiness
- * catalog-filter audit, see `computeConditionalFacets`'s own header): each
- * dimension's option list only ever contains values that co-occur, in a real
- * published variant row, with every *other* currently-active filter — so
- * combining a link from one dimension with a link from another can never
- * produce a combination with zero real published templates behind it.
- */
-export async function getPublicCatalogFilterFacets(locale: Locale, activeFilters: CatalogFilterInput = {}): Promise<CatalogFilterFacets> {
-  const db = getPublicDb();
-  const result = await db
-    .prepare(
-      `SELECT DISTINCT pv.family_code, pv.family_name, pv.group_code, pv.group_name, pv.form_code, pv.form_name, pv.grade_code, pv.grade_name, pv.standard_code, pv.standard_name
-       FROM product_variants pv
-       JOIN catalog_products cp ON cp.id = pv.product_id
-       JOIN product_seo_contents s ON s.entity_type = 'product' AND s.entity_id = cp.id AND s.locale = ?
-       WHERE cp.is_active = 1 AND cp.is_public = 1 AND pv.is_active = 1 AND pv.is_public = 1
-         AND s.content_quality_status = 'approved' AND s.published_at IS NOT NULL AND s.h1 IS NOT NULL`,
-    )
-    .bind(locale)
-    .all<{ family_code: string | null; family_name: string | null; group_code: string | null; group_name: string | null; form_code: string | null; form_name: string | null; grade_code: string | null; grade_name: string | null; standard_code: string | null; standard_name: string | null }>();
-
-  const rows: ClassificationRow[] = (result.results ?? []).map((r) => ({
-    familyCode: r.family_code,
-    familyName: r.family_name,
-    groupCode: r.group_code,
-    groupName: r.group_name,
-    formCode: r.form_code,
-    formName: r.form_name,
-    gradeCode: r.grade_code,
-    gradeName: r.grade_name,
-    standardCode: r.standard_code,
-    standardName: r.standard_name,
-  }));
-
-  return computeConditionalFacets(rows, activeFilters);
-}
 
 // --- Website public categories (Odoo /api/v1/catalog/categories, migrations_public/0011) ---
 

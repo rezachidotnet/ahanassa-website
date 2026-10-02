@@ -182,12 +182,18 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..", "..");
 const read = (p: string) => readFileSync(path.join(repoRoot, p), "utf8");
 
-test("fa and en selector data cannot be served to each other: no cache layer, locale bound on both reads", () => {
-  const page = read("app/[locale]/contact/page.tsx");
-  for (const marker of ["revalidate", "\"use cache\"", "unstable_cache", "force-static", "cacheLife", "cacheTag"]) {
-    assert.ok(!page.includes(marker), `/contact must not introduce a cache (${marker}) — its selector data is per-locale`);
+test("fa and en selector data cannot be served to each other: per-locale JSON path, no cache layer, locale bound on both reads", () => {
+  // Static /contact (architecture V1.1 §4.2): the form loads its locale's own
+  // /data/rfq-catalog.<locale>.json, built by buildPublicRfqCatalog(locale).
+  const form = read("components/contact/static-enquiry-form.tsx");
+  assert.match(form, /fetch\(publicRfqCatalogPath\(locale\)\)/);
+  const builder = read("lib/catalog/public-rfq-catalog.ts");
+  assert.match(builder, /listRfqSelectableCatalogItems\(locale\)/);
+  for (const src of [read("app/[locale]/contact/page.tsx"), builder]) {
+    for (const marker of ["revalidate", "\"use cache\"", "unstable_cache", "force-static", "cacheLife", "cacheTag"]) {
+      assert.ok(!src.includes(marker), `/contact selector data must not introduce a cache (${marker}) — it is per-locale`);
+    }
   }
-  assert.match(page, /listRfqSelectableCatalogItems\(locale\)/);
 
   const repo = read("lib/catalog/editorial-repository.ts");
   const fn = repo.slice(repo.indexOf("export async function listRfqSelectableCatalogItems"));
@@ -229,13 +235,16 @@ function linkTags(src: string): string[] {
   return [...src.matchAll(/<Link\b[\s\S]*?>/g)].map((m) => m[0]);
 }
 
-test("every per-variant /contact?variant= RFQ link has prefetch disabled", () => {
+test("every per-variant /contact?variant= RFQ link is a plain anchor that cannot prefetch", () => {
+  // Architecture V1.1 §4.2 (A1): the project Link is a plain <a> — no prefetch exists at all.
   const files = ["components/products/variant-spec-table.tsx"];
   let found = 0;
   for (const f of files) {
-    for (const tag of linkTags(read(f)).filter((t) => t.includes("?variant="))) {
+    const src = read(f);
+    assert.match(src, /import Link from "@\/components\/ui\/link";/, `${f}: must use the project Link (plain <a>)`);
+    assert.ok(!src.includes('"next/link"'), `${f}: must not use next/link`);
+    for (const tag of linkTags(src).filter((t) => t.includes("?variant="))) {
       found += 1;
-      assert.match(tag, /prefetch=\{false\}/, `${f}: per-variant RFQ link must not prefetch`);
       assert.match(tag, /localizedPath\(locale, "\/contact"\)\}\?variant=\$\{encodeURIComponent\(variant\.xid\)\}/, "destination unchanged");
       assert.match(tag, /aria-label=\{t\.requestAria\(/, "accessible name unchanged");
     }
@@ -243,9 +252,9 @@ test("every per-variant /contact?variant= RFQ link has prefetch disabled", () =>
   assert.equal(found, 1, "the spec table is the only per-variant RFQ link");
 });
 
-test("ordinary header and navigation links keep their default prefetch", () => {
+test("no component passes a prefetch prop any more (plain anchors have none)", () => {
   for (const f of ["components/layout/SiteHeader.tsx", "components/layout/mobile-nav-drawer.tsx", "components/products/catalog-template-grid.tsx", "app/[locale]/products/[slug]/page.tsx"]) {
     const src = read(f);
-    assert.ok(!/prefetch=\{false\}/.test(src), `${f} must not disable prefetch`);
+    assert.ok(!/\bprefetch=/.test(src), `${f}: plain anchors take no prefetch prop`);
   }
 });

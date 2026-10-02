@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import Link from "@/components/ui/link";
+import { usePublicPathname } from "@/components/layout/use-public-pathname";
 import { useEffect, useRef, useState } from "react";
 import { Menu, Phone } from "lucide-react";
 import { localizedPath, type Locale } from "@/config/locales";
@@ -62,7 +62,7 @@ export function SiteHeader({
   productFamilies: HeaderProductFamilyShortcut[];
   serviceGroups: PublicProcessingGroup[];
 }) {
-  const pathname = usePathname();
+  const pathname = usePublicPathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);

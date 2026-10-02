@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { cn } from "@/lib/utils";
 import { homepageCopy } from "@/lib/content/homepage";
 import { localizedPath, type Locale } from "@/config/locales";
@@ -37,8 +37,8 @@ const CARD_CLASSNAME = "border-border bg-background flex h-full min-w-[185px] w-
  * unit-tested `lib/pricing/price-strip-presentation.ts` — this file is
  * markup only, pinned by the static source-text checks in
  * `lib/pricing/price-strip-static.test.ts` (this component imports
- * `next/link`, which has no real resolvable package outside the Vite/vinext
- * build, so it cannot itself be rendered under plain `node --test`).
+ * `@/components/ui/link` and other `@/`-aliased modules that only the
+ * Vite/vinext build resolves, so it is not rendered under plain `node --test`).
  */
 export function PriceStrip({ locale, items }: { locale: Locale; items: PublicPriceStripItem[] }) {
   if (!shouldRenderPriceStrip(items.length)) return null;

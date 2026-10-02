@@ -1,0 +1,221 @@
+[
+ {
+  "name": "v1_minimal_defaults",
+  "payload": {
+   "customer": {
+    "name": "علی رضایی",
+    "company": "Example Co.",
+    "phone": "+989121234567",
+    "email": "a@example.com",
+    "country": "IR",
+    "city": "Tehran"
+   },
+   "items": [
+    {
+     "product_variant_xid": "CVAR-000123",
+     "sku": "AA-RB-AJ400-D16",
+     "quantity": 12,
+     "uom": "TON",
+     "length_mm": 12000,
+     "notes": ""
+    },
+    {
+     "description": "Uncatalogued steel requirement",
+     "quantity": 5.5,
+     "uom": "kg"
+    }
+   ],
+   "consent": {
+    "contact": true,
+    "privacy_version": "v1"
+   },
+   "source": {
+    "utm_source": "website"
+   }
+  },
+  "canonical": "{\"consent\":{\"contact\":true,\"privacy_version\":\"v1\"},\"customer\":{\"city\":\"Tehran\",\"company\":\"Example Co.\",\"country\":\"IR\",\"email\":\"a@example.com\",\"name\":\"علی رضایی\",\"phone\":\"+989121234567\"},\"items\":[{\"length_mm\":12000.0,\"notes\":\"\",\"product_variant_xid\":\"CVAR-000123\",\"quantity\":12.0,\"sku\":\"AA-RB-AJ400-D16\",\"uom\":\"ton\"},{\"description\":\"Uncatalogued steel requirement\",\"quantity\":5.5,\"uom\":\"kg\"}],\"locale\":\"fa\",\"notes\":\"\",\"source\":{\"utm_source\":\"website\"}}",
+  "fingerprint": "3c9c75d829caabe1813d8887e1c19055e9b766223a44d65487d6489c32228c37"
+ },
+ {
+  "name": "v1_1_offset",
+  "payload": {
+   "customer": {
+    "name": "علی رضایی",
+    "company": "Example Co.",
+    "phone": "+989121234567",
+    "email": "a@example.com",
+    "country": "IR",
+    "city": "Tehran"
+   },
+   "items": [
+    {
+     "product_variant_xid": "CVAR-000123",
+     "sku": "AA-RB-AJ400-D16",
+     "quantity": 12,
+     "uom": "TON",
+     "length_mm": 12000,
+     "notes": ""
+    },
+    {
+     "description": "Uncatalogued steel requirement",
+     "quantity": 5.5,
+     "uom": "kg"
+    }
+   ],
+   "consent": {
+    "contact": true,
+    "privacy_version": "v1"
+   },
+   "source": {
+    "utm_source": "website"
+   },
+   "locale": "en",
+   "notes": "x",
+   "received_at": "2026-10-02T03:41:07+03:30",
+   "website_reference": "AA-RFQ-K3QW9T2H"
+  },
+  "canonical": "{\"consent\":{\"contact\":true,\"privacy_version\":\"v1\"},\"customer\":{\"city\":\"Tehran\",\"company\":\"Example Co.\",\"country\":\"IR\",\"email\":\"a@example.com\",\"name\":\"علی رضایی\",\"phone\":\"+989121234567\"},\"items\":[{\"length_mm\":12000.0,\"notes\":\"\",\"product_variant_xid\":\"CVAR-000123\",\"quantity\":12.0,\"sku\":\"AA-RB-AJ400-D16\",\"uom\":\"ton\"},{\"description\":\"Uncatalogued steel requirement\",\"quantity\":5.5,\"uom\":\"kg\"}],\"locale\":\"en\",\"notes\":\"x\",\"received_at\":\"2026-10-02T00:11:07Z\",\"source\":{\"utm_source\":\"website\"},\"website_reference\":\"AA-RFQ-K3QW9T2H\"}",
+  "fingerprint": "6f8a9eb123959b1e704500460e95109b08ee1f6eb4aeecf6bb7833dde9746f08"
+ },
+ {
+  "name": "v1_1_same_instant_z",
+  "payload": {
+   "customer": {
+    "name": "علی رضایی",
+    "company": "Example Co.",
+    "phone": "+989121234567",
+    "email": "a@example.com",
+    "country": "IR",
+    "city": "Tehran"
+   },
+   "items": [
+    {
+     "product_variant_xid": "CVAR-000123",
+     "sku": "AA-RB-AJ400-D16",
+     "quantity": 12,
+     "uom": "TON",
+     "length_mm": 12000,
+     "notes": ""
+    },
+    {
+     "description": "Uncatalogued steel requirement",
+     "quantity": 5.5,
+     "uom": "kg"
+    }
+   ],
+   "consent": {
+    "contact": true,
+    "privacy_version": "v1"
+   },
+   "source": {
+    "utm_source": "website"
+   },
+   "locale": "en",
+   "notes": "x",
+   "received_at": "2026-10-02T00:11:07Z",
+   "website_reference": "AA-RFQ-K3QW9T2H"
+  },
+  "canonical": "{\"consent\":{\"contact\":true,\"privacy_version\":\"v1\"},\"customer\":{\"city\":\"Tehran\",\"company\":\"Example Co.\",\"country\":\"IR\",\"email\":\"a@example.com\",\"name\":\"علی رضایی\",\"phone\":\"+989121234567\"},\"items\":[{\"length_mm\":12000.0,\"notes\":\"\",\"product_variant_xid\":\"CVAR-000123\",\"quantity\":12.0,\"sku\":\"AA-RB-AJ400-D16\",\"uom\":\"ton\"},{\"description\":\"Uncatalogued steel requirement\",\"quantity\":5.5,\"uom\":\"kg\"}],\"locale\":\"en\",\"notes\":\"x\",\"received_at\":\"2026-10-02T00:11:07Z\",\"source\":{\"utm_source\":\"website\"},\"website_reference\":\"AA-RFQ-K3QW9T2H\"}",
+  "fingerprint": "6f8a9eb123959b1e704500460e95109b08ee1f6eb4aeecf6bb7833dde9746f08"
+ },
+ {
+  "name": "v1_1_micros",
+  "payload": {
+   "customer": {
+    "name": "علی رضایی",
+    "company": "Example Co.",
+    "phone": "+989121234567",
+    "email": "a@example.com",
+    "country": "IR",
+    "city": "Tehran"
+   },
+   "items": [
+    {
+     "product_variant_xid": "CVAR-000123",
+     "sku": "AA-RB-AJ400-D16",
+     "quantity": 12,
+     "uom": "TON",
+     "length_mm": 12000,
+     "notes": ""
+    },
+    {
+     "description": "Uncatalogued steel requirement",
+     "quantity": 5.5,
+     "uom": "kg"
+    }
+   ],
+   "consent": {
+    "contact": true,
+    "privacy_version": "v1"
+   },
+   "source": {
+    "utm_source": "website"
+   },
+   "received_at": "2026-10-02T00:11:07.123400Z"
+  },
+  "canonical": "{\"consent\":{\"contact\":true,\"privacy_version\":\"v1\"},\"customer\":{\"city\":\"Tehran\",\"company\":\"Example Co.\",\"country\":\"IR\",\"email\":\"a@example.com\",\"name\":\"علی رضایی\",\"phone\":\"+989121234567\"},\"items\":[{\"length_mm\":12000.0,\"notes\":\"\",\"product_variant_xid\":\"CVAR-000123\",\"quantity\":12.0,\"sku\":\"AA-RB-AJ400-D16\",\"uom\":\"ton\"},{\"description\":\"Uncatalogued steel requirement\",\"quantity\":5.5,\"uom\":\"kg\"}],\"locale\":\"fa\",\"notes\":\"\",\"received_at\":\"2026-10-02T00:11:07.123400Z\",\"source\":{\"utm_source\":\"website\"}}",
+  "fingerprint": "9900be6b40ec54e918674715953c9810d68a15a42dd5618476653f48c5beea0e"
+ },
+ {
+  "name": "nulls_removed",
+  "payload": {
+   "customer": {
+    "name": "علی رضایی",
+    "company": "Example Co.",
+    "phone": "+989121234567",
+    "email": "a@example.com",
+    "country": "IR",
+    "city": "Tehran"
+   },
+   "items": [
+    {
+     "description": "Plate",
+     "quantity": 1000000000000.0,
+     "uom": "Sheet",
+     "length_mm": null
+    }
+   ],
+   "consent": {
+    "contact": true,
+    "privacy_version": "v1"
+   },
+   "source": {
+    "utm_source": "website"
+   },
+   "notes": null,
+   "received_at": null,
+   "website_reference": null
+  },
+  "canonical": "{\"consent\":{\"contact\":true,\"privacy_version\":\"v1\"},\"customer\":{\"city\":\"Tehran\",\"company\":\"Example Co.\",\"country\":\"IR\",\"email\":\"a@example.com\",\"name\":\"علی رضایی\",\"phone\":\"+989121234567\"},\"items\":[{\"description\":\"Plate\",\"quantity\":1000000000000.0,\"uom\":\"sheet\"}],\"locale\":\"fa\",\"notes\":\"\",\"source\":{\"utm_source\":\"website\"}}",
+  "fingerprint": "04edb2579988a9af737addbdd42f3c37380896c15436214407ec8f5ae132df01"
+ },
+ {
+  "name": "small_float",
+  "payload": {
+   "customer": {
+    "name": "علی رضایی",
+    "company": "Example Co.",
+    "phone": "+989121234567",
+    "email": "a@example.com",
+    "country": "IR",
+    "city": "Tehran"
+   },
+   "items": [
+    {
+     "description": "Wire",
+     "quantity": 1e-05,
+     "uom": "kg"
+    }
+   ],
+   "consent": {
+    "contact": true,
+    "privacy_version": "v1"
+   },
+   "source": {
+    "utm_source": "website"
+   }
+  },
+  "canonical": "{\"consent\":{\"contact\":true,\"privacy_version\":\"v1\"},\"customer\":{\"city\":\"Tehran\",\"company\":\"Example Co.\",\"country\":\"IR\",\"email\":\"a@example.com\",\"name\":\"علی رضایی\",\"phone\":\"+989121234567\"},\"items\":[{\"description\":\"Wire\",\"quantity\":1e-05,\"uom\":\"kg\"}],\"locale\":\"fa\",\"notes\":\"\",\"source\":{\"utm_source\":\"website\"}}",
+  "fingerprint": "7075fbe2108b967d54575804925605a83c7064c721cff58424a94293f92c6046"
+ }
+]

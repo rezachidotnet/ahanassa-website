@@ -137,7 +137,8 @@ test("CtaBand remains a live, unmodified-by-this-task component still consumed b
     const source = readSource(`app/[locale]/${page}/page.tsx`);
     assert.match(source, /<CtaBand\b/, `expected ${page}/page.tsx to still render <CtaBand>`);
   }
-  assert.match(readSource("app/[locale]/products/page.tsx"), /<CtaBand\b/);
+  // /products renders through the shared listing component (static category routes, architecture V1.1 A2).
+  assert.match(readSource("components/products/products-listing.tsx"), /<CtaBand\b/);
   assert.match(readSource("app/[locale]/products/[slug]/page.tsx"), /<CtaBand\b/);
   assert.ok(!/from\s+"@\/components\/ui\/cta-band"/.test(FOOTER_SOURCE), "SiteFooter itself must not import CtaBand");
 });

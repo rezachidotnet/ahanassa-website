@@ -197,7 +197,8 @@ test("the shared CtaBand is no longer the Homepage's closing CTA, but is UNCHANG
   assert.match(ctaBand, /export function CtaBand\(/, "the retained component must still export its component");
   assert.match(ctaBand, /<Link/, "the retained component must still render its own actions");
   for (const consumer of [
-    "app/[locale]/products/page.tsx",
+    // /products renders through the shared listing component (static category routes, architecture V1.1 A2).
+    "components/products/products-listing.tsx",
     "app/[locale]/products/[slug]/page.tsx",
     "app/[locale]/industries/page.tsx",
     "app/[locale]/markets/page.tsx",
