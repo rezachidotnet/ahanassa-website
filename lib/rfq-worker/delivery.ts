@@ -32,6 +32,8 @@ export interface DeliveryConfig {
   random?: () => number;
   /** Test hook (staging only): throw after the POST, before the result batch. */
   killAfterPost?: boolean;
+  /** Set by the Queue consumer: a `queued` RFQ is claimable before its reconciler grace period ends. */
+  fromQueue?: boolean;
 }
 
 export type DeliveryResult =
@@ -44,14 +46,19 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 
 /**
  * Due-work predicate shared by pickDueRfq and the claim (architecture §6.4:
- * rfqs.sync_status is the source). Two positional parameters: (now, staleBefore).
- * Plain `?` only (no `?NNN`), so the same SQL runs on D1, SQLite and the CI adapter.
+ * rfqs.sync_status is the source). Three positional parameters: (now, fromQueue, staleBefore).
+ * A Queue message may claim a `queued` RFQ immediately: the handoff defers
+ * `available_at` only so that the CRON does not re-drive what the Queue is
+ * already delivering (W2 staging finding: without this the consumer skipped
+ * its own message). Plain `?` only (no `?NNN`), so the same SQL runs on D1,
+ * SQLite and the CI adapter.
  */
 const DUE_PREDICATE = `r.odoo_rfq_reference IS NULL AND (
     (r.sync_status IN ('pending', 'queued', 'retry') AND o.available_at <= ?)
+    OR (r.sync_status = 'queued' AND ? = 1)
     OR (r.sync_status = 'syncing' AND r.updated_at <= ?)
   )`;
-const dueParams = (now: Date) => [now.toISOString(), new Date(now.getTime() - STALE_SYNCING_MS).toISOString()];
+const dueParams = (now: Date, fromQueue = false) => [now.toISOString(), fromQueue ? 1 : 0, new Date(now.getTime() - STALE_SYNCING_MS).toISOString()];
 
 /** Backoff after the n-th failed attempt: min(60, 2^n) minutes, ±20 % jitter (§6.2). Returns milliseconds. */
 export function backoffMs(attempt: number, random: () => number = Math.random): number {
@@ -72,13 +79,13 @@ export async function pickDueRfq(db: D1Database, now: Date): Promise<string | nu
   return row?.id ?? null;
 }
 
-async function claim(db: D1Database, rfqId: string, now: Date): Promise<boolean> {
+async function claim(db: D1Database, rfqId: string, now: Date, fromQueue: boolean): Promise<boolean> {
   const result = await db
     .prepare(
       `UPDATE rfqs SET sync_status = 'syncing', updated_at = ?
        WHERE id = ? AND EXISTS (SELECT 1 FROM rfqs r JOIN integration_outbox o ON o.aggregate_type = 'rfq' AND o.aggregate_id = r.id WHERE r.id = ? AND ${DUE_PREDICATE})`,
     )
-    .bind(now.toISOString(), rfqId, rfqId, ...dueParams(now))
+    .bind(now.toISOString(), rfqId, rfqId, ...dueParams(now, fromQueue))
     .run();
   return (result.meta?.changes ?? 0) === 1;
 }
@@ -87,7 +94,7 @@ const httpCategory = (status: number | null) => (status === null ? "network_erro
 
 export async function deliverOne(db: D1Database, rfqId: string, cfg: DeliveryConfig): Promise<DeliveryResult> {
   const now = cfg.now?.() ?? new Date();
-  if (!(await claim(db, rfqId, now))) return { status: "skipped", rfqId, reason: "not_due_or_claimed" };
+  if (!(await claim(db, rfqId, now, Boolean(cfg.fromQueue)))) return { status: "skipped", rfqId, reason: "not_due_or_claimed" };
 
   const header = await db
     .prepare(

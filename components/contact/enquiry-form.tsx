@@ -303,6 +303,30 @@ export function EnquiryForm({
     }
   }, []);
 
+  // The Turnstile script may already be loaded (or still loading) when this
+  // form mounts: StaticEnquiryForm remounts it once the static catalog JSON
+  // arrives, and next/script fires `onLoad` only for the instance that started
+  // the load. Detect window.turnstile directly (W2 staging: without this the
+  // remounted form never rendered the widget). Stops as soon as it is found.
+  useEffect(() => {
+    if (!turnstileSiteKey) return;
+    if (window.turnstile) {
+      setTurnstileScriptLoaded(true);
+      return;
+    }
+    const timer = setInterval(() => {
+      if (window.turnstile) {
+        setTurnstileScriptLoaded(true);
+        clearInterval(timer);
+      }
+    }, 200);
+    const stop = setTimeout(() => clearInterval(timer), 60_000);
+    return () => {
+      clearInterval(timer);
+      clearTimeout(stop);
+    };
+  }, [turnstileSiteKey]);
+
   // Render the Turnstile widget once its script has loaded. A single-use
   // token must never be silently reused across attempts (CLAUDE.md "Token
   // Lifecycle") — each render/reset call fetches a fresh one via `callback`.

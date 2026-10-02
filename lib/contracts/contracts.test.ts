@@ -7,6 +7,7 @@ import { rfqVariantIndexRow, snapshotV1 } from "./snapshot-v1.ts";
 import { artifactManifest, publicManifest, publicRfqCatalog } from "./artifact-v1.ts";
 import { computeSnapshotVersion, parseSnapshot, readSnapshotFile } from "../static/snapshot-io.ts";
 import { validateRfqSubmission } from "../rfq/validation.ts";
+import { mapRfqToApiPayload } from "../odoo/rfq-payload-mapper.ts";
 
 const vectors = JSON.parse(fs.readFileSync(new URL("./fixtures/rfq-intake-fingerprint-vectors.json", import.meta.url), "utf8")) as { name: string; payload: unknown; canonical: string; fingerprint: string }[];
 const FIXTURE = new URL("../../fixtures/snapshot/staging-2026-10-01.snapshot.json", import.meta.url);
@@ -46,6 +47,18 @@ test("rfq_intake v1.1: unknown keys are rejected; website_reference and received
   assert.equal(rfqIntakeRequest.safeParse({ ...base, website_reference: "AA-RFQ-K3QW9T2H" }).success, true);
   assert.equal(rfqIntakeRequest.safeParse({ ...base, website_reference: "AA-RFQ-k3qw9t2h" }).success, false);
   assert.equal(rfqIntakeRequest.safeParse({ ...base, received_at: "2026-10-02T00:11:07" }).success, false);
+});
+
+test("rfq_intake v1.1: null text fields are accepted like absent keys (Odoo _text); the mapper's free-text line validates", () => {
+  const base = { customer: { name: "A", email: "a@example.com", company: null, phone: null }, items: [{ product_variant_xid: null, sku: null, description: "x", notes: null, quantity: 1, uom: "kg", length_mm: null }] };
+  assert.equal(rfqIntakeRequest.safeParse(base).success, true);
+  // still required: a free-text line without a description
+  assert.equal(rfqIntakeRequest.safeParse({ ...base, items: [{ product_variant_xid: null, quantity: 1, uom: "kg" }] }).success, false);
+  const m = mapRfqToApiPayload({ locale: "en", fullName: "W2", companyName: null, phone: null, email: "w2@example.com", message: null,
+    items: [{ lineNumber: 1, variantRef: null, skuSnapshot: null, freeformTitle: "Free text", description: null, quantityText: "5", quantityValue: 5, quantityScale: 0, unitCode: "kg", lengthMm: null }] });
+  assert.ok(m.ok);
+  const wire = JSON.parse(JSON.stringify({ ...m.payload, received_at: "2026-10-02T08:42:35.987Z", website_reference: "AA-RFQ-K1GZDAD2" }));
+  assert.equal(rfqIntakeRequest.safeParse(wire).success, true);
 });
 
 test("rfq_intake v1.1: every Odoo status maps to the architecture §6.2 classification", () => {

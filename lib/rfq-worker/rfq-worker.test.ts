@@ -421,3 +421,17 @@ test("the RFQ Worker entry imports no vinext/Next module", () => {
   const files = ["../../workers/rfq/index.ts", "./submit.ts", "./delivery.ts", "./runners.ts", "./cors.ts", "./variant-index.ts", "./config.ts"];
   for (const f of files) assert.doesNotMatch(fs.readFileSync(new URL(f, import.meta.url), "utf8"), /from "(vinext|next)(\/[^"]*)?"|@vinext|cloudflare:workers/, f);
 });
+
+test("queue handoff: a QUEUED RFQ is delivered by its Queue message at once, while the cron waits for the grace period", async () => {
+  const { env, ops } = setup();
+  const rfq = await seedRfq(env);
+  // What workers/rfq/index.ts queueHandoff does after a successful send.
+  ops.sqlite.prepare("UPDATE rfqs SET sync_status = 'queued' WHERE id = ?").run(rfq.id);
+  ops.sqlite.prepare("UPDATE integration_outbox SET status = 'published', available_at = ?").run(new Date(Date.now() + 120_000).toISOString());
+  assert.equal(await pickDueRfq(env.DB_OPS, new Date()), null, "the cron does not re-drive a freshly queued RFQ");
+  const calls: string[] = [];
+  const result = await consumeOne({ body: { aggregate_id: rfq.id }, attempts: 1, ack: () => calls.push("ack"), retry: () => calls.push("retry") }, env, cfg(env, { fetchImpl: odoo([]) }));
+  assert.equal(result?.status === "done" && result.classification, "DELIVERED");
+  assert.deepEqual(calls, ["ack"]);
+  assert.equal(ops.q("SELECT sync_status FROM rfqs")[0].sync_status, "synced");
+});

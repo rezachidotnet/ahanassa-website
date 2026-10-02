@@ -31,7 +31,7 @@ export async function consumeOne(message: QueueMessageLike, env: RfqWorkerEnv, c
     message.ack();
     return null;
   }
-  const result = await deliverOne(env.DB_OPS, event.aggregate_id, cfg);
+  const result = await deliverOne(env.DB_OPS, event.aggregate_id, { ...cfg, fromQueue: true });
   if (result.status === "done" && result.nextAttemptAt) {
     const delaySeconds = Math.min(QUEUE_MAX_DELAY_SECONDS, Math.max(1, Math.round((Date.parse(result.nextAttemptAt) - Date.now()) / 1000)));
     message.retry({ delaySeconds });

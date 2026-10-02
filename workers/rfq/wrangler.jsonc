@@ -40,9 +40,12 @@
         // Staging NEVER delivers to production Odoo (§6.7): the contract stub.
         "ODOO_BASE_URL": "https://ahanassa-v11-odoo-stub-staging.nova-b1e6f0.workers.dev",
         "ODOO_INTAKE_V11": "1",
-        "DELIVERY_ON_QUEUE": "1",
+        // W2 CPU decision (§4.3, p99 <= 7 ms): the Queue consumer measured p99 8 ms on staging, so
+        // Queue delivery and the post-commit hand-off are off; the cron reconciler (p99 7 ms) and the
+        // CI reconciler deliver. Re-enable only with new tail evidence.
+        "DELIVERY_ON_QUEUE": "0",
         "DELIVERY_ON_CRON": "1",
-        "QUEUE_FAST_PATH": "1",
+        "QUEUE_FAST_PATH": "0",
         "TEST_HOOKS": "1"
       }
       // Secrets (wrangler secret put --env staging): TURNSTILE_SECRET_KEY, ODOO_RFQ_API_TOKEN (= stub bearer), ADMIN_TOKEN.

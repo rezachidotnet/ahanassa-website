@@ -24,17 +24,19 @@ export const RECEIVED_AT_MAX_FUTURE_MS = 5 * 60 * 1000;
 export const RECEIVED_AT_FLOOR = "2026-01-01T00:00:00Z";
 
 const text = (max: number) => z.string().max(max);
+// Odoo `_text()` treats a `null` text field exactly like an absent one (controllers/rfq_api.py), so every
+// optional text field below is `.nullable()`; the fingerprint still keeps a sent `null` "as sent".
 const RECEIVED_AT_SHAPE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(Z|[+-]\d{2}:\d{2})$/i;
 
 export const rfqIntakeItem = z
   .object({
-    product_variant_xid: text(256).optional(),
-    sku: text(128).optional(),
-    description: text(2000).optional(),
+    product_variant_xid: text(256).nullable().optional(),
+    sku: text(128).nullable().optional(),
+    description: text(2000).nullable().optional(),
     quantity: z.number().positive().max(1e12),
     uom: z.string().refine((u) => (RFQ_INTAKE_UOMS as readonly string[]).includes(u.toLowerCase()), "unsupported uom"),
     length_mm: z.number().positive().max(1e6).nullable().optional(),
-    notes: text(10000).optional(),
+    notes: text(10000).nullable().optional(),
   })
   .strict()
   .refine((i) => Boolean(i.product_variant_xid) || Boolean(i.description?.trim()), "free-text description is required without product_variant_xid");
@@ -45,11 +47,11 @@ export const rfqIntakeRequest = z
     customer: z
       .object({
         name: text(200).min(1),
-        company: text(200).optional(),
-        phone: text(80).optional(),
-        email: text(254).optional(),
-        country: text(2).optional(),
-        city: text(120).optional(),
+        company: text(200).nullable().optional(),
+        phone: text(80).nullable().optional(),
+        email: text(254).nullable().optional(),
+        country: text(2).nullable().optional(),
+        city: text(120).nullable().optional(),
       })
       .strict()
       .refine((c) => Boolean(c.phone) || Boolean(c.email), "phone or email required"),

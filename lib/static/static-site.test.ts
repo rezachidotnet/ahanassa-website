@@ -325,3 +325,9 @@ test("W2 (A9 follow-up): structured data is in the page's locale; the Persian lo
   assert.match(schema, /ar: \{ streetAddress: "شارع هزار جريب، حي آزادگان، رقم 6", addressLocality: "أصفهان" \}/);
   assert.match(read("app/[locale]/page.tsx"), /organizationSchema\(locale\)/);
 });
+
+test("W2 fix: the RFQ form detects an already-loaded Turnstile script after a remount (not only next/script onLoad)", () => {
+  const form = read("components/contact/enquiry-form.tsx");
+  assert.match(form, /if \(window\.turnstile\) \{\s*setTurnstileScriptLoaded\(true\);/);
+  assert.match(form, /setInterval\(\(\) => \{\s*if \(window\.turnstile\)/);
+});
