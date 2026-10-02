@@ -65,7 +65,6 @@ Cloudflare staging configuration (`ahanassa-bootstrap-staging`):
 | Variable | Kind | Value |
 |---|---|---|
 | `ODOO_BASE_URL` | `vars` (`wrangler.jsonc`) | `https://odoo.ahanassa.com` |
-| `ODOO_DATABASE` | `vars` (`wrangler.jsonc`) | `ahanassa` |
 | `ODOO_CRM_TEAM_ID` | `vars` (`wrangler.jsonc`) | `1` (verified active `crm.team` "Sales"; "Website" team, id 2, is inactive and was not reactivated) |
 | `ODOO_API_KEY` | Cloudflare **secret** (`wrangler secret put ODOO_API_KEY --env staging`) | never in git, never logged |
 

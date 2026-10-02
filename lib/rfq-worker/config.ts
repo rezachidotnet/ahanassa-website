@@ -29,9 +29,9 @@ export interface RfqWorkerEnv {
   DELIVERY_ON_CRON?: string;
   /** "0" disables the post-commit Queue send (reconciler-only mode). */
   QUEUE_FAST_PATH?: string;
-  /** Bearer for /__admin/* (staging measurement/test hooks). */
+  /** Bearer for /__admin/* (§15 manual-review tool); a separate secret per environment. */
   ADMIN_TOKEN?: string;
-  /** "1" only on staging: enables the kill-after-POST and real-Odoo-401 probes. */
+  /** "1" enables the test routes — which exist only in the staging entry (index.staging.ts). */
   TEST_HOOKS?: string;
 }
 

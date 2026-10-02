@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SNAPSHOT_VERSION_PATTERN } from "./snapshot-version.ts";
 
 /**
  * snapshot.v1 — the build-time public data snapshot (docs/contracts/SNAPSHOT_V1.md,
@@ -17,8 +18,7 @@ const nullableText = z.string().nullable();
 
 export const SNAPSHOT_SCHEMA_VERSION = "snapshot.v1" as const;
 export const SNAPSHOT_LOCALES = ["fa", "en", "ar"] as const;
-/** `snap-` + 16 lowercase hex chars (first 64 bits of the SHA-256 of the canonical tables JSON). */
-export const SNAPSHOT_VERSION_PATTERN = /^snap-[0-9a-f]{16}$/;
+export { SNAPSHOT_VERSION_PATTERN };
 
 export const catalogPublicCategoryRow = z
   .object({

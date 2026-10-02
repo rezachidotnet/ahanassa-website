@@ -8,9 +8,16 @@
  *
  *   node scripts/rfq/ci-reconciler.ts --config workers/rfq/wrangler.jsonc --env staging --database DB_OPS [--max 10] [--older-than-minutes 30]
  * Env: ODOO_BASE_URL, ODOO_RFQ_API_TOKEN, ODOO_INTAKE_V11 ("1"), plus wrangler auth (CLOUDFLARE_API_TOKEN/ACCOUNT_ID in CI).
+ *
+ * After delivering, it publishes the §15 delivery health (lib/rfq-worker/health.ts)
+ * to $GITHUB_STEP_SUMMARY (and stdout) and exits 1 when any RFQ has been
+ * undelivered for more than 30 minutes — the job turns red in GitHub until a
+ * real alert channel exists (W3, minimal monitoring hook).
  */
 import { deliverOne, pickDueRfq } from "../../lib/rfq-worker/delivery.ts";
 import { wranglerD1 } from "../../lib/rfq-worker/wrangler-d1.ts";
+import { deliveryHealth, healthSummaryMarkdown } from "../../lib/rfq-worker/health.ts";
+import fs from "node:fs";
 
 const args = new Map<string, string>();
 for (let i = 2; i < process.argv.length; i += 2) args.set(process.argv[i].replace(/^--/, ""), process.argv[i + 1]);
@@ -34,4 +41,12 @@ for (let i = 0; i < max; i++) {
   console.log(JSON.stringify(result));
   if (result.status === "skipped") break;
 }
-console.log(JSON.stringify({ operation: "rfq.ci_reconcile", delivered: results.filter((r) => r.status === "done" && r.classification === "DELIVERED").length, attempted: results.length }));
+const run = { delivered: results.filter((r) => r.status === "done" && r.classification === "DELIVERED").length, attempted: results.length };
+console.log(JSON.stringify({ operation: "rfq.ci_reconcile", ...run }));
+
+const health = await deliveryHealth(db);
+console.log(JSON.stringify({ operation: "rfq.delivery_health", ...health }));
+const summary = healthSummaryMarkdown(health, env ?? "local", run);
+if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
+else console.log(summary);
+if (health.undeliveredOver30m > 0) process.exitCode = 1;

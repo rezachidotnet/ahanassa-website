@@ -245,7 +245,6 @@
 			"vars": {
 				"APP_ENV": "production",
 				"ODOO_BASE_URL": "https://odoo.ahanassa.com",
-				"ODOO_DATABASE": "ahanassa",
 				"ODOO_CRM_TEAM_ID": "1",
 				"NEXT_PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAAEi2RZ3NHcqTk0ej",
 				// Homepage price strip (docs/pricing/PRICE_PROVIDER_CONTRACT.md) —
@@ -324,21 +323,14 @@
 			// Same binding name/limit as the top-level config; a distinct
 			// namespace_id so staging counts separately from local dev.
 			"ratelimits": [{ "name": "RFQ_RATE_LIMITER", "namespace_id": "1002", "simple": { "limit": 5, "period": 60 } }],
-			// ODOO_API_KEY is a Cloudflare Secret (wrangler secret put --env staging),
-			// never a plain var. ODOO_BASE_URL/ODOO_DATABASE/ODOO_CRM_TEAM_ID are
-			// non-secret configuration values per lib/env.ts#getOdooConfig and
-			// lib/odoo/adapter.ts#getOdooCrmTeamId -- see README.md "Odoo staging
-			// connectivity" for provisioning details (dedicated integration user,
-			// minimum-permission groups, no ir.model.data/group_erp_manager
-			// dependency -- DOCUMENT_AUDIT_REPORT.md DAR-027).
-			// ODOO_RFQ_API_TOKEN (DAR-041, docs/ODOO_RFQ_API_INTEGRATION.md) is the
-			// current RFQ delivery credential (POST /api/v1/rfq) -- not yet
-			// provisioned here either; ODOO_API_KEY above is no longer the RFQ-path
-			// secret, see lib/odoo/adapter.ts's deprecation note.
+			// ODOO_BASE_URL/ODOO_CRM_TEAM_ID are non-secret configuration values.
+			// The legacy JSON-RPC adapter and its ODOO_API_KEY secret / ODOO_DATABASE
+			// var were removed in architecture V1.1 (W2/W3). ODOO_RFQ_API_TOKEN
+			// (DAR-041, docs/ODOO_RFQ_API_INTEGRATION.md) is the RFQ delivery
+			// credential (POST /api/v1/rfq) -- a Cloudflare Secret, never a var.
 			"vars": {
 				"APP_ENV": "staging",
 				"ODOO_BASE_URL": "https://odoo.ahanassa.com",
-				"ODOO_DATABASE": "ahanassa",
 				"ODOO_CRM_TEAM_ID": "1",
 				"PRICE_STRIP_ENABLED": "false",
 				"ENABLED_PRICE_PROVIDERS": "",

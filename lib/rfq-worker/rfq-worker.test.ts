@@ -371,7 +371,7 @@ test("kill after POST, before the result batch: the RFQ stays claimed, becomes d
     }
     return existing === String(init.body) ? Response.json({ data: { reference: "STUB-1" }, meta: { idempotent_replay: true } }, { status: 200 }) : Response.json({ error: { code: "idempotency_conflict" } }, { status: 409 });
   }) as typeof fetch;
-  await assert.rejects(deliverOne(env.DB_OPS, rfq.id, cfg(env, { fetchImpl: odooStub, killAfterPost: true })), /TEST_KILL_AFTER_POST/);
+  await assert.rejects(deliverOne(env.DB_OPS, rfq.id, cfg(env, { fetchImpl: odooStub, afterPost: () => { throw new Error("TEST_KILL_AFTER_POST"); } })), /TEST_KILL_AFTER_POST/);
   assert.equal(ops.q("SELECT sync_status FROM rfqs")[0].sync_status, "syncing");
   assert.equal(await pickDueRfq(env.DB_OPS, new Date()), null, "not due while the claim is fresh");
   const later = new Date(Date.now() + STALE_SYNCING_MS + 60_000);
@@ -418,14 +418,14 @@ test("CI reconciler parity: the same deliverOne over an inlined-SQL adapter give
 });
 
 test("the RFQ Worker entry imports no vinext/Next module", () => {
-  const files = ["../../workers/rfq/index.ts", "./submit.ts", "./delivery.ts", "./runners.ts", "./cors.ts", "./variant-index.ts", "./config.ts"];
+  const files = ["../../workers/rfq/index.ts", "../../workers/rfq/index.staging.ts", "../../workers/rfq/app.ts", "../../workers/rfq/test-routes.ts", "./admin.ts", "./submit.ts", "./delivery.ts", "./runners.ts", "./cors.ts", "./variant-index.ts", "./config.ts"];
   for (const f of files) assert.doesNotMatch(fs.readFileSync(new URL(f, import.meta.url), "utf8"), /from "(vinext|next)(\/[^"]*)?"|@vinext|cloudflare:workers/, f);
 });
 
 test("queue handoff: a QUEUED RFQ is delivered by its Queue message at once, while the cron waits for the grace period", async () => {
   const { env, ops } = setup();
   const rfq = await seedRfq(env);
-  // What workers/rfq/index.ts queueHandoff does after a successful send.
+  // What workers/rfq/app.ts queueHandoff does after a successful send.
   ops.sqlite.prepare("UPDATE rfqs SET sync_status = 'queued' WHERE id = ?").run(rfq.id);
   ops.sqlite.prepare("UPDATE integration_outbox SET status = 'published', available_at = ?").run(new Date(Date.now() + 120_000).toISOString());
   assert.equal(await pickDueRfq(env.DB_OPS, new Date()), null, "the cron does not re-drive a freshly queued RFQ");

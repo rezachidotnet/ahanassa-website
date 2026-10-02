@@ -1,4 +1,4 @@
-import { rfqSubmitRequest, RFQ_SUBMIT_MAX_BODY_BYTES } from "../contracts/rfq-submit-v1.ts";
+import { checkRfqSubmitRequest, RFQ_SUBMIT_MAX_BODY_BYTES } from "../contracts/rfq-submit-v1-check.ts";
 import { validateRfqSubmission } from "../rfq/validation.ts";
 import { hashIdempotencyKey } from "../rfq/idempotency.ts";
 import { buildCatalogItemRecord, buildFreeformItemRecord } from "../rfq/catalog-preselection.ts";
@@ -63,7 +63,8 @@ export async function sha256Hex(text: string): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function zodFieldErrors(issues: { path: PropertyKey[]; message: string; code: string }[]): Record<string, string[]> {
+/** Contract issues -> fieldErrors (`items[0].unit`: [code]); `unrecognized_keys` is reported as `unknown_field`. */
+export function contractFieldErrors(issues: { path: PropertyKey[]; code: string }[]): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   for (const issue of issues) {
     const key = issue.path.map((p) => (typeof p === "number" ? `[${p}]` : String(p))).join(".").replace(/\.\[/g, "[") || "_";
@@ -129,8 +130,8 @@ export async function handleRfqSubmit(request: Request, env: RfqWorkerEnv, deps:
   }
 
   // 6. strict contract schema, then the server validator (normalization: E.164, units, lengths).
-  const contract = rfqSubmitRequest.safeParse(body);
-  if (!contract.success) return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors: zodFieldErrors(contract.error.issues as never) }, cors);
+  const contract = checkRfqSubmitRequest(body);
+  if (!contract.success) return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors: contractFieldErrors(contract.issues) }, cors);
   const validated = validateRfqSubmission(body);
   if (!validated.ok || !validated.value) return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors: validated.fieldErrors }, cors);
   const now = deps.now?.() ?? new Date();
@@ -147,7 +148,7 @@ export async function handleRfqSubmit(request: Request, env: RfqWorkerEnv, deps:
 
   // 8. variants — ONE query against rfq_variant_index.
   const locale = validated.value.locale;
-  const snapshotVersion = contract.data.catalogSnapshotVersion ?? null;
+  const snapshotVersion = (contract.data.catalogSnapshotVersion as string | null | undefined) ?? null;
   const variantIds = validated.value.items.map((i) => i.catalogVariantXid).filter((x): x is string => Boolean(x));
   const resolution = variantIds.length ? await resolveVariantsFromIndex(env.DB_PUBLIC, locale, variantIds, snapshotVersion) : null;
 

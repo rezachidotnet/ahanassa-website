@@ -1,5 +1,5 @@
 import { mapRfqToApiPayload, buildOutboundRfqIdempotencyKey, type RfqSnapshotItem } from "../odoo/rfq-payload-mapper.ts";
-import { classifyIntakeStatus, type DeliveryClassification } from "../contracts/rfq-intake-v1-1.ts";
+import { classifyIntakeStatus, type DeliveryClassification } from "../contracts/rfq-intake-status.ts";
 import { ulid } from "../rfq/ulid.ts";
 
 /**
@@ -30,8 +30,8 @@ export interface DeliveryConfig {
   timeoutMs?: number;
   now?: () => Date;
   random?: () => number;
-  /** Test hook (staging only): throw after the POST, before the result batch. */
-  killAfterPost?: boolean;
+  /** Runs after the POST, before the result batch. Only the staging test routes set it (to simulate a crash there). */
+  afterPost?: () => void;
   /** Set by the Queue consumer: a `queued` RFQ is claimable before its reconciler grace period ends. */
   fromQueue?: boolean;
 }
@@ -192,7 +192,7 @@ export async function deliverOne(db: D1Database, rfqId: string, cfg: DeliveryCon
     } finally {
       clearTimeout(timer);
     }
-    if (cfg.killAfterPost) throw new Error("TEST_KILL_AFTER_POST");
+    cfg.afterPost?.();
   }
 
   const finishedAt = (cfg.now?.() ?? new Date()).toISOString();

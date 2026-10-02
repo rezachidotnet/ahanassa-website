@@ -47,7 +47,8 @@ export class SqliteD1 {
     try {
       const out = statements.map((s) => s.exec());
       this.sqlite.exec("COMMIT");
-      return out.map(() => ({ success: true, meta: {}, results: [] }));
+      // D1 reports per-statement meta.changes for a batch; so does this stand-in.
+      return out.map((r) => ({ success: true, meta: { changes: Number((r as { changes?: number | bigint } | undefined)?.changes ?? 0) }, results: [] }));
     } catch (err) {
       this.sqlite.exec("ROLLBACK");
       throw err;

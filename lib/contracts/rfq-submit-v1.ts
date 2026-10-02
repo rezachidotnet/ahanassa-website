@@ -1,15 +1,12 @@
 import { z } from "zod";
-import { MAX_ITEMS } from "../rfq/item-row-validation.ts";
-import { MAX_BODY_BYTES, MAX_LENGTH_MM } from "../rfq/validation.ts";
-import { RFQ_UOM_CODES } from "../rfq/uom.ts";
-import { SNAPSHOT_VERSION_PATTERN } from "./snapshot-v1.ts";
+import { RFQ_SUBMIT_LIMITS as L } from "./rfq-submit-v1-check.ts";
 
 /**
  * rfq_submit.v1 — browser -> RFQ Worker (`POST https://api.ahanassa.com/api/rfqs`,
  * architecture V1.1 §6.1). docs/contracts/RFQ_SUBMIT_V1.md is the prose
- * version. Limits are imported from the existing server validator
- * (lib/rfq/validation.ts, item-row-validation.ts, uom.ts) so the contract
- * and the running code cannot drift on them.
+ * version. Limits come from RFQ_SUBMIT_LIMITS (rfq-submit-v1-check.ts, which
+ * imports them from the server validator), shared with the RFQ Worker's
+ * zod-free checker so the two cannot drift.
  *
  * The schema is STRICT (unknown keys rejected) as architecture §6.1
  * requires of the RFQ Worker. The CURRENT endpoint (app/api/rfqs) still
@@ -19,43 +16,43 @@ export const RFQ_SUBMIT_CONTRACT_VERSION = "rfq_submit.v1" as const;
 
 export const rfqSubmitItem = z
   .object({
-    catalogVariantXid: z.string().max(200).regex(/^[A-Za-z0-9_.-]+$/).optional(),
-    productSlug: z.string().max(200).optional(),
-    freeformTitle: z.string().max(160).optional(),
-    categoryLabel: z.string().max(100).optional(),
-    gradeOrStandard: z.string().max(100).optional(),
-    quantityText: z.string().min(1).max(100),
-    unit: z.enum(RFQ_UOM_CODES),
-    description: z.string().max(1000).optional(),
-    lengthMm: z.number().int().positive().max(MAX_LENGTH_MM).nullable().optional(),
+    catalogVariantXid: z.string().max(L.item.catalogVariantXid.max).regex(L.item.catalogVariantXid.pattern).optional(),
+    productSlug: z.string().max(L.item.productSlug.max).optional(),
+    freeformTitle: z.string().max(L.item.freeformTitle.max).optional(),
+    categoryLabel: z.string().max(L.item.categoryLabel.max).optional(),
+    gradeOrStandard: z.string().max(L.item.gradeOrStandard.max).optional(),
+    quantityText: z.string().min(L.item.quantityText.min).max(L.item.quantityText.max),
+    unit: z.enum(L.item.units),
+    description: z.string().max(L.item.description.max).optional(),
+    lengthMm: z.number().int().positive().max(L.item.lengthMm.max).nullable().optional(),
   })
   .strict();
 
 export const rfqSubmitRequest = z
   .object({
     /** Browser-generated, stable for one "new request"; the server stores only SHA-256(key). */
-    idempotencyKey: z.string().min(16).max(128).regex(/^[A-Za-z0-9_-]+$/),
-    locale: z.enum(["fa", "en", "ar"]),
-    fullName: z.string().min(2).max(100),
-    companyName: z.string().max(160).optional(),
-    email: z.string().max(254).regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/),
-    phoneCountry: z.string().length(2),
-    phoneLocal: z.string().min(1).max(20),
-    deliveryLocation: z.string().max(200).optional(),
-    message: z.string().max(3000).optional(),
-    items: z.array(rfqSubmitItem).min(1).max(MAX_ITEMS),
+    idempotencyKey: z.string().min(L.idempotencyKey.min).max(L.idempotencyKey.max).regex(L.idempotencyKey.pattern),
+    locale: z.enum(L.locales),
+    fullName: z.string().min(L.fullName.min).max(L.fullName.max),
+    companyName: z.string().max(L.companyName.max).optional(),
+    email: z.string().max(L.email.max).regex(L.email.pattern),
+    phoneCountry: z.string().length(L.phoneCountry.length),
+    phoneLocal: z.string().min(L.phoneLocal.min).max(L.phoneLocal.max),
+    deliveryLocation: z.string().max(L.deliveryLocation.max).optional(),
+    message: z.string().max(L.message.max).optional(),
+    items: z.array(rfqSubmitItem).min(L.items.min).max(L.items.max),
     /** Honeypot — must be empty. */
-    website: z.string().max(0).optional(),
+    website: z.string().max(L.website.max).optional(),
     formRenderedAt: z.number().int().optional(),
     /** Cloudflare Turnstile response token (action `rfq_submit`). */
-    turnstileToken: z.string().min(1).max(2048),
+    turnstileToken: z.string().min(L.turnstileToken.min).max(L.turnstileToken.max),
     /** snapshot.v1 version of the static catalog JSON the selector was built from (null on the SSR runtime). */
-    catalogSnapshotVersion: z.string().regex(SNAPSHOT_VERSION_PATTERN).nullable().optional(),
+    catalogSnapshotVersion: z.string().regex(L.catalogSnapshotVersion.pattern).nullable().optional(),
   })
   .strict();
 export type RfqSubmitRequest = z.infer<typeof rfqSubmitRequest>;
 
-export const RFQ_SUBMIT_MAX_BODY_BYTES = MAX_BODY_BYTES;
+export { RFQ_SUBMIT_MAX_BODY_BYTES } from "./rfq-submit-v1-check.ts";
 
 export const rfqSubmitSuccess = z.object({ ok: z.literal(true), reference: z.string().regex(/^AA-RFQ-[0-9A-HJKMNP-TV-Z]+$/), status: z.literal("received") }).strict();
 export const rfqSubmitError = z

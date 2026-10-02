@@ -77,29 +77,7 @@ export const rfqIntakeSuccess = z.object({
   meta: z.object({ idempotent_replay: z.boolean() }).optional(),
 });
 
-/** Odoo error code -> HTTP status -> website classification (architecture §6.2). */
-export const RFQ_INTAKE_ERRORS = [
-  { http: 400, code: "invalid_idempotency_key", classification: "MANUAL_REVIEW" },
-  { http: 400, code: "invalid_payload", classification: "MANUAL_REVIEW" },
-  { http: 400, code: "invalid_received_at", classification: "MANUAL_REVIEW" },
-  { http: 401, code: "unauthorized", classification: "RETRY_PENDING_ALERT" },
-  { http: 409, code: "idempotency_conflict", classification: "MANUAL_REVIEW" },
-  { http: 413, code: "payload_too_large", classification: "MANUAL_REVIEW" },
-  { http: 415, code: "unsupported_media_type", classification: "MANUAL_REVIEW" },
-  { http: 500, code: "internal_error", classification: "RETRY_PENDING" },
-  { http: 503, code: "concurrency_retry", classification: "RETRY_PENDING" },
-] as const;
-
-export type DeliveryClassification = "DELIVERED" | "RETRY_PENDING" | "RETRY_PENDING_ALERT" | "MANUAL_REVIEW";
-
-/** Architecture §6.2: 201/200 delivered; 5xx/429/network/timeout retry; 401/403 retry + alert; 400/409/413/415 manual review. */
-export function classifyIntakeStatus(status: number | "network_error" | "timeout"): DeliveryClassification {
-  if (status === "network_error" || status === "timeout") return "RETRY_PENDING";
-  if (status === 200 || status === 201) return "DELIVERED";
-  if (status === 401 || status === 403) return "RETRY_PENDING_ALERT";
-  if (status === 429 || status >= 500) return "RETRY_PENDING";
-  return "MANUAL_REVIEW";
-}
+export { RFQ_INTAKE_ERRORS, classifyIntakeStatus, type DeliveryClassification } from "./rfq-intake-status.ts";
 
 /** Canonical UTC text of a received_at value (Odoo `canonical_utc`): `YYYY-MM-DDTHH:MM:SSZ`, `.ffffff` only when microseconds are non-zero. */
 export function canonicalReceivedAt(value: string): string {

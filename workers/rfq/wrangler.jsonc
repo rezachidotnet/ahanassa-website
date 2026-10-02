@@ -1,12 +1,14 @@
 // Standalone RFQ Worker (architecture V1.1 §4.3, §6; website W2).
 // Deploy: npx wrangler deploy --config workers/rfq/wrangler.jsonc --env staging
-// There is deliberately NO production environment in this file yet (W3+).
+// There is deliberately NO production environment in this file yet.
+// Entries (W3 C1): top-level `main` = index.ts, the PRODUCTION entry (no test code);
+// env.staging.main = index.staging.ts (adds the /__admin/test/* routes, TEST_HOOKS=1).
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "ahanassa-v11-rfq-local",
   "main": "index.ts",
   "compatibility_date": "2026-08-26",
-  // nodejs_compat: libphonenumber/zod/Web Crypto helpers; global_fetch_strictly_public: the
+  // nodejs_compat: libphonenumber/Web Crypto helpers; global_fetch_strictly_public: the
   // delivery fetch to the staging Odoo stub (same account, workers.dev) goes over the public route.
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "workers_dev": false,
@@ -14,6 +16,7 @@
   "env": {
     "staging": {
       "name": "ahanassa-v11-rfq-staging",
+      "main": "index.staging.ts",
       "workers_dev": false,
       "routes": [{ "pattern": "api-staging.ahanassa.com", "custom_domain": true }],
       "d1_databases": [
