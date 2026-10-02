@@ -1,4 +1,4 @@
-import { SECURITY_HEADERS } from "../security/headers.ts";
+import { buildSecurityHeaders } from "../security/headers.ts";
 
 /**
  * Static replacements for what `proxy.ts` and the metadata routes did on the
@@ -8,9 +8,14 @@ import { SECURITY_HEADERS } from "../security/headers.ts";
 
 export type StaticEnvironment = "staging" | "production";
 
-/** `_headers`: SECURITY_HEADERS on every path (single source: lib/security/headers.ts); staging additionally `X-Robots-Tag: noindex, nofollow` (§4.2, R2-4). */
-export function buildHeadersFile(env: StaticEnvironment): string {
-  const lines = ["/*", ...SECURITY_HEADERS.map(([name, value]) => `  ${name}: ${value}`)];
+/**
+ * `_headers`: the security headers on every path (single source:
+ * lib/security/headers.ts), with CSP connect-src = 'self' + Turnstile + the
+ * target's RFQ API origin only (§6.1); staging additionally
+ * `X-Robots-Tag: noindex, nofollow` (§4.2, R2-4).
+ */
+export function buildHeadersFile(env: StaticEnvironment, rfqApiOrigin: string): string {
+  const lines = ["/*", ...buildSecurityHeaders([rfqApiOrigin]).map(([name, value]) => `  ${name}: ${value}`)];
   if (env === "staging") lines.push("  X-Robots-Tag: noindex, nofollow");
   lines.push("", "/_next/static/*", "  Cache-Control: public, max-age=31536000, immutable", "", "/data/*", "  Cache-Control: public, max-age=300", "");
   return lines.join("\n");

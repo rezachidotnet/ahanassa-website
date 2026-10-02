@@ -26,6 +26,7 @@ export type TurnstileOutcome =
 interface SiteverifyResponse {
   success?: boolean;
   action?: string;
+  hostname?: string;
   ["error-codes"]?: string[];
 }
 
@@ -37,6 +38,13 @@ export interface VerifyTurnstileOptions {
   fetchImpl?: typeof fetch;
   /** Injectable for tests — defaults to getTurnstileSecret(). */
   secret?: string;
+  /**
+   * RFQ Worker (architecture V1.1 §6.1): the Siteverify `hostname` must be one
+   * of these (the static site's host). Omitted = not checked (legacy route).
+   */
+  expectedHostnames?: readonly string[];
+  /** RFQ Worker: an absent `action` is rejected, not only a wrong one. Default false (legacy route). */
+  requireAction?: boolean;
 }
 
 export async function verifyTurnstileToken(token: unknown, options: VerifyTurnstileOptions = {}): Promise<TurnstileOutcome> {
@@ -76,6 +84,12 @@ export async function verifyTurnstileToken(token: unknown, options: VerifyTurnst
       return { ok: false, reason: "invalid" };
     }
     if (data.action !== undefined && data.action !== TURNSTILE_RFQ_ACTION) {
+      return { ok: false, reason: "invalid" };
+    }
+    if (options.requireAction && data.action !== TURNSTILE_RFQ_ACTION) {
+      return { ok: false, reason: "invalid" };
+    }
+    if (options.expectedHostnames && (typeof data.hostname !== "string" || !options.expectedHostnames.includes(data.hostname))) {
       return { ok: false, reason: "invalid" };
     }
 

@@ -4,11 +4,11 @@
 
 | Field | Value |
 |---|---|
-| Source repository | `ahanassa-odoo` (local `/Users/reza/Developer/ahanassa-odoo`), branch `o1/security-rfq-intake` |
+| Source repository | `github.com/rezachidotnet/ahanassa-odoo`, branch `o1/security-rfq-intake` (history rewritten in Odoo task R0; read from a fresh clone 2026-10-02, branch tip `3febe7af4cc4270ef5aeabc7c9e57c334b133241`). The file is not yet on `main`. |
 | Source document | `docs/contracts/RFQ_API_CONTRACT_V1_1.md` |
-| Commit read | `bfd732d4890f130fe56d4f48413af7de397b803c` (2026-10-02 10:32 +03:30, "fix(rfq-api): no maximum age for received_at; delay visibility (O-1.1)") |
+| Commit read | **`487a07e919333c7895bb30067f9d21ecf41383b0`** (2026-10-02 10:32 +03:30, "fix(rfq-api): no maximum age for received_at; delay visibility (O-1.1)") — after the R0 rewrite. Before R0 the same content was commit `bfd732d4890f130fe56d4f48413af7de397b803c`, which no longer exists. |
 | SHA-256 of the document read | `25c46b26f0bfbab916327d8348f861a7e35466b9cea5e24ffb7255937bc91ce8` |
-| Previously read (O-1) | commit `264347a447b055188d39a77da2d60aa16421b8c6`, SHA-256 `289e6c768381e01afca02761ffff301740e580602545dea6ee75b5c0cbeec87d` — stated a 30-day maximum age; superseded by O-1.1 |
+| Previously read (O-1) | commit `418fa50784dac0ecfb1a894eb94657011dd6420c` after R0 (was `264347a447b055188d39a77da2d60aa16421b8c6` before R0), SHA-256 `289e6c768381e01afca02761ffff301740e580602545dea6ee75b5c0cbeec87d` — stated a 30-day maximum age; superseded by O-1.1 |
 | Odoo module | `ahanassa_marketplace` 19.0.46.1.0 — implemented, **not yet deployed** |
 
 Code twin: `lib/contracts/rfq-intake-v1-1.ts` (schema, canonical JSON, fingerprint, classification).

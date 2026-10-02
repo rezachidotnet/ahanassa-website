@@ -51,8 +51,9 @@ carries `Cache-Control: no-store`.
   Preflight `OPTIONS /api/rfqs` → 204, `Access-Control-Allow-Methods: POST`,
   `Access-Control-Allow-Headers: content-type`, `Access-Control-Max-Age: 86400`. No credentials.
 - Allowed origins: production `https://www.ahanassa.com`; staging
-  `https://ahanassa-bootstrap-staging.nova-b1e6f0.workers.dev` (until the staging static host is fixed in W2/W3).
+  `https://ahanassa-v11-static-staging.nova-b1e6f0.workers.dev` (the v11 static staging site, W2).
   Any other `Origin` → 403.
-- The public page's CSP `connect-src` must name `https://api.ahanassa.com` (W2 changes
-  `lib/security/headers.ts`, the single source of `_headers`).
+- The public page's CSP `connect-src` is exactly `'self'`, `https://challenges.cloudflare.com` and the
+  target's RFQ origin (`https://api.ahanassa.com` / `https://api-staging.ahanassa.com`), generated from
+  `lib/security/headers.ts` + `lib/static/targets.ts`; the artifact gate enforces it.
 - Turnstile keys, rate limiter and `DB_OPS` are separate per environment.

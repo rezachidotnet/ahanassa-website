@@ -1,5 +1,19 @@
 import { siteConfig } from "@/lib/metadata/site";
 import { CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
+import type { Locale } from "@/config/locales";
+
+/**
+ * The confirmed office address (PROJECT_OVERRIDES.md §7 item 6) in each
+ * locale — the same wording the footer and /contact render for that locale
+ * (components/layout/SiteFooter.tsx, app/[locale]/contact/page.tsx), split
+ * into street and locality. Architecture V1.1 §7.1 (A6): an en/ar page's
+ * structured data is in its own language, not Persian.
+ */
+export const ORGANIZATION_ADDRESS: Record<Locale, { streetAddress: string; addressLocality: string }> = {
+  fa: { streetAddress: "خیابان هزارجریب، کوی آزادگان، پلاک 6", addressLocality: "اصفهان" },
+  en: { streetAddress: "Hezar Jarib Street, Kooy Azadegan, No. 6", addressLocality: "Isfahan" },
+  ar: { streetAddress: "شارع هزار جريب، حي آزادگان، رقم 6", addressLocality: "أصفهان" },
+};
 
 /**
  * Foundation-level structured data only: Organization, WebSite, BreadcrumbList.
@@ -29,7 +43,7 @@ export function websiteId(): string {
   return `${siteConfig.baseUrl}/#website`;
 }
 
-export function organizationSchema() {
+export function organizationSchema(locale: Locale = "fa") {
   return {
     "@type": "Organization",
     "@id": organizationId(),
@@ -41,8 +55,7 @@ export function organizationSchema() {
     // the footer and contact page — safe to add per this file's own rule.
     address: {
       "@type": "PostalAddress",
-      streetAddress: "خیابان هزارجریب، کوی آزادگان، پلاک 6",
-      addressLocality: "اصفهان",
+      ...ORGANIZATION_ADDRESS[locale],
       addressCountry: "IR",
     },
     // Same verified number the Header/contact page render — no separate value.

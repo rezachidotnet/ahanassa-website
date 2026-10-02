@@ -28,26 +28,6 @@ export function getGtmId(): string | undefined {
   return process.env.NEXT_PUBLIC_GTM_ID || undefined;
 }
 
-export interface OdooConfig {
-  baseUrl: string;
-  database: string;
-  apiKey: string;
-}
-
-/**
- * Returns Odoo credentials only when ALL are present; never a partial
- * config. Real values are never fabricated — see lib/odoo/adapter.ts for
- * why credential presence alone still isn't sufficient to perform a real
- * sync call (DAR-013, model mapping unresolved).
- */
-export function getOdooConfig(): OdooConfig | null {
-  const baseUrl = process.env.ODOO_BASE_URL;
-  const database = process.env.ODOO_DATABASE;
-  const apiKey = process.env.ODOO_API_KEY;
-  if (!baseUrl || !database || !apiKey) return null;
-  return { baseUrl, database, apiKey };
-}
-
 /**
  * Public Catalog API v1 base URL — the same Odoo host as `ODOO_BASE_URL`,
  * reused rather than a new env var since this endpoint needs no credential
@@ -93,14 +73,11 @@ export interface OdooRfqApiConfig {
 /**
  * Odoo Public RFQ Intake API v1 config — `POST /api/v1/rfq`
  * (docs/integrations/odoo/rfq-v1/RFQ_API_CONTRACT_V1.md,
- * DOCUMENT_AUDIT_REPORT.md DAR-041). Deliberately its own credential,
- * `ODOO_RFQ_API_TOKEN` — never the legacy `ODOO_API_KEY` (that key
- * authenticates the old generic JSON-2 transport, `lib/odoo/client.ts`,
- * scoped to a different Odoo permission model and no longer the RFQ
- * delivery path). Reuses `ODOO_BASE_URL` for the host — that value is not a
- * secret, just the shared Odoo origin every integration on this project
- * already points at. Returns null when either half is missing; never a
- * partial config, matching `getOdooConfig()`'s own convention.
+ * DOCUMENT_AUDIT_REPORT.md DAR-041). Its own credential, `ODOO_RFQ_API_TOKEN`.
+ * (The legacy JSON-RPC path and its `ODOO_API_KEY`/`ODOO_DATABASE` config
+ * were removed in architecture V1.1 W2 — `POST /api/v1/rfq` is the only
+ * RFQ path into Odoo, §2.12.) Reuses `ODOO_BASE_URL` for the host — not a
+ * secret. Returns null when either half is missing; never a partial config.
  */
 export function getOdooRfqApiConfig(): OdooRfqApiConfig | null {
   const baseUrl = process.env.ODOO_BASE_URL;

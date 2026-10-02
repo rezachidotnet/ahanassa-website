@@ -6,7 +6,7 @@ import { getOdooCatalogApiBaseUrl } from "../env.ts";
  * (docs/integrations/odoo/catalog-v1/PUBLIC_CATALOG_API_V1.md,
  * public_catalog_api_v1.openapi.yaml). DOCUMENT_AUDIT_REPORT.md DAR-034.
  *
- * Deliberately does NOT use `lib/odoo/client.ts` (the generic JSON-2
+ * Deliberately does NOT use the former `lib/odoo/client.ts` (legacy JSON-RPC, removed in V1.1 W2) (the generic JSON-2
  * `search_read`/`create` RPC transport the RFQ path uses) — that would be
  * exactly the "generic Odoo ORM access" this task's architecture invariant
  * forbids for catalog. This client only ever calls the three documented

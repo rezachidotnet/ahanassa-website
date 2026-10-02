@@ -11,6 +11,15 @@ import { getTurnstileSiteKey } from "@/lib/env";
 
 export { generateLocaleStaticParams as generateStaticParams } from "@/lib/static/locale-params";
 
+/**
+ * The static build bakes the target's RFQ Worker origin (lib/static/targets.ts,
+ * set by scripts/static/build.ts); the legacy SSR Worker posts same-origin.
+ */
+function rfqSubmitEndpoint(): string {
+  const origin = globalThis.process?.env?.AHANASSA_RFQ_API_ORIGIN;
+  return origin ? `${origin.replace(/\/+$/, "")}/api/rfqs` : "/api/rfqs";
+}
+
 interface PageProps {
   params: Promise<{ locale: string }>;
 }
@@ -89,7 +98,7 @@ export default async function ContactPage({ params }: PageProps) {
         <div className="container-x">
           <SectionHeading eyebrow={t.formEyebrow} title={t.formTitle} body={t.formBody} />
           <div className="mt-12">
-            <StaticEnquiryForm locale={locale} turnstileSiteKey={getTurnstileSiteKey()} />
+            <StaticEnquiryForm locale={locale} turnstileSiteKey={getTurnstileSiteKey()} rfqEndpoint={rfqSubmitEndpoint()} />
           </div>
         </div>
       </section>

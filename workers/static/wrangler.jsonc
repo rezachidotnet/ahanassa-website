@@ -1,0 +1,17 @@
+// Static site — ASSETS ONLY, no script (architecture V1.1 §2.3, A4). Serves the
+// artifact's public-assets/ ONLY (never private-snapshot/).
+// Deploy: npm run build:static -- --snapshot <f> --target staging && npx wrangler deploy --config workers/static/wrangler.jsonc --env staging
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ahanassa-v11-static-local",
+  "compatibility_date": "2026-08-26",
+  "workers_dev": false,
+  "assets": { "directory": "../../.artifact/public-assets", "not_found_handling": "404-page", "html_handling": "auto-trailing-slash" },
+  "env": {
+    "staging": {
+      "name": "ahanassa-v11-static-staging",
+      "workers_dev": true,
+      "preview_urls": false
+    }
+  }
+}

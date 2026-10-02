@@ -9,7 +9,8 @@ import { PERSIAN_ALLOWLIST, scanPublicFile, stripAllowlisted } from "./leak-scan
 import { buildAssetsIgnoreFile, buildHeadersFile, buildRedirectsFile, renderRobotsTxt, renderSitemapXml } from "./static-rules.ts";
 import { moveDefaultLocaleToRoot, placeLocale404s, removeUnpublishedOutputs } from "./postprocess.ts";
 import { describeFiles, forbiddenPublicPath, REQUIRED_PUBLIC_FILES, runArtifactGate } from "./artifact-gate.ts";
-import { SECURITY_HEADERS } from "../security/headers.ts";
+import { buildSecurityHeaders } from "../security/headers.ts";
+import { STATIC_TARGETS } from "./targets.ts";
 import { toPublicPathname } from "../../config/locales.ts";
 import { toPublicRfqCatalogItem } from "../rfq/catalog-selector.ts";
 import { formatLocaleDigits } from "../content/locale-digits.ts";
@@ -70,12 +71,12 @@ test("A6 scan: forbidden commercial fields and foreign contact data are flagged;
 
 test("_headers is generated from lib/security/headers.ts (single source); staging adds noindex, production never", () => {
   for (const env of ["staging", "production"] as const) {
-    const file = buildHeadersFile(env);
-    for (const [name, value] of SECURITY_HEADERS) assert.ok(file.includes(`  ${name}: ${value}`), `${env}: ${name}`);
+    const file = buildHeadersFile(env, STATIC_TARGETS[env].rfqApiOrigin);
+    for (const [name, value] of buildSecurityHeaders([STATIC_TARGETS[env].rfqApiOrigin])) assert.ok(file.includes(`  ${name}: ${value}`), `${env}: ${name}`);
   }
-  assert.match(buildHeadersFile("staging"), /X-Robots-Tag: noindex, nofollow/);
-  assert.doesNotMatch(buildHeadersFile("production"), /noindex/i);
-  assert.match(read("lib/security/headers.ts"), /export function applySecurityHeaders[\s\S]*for \(const \[name, value\] of SECURITY_HEADERS\)/, "proxy.ts uses the same list");
+  assert.match(buildHeadersFile("staging", STATIC_TARGETS["staging"].rfqApiOrigin), /X-Robots-Tag: noindex, nofollow/);
+  assert.doesNotMatch(buildHeadersFile("production", STATIC_TARGETS["production"].rfqApiOrigin), /noindex/i);
+  assert.match(read("lib/security/headers.ts"), /export function applySecurityHeaders[\s\S]*for \(const \[name, value\] of SECURITY_HEADERS\)/, "proxy.ts uses the same builder");
 });
 
 test("_redirects keeps fa unprefixed and /request on /contact; .assetsignore excludes private/unpublished files", () => {
@@ -134,7 +135,7 @@ function buildArtifact(env: "staging" | "production" = "staging") {
   for (const f of ["404.html", "en/404.html", "ar/404.html"]) write(pub, f, "<html><body>404</body></html>");
   write(pub, "robots.txt", "User-Agent: *\nDisallow: /\n");
   write(pub, "sitemap.xml", renderSitemapXml([]));
-  write(pub, "_headers", buildHeadersFile(env));
+  write(pub, "_headers", buildHeadersFile(env, STATIC_TARGETS[env].rfqApiOrigin));
   write(pub, "_redirects", buildRedirectsFile());
   write(pub, ".assetsignore", buildAssetsIgnoreFile());
   write(pub, "manifest.public.json", JSON.stringify({ schema_version: "artifact.public.v1", snapshot_version: snap, generated_at: "t", locales: ["fa", "en", "ar"] }));
@@ -183,7 +184,7 @@ test("artifact gate: checksum drift, unlisted files and missing required files a
 
 test("artifact gate: staging must be noindex and never self-canonical; production must not be noindex", () => {
   const a = buildArtifact();
-  write(a.pub, "_headers", buildHeadersFile("production"));
+  write(a.pub, "_headers", buildHeadersFile("production", STATIC_TARGETS["production"].rfqApiOrigin));
   a.seal();
   assert.ok(runArtifactGate(a.dir).failures.some((f) => f.includes("staging must send X-Robots-Tag")));
   const b = buildArtifact();
@@ -192,7 +193,7 @@ test("artifact gate: staging must be noindex and never self-canonical; productio
   assert.ok(runArtifactGate(b.dir).failures.some((f) => f.includes("canonical not on https://www.ahanassa.com")));
   const c = buildArtifact("production");
   assert.deepEqual(runArtifactGate(c.dir).failures, []);
-  write(c.pub, "_headers", buildHeadersFile("staging"));
+  write(c.pub, "_headers", buildHeadersFile("staging", STATIC_TARGETS["staging"].rfqApiOrigin));
   c.seal();
   assert.ok(runArtifactGate(c.dir).failures.some((f) => f.includes("production must not send noindex")));
 });
@@ -270,4 +271,57 @@ test("static build: generated build root excludes Worker-only code and uses no C
   assert.doesNotMatch(vite, /@cloudflare\/vite-plugin|cdnAdapter|imagesOptimizer/);
   assert.match(read("scripts/static/next.config.static.ts"), /output: "export"/);
   assert.equal(crypto.createHash("sha256").update(read("next.config.ts")).digest("hex").length, 64, "the Worker build's next.config.ts is untouched by the static build");
+});
+
+// --- W2: per-target RFQ origin and CSP ----------------------------------------------------------
+
+test("W2: CSP connect-src is exactly 'self', Turnstile and the target's RFQ API origin", () => {
+  for (const env of ["staging", "production"] as const) {
+    const csp = /connect-src ([^;\n]*)/.exec(buildHeadersFile(env, STATIC_TARGETS[env].rfqApiOrigin))![1].split(" ");
+    assert.deepEqual(csp, ["'self'", "https://challenges.cloudflare.com", STATIC_TARGETS[env].rfqApiOrigin]);
+  }
+  assert.equal(STATIC_TARGETS.staging.rfqApiOrigin, "https://api-staging.ahanassa.com");
+  assert.equal(STATIC_TARGETS.production.rfqApiOrigin, "https://api.ahanassa.com");
+});
+
+test("W2 gate: a wrong connect-src or a /contact page posting elsewhere is refused", () => {
+  const a = buildArtifact();
+  write(a.pub, "_headers", buildHeadersFile("staging", "https://evil.example"));
+  a.seal();
+  assert.ok(runArtifactGate(a.dir).failures.some((f) => f.includes("CSP connect-src must be exactly")));
+  const b = buildArtifact();
+  write(b.pub, "contact.html", `<html><body><form></form><script>"/api/rfqs"</script></body></html>`);
+  b.seal();
+  assert.ok(runArtifactGate(b.dir).failures.some((f) => f.includes("contact.html: RFQ endpoint is not https://api-staging.ahanassa.com/api/rfqs")));
+  const c = buildArtifact();
+  write(c.pub, "contact.html", `<html><body><script>"https://api-staging.ahanassa.com/api/rfqs"</script></body></html>`);
+  c.seal();
+  assert.deepEqual(runArtifactGate(c.dir).failures, []);
+});
+
+test("W2: the production Turnstile site key in lib/static/targets.ts equals wrangler.jsonc env.production.vars", () => {
+  const wrangler = read("wrangler.jsonc");
+  assert.ok(wrangler.includes(`"NEXT_PUBLIC_TURNSTILE_SITE_KEY": "${STATIC_TARGETS.production.turnstileSiteKey}"`));
+});
+
+test("W2: the /contact form posts to the build-time RFQ origin and sends catalogSnapshotVersion from manifest.public.json", () => {
+  const page = read("app/[locale]/contact/page.tsx");
+  assert.match(page, /AHANASSA_RFQ_API_ORIGIN/);
+  assert.match(page, /rfqEndpoint=\{rfqSubmitEndpoint\(\)\}/);
+  const wrapper = read("components/contact/static-enquiry-form.tsx");
+  assert.match(wrapper, /fetch\(PUBLIC_MANIFEST_PATH\)/);
+  assert.match(wrapper, /catalogSnapshotVersion=\{snapshotVersion\}/);
+  const form = read("components/contact/enquiry-form.tsx");
+  assert.match(form, /await fetch\(rfqEndpoint, \{/);
+  assert.match(form, /\n\s+catalogSnapshotVersion,\n\s+\};/);
+  assert.match(form, /const idempotencyKeyRef = useRef\(generateIdempotencyKey\(\)\);/, "one key per new request, reused on retry");
+  assert.match(read("scripts/static/build.ts"), /AHANASSA_RFQ_API_ORIGIN: target\.rfqApiOrigin/);
+});
+
+test("W2 (A9 follow-up): structured data is in the page's locale; the Persian locality is no longer allowlisted", async () => {
+  assert.ok(!PERSIAN_ALLOWLIST.some((e) => e.text === "اصفهان"));
+  const schema = read("lib/seo/schema.ts");
+  assert.match(schema, /en: \{ streetAddress: "Hezar Jarib Street, Kooy Azadegan, No\. 6", addressLocality: "Isfahan" \}/);
+  assert.match(schema, /ar: \{ streetAddress: "شارع هزار جريب، حي آزادگان، رقم 6", addressLocality: "أصفهان" \}/);
+  assert.match(read("app/[locale]/page.tsx"), /organizationSchema\(locale\)/);
 });

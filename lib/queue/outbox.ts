@@ -15,45 +15,7 @@ import type { OdooSyncEvent } from "@/lib/queue/types";
  * workers/entry.ts `scheduled()`) recovers it.
  */
 
-export function buildRfqCreatedEvent(rfqId: string, correlationId: string): { event: OdooSyncEvent; row: OutboxRow } {
-  const eventId = ulid();
-  const occurredAt = new Date().toISOString();
-  const event: OdooSyncEvent = {
-    event_id: eventId,
-    event_type: "rfq.created",
-    aggregate_id: rfqId,
-    aggregate_version: 1,
-    occurred_at: occurredAt,
-    schema_version: 1,
-    correlation_id: correlationId,
-  };
-  const row: OutboxRow = {
-    eventId,
-    aggregateType: "rfq",
-    aggregateId: rfqId,
-    aggregateVersion: 1,
-    eventType: "rfq.created",
-    schemaVersion: 1,
-    correlationId,
-    payloadJson: JSON.stringify(event),
-    availableAt: occurredAt,
-    createdAt: occurredAt,
-  };
-  return { event, row };
-}
-
-export interface OutboxRow {
-  eventId: string;
-  aggregateType: string;
-  aggregateId: string;
-  aggregateVersion: number;
-  eventType: string;
-  schemaVersion: number;
-  correlationId: string;
-  payloadJson: string;
-  availableAt: string;
-  createdAt: string;
-}
+export { buildRfqCreatedEvent, type OutboxRow } from "./outbox-event.ts";
 
 /** Best-effort immediate publish. Never throws — caller must not fail the request if this fails. */
 export async function tryPublishOutboxEvent(event: OdooSyncEvent): Promise<boolean> {

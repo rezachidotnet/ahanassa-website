@@ -185,7 +185,7 @@ export default async function HomePage({ params }: PageProps) {
       <Industries locale={locale} />
       <FinalCta locale={locale} />
 
-      <JsonLd data={jsonLdGraph([organizationSchema(), websiteSchema()])} />
+      <JsonLd data={jsonLdGraph([organizationSchema(locale), websiteSchema()])} />
     </>
   );
 }

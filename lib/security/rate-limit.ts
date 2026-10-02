@@ -2,7 +2,7 @@
  * RFQ submission rate limiting — pure core (no `cloudflare:workers` import,
  * so it can run under plain `node --test`; see lib/security/rate-limit-binding.ts
  * for the real Cloudflare Workers Rate Limiting binding wrapper used by the
- * route handler, mirroring the split lib/odoo/client.ts already uses between
+ * route handler, mirroring the split the former lib/odoo/client.ts (removed in V1.1 W2) used between
  * protocol mechanics and env-sourced config).
  *
  * The `RFQ_RATE_LIMITER` binding (wrangler.jsonc `ratelimits`) is

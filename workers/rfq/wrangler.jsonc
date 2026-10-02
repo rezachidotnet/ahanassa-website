@@ -1,0 +1,51 @@
+// Standalone RFQ Worker (architecture V1.1 §4.3, §6; website W2).
+// Deploy: npx wrangler deploy --config workers/rfq/wrangler.jsonc --env staging
+// There is deliberately NO production environment in this file yet (W3+).
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ahanassa-v11-rfq-local",
+  "main": "index.ts",
+  "compatibility_date": "2026-08-26",
+  // nodejs_compat: libphonenumber/zod/Web Crypto helpers; global_fetch_strictly_public: the
+  // delivery fetch to the staging Odoo stub (same account, workers.dev) goes over the public route.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": false,
+  "observability": { "enabled": true },
+  "env": {
+    "staging": {
+      "name": "ahanassa-v11-rfq-staging",
+      "workers_dev": false,
+      "routes": [{ "pattern": "api-staging.ahanassa.com", "custom_domain": true }],
+      "d1_databases": [
+        { "binding": "DB_OPS", "database_name": "ahanassa-v11-ops-staging", "database_id": "938579c2-c28a-4765-a7da-86d9c198072f", "migrations_dir": "../../migrations" },
+        // Read-only use by the Worker (rfq_variant_index + publication_pointer, A8).
+        { "binding": "DB_PUBLIC", "database_name": "ahanassa-v11-public-staging", "database_id": "8902191f-3dd6-4714-a785-ac0149657ac3", "migrations_dir": "../../migrations_public" }
+      ],
+      "queues": {
+        "producers": [{ "binding": "RFQ_QUEUE", "queue": "ahanassa-v11-rfq-staging" }],
+        "consumers": [
+          // One message = one RFQ (A5). The D1 outbox stays authoritative; the DLQ only logs.
+          { "queue": "ahanassa-v11-rfq-staging", "max_batch_size": 1, "max_batch_timeout": 1, "max_retries": 3, "dead_letter_queue": "ahanassa-v11-rfq-staging-dlq" },
+          { "queue": "ahanassa-v11-rfq-staging-dlq", "max_batch_size": 1 }
+        ]
+      },
+      // Staging namespace; 20/60 s per client-IP key. Missing/failing binding -> 503 (fail-closed).
+      "ratelimits": [{ "name": "RFQ_RATE_LIMITER", "namespace_id": "1102", "simple": { "limit": 20, "period": 60 } }],
+      // Cron reconciler: one due RFQ per run (§6.4). Account cap: 5 triggers.
+      "triggers": { "crons": ["*/5 * * * *"] },
+      "vars": {
+        "APP_ENV": "staging",
+        "ALLOWED_ORIGINS": "https://ahanassa-v11-static-staging.nova-b1e6f0.workers.dev",
+        "TURNSTILE_EXPECTED_HOSTNAMES": "ahanassa-v11-static-staging.nova-b1e6f0.workers.dev",
+        // Staging NEVER delivers to production Odoo (§6.7): the contract stub.
+        "ODOO_BASE_URL": "https://ahanassa-v11-odoo-stub-staging.nova-b1e6f0.workers.dev",
+        "ODOO_INTAKE_V11": "1",
+        "DELIVERY_ON_QUEUE": "1",
+        "DELIVERY_ON_CRON": "1",
+        "QUEUE_FAST_PATH": "1",
+        "TEST_HOOKS": "1"
+      }
+      // Secrets (wrangler secret put --env staging): TURNSTILE_SECRET_KEY, ODOO_RFQ_API_TOKEN (= stub bearer), ADMIN_TOKEN.
+    }
+  }
+}

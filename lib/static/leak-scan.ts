@@ -23,9 +23,7 @@ export const PERSIAN_ALLOWLIST: ReadonlyArray<{ text: string; reason: string; so
   { text: "فارسی", reason: "language label", source: "config/locales.ts" },
   { text: "العربية", reason: "language label", source: "config/locales.ts" },
   { text: "اصفهان، خیابان هزارجریب، کوی آزادگان، پلاک 6", reason: "address (fa)", source: "components/layout/SiteFooter.tsx" },
-  { text: "خیابان هزارجریب، کوی آزادگان، پلاک 6", reason: "address (JSON-LD streetAddress)", source: "lib/seo/schema.ts" },
   { text: "آزادگان", reason: "address proper noun inside the ar address", source: "components/layout/SiteFooter.tsx" },
-  { text: "اصفهان", reason: "address locality (JSON-LD addressLocality)", source: "lib/seo/schema.ts" },
   { text: "صفحه مورد نظر یافت نشد.", reason: "trilingual 404 line", source: "app/[locale]/not-found.tsx" },
   { text: "الصفحة غير موجودة.", reason: "trilingual 404 line", source: "app/[locale]/not-found.tsx" },
 ];

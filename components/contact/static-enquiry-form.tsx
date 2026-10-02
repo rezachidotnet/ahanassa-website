@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { Locale } from "@/config/locales";
 import { EnquiryForm } from "@/components/contact/enquiry-form";
 import { findCatalogItemByXid, type PublicRfqCatalogItem } from "@/lib/rfq/catalog-selector";
-import { publicRfqCatalogPath } from "@/lib/contracts/public-paths";
+import { publicRfqCatalogPath, PUBLIC_MANIFEST_PATH } from "@/lib/contracts/public-paths";
 
 interface LoadedCatalog {
   items: PublicRfqCatalogItem[];
@@ -20,8 +20,11 @@ interface LoadedCatalog {
  * notice, never a fabricated selection. The RFQ endpoint re-validates every
  * submitted variant server-side.
  */
-export function StaticEnquiryForm({ locale, turnstileSiteKey }: { locale: Locale; turnstileSiteKey?: string }) {
+export function StaticEnquiryForm({ locale, turnstileSiteKey, rfqEndpoint }: { locale: Locale; turnstileSiteKey?: string; rfqEndpoint?: string }) {
   const [catalog, setCatalog] = useState<LoadedCatalog | null>(null);
+  // The deployed artifact's snapshot version (manifest.public.json) travels with the RFQ so the
+  // Worker validates variants against the snapshot the visitor actually saw (architecture §6.1 step 1).
+  const [snapshotVersion, setSnapshotVersion] = useState<string | null>(null);
   const [variantXid, setVariantXid] = useState<string | null>(null);
 
   useEffect(() => {
@@ -34,6 +37,14 @@ export function StaticEnquiryForm({ locale, turnstileSiteKey }: { locale: Locale
       })
       .catch(() => {
         // The form still works for free-form items without the catalog list.
+      });
+    fetch(PUBLIC_MANIFEST_PATH)
+      .then((response) => (response.ok ? (response.json() as Promise<{ snapshot_version?: unknown }>) : null))
+      .then((manifest) => {
+        if (!cancelled && manifest && typeof manifest.snapshot_version === "string") setSnapshotVersion(manifest.snapshot_version);
+      })
+      .catch(() => {
+        // Legacy SSR runtime: no manifest; the RFQ is validated against the active snapshot.
       });
     return () => {
       cancelled = true;
@@ -52,6 +63,8 @@ export function StaticEnquiryForm({ locale, turnstileSiteKey }: { locale: Locale
       catalogPreselection={preselection}
       catalogPreselectionInvalid={Boolean(catalog && variantXid && !preselection)}
       catalogItems={items}
+      catalogSnapshotVersion={snapshotVersion}
+      rfqEndpoint={rfqEndpoint}
     />
   );
 }

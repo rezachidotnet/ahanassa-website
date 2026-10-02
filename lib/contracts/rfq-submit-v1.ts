@@ -83,5 +83,6 @@ export const RFQ_SUBMIT_RESPONSES = [
 /** Allowed browser Origins per environment (exact match; no wildcard). */
 export const RFQ_SUBMIT_ALLOWED_ORIGINS = {
   production: ["https://www.ahanassa.com"],
-  staging: ["https://ahanassa-bootstrap-staging.nova-b1e6f0.workers.dev"],
+  // The v11 static staging site (assets-only Worker, W2).
+  staging: ["https://ahanassa-v11-static-staging.nova-b1e6f0.workers.dev"],
 } as const;

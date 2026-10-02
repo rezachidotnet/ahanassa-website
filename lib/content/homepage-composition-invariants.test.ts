@@ -546,7 +546,8 @@ test("structured data describes only the site itself, never omitted or invented 
   // "Hidden or omitted products, evidence, industries, or FAQs MUST NOT remain
   // represented as if visible and current." The Homepage emits Organization +
   // WebSite only — nothing derived from the conditional sections.
-  assert.match(PAGE_CODE, /jsonLdGraph\(\[organizationSchema\(\), websiteSchema\(\)\]\)/, "only Organization and WebSite are emitted");
+  // organizationSchema(locale): the address is emitted in the page's locale (architecture V1.1 A6).
+  assert.match(PAGE_CODE, /jsonLdGraph\(\[organizationSchema\(locale\), websiteSchema\(\)\]\)/, "only Organization and WebSite are emitted");
   for (const forbidden of ["ProductSchema", "productSchema", "faqSchema", "reviewSchema", "aggregateRating", "offerSchema"]) {
     assert.ok(!PAGE_CODE.includes(forbidden), `${forbidden} would describe content the Homepage does not reliably render`);
   }

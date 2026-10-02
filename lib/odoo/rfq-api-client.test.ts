@@ -4,7 +4,7 @@ import { postRfqToOdoo } from "./rfq-api-client.ts";
 import type { RfqApiRequest } from "./rfq-api-types.ts";
 
 /**
- * Client mechanics only — mocked HTTP, mirroring lib/odoo/adapter.test.ts's
+ * Client mechanics only — mocked HTTP, mirroring the former lib/odoo/adapter.test.ts (removed in V1.1 W2)
  * own established pattern. Real Odoo write testing is deliberately out of
  * scope (Phase 6B report's own verdict: "NOT READY FOR CLOUDFLARE RFQ
  * INTEGRATION" — no bearer secret is configured on the runtime yet). See

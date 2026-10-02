@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { artifactManifest, publicManifest, publicRfqCatalog, PRIVATE_DIR, PUBLIC_DIR, type ArtifactFileEntry } from "../contracts/artifact-v1.ts";
 import { scanPublicFile, type LeakFinding } from "./leak-scan.ts";
+import { STATIC_TARGETS, TURNSTILE_ORIGIN } from "./targets.ts";
 
 /**
  * artifact.v1 gate (architecture V1.1 §7.1 step 6, docs/contracts/ARTIFACT_V1.md).
@@ -130,6 +131,15 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
     const noindex = /X-Robots-Tag:\s*noindex, nofollow/.test(headers);
     if (parsed.data.environment === "staging" && !noindex) failures.push("_headers: staging must send X-Robots-Tag: noindex, nofollow");
     if (parsed.data.environment === "production" && /noindex/i.test(headers)) failures.push("_headers: production must not send noindex");
+    // CSP connect-src: exactly 'self', Turnstile and this target's RFQ API origin (architecture §6.1).
+    const origin = STATIC_TARGETS[parsed.data.environment].rfqApiOrigin;
+    const connect = /connect-src ([^;\n]*)/.exec(headers)?.[1]?.trim().split(/\s+/) ?? [];
+    const expected = ["'self'", TURNSTILE_ORIGIN, origin];
+    if (connect.length !== expected.length || expected.some((e) => !connect.includes(e))) failures.push(`_headers: CSP connect-src must be exactly ${expected.join(" ")} (got ${connect.join(" ") || "none"})`);
+    // The static /contact posts to that same origin, in every locale.
+    for (const page of ["contact.html", "en/contact.html", "ar/contact.html"]) {
+      if (publicPaths.has(page) && !readPublic(page).includes(`${origin}/api/rfqs`)) failures.push(`${page}: RFQ endpoint is not ${origin}/api/rfqs`);
+    }
   }
 
   // 5. Leak scan over every public text file.

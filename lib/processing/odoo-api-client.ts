@@ -24,7 +24,7 @@ import { getOdooProcessingApiBaseUrl } from "../env.ts";
  * this same transport layer but its `sync-runner.ts` never passes
  * `ifNoneMatch`; Processing's `sync-runner.ts` does, since P5 requires it).
  *
- * Deliberately does NOT use `lib/odoo/client.ts` (the generic JSON-2 RPC
+ * Deliberately does NOT use the former `lib/odoo/client.ts` (legacy JSON-RPC, removed in V1.1 W2) (the generic JSON-2 RPC
  * transport) for the same reason the Catalog client doesn't — a dedicated,
  * narrow, documented-contract HTTP client only, never generic Odoo ORM
  * access from the website (CLAUDE.md catalog/pricing row, DAR-034).

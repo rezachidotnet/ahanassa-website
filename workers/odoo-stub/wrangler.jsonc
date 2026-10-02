@@ -1,0 +1,20 @@
+// Odoo RFQ intake contract stub — STAGING ONLY (architecture V1.1 §6.7). workers.dev only.
+// Deploy: npx wrangler deploy --config workers/odoo-stub/wrangler.jsonc --env staging
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ahanassa-v11-odoo-stub-local",
+  "main": "index.ts",
+  "compatibility_date": "2026-08-26",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "observability": { "enabled": true },
+  "env": {
+    "staging": {
+      "name": "ahanassa-v11-odoo-stub-staging",
+      "workers_dev": true,
+      "preview_urls": false,
+      "d1_databases": [{ "binding": "STUB_DB", "database_name": "ahanassa-v11-odoo-stub-staging", "database_id": "fc5b70a1-122a-482e-b4d9-d4c51fa4bfd2", "migrations_dir": "." }]
+      // Secrets: STUB_BEARER (= the RFQ Worker's staging ODOO_RFQ_API_TOKEN), CONTROL_TOKEN.
+    }
+  }
+}

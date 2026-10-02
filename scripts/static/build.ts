@@ -26,6 +26,7 @@ import { buildAssetsIgnoreFile, buildHeadersFile, buildRedirectsFile, renderRobo
 import { moveDefaultLocaleToRoot, placeLocale404s, removeUnpublishedOutputs } from "../../lib/static/postprocess.ts";
 import { describeFiles, runArtifactGate } from "../../lib/static/artifact-gate.ts";
 import { getAllowedUomsForCatalogGroup } from "../../lib/rfq/uom-policy.ts";
+import { STATIC_TARGETS } from "../../lib/static/targets.ts";
 
 const repo = path.resolve(import.meta.dirname, "../..");
 const args = new Map<string, string>();
@@ -64,9 +65,9 @@ fs.copyFileSync(path.join(repo, "scripts/static/vite.config.static.ts"), path.jo
 fs.copyFileSync(path.join(repo, "scripts/static/next.config.static.ts"), path.join(buildRoot, "next.config.ts"));
 fs.symlinkSync(path.join(repo, "node_modules"), path.join(buildRoot, "node_modules"), "dir");
 
-// Turnstile site key: the environment's public key from wrangler.jsonc (single source); none configured -> none.
-const wrangler = JSON.parse(fs.readFileSync(path.join(repo, "wrangler.jsonc"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, ""));
-const turnstileSiteKey: string | undefined = wrangler.env?.[environment]?.vars?.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+// Per-target public values (lib/static/targets.ts): RFQ Worker origin and Turnstile site key.
+const target = STATIC_TARGETS[environment];
+const turnstileSiteKey = target.turnstileSiteKey;
 
 const buildEnv: NodeJS.ProcessEnv = {
   ...process.env,
@@ -74,6 +75,7 @@ const buildEnv: NodeJS.ProcessEnv = {
   AHANASSA_SNAPSHOT_FILE: snapshotFile,
   AHANASSA_MIGRATIONS_DIR: path.join(buildRoot, "migrations_public"),
   APP_ENV: environment,
+  AHANASSA_RFQ_API_ORIGIN: target.rfqApiOrigin,
   __VINEXT_IMAGE_UNOPTIMIZED: "true",
 };
 delete buildEnv.APP_BASE_URL; // canonical URLs always use the production origin (§4.2, R2-4)
@@ -142,7 +144,7 @@ fs.writeFileSync(path.join(publicDir, "sitemap.xml"), renderSitemapXml(sitemapEn
 counts.sitemap_urls = sitemapEntries.length;
 await vite.close();
 
-fs.writeFileSync(path.join(publicDir, "_headers"), buildHeadersFile(environment));
+fs.writeFileSync(path.join(publicDir, "_headers"), buildHeadersFile(environment, target.rfqApiOrigin));
 fs.writeFileSync(path.join(publicDir, "_redirects"), buildRedirectsFile());
 fs.writeFileSync(path.join(publicDir, ".assetsignore"), buildAssetsIgnoreFile());
 fs.writeFileSync(

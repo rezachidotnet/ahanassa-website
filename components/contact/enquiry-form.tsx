@@ -240,6 +240,8 @@ export function EnquiryForm({
   catalogPreselection = null,
   catalogPreselectionInvalid = false,
   catalogItems = [],
+  catalogSnapshotVersion = null,
+  rfqEndpoint = "/api/rfqs",
 }: {
   locale: Locale;
   turnstileSiteKey?: string;
@@ -249,6 +251,10 @@ export function EnquiryForm({
   catalogPreselectionInvalid?: boolean;
   /** Every RFQ-selectable Catalog Variant for this locale (`/data/rfq-catalog.<locale>.json`), loaded once and shared across every Catalog row's selects — never re-fetched per row (docs/RFQ_MULTI_ITEM_FORM.md "Performance"). */
   catalogItems?: PublicRfqCatalogItem[];
+  /** snapshot.v1 version of the deployed static catalog (manifest.public.json); null on the legacy SSR runtime. */
+  catalogSnapshotVersion?: string | null;
+  /** rfq_submit.v1 endpoint: the RFQ Worker origin + /api/rfqs on the static site; same-origin /api/rfqs on the legacy SSR runtime. */
+  rfqEndpoint?: string;
 }) {
   const [status, setStatus] = useState<Status>("idle");
   const [reference, setReference] = useState<string | null>(null);
@@ -412,13 +418,14 @@ export function EnquiryForm({
       website: String(data.get("website") ?? ""),
       formRenderedAt: formRenderedAtRef.current,
       turnstileToken: turnstileToken ?? undefined,
+      catalogSnapshotVersion,
     };
 
     setStatus("submitting");
     setErrorMessage(null);
 
     try {
-      const res = await fetch("/api/rfqs", {
+      const res = await fetch(rfqEndpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),

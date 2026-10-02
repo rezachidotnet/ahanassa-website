@@ -6,7 +6,7 @@ import type { RfqApiErrorBody, RfqApiOutcome, RfqApiRequest, RfqApiSuccessBody }
  * (docs/integrations/odoo/rfq-v1/RFQ_API_CONTRACT_V1.md,
  * DOCUMENT_AUDIT_REPORT.md DAR-041). This is a narrow, typed client for
  * exactly this one route — never generic Odoo ORM/model access (that
- * remains `lib/odoo/client.ts`, scoped to the legacy, no-longer-used-for-
+ * remains the former `lib/odoo/client.ts` (legacy JSON-RPC, removed in V1.1 W2), scoped to the legacy, no-longer-used-for-
  * RFQ-delivery `crm.lead` path — see docs/ODOO_RFQ_API_INTEGRATION.md).
  *
  * Server-to-server only, matching the contract's own stated boundary — this

@@ -13,7 +13,7 @@ import type { RfqApiOutcome } from "@/lib/odoo/rfq-api-types";
  * Delivers to the canonical Odoo Public RFQ Intake API v1 (`POST
  * /api/v1/rfq`, docs/integrations/odoo/rfq-v1/RFQ_API_CONTRACT_V1.md,
  * DOCUMENT_AUDIT_REPORT.md DAR-041) — never the legacy generic-ORM
- * `crm.lead` path (`lib/odoo/adapter.ts`, now deprecated for RFQ delivery;
+ * `crm.lead` path (the former `lib/odoo/adapter.ts`, removed in V1.1 W2;
  * still used by nothing else, kept only for historical readability, see its
  * own file header). `ahanassa.rfq`/`ahanassa.rfq.line` creation is the only
  * Odoo side effect of this consumer; CRM opportunity creation is a private,
