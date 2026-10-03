@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import type { Locale } from "@/config/locales";
 import type { RfqItemInput } from "@/lib/rfq/types";
 import type { RfqCatalogSelection } from "@/lib/catalog/editorial-repository";
+import { createIdempotencyKeyLifecycle } from "@/lib/rfq/idempotency-key-lifecycle";
 import { TURNSTILE_RFQ_ACTION } from "@/lib/security/turnstile-action";
 import { findCatalogItemByXid, groupCatalogItemsForSelector, type PublicRfqCatalogItem } from "@/lib/rfq/catalog-selector";
 import {
@@ -275,7 +276,7 @@ export function EnquiryForm({
       : createEmptyCatalogRow(),
   ]);
   const [rowErrors, setRowErrors] = useState<Record<string, RfqRowFieldKey[]>>({});
-  const idempotencyKeyRef = useRef(generateIdempotencyKey());
+  const idempotencyKeyRef = useRef(createIdempotencyKeyLifecycle(generateIdempotencyKey));
   const formRenderedAtRef = useRef(Date.now());
   const turnstileContainerRef = useRef<HTMLDivElement>(null);
   const turnstileWidgetIdRef = useRef<string | null>(null);
@@ -370,7 +371,7 @@ export function EnquiryForm({
 
   /** W3.2: regenerate idempotency key when payload changes (any form field edits). */
   function regenerateIdempotencyKey() {
-    idempotencyKeyRef.current = generateIdempotencyKey();
+    idempotencyKeyRef.current.payloadEdited();
   }
 
   const handlePhoneCountryChange = useCallback(
@@ -455,7 +456,7 @@ export function EnquiryForm({
     const items: RfqItemInput[] = rows.map((row) => buildRfqItemInput(row.fields, locale)).filter((item): item is RfqItemInput => item !== null);
 
     const payload = {
-      idempotencyKey: idempotencyKeyRef.current,
+      idempotencyKey: idempotencyKeyRef.current.current(),
       locale,
       fullName: String(data.get("name") ?? ""),
       companyName: String(data.get("company") ?? ""),
@@ -507,7 +508,7 @@ export function EnquiryForm({
   }
 
   function startNewRequest() {
-    idempotencyKeyRef.current = generateIdempotencyKey();
+    idempotencyKeyRef.current.startNewRequest();
     formRenderedAtRef.current = Date.now();
     setStatus("idle");
     setReference(null);

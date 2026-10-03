@@ -286,6 +286,44 @@ test("W3.2: invalid idempotencyKey is rejected before contract check", async () 
   assert.equal(turnstileCalls, 0);
 });
 
+// --- W3.2.1: replay never needs a valid token, never spends the rate limit ----------
+
+const turnstileRejects = (() => Response.json({ success: false, "error-codes": ["timeout-or-duplicate"] })) as unknown as typeof fetch;
+
+test("W3.2.1: replay does not consume the rate limit (and survives a limiter that would now say no)", async () => {
+  let limitCalls = 0;
+  const counting = { limit: async () => (limitCalls++, { success: limitCalls === 1 }) };
+  const { env } = setup({ RFQ_RATE_LIMITER: counting });
+  const first = await handleRfqSubmit(post(body()), env, { fetchImpl: turnstileOk() });
+  assert.equal(first.status, 201);
+  assert.equal(limitCalls, 1);
+  for (let i = 0; i < 3; i++) {
+    const replay = await handleRfqSubmit(post(body({ turnstileToken: `spent-${i}` })), env, { fetchImpl: turnstileRejects });
+    assert.equal(replay.status, 200);
+  }
+  assert.equal(limitCalls, 1, "replays never touch the limiter");
+});
+
+test("W3.2.1: unknown key + invalid token -> 403, nothing stored", async () => {
+  const { env, ops } = setup();
+  const res = await handleRfqSubmit(post(body({ turnstileToken: "bad" })), env, { fetchImpl: turnstileRejects });
+  assert.equal(res.status, 403);
+  assert.equal((await jsonOf(res)).code, "VERIFICATION_FAILED");
+  assert.equal((ops.sqlite.prepare(`SELECT COUNT(*) AS n FROM rfqs`).get() as { n: number }).n, 0);
+});
+
+test("W3.2.1: replay with a token Siteverify would reject -> 200 with the same reference; changed field + same key + rejected token -> 409", async () => {
+  const { env } = setup();
+  const first = await handleRfqSubmit(post(body()), env, { fetchImpl: turnstileOk() });
+  assert.equal(first.status, 201);
+  const ref = (await jsonOf(first)).reference;
+  const replay = await handleRfqSubmit(post(body({ turnstileToken: "consumed-or-invalid" })), env, { fetchImpl: turnstileRejects });
+  assert.equal(replay.status, 200);
+  assert.equal((await jsonOf(replay)).reference, ref);
+  const conflict = await handleRfqSubmit(post(body({ message: "changed", turnstileToken: "consumed-or-invalid" })), env, { fetchImpl: turnstileRejects });
+  assert.equal(conflict.status, 409);
+});
+
 test("the intake write is one atomic batch: a failing statement leaves no RFQ, line, contact or outbox row", async () => {
   const ops = new SqliteD1([OPS_MIGRATIONS]);
   const validated = validateRfqSubmission(body());

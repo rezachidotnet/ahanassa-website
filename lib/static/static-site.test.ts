@@ -315,7 +315,7 @@ test("W2: the /contact form posts to the build-time RFQ origin and sends catalog
   assert.match(form, /await submitRfqWithRetry\(rfqEndpoint, payload\)/, "W3.1: posts via the bounded-retry helper, same payload/key on every attempt");
   assert.match(read("lib/rfq/submit-with-retry.ts"), /await doFetch\(endpoint, \{ method: "POST"/);
   assert.match(form, /\n\s+catalogSnapshotVersion,\n\s+\};/);
-  assert.match(form, /const idempotencyKeyRef = useRef\(generateIdempotencyKey\(\)\);/, "one key per new request, reused on retry");
+  assert.match(form, /const idempotencyKeyRef = useRef\(createIdempotencyKeyLifecycle\(generateIdempotencyKey\)\);/, "one key per draft, kept across retries (W3.2.1 lifecycle)");
   assert.match(read("scripts/static/build.ts"), /AHANASSA_RFQ_API_ORIGIN: target\.rfqApiOrigin/);
 });
 
