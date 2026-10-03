@@ -32,9 +32,16 @@ the DB_PUBLIC load and the RFQ Worker's `rfq_variant_index`. Code twin: `lib/con
   Optional (default `[]`): route redirects, homepage rank, group labels. Sync-state/lease tables are
   internal and never in a snapshot.
 - **Integrity:** every variant's `product_id` and every product SEO row's `entity_id` must exist.
-- **`snapshot_version`** = `snap-` + first 16 hex of SHA-256 over the canonical tables JSON (tables in the
-  order above, keys sorted, rows sorted by their JSON text). It is derived from the content: the same
-  data always gives the same version; a document whose version does not match its content is rejected.
+- **Content hash** = SHA-256 over the canonical tables JSON (tables in the order above, keys sorted, rows
+  sorted by their JSON text).
+- **`snapshot_version`**, two forms (both match `snap-<16 hex>`, so `rfq_submit.v1`, the RFQ Worker and the
+  `publication_state` CHECK are unchanged):
+  - **pipeline (W4)**: assigned and **monotonic**, `snap-YYYYMMDDHHMMSSnn` (UTC publish time + sequence,
+    decimal digits only; `lib/content-pipeline/version.ts`), always newer than every pipeline version in
+    `publication_state`; the document carries `content_sha256` (the full content hash) and is rejected if
+    it does not match its content. `created_at` = the time the version encodes.
+  - **legacy (W1 fixture)**: no `content_sha256`; the version is `snap-` + the first 16 hex of the content
+    hash and must match it.
 - **Counts** (`snapshotCounts`) go into the artifact manifest; the abnormal-drop gate (§7.1 step 2,
   > 20 % [parameter]) compares them with the previous active snapshot (pipeline task, not W1).
 - No PII; only Odoo-published public data. A snapshot lives in `private-snapshot/` (CI only), never in
@@ -68,7 +75,9 @@ query per submission (DB_PUBLIC, read-only binding). The static build writes the
 
 ## Sources
 
-- Production: Odoo full fetch in CI (`/api/v1/catalog/categories`, catalog, processing groups) — pipeline task.
+- Production: Odoo full fetch in CI (`/api/v1/catalog/{meta,categories,products}`, `/api/v1/processing/groups`)
+  merged with the Website-owned editorial layer read from DB_PUBLIC — `scripts/content/*`,
+  `docs/CONTENT_PUBLICATION_PIPELINE.md` (W4).
 - Fixture/dev: `node scripts/static/snapshot-from-d1-export.ts <export.sql> <out.json> "<description>"`
   from a read-only `wrangler d1 export`. Committed fixture:
   `fixtures/snapshot/staging-2026-10-01.snapshot.json` (`snap-e55d81c754270c1f`; staging DB_PUBLIC

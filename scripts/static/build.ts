@@ -2,7 +2,7 @@
  * Static site build (architecture V1.1 §7.1 steps 4–6; contracts
  * docs/contracts/SNAPSHOT_V1.md and ARTIFACT_V1.md).
  *
- *   npm run build:static -- --snapshot <snapshot.v1.json> --target staging|production [--out .artifact]
+ *   npm run build:static -- --snapshot <snapshot.v1.json> --target staging|production [--out .artifact] [--pipeline <info.json>]
  *
  * 1. Validates the snapshot (zod + content-derived version).
  * 2. Generates .static-build/ — a copy of the app WITHOUT wrangler.jsonc,
@@ -21,7 +21,7 @@ import path from "node:path";
 import { createServer } from "vite";
 import { readSnapshotFile } from "../../lib/static/snapshot-io.ts";
 import { snapshotCounts, rfqVariantIndexRow, type RfqVariantIndexRow } from "../../lib/contracts/snapshot-v1.ts";
-import { artifactManifest, publicManifest, publicRfqCatalog, PUBLIC_DIR, PRIVATE_DIR, ARTIFACT_SCHEMA_VERSION } from "../../lib/contracts/artifact-v1.ts";
+import { artifactManifest, artifactPipelineInfo, publicManifest, publicRfqCatalog, PUBLIC_DIR, PRIVATE_DIR, ARTIFACT_SCHEMA_VERSION } from "../../lib/contracts/artifact-v1.ts";
 import { buildAssetsIgnoreFile, buildHeadersFile, buildRedirectsFile, renderRobotsTxt, renderSitemapXml, type StaticEnvironment } from "../../lib/static/static-rules.ts";
 import { moveDefaultLocaleToRoot, placeLocale404s, removeUnpublishedOutputs } from "../../lib/static/postprocess.ts";
 import { describeFiles, runArtifactGate } from "../../lib/static/artifact-gate.ts";
@@ -43,6 +43,10 @@ const snapshotFile = path.resolve(repo, snapshotArg);
 const snapshot = readSnapshotFile(snapshotFile);
 const codeSha = execSync("git rev-parse HEAD", { cwd: repo }).toString().trim();
 const generatedAt = new Date().toISOString();
+// Content pipeline (W4, scripts/content/export.ts): provenance + source counts recorded in the PRIVATE manifest.
+const pipelineArg = args.get("pipeline");
+const pipeline = pipelineArg ? (JSON.parse(fs.readFileSync(path.resolve(repo, pipelineArg), "utf8")) as { info: unknown; counts: Record<string, number> }) : null;
+const pipelineInfo = pipeline ? artifactPipelineInfo.parse(pipeline.info) : undefined;
 const log = (msg: string) => console.log(`[static] ${msg}`);
 log(`snapshot ${snapshot.snapshot_version} (${snapshot.source.kind}); target ${environment}; code ${codeSha}`);
 
@@ -76,6 +80,8 @@ const buildEnv: NodeJS.ProcessEnv = {
   AHANASSA_MIGRATIONS_DIR: path.join(buildRoot, "migrations_public"),
   APP_ENV: environment,
   AHANASSA_RFQ_API_ORIGIN: target.rfqApiOrigin,
+  // Deterministic vinext build id (next.config.static.ts#generateBuildId): same code -> same chunk names.
+  AHANASSA_STATIC_BUILD_ID: `static-${codeSha.slice(0, 12)}`,
   __VINEXT_IMAGE_UNOPTIMIZED: "true",
 };
 delete buildEnv.APP_BASE_URL; // canonical URLs always use the production origin (§4.2, R2-4)
@@ -118,7 +124,7 @@ const { CONTACT_PHONE_E164 } = await load("lib/content/contact-channels.ts");
 
 fs.mkdirSync(path.join(publicDir, "data"), { recursive: true });
 const indexRows: RfqVariantIndexRow[] = [];
-const counts: Record<string, number> = { ...snapshotCounts(snapshot) };
+const counts: Record<string, number> = { ...snapshotCounts(snapshot), ...(pipeline?.counts ?? {}) };
 for (const locale of locales) {
   const catalog = publicRfqCatalog.parse(await buildPublicRfqCatalog(locale, snapshot.snapshot_version));
   fs.writeFileSync(path.join(publicDir, `data/rfq-catalog.${locale}.json`), JSON.stringify(catalog));
@@ -147,9 +153,10 @@ await vite.close();
 fs.writeFileSync(path.join(publicDir, "_headers"), buildHeadersFile(environment, target.rfqApiOrigin));
 fs.writeFileSync(path.join(publicDir, "_redirects"), buildRedirectsFile());
 fs.writeFileSync(path.join(publicDir, ".assetsignore"), buildAssetsIgnoreFile());
+// generated_at = the snapshot's own time, so the same snapshot always gives byte-identical public files (W4 determinism).
 fs.writeFileSync(
   path.join(publicDir, "manifest.public.json"),
-  JSON.stringify(publicManifest.parse({ schema_version: "artifact.public.v1", snapshot_version: snapshot.snapshot_version, generated_at: generatedAt, locales: [...locales] })),
+  JSON.stringify(publicManifest.parse({ schema_version: "artifact.public.v1", snapshot_version: snapshot.snapshot_version, generated_at: snapshot.created_at, locales: [...locales] })),
 );
 
 // private-snapshot/
@@ -171,6 +178,7 @@ const manifest = artifactManifest.parse({
   environment,
   generated_at: generatedAt,
   counts,
+  ...(pipelineInfo ? { pipeline: pipelineInfo } : {}),
   public_assets: describeFiles(publicDir),
   private_snapshot: describeFiles(privateDir),
 });

@@ -27,7 +27,7 @@ export function CatalogTemplateGrid({ locale, templates }: { locale: Locale; tem
 
         <ul className="border-border grid gap-px border-t border-s sm:grid-cols-2 lg:grid-cols-3">
           {templates.map(({ product, seo, eligibleVariantCount }) => (
-            <li key={product.id}>
+            <li key={product.templateXid}>
               <Link
                 href={localizedPath(locale, `/products/${seo.slug}`)}
                 className="group border-border bg-background hover:bg-surface flex h-full flex-col gap-4 border-e border-b p-6 transition-colors"

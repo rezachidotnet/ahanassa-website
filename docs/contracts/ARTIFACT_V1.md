@@ -33,14 +33,16 @@ The artifact is not committed (`.artifact*/` is ignored).
 | `code_sha` | 40-hex commit the artifact was built from |
 | `snapshot_version` | the snapshot's version |
 | `environment` | `staging` \| `production` — build flags only (robots, `X-Robots-Tag`, Turnstile site key) |
-| `generated_at` | ISO time |
-| `counts` | snapshot table counts, `rfq_catalog_<locale>`, `sitemap_urls`, `rfq_variant_index_rows` |
+| `generated_at` | ISO time of the build |
+| `counts` | snapshot table counts, `rfq_catalog_<locale>`, `sitemap_urls`, `rfq_variant_index_rows`; pipeline builds add the gated source counts (`variants_active`, `templates_active`, `categories_<locale>`, `processing_groups_<locale>`, `published_templates_<locale>`, …) |
+| `pipeline` | optional (W4, content-pipeline builds only): `content_sha256`, source kind, `fetched_at`, Odoo request count/duration, `previous_active_version`, `decrease_threshold`, **`allow_decrease`** and the `overridden_decreases`, GitHub run id/url/ref/event |
 | `public_assets[]`, `private_snapshot[]` | `{path, bytes, sha256}` for **every** file, relative to its part |
 
 ## `manifest.public.json` (public)
 
 `{"schema_version": "artifact.public.v1", "snapshot_version", "generated_at", "locales"}` — strict; no
-commit SHA, counts or file list.
+commit SHA, counts or file list. `generated_at` is the snapshot's own `created_at` (W4), so the same snapshot
+always yields the same bytes.
 
 ## `data/rfq-catalog.<locale>.json` (public)
 
@@ -66,6 +68,11 @@ extra), with matching `bytes` and `sha256`. Production deploys only an artifact 
    purchase price, …) as a JSON key; no server-only field in public JSON; no e-mail/phone other than the
    company's; no Persian on en/ar pages or en/ar JSON outside the explicit allowlist (brand name,
    tagline, language labels, address, trilingual 404 line — each tied to its source file by a test).
+6. Publication gate (`lib/static/publication-gate.ts`, W4): only the known public JSON files exist and
+   every key in them is on that file's allowlist (from the strict contracts); JSON-LD uses only the
+   allowed types/properties (Organization, WebSite, BreadcrumbList, `Product` **without** offers/price);
+   no DB_PUBLIC row id (from `private-snapshot/snapshot.json`) and no legacy Odoo XID anywhere in public
+   text; no rendered `null`/`undefined`/`NaN`/`[object Object]` (empty Odoo fields are not rendered, §8.2).
 
 `.assetsignore` additionally excludes `.vite/`, `*.rsc`, `*.sql`, `private-snapshot/`, `manifest.json`
 at upload time (defence in depth).
@@ -77,3 +84,9 @@ npm run build:static -- --snapshot <snapshot.v1.json> --target staging|productio
 npm run static:gate -- <artifactDir>
 npm run static:hydration -- <artifactDir>/public-assets [--all]
 ```
+
+**Determinism (W4).** The vinext build id and deployment id are pinned to `static-<code sha 12>`
+(`scripts/static/next.config.static.ts`); vinext's default is a random UUID per build, which changed every
+chunk name and therefore every HTML file. With the pin, the same code + the same snapshot content give
+byte-identical `public-assets/` except the version stamp in `manifest.public.json` and
+`data/rfq-catalog.<locale>.json` (`scripts/content/compare-artifacts.ts`).

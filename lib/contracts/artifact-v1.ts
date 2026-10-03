@@ -25,6 +25,27 @@ const relPath = z.string().regex(/^[^/].*/).refine((p) => !p.split("/").includes
 export const artifactFileEntry = z.object({ path: relPath, bytes: z.number().int().nonnegative(), sha256: sha256Hex }).strict();
 export type ArtifactFileEntry = z.infer<typeof artifactFileEntry>;
 
+/**
+ * Content-pipeline provenance (W4, architecture V1.1 §7.1): present on every artifact built by
+ * scripts/content/*, absent on fixture builds. PRIVATE (manifest.json only).
+ */
+export const artifactPipelineInfo = z
+  .object({
+    content_sha256: sha256Hex,
+    source_kind: z.enum(["odoo_full_fetch", "d1_export"]),
+    fetched_at: z.string(),
+    odoo_requests: z.number().int().nonnegative(),
+    odoo_duration_ms: z.number().int().nonnegative(),
+    previous_active_version: z.string().nullable(),
+    decrease_threshold: z.number(),
+    /** The workflow_dispatch override of the decrease gate (§7.1 step 2), and what it overrode. */
+    allow_decrease: z.boolean(),
+    overridden_decreases: z.array(z.object({ key: z.string(), previous: z.number(), current: z.number() }).strict()),
+    run: z.object({ id: z.string().nullable(), url: z.string().nullable(), ref: z.string().nullable(), event: z.string().nullable() }).strict(),
+  })
+  .strict();
+export type ArtifactPipelineInfo = z.infer<typeof artifactPipelineInfo>;
+
 export const artifactManifest = z
   .object({
     schema_version: z.literal(ARTIFACT_SCHEMA_VERSION),
@@ -33,6 +54,7 @@ export const artifactManifest = z
     environment: z.enum(["staging", "production"]),
     generated_at: z.string(),
     counts: z.record(z.string(), z.number().int().nonnegative()),
+    pipeline: artifactPipelineInfo.optional(),
     public_assets: z.array(artifactFileEntry),
     private_snapshot: z.array(artifactFileEntry),
   })

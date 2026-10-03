@@ -31,13 +31,28 @@ export function removeUnpublishedOutputs(dir: string): string[] {
 }
 
 /** V4: the build-only `static-404` page of each locale becomes that locale's 404.html (fa at the root). */
+/**
+ * The build-only `/<locale>/static-404` route is never served, but the 404 page's language switcher
+ * links to "the same page" in each locale, i.e. that route (W4 link check). Point those links (also in
+ * the inline RSC payload) at each locale's home page instead.
+ */
+export function rewriteStatic404Links(html: string, locales: readonly string[], defaultLocale: string): string {
+  // Only quoted URL values (attributes, and \"…\" inside the inline RSC payload).
+  return html.replace(/(["'])(\/[a-z]{2})?\/static-404(?=\\?["'])/g, (match, quote: string, prefix: string | undefined) => {
+    const locale = prefix?.slice(1) ?? defaultLocale;
+    if (!locales.includes(locale)) return match;
+    return `${quote}${locale === defaultLocale ? "/" : `/${locale}`}`;
+  });
+}
+
 export function placeLocale404s(dir: string, locales: readonly string[], defaultLocale: string): void {
   for (const locale of locales) {
     const source = path.join(dir, locale, "static-404.html");
     if (!fs.existsSync(source)) throw new Error(`static-404 page missing for ${locale}`);
     const target = locale === defaultLocale ? path.join(dir, "404.html") : path.join(dir, locale, "404.html");
     fs.rmSync(target, { force: true });
-    fs.renameSync(source, target);
+    fs.writeFileSync(target, rewriteStatic404Links(fs.readFileSync(source, "utf8"), locales, defaultLocale));
+    fs.rmSync(source);
     fs.rmSync(path.join(dir, locale, "static-404"), { recursive: true, force: true });
   }
 }

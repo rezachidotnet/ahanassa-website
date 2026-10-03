@@ -95,6 +95,23 @@ export function breadcrumbListSchema(items: BreadcrumbItem[]) {
   };
 }
 
+/**
+ * `Product` WITHOUT price/offer (architecture V1.1 §12; 01-sources/STRUCTURED_DATA.md §7.3, §12.2,
+ * §12.4) for a published product (template) detail page only — never on category pages. Only fields
+ * the page visibly renders: the heading (`name`), the intro (`description`) and the page URL. No `sku`
+ * (the page lists many variants), no `brand`/`manufacturer` (Ahan Asa procures, it does not make), no
+ * internal id as `@id`, and never `offers`/`price` (public pricing is off, §8.4).
+ */
+export function productSchema(input: { url: string; name: string; description: string | null }) {
+  return {
+    "@type": "Product",
+    "@id": `${input.url}#product`,
+    name: input.name,
+    ...(input.description ? { description: input.description } : {}),
+    url: input.url,
+  };
+}
+
 /** Wraps one or more schema nodes in a top-level @graph with shared @context. */
 export function jsonLdGraph(nodes: object[]) {
   return {

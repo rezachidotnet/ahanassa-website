@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { artifactManifest, publicManifest, publicRfqCatalog, PRIVATE_DIR, PUBLIC_DIR, type ArtifactFileEntry } from "../contracts/artifact-v1.ts";
 import { scanPublicFile, type LeakFinding } from "./leak-scan.ts";
+import { internalIdsFromSnapshot, scanPublication } from "./publication-gate.ts";
 import { STATIC_TARGETS, TURNSTILE_ORIGIN } from "./targets.ts";
 
 /**
@@ -149,6 +150,17 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
     leaks.push(...scanPublicFile(e.path, readPublic(e.path), options.companyPhones ?? []));
   }
   for (const l of leaks) failures.push(`leak ${l.kind} in ${l.file}: ${l.match}`);
+
+  // 6. Publication gate (W4): public JSON field allowlist, JSON-LD allowlist (Product without price),
+  //    no internal ids, no rendered empty values.
+  let snapshotDoc: unknown = null;
+  try {
+    snapshotDoc = JSON.parse(fs.readFileSync(path.join(privateDir, "snapshot.json"), "utf8"));
+  } catch {
+    failures.push(`${PRIVATE_DIR}/snapshot.json missing or unreadable (needed for the internal-id scan)`);
+  }
+  const textFiles = publicEntries.filter((e) => /\.(html|json|txt|xml|js|css)$/.test(e.path)).map((e) => ({ path: e.path, content: readPublic(e.path) }));
+  for (const f of scanPublication(textFiles, internalIdsFromSnapshot(snapshotDoc))) failures.push(`publication ${f.kind} in ${f.file}: ${f.match}`);
 
   const largest = publicEntries.reduce<ArtifactFileEntry | null>((a, b) => (!a || b.bytes > a.bytes ? b : a), null);
   return { failures, leaks, stats: { publicFiles: publicEntries.length, privateFiles: privateEntries.length, htmlPages: htmlFiles.length, largestPublicFile: largest ? { path: largest.path, bytes: largest.bytes } : null } };

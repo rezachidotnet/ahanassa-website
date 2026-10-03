@@ -173,6 +173,12 @@ export const snapshotV1 = z
   .object({
     schema_version: z.literal(SNAPSHOT_SCHEMA_VERSION),
     snapshot_version: z.string().regex(SNAPSHOT_VERSION_PATTERN),
+    /**
+     * Pipeline snapshots (W4): full SHA-256 of the canonical tables JSON. When present, the version is an
+     * assigned monotonic `snap-YYYYMMDDHHMMSSnn` and this hash proves the content; when absent (pre-W4
+     * fixture), the version itself must be the content-derived `snap-<first 16 hex>`.
+     */
+    content_sha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
     created_at: isoText,
     source: z
       .object({

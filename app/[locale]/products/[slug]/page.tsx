@@ -10,7 +10,7 @@ import { VariantSpecTable, variantRowAnchorId, variantSelectedLabel } from "@/co
 import { VariantHighlightFromQuery } from "@/components/products/variant-highlight-from-query";
 import { CtaBand } from "@/components/ui/cta-band";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { breadcrumbListSchema, jsonLdGraph } from "@/lib/seo/schema";
+import { breadcrumbListSchema, jsonLdGraph, productSchema } from "@/lib/seo/schema";
 import { siteConfig } from "@/lib/metadata/site";
 import { primaryCta } from "@/lib/content/nav";
 
@@ -103,11 +103,14 @@ export default async function ProductDetailPage({ params }: PageProps) {
   // only this template's own public variants are in its lookup map.
   const variantRowIds = Object.fromEntries(variants.map((v) => [v.xid, variantRowAnchorId(v.sku)]));
 
+  const pageUrl = `${siteConfig.baseUrl}${localizedPath(locale, `/products/${slug}`)}`;
   const breadcrumbJsonLd = jsonLdGraph([
     breadcrumbListSchema([
       { name: t.productsLabel, url: `${siteConfig.baseUrl}${localizedPath(locale, "/products")}` },
-      { name: seo.h1 ?? product.commercialTemplateName, url: `${siteConfig.baseUrl}${localizedPath(locale, `/products/${slug}`)}` },
+      { name: seo.h1 ?? product.commercialTemplateName, url: pageUrl },
     ]),
+    // Architecture V1.1 §12: Product without price, from the visible heading/intro only.
+    productSchema({ url: pageUrl, name: seo.h1 ?? product.commercialTemplateName, description: seo.intro }),
   ]);
 
   return (

@@ -119,7 +119,8 @@ export function VariantSpecTable({ locale, variants }: { locale: Locale; variant
               const weightByKey = new Map(spec.nominalWeight.map((r) => [r.key, r.value]));
               return (
                 <tr
-                  key={variant.id}
+                  // Public canonical id (CVAR): React keys are serialized into the static HTML, internal row ids must not be (W4 publication gate).
+                  key={variant.xid}
                   id={variantRowAnchorId(variant.sku)}
                   className="scroll-mt-24"
                 >
