@@ -60,8 +60,8 @@ jobs:
       - name: Reconcile (one RFQ per delivery, idempotent) + delivery health summary
         shell: bash
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.V11_STAGING_CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.V11_STAGING_CLOUDFLARE_ACCOUNT_ID }}
           # Staging delivers to the contract stub only (§6.7), never to Odoo.
           ODOO_BASE_URL: https://ahanassa-v11-odoo-stub-staging.nova-b1e6f0.workers.dev
           ODOO_RFQ_API_TOKEN: ${{ secrets.V11_STAGING_ODOO_STUB_BEARER }}
