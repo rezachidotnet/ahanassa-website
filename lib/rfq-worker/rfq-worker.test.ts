@@ -216,6 +216,76 @@ test("concurrent same-key requests: the loser hits the unique index and returns 
   assert.equal(different.status, 409);
 });
 
+// --- W3.2: early idempotency lookup (before Turnstile) --------
+
+test("W3.2: replay (same key + same fingerprint) returns 200 without calling Turnstile", async () => {
+  const { env } = setup();
+  let turnstileCalls = 0;
+  const fetchImplWrapper = (async () => {
+    turnstileCalls++;
+    return Response.json({ success: true, action: "rfq_submit", hostname: "static.example" });
+  }) as typeof fetch;
+
+  // First request: creates RFQ, Turnstile is called.
+  const first = await handleRfqSubmit(post(body()), env, { fetchImpl: fetchImplWrapper });
+  assert.equal(first.status, 201);
+  const ref = (await jsonOf(first)).reference;
+  assert.equal(turnstileCalls, 1, "first request calls Turnstile");
+
+  // Second request (replay): same body, different turnstileToken and formRenderedAt.
+  // Should return 200 without calling Turnstile (early lookup catches it).
+  const replay = await handleRfqSubmit(
+    post(body({ turnstileToken: "invalid-token-should-not-be-used", formRenderedAt: 1 })),
+    env,
+    { fetchImpl: fetchImplWrapper },
+  );
+  assert.equal(replay.status, 200, "replay returns 200");
+  assert.equal((await jsonOf(replay)).reference, ref);
+  assert.equal(turnstileCalls, 1, "replay does not call Turnstile (caught by early lookup)");
+});
+
+test("W3.2: conflict (same key + different fingerprint) returns 409 without calling Turnstile", async () => {
+  const { env } = setup();
+  let turnstileCalls = 0;
+  const fetchImplWrapper = (async () => {
+    turnstileCalls++;
+    return Response.json({ success: true, action: "rfq_submit", hostname: "static.example" });
+  }) as typeof fetch;
+
+  // First request: creates RFQ.
+  const first = await handleRfqSubmit(post(body()), env, { fetchImpl: fetchImplWrapper });
+  assert.equal(first.status, 201);
+  assert.equal(turnstileCalls, 1);
+
+  // Second request (conflict): same key but changed message.
+  // Should return 409 without calling Turnstile.
+  const conflict = await handleRfqSubmit(
+    post(body({ message: "different message", turnstileToken: "another-token" })),
+    env,
+    { fetchImpl: fetchImplWrapper },
+  );
+  assert.equal(conflict.status, 409);
+  assert.equal((await jsonOf(conflict)).code, "IDEMPOTENCY_CONFLICT");
+  assert.equal(turnstileCalls, 1, "conflict does not call Turnstile (caught by early lookup)");
+});
+
+test("W3.2: invalid idempotencyKey is rejected before contract check", async () => {
+  const { env } = setup();
+  let turnstileCalls = 0;
+  const fetchImplWrapper = (async () => {
+    turnstileCalls++;
+    return Response.json({ success: true, action: "rfq_submit", hostname: "static.example" });
+  }) as typeof fetch;
+
+  for (const badKey of ["short", "", "x".repeat(200), "invalid!key"]) {
+    const res = await handleRfqSubmit(post(body({ idempotencyKey: badKey })), env, { fetchImpl: fetchImplWrapper });
+    assert.equal(res.status, 422);
+    assert((await jsonOf(res)).fieldErrors.idempotencyKey?.length > 0);
+  }
+  // No Turnstile calls for invalid keys.
+  assert.equal(turnstileCalls, 0);
+});
+
 test("the intake write is one atomic batch: a failing statement leaves no RFQ, line, contact or outbox row", async () => {
   const ops = new SqliteD1([OPS_MIGRATIONS]);
   const validated = validateRfqSubmission(body());

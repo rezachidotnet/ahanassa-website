@@ -1,6 +1,6 @@
 import { checkRfqSubmitRequest, RFQ_SUBMIT_MAX_BODY_BYTES } from "../contracts/rfq-submit-v1-check.ts";
 import { validateRfqSubmission } from "../rfq/validation.ts";
-import { hashIdempotencyKey } from "../rfq/idempotency.ts";
+import { hashIdempotencyKey, isValidIdempotencyKey } from "../rfq/idempotency.ts";
 import { buildCatalogItemRecord, buildFreeformItemRecord } from "../rfq/catalog-preselection.ts";
 import { RFQ_UOM_LABELS } from "../rfq/uom.ts";
 import { isUomAllowedForCatalogGroup } from "../rfq/uom-policy.ts";
@@ -21,15 +21,21 @@ import type { OdooSyncEvent } from "../queue/types.ts";
  *   1. method / content-type / size        -> 405 / 415 / 413
  *   2. CORS origin (exact allow-list)       -> 403
  *   3. body read + JSON                     -> 413 / 400
- *   4. Turnstile (hostname + action)        -> 403 (503 if Siteverify unavailable)
- *   5. rate limit (fail-closed)             -> 429 / 503 + Retry-After
- *   6. strict schema + server validator     -> 422
- *   7. numeric quantities strictly valid    -> 422
- *   8. variants: ONE rfq_variant_index query for catalogSnapshotVersion
+ *   4. idempotency key lite-validate        -> 422
+ *   5. contract schema check (server-safe)  -> 422
+ *   6. early idempotency lookup (key+fingerprint) before Turnstile
+ *                                           -> 200 replay / 409 conflict
+ *   7. Turnstile (only if key unknown)      -> 403 (503 if unavailable)
+ *   8. rate limit (fail-closed)             -> 429 / 503 + Retry-After
+ *   9. full server validator + normalization -> 422
+ *   10. numeric quantities strictly valid   -> 422
+ *   11. variants: ONE rfq_variant_index query for catalogSnapshotVersion
  *      (fallback: active version)            -> 422
- *   9. idempotency + one transactional batch -> 201 new / 200 replay / 409 conflict
+ *   12. transactional write (if not a replay)
+ *                                           -> 201 new
  * The response is sent only after the D1 commit; the optional Queue send
  * happens after it (ctx.waitUntil) and never changes the answer.
+ * W3.2: idempotency lookup moved before Turnstile so replays skip token consumption.
  */
 
 const MIN_COMPLETION_MS = 1500;
@@ -39,6 +45,16 @@ export interface SubmitDeps {
   now?: () => Date;
   /** Called after a successful commit (Queue fast path); never awaited before responding. */
   afterCommit?: (event: OdooSyncEvent) => Promise<void>;
+}
+
+/** Result of early idempotency lookup (before Turnstile). */
+interface EarlyIdempotencyCheckResult {
+  /** True if idempotency key exists in DB. */
+  exists: boolean;
+  /** True if payload fingerprint matches the stored one (replay). */
+  isReplay: boolean;
+  /** The stored reference number (for replay or conflict response). */
+  reference?: string;
 }
 
 type Body = Record<string, unknown>;
@@ -71,6 +87,28 @@ export function contractFieldErrors(issues: { path: PropertyKey[]; code: string 
     (out[key] ??= []).push(issue.code === "unrecognized_keys" ? "unknown_field" : issue.code);
   }
   return out;
+}
+
+/** Early idempotency check before Turnstile (W3.2).
+ * Returns whether a matching RFQ exists and if so, whether it's a replay or conflict.
+ * Queries DB_OPS for one indexed lookup. */
+async function checkIdempotencyEarly(
+  db: D1Database,
+  idempotencyKeyHash: string,
+  payloadFingerprint: string,
+): Promise<EarlyIdempotencyCheckResult> {
+  try {
+    const row = await db
+      .prepare(`SELECT reference_number, payload_fingerprint FROM rfqs WHERE idempotency_key_hash = ? LIMIT 1`)
+      .bind(idempotencyKeyHash)
+      .first<{ reference_number: string; payload_fingerprint: string | null }>();
+    if (!row) return { exists: false, isReplay: false };
+    const isReplay = row.payload_fingerprint === payloadFingerprint;
+    return { exists: true, isReplay, reference: row.reference_number };
+  } catch {
+    // If lookup fails, continue to Turnstile (fail open on infrastructure error).
+    return { exists: false, isReplay: false };
+  }
 }
 
 export async function handleRfqSubmit(request: Request, env: RfqWorkerEnv, deps: SubmitDeps = {}): Promise<Response> {
@@ -106,7 +144,48 @@ export async function handleRfqSubmit(request: Request, env: RfqWorkerEnv, deps:
     return json(400, { ok: false, code: "VALIDATION_ERROR", fieldErrors: { _: ["invalid_json"] } }, cors);
   }
 
-  // 4. Turnstile: Siteverify must report our static host and action rfq_submit.
+  // 4. idempotency key lite-validate (just the field, not full contract yet).
+  if (!isValidIdempotencyKey(body.idempotencyKey)) {
+    return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors: { idempotencyKey: ["invalid"] } }, cors);
+  }
+
+  // 5. contract schema check (server-safe).
+  const contract = checkRfqSubmitRequest(body);
+  if (!contract.success) return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors: contractFieldErrors(contract.issues) }, cors);
+
+  // 6. full validation early (to compute fingerprint before Turnstile).
+  const validated = validateRfqSubmission(body);
+  if (!validated.ok || !validated.value) return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors: validated.fieldErrors }, cors);
+  const now = deps.now?.() ?? new Date();
+  if (typeof body.formRenderedAt === "number" && now.getTime() - body.formRenderedAt < MIN_COMPLETION_MS) {
+    return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors: { _: ["rejected"] } }, cors);
+  }
+
+  // Compute fingerprint and do early idempotency check (before Turnstile).
+  const { idempotencyKey, ...normalized } = validated.value;
+  const snapshotVersion = (contract.data.catalogSnapshotVersion as string | null | undefined) ?? null;
+  const payloadFingerprint = await sha256Hex(stableStringify({ ...normalized, catalogSnapshotVersion: snapshotVersion }));
+  const idempotencyKeyHash = await hashIdempotencyKey(idempotencyKey);
+  const idempotencyCheck = await checkIdempotencyEarly(env.DB_OPS, idempotencyKeyHash, payloadFingerprint);
+
+  // 6a. idempotency early lookup result — before Turnstile.
+  if (idempotencyCheck.exists && idempotencyCheck.isReplay) {
+    // Replay: return stored response immediately, no Turnstile, no rate limit.
+    return json(200, { ok: true, reference: idempotencyCheck.reference, status: "received" }, cors);
+  }
+  if (idempotencyCheck.exists && !idempotencyCheck.isReplay) {
+    // Conflict: same key, different payload.
+    return json(409, { ok: false, code: "IDEMPOTENCY_CONFLICT" }, cors);
+  }
+
+  // 7. numeric quantities: an uninterpretable quantity is rejected, never accepted for manual review (§6.1).
+  const quantityErrors: Record<string, string[]> = {};
+  validated.value.items.forEach((item, i) => {
+    if (item.quantityValue === null || !Number.isFinite(item.quantityValue) || item.quantityValue <= 0) quantityErrors[`items[${i}].quantityText`] = ["invalid_number"];
+  });
+  if (Object.keys(quantityErrors).length) return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors: quantityErrors }, cors);
+
+  // 8. Turnstile: Siteverify must report our static host and action rfq_submit.
   const clientIp = getClientIp(request);
   const turnstile = await verifyTurnstileToken(body.turnstileToken, {
     secret: env.TURNSTILE_SECRET_KEY ?? "",
@@ -120,7 +199,7 @@ export async function handleRfqSubmit(request: Request, env: RfqWorkerEnv, deps:
     return json(403, { ok: false, code: "VERIFICATION_FAILED" }, cors);
   }
 
-  // 5. rate limit — fail CLOSED: no binding, or the binding errors -> 503 (retry with the same key).
+  // 9. rate limit — fail CLOSED: no binding, or the binding errors -> 503 (retry with the same key).
   if (!env.RFQ_RATE_LIMITER) return json(503, { ok: false, code: "SERVICE_UNAVAILABLE" }, { ...cors, "Retry-After": "30" });
   try {
     const outcome = await env.RFQ_RATE_LIMITER.limit({ key: await hashRateLimitKey(clientIp) });
@@ -129,29 +208,12 @@ export async function handleRfqSubmit(request: Request, env: RfqWorkerEnv, deps:
     return json(503, { ok: false, code: "SERVICE_UNAVAILABLE" }, { ...cors, "Retry-After": "30" });
   }
 
-  // 6. strict contract schema, then the server validator (normalization: E.164, units, lengths).
-  const contract = checkRfqSubmitRequest(body);
-  if (!contract.success) return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors: contractFieldErrors(contract.issues) }, cors);
-  const validated = validateRfqSubmission(body);
-  if (!validated.ok || !validated.value) return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors: validated.fieldErrors }, cors);
-  const now = deps.now?.() ?? new Date();
-  if (typeof body.formRenderedAt === "number" && now.getTime() - body.formRenderedAt < MIN_COMPLETION_MS) {
-    return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors: { _: ["rejected"] } }, cors);
-  }
-
-  // 7. numeric quantities: an uninterpretable quantity is rejected, never accepted for manual review (§6.1).
-  const quantityErrors: Record<string, string[]> = {};
-  validated.value.items.forEach((item, i) => {
-    if (item.quantityValue === null || !Number.isFinite(item.quantityValue) || item.quantityValue <= 0) quantityErrors[`items[${i}].quantityText`] = ["invalid_number"];
-  });
-  if (Object.keys(quantityErrors).length) return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors: quantityErrors }, cors);
-
-  // 8. variants — ONE query against rfq_variant_index.
+  // 11. variants — ONE query against rfq_variant_index.
   const locale = validated.value.locale;
-  const snapshotVersion = (contract.data.catalogSnapshotVersion as string | null | undefined) ?? null;
   const variantIds = validated.value.items.map((i) => i.catalogVariantXid).filter((x): x is string => Boolean(x));
   const resolution = variantIds.length ? await resolveVariantsFromIndex(env.DB_PUBLIC, locale, variantIds, snapshotVersion) : null;
 
+  // 12. build item records from variants.
   const records: RfqItemRecord[] = [];
   const unpublished = new Set<number>();
   const fieldErrors: Record<string, string[]> = {};
@@ -174,13 +236,11 @@ export async function handleRfqSubmit(request: Request, env: RfqWorkerEnv, deps:
   });
   if (Object.keys(fieldErrors).length) return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors }, cors);
 
-  // 9. idempotency + transactional write.
-  const { idempotencyKey, ...normalized } = validated.value;
-  const payloadFingerprint = await sha256Hex(stableStringify({ ...normalized, catalogSnapshotVersion: snapshotVersion }));
+  // 13. transactional write (W3.2: replay/conflict already detected early, but persist for consistency).
   const record: RfqSubmissionRecord = { ...validated.value, items: records };
   let result: PersistRfqResult;
   try {
-    result = await persistRfq(env.DB_OPS, record, await hashIdempotencyKey(idempotencyKey), correlationId, { payloadFingerprint, catalogSnapshotVersion: snapshotVersion, unpublishedLineIndexes: unpublished }, () => now);
+    result = await persistRfq(env.DB_OPS, record, idempotencyKeyHash, correlationId, { payloadFingerprint, catalogSnapshotVersion: snapshotVersion, unpublishedLineIndexes: unpublished }, () => now);
   } catch (err) {
     console.error(JSON.stringify({ operation: "rfq.submit", correlationId, result: "error", errorClass: err instanceof Error ? err.name : "unknown" }));
     return json(503, { ok: false, code: "SERVICE_UNAVAILABLE" }, { ...cors, "Retry-After": "10" });

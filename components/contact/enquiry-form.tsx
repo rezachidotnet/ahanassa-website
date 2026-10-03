@@ -368,7 +368,29 @@ export function EnquiryForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turnstileSiteKey, turnstileScriptLoaded, locale]);
 
+  /** W3.2: regenerate idempotency key when payload changes (any form field edits). */
+  function regenerateIdempotencyKey() {
+    idempotencyKeyRef.current = generateIdempotencyKey();
+  }
+
+  const handlePhoneCountryChange = useCallback(
+    (value: string) => {
+      regenerateIdempotencyKey();
+      setPhoneCountry(value);
+    },
+    [],
+  );
+
+  const handlePhoneLocalChange = useCallback(
+    (value: string) => {
+      regenerateIdempotencyKey();
+      setPhoneLocal(normalizeDigits(value).replace(/[^\d]/g, ""));
+    },
+    [],
+  );
+
   function updateRow(id: string, fields: RfqRowFields) {
+    regenerateIdempotencyKey();
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, fields } : r)));
     setRowErrors((prev) => {
       if (!prev[id]) return prev;
@@ -379,10 +401,12 @@ export function EnquiryForm({
   }
 
   function addRow() {
+    regenerateIdempotencyKey();
     setRows((prev) => (prev.length >= MAX_ITEMS ? prev : [...prev, createEmptyCatalogRow()]));
   }
 
   function removeRow(id: string) {
+    regenerateIdempotencyKey();
     setRows((prev) => (prev.length <= 1 ? prev : prev.filter((r) => r.id !== id)));
     setRowErrors((prev) => {
       if (!prev[id]) return prev;
@@ -538,20 +562,20 @@ export function EnquiryForm({
               {t.name}
               <RequiredMark srLabel={t.requiredMark} />
             </label>
-            <input id="name" name="name" required aria-required="true" autoComplete="name" placeholder={t.namePlaceholder} disabled={submitting} className={field} />
+            <input id="name" name="name" required aria-required="true" autoComplete="name" placeholder={t.namePlaceholder} disabled={submitting} onChange={regenerateIdempotencyKey} className={field} />
           </div>
           <div className="grid gap-2">
             <label className={label} htmlFor="company">
               {t.company} <span className="text-muted-foreground font-normal normal-case tracking-normal">({t.companyOptionalSuffix})</span>
             </label>
-            <input id="company" name="company" autoComplete="organization" placeholder={t.companyPlaceholder} disabled={submitting} className={field} />
+            <input id="company" name="company" autoComplete="organization" placeholder={t.companyPlaceholder} disabled={submitting} onChange={regenerateIdempotencyKey} className={field} />
           </div>
           <div className="grid gap-2">
             <label className={label} htmlFor="email">
               {t.email}
               <RequiredMark srLabel={t.requiredMark} />
             </label>
-            <input id="email" name="email" type="email" required aria-required="true" autoComplete="email" placeholder={t.emailPlaceholder} disabled={submitting} className={field} />
+            <input id="email" name="email" type="email" required aria-required="true" autoComplete="email" placeholder={t.emailPlaceholder} disabled={submitting} onChange={regenerateIdempotencyKey} className={field} />
           </div>
           {/* A nested <fieldset>/<legend> (not just a <label>) so assistive
               tech announces "Mobile number" as shared context for BOTH the
@@ -589,7 +613,7 @@ export function EnquiryForm({
                   dir="ltr"
                   disabled={submitting}
                   value={phoneCountry}
-                  onChange={(e) => setPhoneCountry(e.target.value)}
+                  onChange={(e) => handlePhoneCountryChange(e.target.value)}
                   className={`${field} appearance-none truncate pe-8 text-left`}
                 >
                   {!phoneCountry && (
@@ -618,7 +642,7 @@ export function EnquiryForm({
                 placeholder={t.phoneLocalPlaceholder}
                 disabled={submitting}
                 value={phoneLocal}
-                onChange={(e) => setPhoneLocal(normalizeDigits(e.target.value).replace(/[^\d]/g, ""))}
+                onChange={(e) => handlePhoneLocalChange(e.target.value)}
                 className={`${field} flex-1 text-left`}
                 title={t.phoneInvalid}
               />
@@ -626,7 +650,7 @@ export function EnquiryForm({
           </fieldset>
           <div className="grid gap-2 sm:col-span-2">
             <label className={label} htmlFor="message">{t.message}</label>
-            <textarea id="message" name="message" rows={3} placeholder={t.messagePlaceholder} disabled={submitting} className={`${field} resize-y`} />
+            <textarea id="message" name="message" rows={3} placeholder={t.messagePlaceholder} disabled={submitting} onChange={regenerateIdempotencyKey} className={`${field} resize-y`} />
           </div>
         </div>
       </fieldset>
