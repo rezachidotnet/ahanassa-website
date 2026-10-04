@@ -1,0 +1,68 @@
+# Architecture V1.1 §15 + r3 (exceededCpu / 1102 alert) — ops health checks, STAGING (W6).
+#
+# Every 15 min: cron liveness of the v11 RFQ Worker, undelivered / terminal-failure RFQs (DB_OPS, counts
+# only), exceededCpu/1102 + cron cpuTime, intake 5xx/400/422, age of the last successful content publish,
+# Odoo GET /api/v1/catalog/meta. Writes a job summary table and FAILS the job only on ALERT, with one
+# "ALERT: <check>" annotation per alert — GitHub then e-mails the failed run (docs/OPS_ALERTS.md).
+# Alerting never depends on what it watches: no Worker cron/Queue; read-only Cloudflare token; no writes.
+#
+# BRANCH NOTE (until cutover): this file lives on `main` only so GitHub will schedule/dispatch it
+# (CLAUDE.md §5b). main and the application branch have unrelated histories, so the job checks out
+# feat/v11-static-site for scripts/ops/health/*. At cutover, change `ref` to the real application branch.
+#
+# TODO(W8, production): a separate `health-production` job in environment `production` with its own
+# read-only monitor token, `--env production` (enable OPS_TARGETS.production in scripts/ops/health/config.ts
+# first). It must NOT expose `test_force_alert` (staging-only test input). Not in W6.
+name: Ops health (staging)
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_force_alert:
+        description: "STAGING TEST ONLY: force one check to ALERT with a test threshold (docs/OPS_ALERTS.md §4)"
+        type: choice
+        required: false
+        default: none
+        options: [none, cron, rfq, cpu, intake, content, odoo]
+  schedule:
+    # Every 15 min, off the top of the hour (GitHub schedules are best-effort; the check window
+    # starts at the previous run, so a delayed run still covers the gap).
+    - cron: "4,19,34,49 * * * *"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ops-health-staging
+  cancel-in-progress: false
+
+jobs:
+  health:
+    name: health (staging)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: staging
+    steps:
+      - name: Checkout scripts/ops (application branch)
+        uses: actions/checkout@v4
+        with:
+          ref: feat/v11-static-site
+          sparse-checkout: scripts/ops
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Health checks (fails only on ALERT)
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.V11_STAGING_CLOUDFLARE_MONITOR_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.V11_STAGING_CLOUDFLARE_ACCOUNT_ID }}
+          GITHUB_TOKEN: ${{ github.token }}
+          # STAGING TEST ONLY (W6 alert test). Ignored on schedule; refused for production by the script.
+          OPS_HEALTH_TEST_FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.test_force_alert || 'none' }}
+        run: |
+          set -euo pipefail
+          node scripts/ops/health/run.ts --env staging
