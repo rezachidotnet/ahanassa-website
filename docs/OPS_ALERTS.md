@@ -207,6 +207,14 @@ Local commands assume a checkout of `feat/v11-static-site` with `npx wrangler lo
 - The table names the failing check and the API error code.
 - **Token:** `V11_STAGING_CLOUDFLARE_MONITOR_TOKEN` in environment `staging`. It needs Account Analytics Read and D1 Read on the v11 account (§5).
 
+### RFQ CI reconciler failed in "PII retention" (W5)
+
+**Meaning:** the retention step of `rfq-ci-reconciler.yml` could not run (D1 unreachable, or migration `0008` missing on that `DB_OPS`). Delivery already ran before it and is not affected; nothing was half-cleared (each batch is atomic).
+
+1. Read the step log: counts only, plus the wrangler error.
+2. `npx wrangler d1 migrations list DB_OPS --config workers/rfq/wrangler.jsonc --env staging --remote` — `0008_rfq_pii_retention.sql` must be applied.
+3. Re-run with *Run workflow* → `retention_dry_run` = true to see the counts without writing. Rule and fields: `docs/RFQ_PII_RETENTION.md`.
+
 ## 4. Alert test (staging only)
 
 Run Actions → *Ops health (staging)* → *Run workflow* with `test_force_alert` = `cron` | `rfq` | `cpu` | `intake` | `content` | `odoo`.
