@@ -248,8 +248,19 @@ test("publication SQL: staged load, guarded atomic switch, restore, fail-staged,
   assert.equal(one(db, "SELECT active_version FROM publication_pointer").active_version, "snap-e55d81c754270c1f", "a pre-switch failure leaves the pointer");
 
   const versions = db.prepare("SELECT version, created_at, status FROM publication_state").all() as { version: string; created_at: string; status: string }[];
-  assert.deepEqual(versionsToPrune([...versions, { version: "snap-2026100322000000", created_at: "2026-10-03T22:00:00.000Z", status: "superseded" }], "snap-e55d81c754270c1f", 3), [], "3 newest kept, active kept");
-  assert.deepEqual(versionsToPrune(versions, w, 1), ["snap-2026100320000000", "snap-e55d81c754270c1f"]);
+  assert.deepEqual(versionsToPrune([...versions, { version: "snap-2026100322000000", created_at: "2026-10-03T22:00:00.000Z", status: "superseded" }], "snap-e55d81c754270c1f", 3), ["snap-2026100321000000", "snap-2026100320000000"], "usable versions kept; both failed versions removed");
+  assert.deepEqual(versionsToPrune(versions.map((x) => (x.version === "snap-2026100320000000" ? { ...x, status: "superseded" } : x)), "snap-2026100320000000", 1), ["snap-2026100321000000", "snap-e55d81c754270c1f"]);
+  // A failed version never counts toward retention and is always removed (W4 run 4 finding).
+  assert.deepEqual(
+    versionsToPrune([
+      { version: "snap-2026100406523600", created_at: "2026-10-04T06:52:36.000Z", status: "active" },
+      { version: "snap-2026100406450400", created_at: "2026-10-04T06:45:04.000Z", status: "failed" },
+      { version: "snap-2026100406363600", created_at: "2026-10-04T06:36:36.000Z", status: "superseded" },
+      { version: "snap-2026100320504400", created_at: "2026-10-03T20:50:44.000Z", status: "superseded" },
+      { version: "snap-e55d81c754270c1f", created_at: "2026-10-01T22:13:01.507Z", status: "superseded" },
+    ], "snap-2026100406523600", 3),
+    ["snap-2026100406450400", "snap-e55d81c754270c1f"],
+  );
   db.exec(pruneSql(["snap-2026100320000000", "snap-e55d81c754270c1f"], "snap-e55d81c754270c1f")!);
   assert.equal(one(db, "SELECT COUNT(*) AS n FROM publication_state WHERE version = 'snap-e55d81c754270c1f'").n, 1, "the active version is never pruned");
 });

@@ -86,12 +86,13 @@ export function failStagedSql(version: string, now: string): string {
 }
 
 /**
- * §5.1 retention: keep the newest `retain` versions (by created_at, then version) plus the active one;
- * everything else is deleted (state row + index rows). Pure selection; run only AFTER a successful switch.
+ * §5.1 retention: keep the newest `retain` USABLE versions (active/superseded/staged, by created_at, then
+ * version) plus the active one; `failed` versions never count and are always removed; everything else is
+ * deleted (state row + index rows). Pure selection; run only AFTER a successful switch.
  */
 export function versionsToPrune(versions: ReadonlyArray<{ version: string; created_at: string; status: string }>, active: string, retain: number): string[] {
   const ordered = [...versions].sort((a, b) => (a.created_at === b.created_at ? (a.version < b.version ? 1 : -1) : a.created_at < b.created_at ? 1 : -1));
-  const keep = new Set(ordered.slice(0, retain).map((v) => v.version));
+  const keep = new Set(ordered.filter((v) => v.status !== "failed").slice(0, retain).map((v) => v.version));
   keep.add(active);
   return ordered.filter((v) => !keep.has(v.version)).map((v) => v.version);
 }
