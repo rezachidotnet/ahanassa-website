@@ -1,22 +1,24 @@
-# Ops alerts — health checks and e-mail (website W6)
+# Ops alerts — health checks and e-mail (website W6, W6.1)
 
 Architecture V1.1 §15, r3 (CPU alert, fallback trigger). Staging is live. Production entries are prepared but disabled until W8.
 
 ## 1. How an alert reaches the owner
 
 ```text
-GitHub Actions schedule (every 15 min)
+Odoo-server timer ahanassa-ops-dispatch (every 15 min, workflow_dispatch)  — primary (W6.1)
+GitHub Actions schedule (every 15 min, best-effort)                         — second path
   → .github/workflows/ops-health.yml on main (environment staging)
     → node scripts/ops/health/run.ts --env staging   (on feat/v11-static-site)
       → reads: Cloudflare GraphQL Analytics, D1 REST (SELECT), GitHub REST, Odoo GET /api/v1/catalog/meta
       → ALERT on any check → job fails, with one annotation "ALERT: <check>" per alert
   → GitHub e-mails the failed run
+  → final step pings healthchecks.io (success, or /fail) — no ping in time → healthchecks.io e-mails
 ```
 
 - **Independent of what it watches.** No Worker cron, Queue or Worker code is involved. The token is read-only (§5).
 - **Who gets the e-mail.**
   - **Scheduled run:** GitHub notifies the user who last changed the workflow's `cron:` line, i.e. `rezachidotnet` (the PR merge).
-  - **`workflow_dispatch` run:** GitHub notifies the user who started it.
+  - **`workflow_dispatch` run:** GitHub notifies the user who started it. The server timer dispatches with `rezachidotnet`'s fine-grained token, so timer-started runs notify `rezachidotnet` too.
   - The e-mail goes to that account's **default notifications address**.
 - **Confirm the address:**
   1. GitHub → Settings → Emails: `cyansanatiranian@gmail.com` is added and verified.
@@ -29,8 +31,60 @@ GitHub Actions schedule (every 15 min)
 - **The same channel covers the other workflows.** A failed `content-publish` run (step failure, decrease-gate block, automatic rollback) carries `ALERT: content <step> failed` / `ALERT: content publish rolled back`. A red `rfq-ci-reconciler` run (RFQ undelivered > 30 min) also e-mails.
 - **Repeats.** An unresolved ALERT fails every run, so expect one e-mail per run (about every 15 min) until it clears. A green run does not e-mail.
 - **Caveats** (GitHub, not this repo):
-  - **Schedules are best-effort.** Runs can be delayed or dropped under load. On 2026-10-03/04 the hourly reconciler ran at 21:23, 00:43 and 07:00 only. The check window therefore starts at the previous run's start (minus 5 min), up to 24 h, so a late run still covers the gap. A run that never happens alerts nobody.
+  - **Schedules are best-effort.** Runs can be delayed or dropped under load. On 2026-10-03/04 the hourly reconciler ran at 21:23, 00:43 and 07:00 only. The check window therefore starts at the previous run's start (minus 5 min), up to 24 h, so a late run still covers the gap. A run that never happens is caught by the dead-man's switch (§1a).
   - **Public repositories:** GitHub disables scheduled workflows after 60 days without repository activity. It e-mails a warning first. Re-enable in Actions → workflow → *Enable workflow*.
+
+## 1a. Reliable dispatch and dead-man's switch (W6.1)
+
+GitHub `schedule` was badly degraded for this repo: 0 scheduled runs from 07:00Z to 11:05Z on 2026-10-04. Both ops workflows are therefore started by a timer on the Odoo server. The `schedule:` triggers remain as a second path, and the concurrency groups (`ops-health-staging`, `rfq-ci-reconciler-staging`) prevent overlaps.
+
+**Server** (`ubuntu@194.5.206.76`). These are the only files involved:
+
+| Path | Mode | Role |
+|---|---|---|
+| `/home/ubuntu/ops-dispatch/` | 700 | directory |
+| `/home/ubuntu/ops-dispatch/github-token` | 600 | fine-grained PAT `ahanassa-ops-dispatch` (this repo only, Actions read/write) |
+| `/home/ubuntu/ops-dispatch/dispatch.sh` | 700 | the dispatch script |
+| `/etc/systemd/system/ahanassa-ops-dispatch.service` | 644 | oneshot, `User=ubuntu`, sandboxed |
+| `/etc/systemd/system/ahanassa-ops-dispatch.timer` | 644 | timer |
+
+- **Schedule:** `*:04,19,34,49` UTC, `RandomizedDelaySec=60`, `Persistent=true`.
+- **`dispatch.sh`:** dispatches `ops-health.yml` on every firing, and `rfq-ci-reconciler.yml` when the UTC minute is 15..29 (the :19 firing, about hourly).
+  - `POST …/actions/workflows/<file>/dispatches {"ref":"main"}`, with one retry after 30 s on a network error or 5xx.
+  - Logs one line per dispatch (time, workflow, HTTP status) to journald.
+  - The token is handed to curl as a config on stdin. It never appears in argv, a log or the repo.
+
+**healthchecks.io** (account `cyansanatiranian@gmail.com`, free)
+
+| Check | Secret (env `staging`) | Period | Grace | Pinged by |
+|---|---|---|---|---|
+| `ahanassa-ops-health` | `HC_PING_OPS_HEALTH` | 15 min | 30 min | last step of `ops-health.yml` |
+| `ahanassa-rfq-reconciler` | `HC_PING_RFQ_RECONCILER` | 1 h | 1 h | last step of `rfq-ci-reconciler.yml` |
+
+- The step always runs. A successful job pings the URL; a failed job pings `<url>/fail`.
+- The ping never fails the job. A missing secret is skipped with a notice.
+
+**Its e-mails:**
+- **"… is DOWN" after a /fail ping:** the run happened and found a problem. The GitHub failure e-mail says which one; follow §3.
+- **"… is DOWN" with no ping within period + grace:** the run **did not happen**. Nothing is watching (ops-health), or the backup delivery path is not running (reconciler).
+- **"… is UP":** pings resumed.
+
+### Runbook: "no ping" (run did not happen)
+
+1. The server timer fired and dispatched:
+   ```bash
+   ssh ubuntu@194.5.206.76
+   systemctl status ahanassa-ops-dispatch.timer ahanassa-ops-dispatch.service --no-pager
+   sudo journalctl -u ahanassa-ops-dispatch --since "-2h" --no-pager   # expect "workflow=ops-health.yml status=204" every 15 min
+   ```
+   - No lines: run `sudo systemctl enable --now ahanassa-ops-dispatch.timer`. Also check the server is up and its clock is right (`timedatectl`).
+   - `status=000`: the server cannot reach `api.github.com`. Check with `curl -sS -o /dev/null -w '%{http_code}' --max-time 10 https://api.github.com/`.
+   - `status=401`/`403`: the token has **expired** or been revoked. Create a new fine-grained token (this repo only, Actions read/write) and replace `github-token`, mode 600, as the owner did in W6.1. Then run `sudo systemctl start ahanassa-ops-dispatch.service` and check the journal.
+   - `status=404`/`422`: the workflow file or `main` changed. Check that `.github/workflows/ops-health.yml` exists on `main` and is enabled (Actions → workflow).
+2. Dispatched (204) but no run or no ping: check https://www.githubstatus.com (Actions). Then the run itself: did the ping step say "skipped" (secret missing) or "ping failed" (healthchecks.io unreachable from the runner)?
+3. Stop or start the timer: `sudo systemctl disable --now ahanassa-ops-dispatch.timer` / `enable --now`.
+
+**Token expiry:** see the W6.1 report. Renew before the date, or every dispatch returns 401 and the "no ping" alert fires.
 
 ## 2. Checks and thresholds
 
