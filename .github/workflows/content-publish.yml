@@ -1,0 +1,254 @@
+# Architecture V1.1 r3 §7.1 (steps 1-7 and 9), §7.2, §7.4 — content publication pipeline, STAGING ONLY (W4).
+#
+#   build:   full Odoo fetch (GET only, read-only, <=2 req/s) + DB_PUBLIC editorial read -> validate
+#            (decrease gate) -> monotonic snapshot -> static fa/en/ar export -> artifact gate -> tsc ->
+#            unit tests -> link/image/hydration checks -> GitHub artifact (14 days; never committed).
+#   publish: the SAME artifact (checksums re-verified) -> DB_PUBLIC staged load -> assets-only Worker deploy
+#            -> smoke on the staging hostname -> guarded active_version switch -> mirror + retention (3).
+#            Any failure rolls back automatically (§7.2) and writes the job summary (alerts are W6).
+#
+# dry_run=true runs build only (steps 5-11) and stops before any Cloudflare write.
+# Odoo: production, GET https://odoo.ahanassa.com/api/v1/catalog/* and /api/v1/processing/groups only
+# (owner decision 2026-10-03), never a POST, never an RFQ (§6.7).
+#
+# BRANCH NOTE (until cutover): this file lives on `main` only so GitHub will schedule/dispatch it
+# (CLAUDE.md §5b). main and the application branch have unrelated histories, so the jobs check out
+# feat/v11-static-site for the scripts (scripts/content/*); the publish job checks out the exact commit
+# the build job used. At cutover, change `ref` to the real application branch.
+#
+# TODO(W8, production): a separate `publish-production` job in environment `production`, needing an
+# approved staging run: download THE SAME artifact (by run id), verify every checksum in manifest.json and
+# that code_sha/snapshot_version equal the staging-published ones, NO Odoo refetch and NO rebuild; load the
+# snapshot into production DB_PUBLIC (staged), deploy, smoke, switch, rollback on failure. It must NOT
+# expose `test_force_smoke_failure` (staging-only test input). Not in W4.
+name: Content publish (staging)
+
+on:
+  workflow_dispatch:
+    inputs:
+      allow_decrease:
+        description: "Override the >20% decrease gate (recorded in the manifest)"
+        type: boolean
+        required: false
+        default: false
+      dry_run:
+        description: "Build and check only (steps 5-11); no Cloudflare write"
+        type: boolean
+        required: false
+        default: false
+      test_force_smoke_failure:
+        description: "STAGING TEST ONLY: force the smoke step to fail after the deploy (rollback proof)"
+        type: boolean
+        required: false
+        default: false
+  schedule:
+    # Daily 22:47 UTC = 02:17 Tehran (§7.4: outside Tehran business hours). Staging only.
+    - cron: "47 22 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: content-publish-staging
+  cancel-in-progress: false
+
+env:
+  APP_REF: feat/v11-static-site
+
+jobs:
+  build:
+    name: build (fetch, validate, snapshot, export, checks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: staging
+    outputs:
+      code_sha: ${{ steps.meta.outputs.code_sha }}
+      snapshot_version: ${{ steps.meta.outputs.snapshot_version }}
+    env:
+      # Read-only use here: DB_PUBLIC editorial layer + publication state.
+      CLOUDFLARE_API_TOKEN: ${{ secrets.V11_STAGING_CLOUDFLARE_DEPLOY_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.V11_STAGING_CLOUDFLARE_DEPLOY_ACCOUNT_ID }}
+    steps:
+      - name: Work directory (outside the checkout; never committed)
+        shell: bash
+        run: echo "WORK=$RUNNER_TEMP/content" >> "$GITHUB_ENV"
+
+      - name: Checkout application code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.APP_REF }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies (immutable)
+        run: npm ci
+
+      - name: "5. Fetch (Odoo full fetch, GET only; DB_PUBLIC read-only)"
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/content/fetch.ts --work "$WORK"
+
+      - name: "6. Validate (schema, relations, counts, decrease gate)"
+        shell: bash
+        env:
+          ALLOW_DECREASE: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_decrease == true && 'true' || 'false' }}
+        run: |
+          set -euo pipefail
+          if [ "$ALLOW_DECREASE" = "true" ]; then
+            node scripts/content/validate.ts --work "$WORK" --allow-decrease
+          else
+            node scripts/content/validate.ts --work "$WORK"
+          fi
+
+      - name: "8. Snapshot (monotonic version)"
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/content/snapshot.ts --work "$WORK"
+
+      - name: "9. Export (static fa/en/ar from the snapshot) + 7. publication/leak gate + 11. artifact"
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/content/export.ts --work "$WORK"
+
+      - name: "10. Typecheck"
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx tsc --noEmit
+
+      - name: "10. Unit tests"
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test
+
+      - name: "10. Checks (gate, links, images, hreflang, sitemap, hydration, console errors)"
+        shell: bash
+        env:
+          CHROME_PATH: google-chrome
+        run: |
+          set -euo pipefail
+          node scripts/content/checks.ts --work "$WORK"
+
+      - name: Record artifact identity
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "code_sha=$(jq -r .code_sha "$WORK/artifact/manifest.json")" >> "$GITHUB_OUTPUT"
+          echo "snapshot_version=$(jq -r .snapshot_version "$WORK/artifact/manifest.json")" >> "$GITHUB_OUTPUT"
+          cp "$WORK/source/fetch-report.json" "$WORK/fetch-report.json"
+          echo "manifest.json sha256: $(sha256sum "$WORK/artifact/manifest.json" | cut -d' ' -f1)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: "11. Upload artifact (public-assets + private-snapshot + manifests; 14 days)"
+        uses: actions/upload-artifact@v4
+        with:
+          name: content-${{ steps.meta.outputs.snapshot_version }}
+          path: |
+            ${{ runner.temp }}/content/artifact/
+            ${{ runner.temp }}/content/validation.json
+            ${{ runner.temp }}/content/fetch-report.json
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: error
+
+  publish:
+    name: publish (staging DB_PUBLIC + static Worker)
+    needs: build
+    if: ${{ github.event_name == 'schedule' || inputs.dry_run != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: staging
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.V11_STAGING_CLOUDFLARE_DEPLOY_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.V11_STAGING_CLOUDFLARE_DEPLOY_ACCOUNT_ID }}
+    steps:
+      - name: Work directory (outside the checkout; never committed)
+        shell: bash
+        run: echo "WORK=$RUNNER_TEMP/content" >> "$GITHUB_ENV"
+
+      - name: Checkout the exact code the artifact was built from
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.build.outputs.code_sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies (immutable)
+        run: npm ci
+
+      - name: Download the build's artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: content-${{ needs.build.outputs.snapshot_version }}
+          path: ${{ runner.temp }}/content/download
+
+      - name: Place artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$WORK"
+          mv "$WORK/download/artifact" "$WORK/artifact"
+          test "$(jq -r .snapshot_version "$WORK/artifact/manifest.json")" = "${{ needs.build.outputs.snapshot_version }}"
+          test "$(jq -r .code_sha "$WORK/artifact/manifest.json")" = "${{ needs.build.outputs.code_sha }}"
+
+      - name: "12. Load snapshot into DB_PUBLIC (staged; checksums + gate re-verified)"
+        id: load
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/content/publish.ts load --work "$WORK"
+
+      - name: "12. Deploy public-assets to the staging assets Worker"
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/content/publish.ts deploy --work "$WORK"
+
+      - name: "13. Smoke (staging hostname, RFQ Worker health, variant dry run)"
+        id: smoke
+        shell: bash
+        env:
+          CHROME_PATH: google-chrome
+          # STAGING TEST ONLY (W4 E23). Never present on a production job.
+          CONTENT_SMOKE_FORCE_FAIL: ${{ github.event_name == 'workflow_dispatch' && inputs.test_force_smoke_failure == true && '1' || '0' }}
+        run: |
+          set -euo pipefail
+          node scripts/content/publish.ts smoke --work "$WORK"
+
+      - name: "12. Switch active_version"
+        id: switch
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/content/publish.ts switch --work "$WORK"
+
+      - name: "12. Finalize (catalog mirror, keep 3 versions)"
+        id: finalize
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/content/publish.ts finalize --work "$WORK"
+
+      - name: "14. Rollback (automatic, on any failure before finalize)"
+        if: ${{ failure() && steps.finalize.outcome != 'failure' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f "$WORK/publish-state.json" ]; then
+            node scripts/content/publish.ts rollback --work "$WORK"
+          else
+            echo "### Publish failed before any write; nothing to roll back" >> "$GITHUB_STEP_SUMMARY"
+          fi
