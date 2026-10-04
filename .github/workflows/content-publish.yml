@@ -41,11 +41,6 @@ on:
         type: boolean
         required: false
         default: false
-  # TEMPORARY (W4 proof, removed before merge): a push registers the workflow so it can be dispatched from
-  # this branch; every job is skipped on push.
-  push:
-    branches: [feat/w4-content-pipeline]
-    paths: [".github/workflows/content-publish.yml"]
   schedule:
     # Daily 22:47 UTC = 02:17 Tehran (§7.4: outside Tehran business hours). Staging only.
     - cron: "47 22 * * *"
@@ -63,7 +58,6 @@ env:
 jobs:
   build:
     name: build (fetch, validate, snapshot, export, checks)
-    if: ${{ github.event_name != 'push' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: staging
@@ -168,7 +162,7 @@ jobs:
   publish:
     name: publish (staging DB_PUBLIC + static Worker)
     needs: build
-    if: ${{ github.event_name != 'push' && (github.event_name == 'schedule' || inputs.dry_run != true) }}
+    if: ${{ github.event_name == 'schedule' || inputs.dry_run != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: staging
