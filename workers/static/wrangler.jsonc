@@ -12,6 +12,14 @@
       "name": "ahanassa-v11-static-staging",
       "workers_dev": true,
       "preview_urls": false
+    },
+    // W8.0 production preparation: workers.dev ONLY — no route, no custom domain (www.ahanassa.com stays on the
+    // legacy ahanassa-production Worker until the W8.1 cutover). Deployed only by content-publish.yml's
+    // production-prep job (environment production-v11) with the PRODUCTION-target artifact.
+    "production": {
+      "name": "ahanassa-v11-static-production",
+      "workers_dev": true,
+      "preview_urls": false
     }
   }
 }

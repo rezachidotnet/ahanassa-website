@@ -107,7 +107,7 @@ async function main(): Promise<number> {
       const rows = await d1Select(cf, target.dbPublicId, "SELECT active_version FROM publication_pointer WHERE id = 1");
       active = (rows[0]?.active_version as string | undefined) ?? null;
     }
-    return evaluateContentPublish(last, active, now, t);
+    return evaluateContentPublish(last, active, now, t, target.contentStaleAlert);
   });
   // 8. Odoo reachability (GET only)
   results.push(evaluateOdoo(await probeOdoo(ODOO_META_URL, t.odooTimeoutMs), t));

@@ -28,6 +28,8 @@ export interface OpsTarget {
   reconcilerWorkflow: string;
   /** This check's own workflow (the window starts where its previous run started). */
   opsHealthWorkflow: string;
+  /** false = a stale content publish is reported (INFO), not alerted — W8.0 production-prep publishes only on dispatch. */
+  contentStaleAlert: boolean;
 }
 
 export const OPS_TARGETS: Record<OpsEnv, OpsTarget> = {
@@ -45,22 +47,26 @@ export const OPS_TARGETS: Record<OpsEnv, OpsTarget> = {
     contentPublishJobPrefix: "publish",
     reconcilerWorkflow: "rfq-ci-reconciler.yml",
     opsHealthWorkflow: "ops-health.yml",
+    contentStaleAlert: true,
   },
-  // TODO(W8): fill in from the production RFQ Worker config (workers/rfq/wrangler.jsonc has no production
-  // environment yet), give the production job its own read-only monitor token, then set enabled: true.
+  // W8.0 production-prep (workers.dev only; workers/rfq/wrangler.jsonc env.production). Read with its own
+  // read-only monitor token (GitHub environment production-v11-monitor). W8.1 (cutover) changes:
+  //   cronWorkers -> ["ahanassa-v11-rfq-production"] once its */5 cron exists; apiHost -> "api.ahanassa.com"
+  //   once the custom domain is attached; contentStaleAlert -> true once the daily production publish runs.
   production: {
     env: "production",
-    enabled: false,
-    cronWorkers: ["ahanassa-v11-rfq-production"],
+    enabled: true,
+    cronWorkers: [],
     rfqWorker: "ahanassa-v11-rfq-production",
-    apiHost: "api.ahanassa.com",
+    apiHost: null,
     intakePath: "/api/rfqs",
-    dbOpsId: null,
-    dbPublicId: null,
+    dbOpsId: "72b8fb96-43c5-45bd-8f1e-b0f2a3a2fa9a",
+    dbPublicId: "6e74ff59-9961-40f2-b8e5-8a9619f45776",
     contentPublishWorkflow: "content-publish.yml",
     contentPublishJobPrefix: "publish-production",
     reconcilerWorkflow: "rfq-ci-reconciler.yml",
     opsHealthWorkflow: "ops-health.yml",
+    contentStaleAlert: false,
   },
 };
 

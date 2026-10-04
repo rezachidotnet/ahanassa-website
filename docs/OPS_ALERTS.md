@@ -234,6 +234,14 @@ Run Actions → *Ops health (staging)* → *Run workflow* with `test_force_alert
 
 ## 6. Production (W8)
 
+**W8.0 (production-prep):** job `health-production` in `ops-health.yml`, environment `production-v11-monitor`
+(no reviewer, branch `main`, read-only token `V11_PRODUCTION_CLOUDFLARE_MONITOR_TOKEN` +
+`V11_PRODUCTION_CLOUDFLARE_ACCOUNT_ID`; it skips with a notice while they are missing). Checks
+`OPS_TARGETS.production`: RFQ state on the v11 production DB_OPS, exceededCpu/1102 of
+`ahanassa-v11-rfq-production`, the production-prep publish (report only), Odoo. No cron check (no cron until
+W8.1) and no intake check (no custom domain until W8.1). W8.1 turns both on and makes the content check alert.
+
+
 - `OPS_TARGETS.production` in `config.ts` is prepared with `enabled: false`. Fill in before enabling:
   - the RFQ Worker name;
   - `api.ahanassa.com`;

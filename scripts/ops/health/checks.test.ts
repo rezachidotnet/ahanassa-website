@@ -149,8 +149,22 @@ test("summary: table with check/value/threshold/status and the alert headline", 
   assert.match(md, /TEST override: odoo/);
 });
 
-test("targets: staging enabled; production prepared but disabled until W8", () => {
+test("targets: staging enabled; production enabled for W8.0 prep (no cron check, no API host yet, content report-only)", () => {
   assert.equal(OPS_TARGETS.staging.enabled, true);
-  assert.equal(OPS_TARGETS.production.enabled, false);
-  assert.notEqual(OPS_TARGETS.production.rfqWorker, OPS_TARGETS.staging.rfqWorker);
+  assert.equal(OPS_TARGETS.staging.contentStaleAlert, true);
+  const p = OPS_TARGETS.production;
+  assert.equal(p.enabled, true);
+  assert.notEqual(p.rfqWorker, OPS_TARGETS.staging.rfqWorker);
+  assert.deepEqual(p.cronWorkers, [], "the production RFQ Worker has no cron until W8.1");
+  assert.equal(p.apiHost, null, "api.ahanassa.com is attached at W8.1");
+  assert.equal(p.contentStaleAlert, false);
+  assert.ok(p.dbOpsId && p.dbPublicId && p.dbOpsId !== OPS_TARGETS.staging.dbOpsId && p.dbPublicId !== OPS_TARGETS.staging.dbPublicId);
+});
+
+test("content check: report-only targets never ALERT on a stale or missing publish", () => {
+  const now = new Date("2026-10-04T12:00:00Z");
+  assert.equal(evaluateContentPublish(null, null, now, THRESHOLDS, false).status, "INFO");
+  assert.equal(evaluateContentPublish("2026-10-01T00:00:00Z", "snap-x", now, THRESHOLDS, false).status, "INFO");
+  assert.equal(evaluateContentPublish("2026-10-04T11:00:00Z", "snap-x", now, THRESHOLDS, false).status, "OK");
+  assert.equal(evaluateContentPublish(null, null, now, THRESHOLDS).status, "ALERT");
 });

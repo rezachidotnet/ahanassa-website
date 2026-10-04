@@ -6,7 +6,10 @@
  * and stops with 403 before the rate limiter, the variant query and any write. No Worker config change
  * (TURNSTILE_TEST_MODE stays off), so the variant-index query itself is not reachable without an RFQ.
  *
- *   node scripts/rfq/intake-cpu-probe.ts --out <file.jsonl> [--n 25] [--gap-ms 3000] [--snapshot snap-…] [--variant CVAR-…]
+ *   node scripts/rfq/intake-cpu-probe.ts --out <file.jsonl> [--n 25] [--gap-ms 3000] [--snapshot snap-…] [--variant CVAR-…] [--api <url>] [--origin <url>]
+ *
+ * Defaults: the staging RFQ Worker. W8.0 production-prep: --api https://ahanassa-v11-rfq-production.nova-b1e6f0.workers.dev/api/rfqs
+ * --origin https://www.ahanassa.com (its only allowed origin).
  */
 import fs from "node:fs";
 
@@ -16,8 +19,8 @@ const out = args.get("out");
 if (!out) throw new Error("--out <file.jsonl> is required");
 const n = Number(args.get("n") ?? 25);
 const gap = Number(args.get("gap-ms") ?? 3000);
-const API = "https://api-staging.ahanassa.com/api/rfqs";
-const ORIGIN = "https://ahanassa-v11-static-staging.nova-b1e6f0.workers.dev";
+const API = args.get("api") ?? "https://api-staging.ahanassa.com/api/rfqs";
+const ORIGIN = args.get("origin") ?? "https://ahanassa-v11-static-staging.nova-b1e6f0.workers.dev";
 const LOCALES = ["en", "fa", "ar"] as const;
 
 for (let i = 1; i <= n; i++) {
