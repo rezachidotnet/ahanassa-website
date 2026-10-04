@@ -17,6 +17,11 @@
 # W6.1: also dispatched about hourly (:19) by the Odoo-server timer ahanassa-ops-dispatch (GitHub `schedule`
 # is best-effort; it stays as a second path); pings healthchecks.io (dead-man's switch).
 #
+# W5: after delivery, the website-side PII retention step (owner decision 2026-10-04; architecture §13.4;
+# docs/RFQ_PII_RETENTION.md on the app branch): delivered RFQs (Odoo reference present) have their personal
+# fields cleared 30 days after delivery; undelivered RFQs never. One bounded batch per run; counts only in
+# the log. Not a Worker cron (the account is at 5/5 triggers). `retention_dry_run` writes nothing.
+#
 # GitHub runs `schedule` and accepts `workflow_dispatch` only for workflow
 # files on the default branch (main) — until this file is there, neither fires.
 name: RFQ CI reconciler (staging)
@@ -28,6 +33,11 @@ on:
         description: "Maximum RFQs to deliver in this run"
         required: false
         default: "10"
+      retention_dry_run:
+        description: "PII retention: count only, write nothing"
+        type: boolean
+        required: false
+        default: false
   schedule:
     # Hourly, staging. TODO(production): business-hours */15 schedule for production (see header).
     - cron: "17 * * * *"
@@ -73,6 +83,19 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/rfq/ci-reconciler.ts --config workers/rfq/wrangler.jsonc --env staging --database DB_OPS --max "$MAX"
+
+      # W5: runs even when the step above flagged an undelivered RFQ (that only fails the job afterwards);
+      # never clears an undelivered RFQ. Parameters: 30 days after delivery, 25 RFQs per run.
+      - name: PII retention (delivered RFQs, 30 days after delivery; one bounded batch)
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.V11_STAGING_CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.V11_STAGING_CLOUDFLARE_ACCOUNT_ID }}
+          RETENTION_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.retention_dry_run == true && 'true' || 'false' }}
+        run: |
+          set -euo pipefail
+          node scripts/rfq/pii-retention.ts --config workers/rfq/wrangler.jsonc --env staging --database DB_OPS --retention-days 30 --batch 25 --dry-run "$RETENTION_DRY_RUN"
 
       # W6.1 dead-man's switch: healthchecks.io alerts when this ping does NOT arrive (a run that never
       # happened). Always runs; failure pings /fail. Never fails the job; a missing secret is skipped.

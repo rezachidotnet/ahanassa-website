@@ -383,7 +383,7 @@ A numeric minimum may only be introduced after evidence is collected from real H
 A distinct `OPERATION_TYPE`, never a normal HIGH release:
 
 ```
-OPERATION_TYPE: RELEASE | EMERGENCY_ROLLBACK
+OPERATION_TYPE: RELEASE | EMERGENCY_ROLLBACK | CONTENT_REBUILD (§19)
 ```
 
 Rollback requirements:
@@ -450,3 +450,32 @@ It is **not** redeployed or reclassified using the new classifier. It finishes u
 ## 18. Odoo scope exclusion (restated)
 
 Restating §1 for emphasis, since this is the most commonly mis-scoped boundary: this policy governs the **website's** side of the Odoo relationship — the Cloudflare Worker, `lib/odoo/**`, catalog/processing sync into D1, and `docs/integrations/odoo/**` as the contract-of-record. It does not, and cannot, govern what happens inside Odoo itself. A change to `odoo-modules/**` (the Odoo-side Python module living in this repository for convenience) never enters the website's Cloudflare Worker build and is therefore LOW under this classifier specifically because it has zero blast radius on *this* deployment pipeline — not because it is low-risk in general. Odoo needs, and does not yet have, its own release policy.
+
+---
+
+## 19. `CONTENT_REBUILD` — content-only publication without manual approval
+
+**Owner decision D4, 2026-10-04 (`docs/OWNER_DECISIONS.md`); architecture `AHANASSA-CF-FREE-ODOO-ARCH-V1.1` §7.3.** This section is itself a governance change and was approved as a HIGH change by the owner. It governs the production job of the content publication pipeline (`.github/workflows/content-publish.yml`, `docs/CONTENT_PUBLICATION_PIPELINE.md`): a publication that changes only public content (Odoo data → snapshot → static assets), never code.
+
+A production content publication is `OPERATION_TYPE: CONTENT_REBUILD` only when **all** of these hold:
+
+1. **Same code as production.** The artifact's private `manifest.json` `code_sha` equals `BASE_PRODUCTION_SHA` — the `RELEASE_SHA` of the latest `STABLE_100` row of the ledger (§2, §3), resolved by the strict validator `resolveBaseProductionShaFromManifest`. The ledger is read from the trusted production application branch, never from the artifact's own `code_sha` (a release can never carry its own `STABLE_100` row, §7.1 item 10). An active canary is never the baseline.
+2. **Only static assets + the snapshot change.** No code, workflow or Worker configuration change: the artifact was built by the content pipeline (its `pipeline` block is present) for the `production` target from that same `code_sha`, and `public-assets/` contains no executable or Worker configuration (`_worker.js`, `_routes.json`, `wrangler.*`, `functions/`). The workflow and the Worker configuration used for the deploy are those of the `code_sha` checkout.
+3. **Gates replace the approval.** Every §7.1 gate of the architecture passed (validate + decrease gate, publication/leak gate, artifact gate incl. the indexing gate, checks), and the publish job keeps its **automatic smoke** and **automatic rollback** (architecture §7.2). These replace the manual production approval.
+
+**Manual approval is still required** (`APPROVAL_REQUIRED`) when the decrease gate was overridden — `pipeline.allow_decrease` is `true` or `pipeline.overridden_decreases` is not empty — or when a gate failed. Approval never overrides a failed checksum, artifact gate or smoke: those stop the run.
+
+**Anything else is not a content rebuild** (`REFUSED`): a missing or malformed ledger, no `STABLE_100` row, a `code_sha` that is not the latest `STABLE_100` release, a staging-target or non-pipeline artifact, or a non-static file. Such a change is a **code release** and keeps the existing path unchanged: exact SHA, staging provenance (§5.1), `deploy-production.yml` release policy gate (§0.2), and the HIGH canary path where `FINAL_RISK` is HIGH (§5, §11, §12).
+
+| Check result | Meaning | Exit status |
+| --- | --- | --- |
+| `AUTO` | `CONTENT_REBUILD`; publish without manual approval | 0 |
+| `APPROVAL_REQUIRED` | `CONTENT_REBUILD`, but the decrease gate was overridden or a gate failed: the production environment's reviewer approval is required | 3 |
+| `REFUSED` | not a content rebuild: code release path | 1 |
+| (could not run) | treated as `REFUSED` | 2 |
+
+**Executable check.** `lib/ci/content-rebuild.ts` (`evaluateContentRebuild`, pure) and `lib/ci/content-rebuild-cli.ts` (`--artifact <dir> --ledger-ref <trusted ref> [--gates-passed true|false] [--decision-file <out>]`), tested by `lib/ci/content-rebuild.test.ts` (match → `AUTO`; mismatch → `REFUSED`; ledger missing/malformed/no `STABLE_100` → `REFUSED`; `allow_decrease` or an overridden decrease → `APPROVAL_REQUIRED`; failed gate → `APPROVAL_REQUIRED`; non-static/staging/non-pipeline artifacts → `REFUSED`; CLI exit codes). The future production job (W8) runs it before any production write; the `TODO(W8)` in `content-publish.yml` names it.
+
+**Audit.** The decision (`result`, `code`, `code_sha`, `BASE_PRODUCTION_SHA`, `snapshot_version`, reasons, ledger source) is written to the job summary and the decision file, which the production job keeps as an artifact (§15). A `CONTENT_REBUILD` adds no ledger row: the ledger records code releases; the content version is recorded in `DB_PUBLIC` `publication_state` (architecture §5.1).
+
+**State today (2026-10-04).** The ledger's latest `STABLE_100` row is the legacy SSR Worker's release. Until a v11 static-site code release reaches `STABLE_100` through the code release path (W8), every v11 content artifact is `REFUSED` as a content rebuild — the check fails closed, as intended.
