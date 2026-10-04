@@ -21,6 +21,15 @@
 # that code_sha/snapshot_version equal the staging-published ones, NO Odoo refetch and NO rebuild; load the
 # snapshot into production DB_PUBLIC (staged), deploy, smoke, switch, rollback on failure. It must NOT
 # expose `test_force_smoke_failure` (staging-only test input). Not in W4.
+#   Before ANY production write it runs the CONTENT_REBUILD check (W5, owner decision D4,
+#   docs/release/RELEASE_POLICY.md §19):
+#     node lib/ci/content-rebuild-cli.ts --artifact "$WORK/artifact" --ledger-ref origin/<production app branch> \
+#       --gates-passed true --decision-file "$WORK/content-rebuild.json"
+#   exit 0 AUTO -> publish without manual approval (gates + automatic smoke + automatic rollback);
+#   exit 3 APPROVAL_REQUIRED (allow_decrease / overridden decrease / failed gate) -> only through the
+#   production environment's reviewer approval; exit 1/2 REFUSED -> not a content rebuild: stop, it is a
+#   code release (deploy-production.yml: exact SHA, staging provenance, HIGH canary). Keep the decision file
+#   as an artifact (§15). The ledger is read from the trusted production branch, never from code_sha.
 name: Content publish (staging)
 
 on:
