@@ -9,6 +9,7 @@ import { PERSIAN_ALLOWLIST, scanPublicFile, stripAllowlisted } from "./leak-scan
 import { buildAssetsIgnoreFile, buildHeadersFile, buildRedirectsFile, renderRobotsTxt, renderSitemapXml } from "./static-rules.ts";
 import { moveDefaultLocaleToRoot, placeLocale404s, removeUnpublishedOutputs } from "./postprocess.ts";
 import { describeFiles, forbiddenPublicPath, REQUIRED_PUBLIC_FILES, runArtifactGate } from "./artifact-gate.ts";
+import { headerBlocks, PRODUCTION_ROBOTS_TXT } from "./indexing-gate.ts";
 import { buildSecurityHeaders } from "../security/headers.ts";
 import { STATIC_TARGETS } from "./targets.ts";
 import { toPublicPathname } from "../../config/locales.ts";
@@ -69,13 +70,15 @@ test("A6 scan: forbidden commercial fields and foreign contact data are flagged;
 
 // --- static rules (proxy.ts / metadata-route replacements) -------------------------
 
-test("_headers is generated from lib/security/headers.ts (single source); staging adds noindex, production never", () => {
+test("_headers is generated from lib/security/headers.ts (single source); staging adds noindex, production only on data files (D6)", () => {
   for (const env of ["staging", "production"] as const) {
     const file = buildHeadersFile(env, STATIC_TARGETS[env].rfqApiOrigin);
     for (const [name, value] of buildSecurityHeaders([STATIC_TARGETS[env].rfqApiOrigin])) assert.ok(file.includes(`  ${name}: ${value}`), `${env}: ${name}`);
   }
   assert.match(buildHeadersFile("staging", STATIC_TARGETS["staging"].rfqApiOrigin), /X-Robots-Tag: noindex, nofollow/);
-  assert.doesNotMatch(buildHeadersFile("production", STATIC_TARGETS["production"].rfqApiOrigin), /noindex/i);
+  const production = headerBlocks(buildHeadersFile("production", STATIC_TARGETS["production"].rfqApiOrigin));
+  assert.ok(!production.get("/*")!.some((l) => /noindex/i.test(l)), "production pages are never noindex");
+  assert.deepEqual([...production].filter(([, lines]) => lines.some((l) => /X-Robots-Tag/.test(l))).map(([block]) => block), ["/data/*", "/manifest.public.json"]);
   assert.match(read("lib/security/headers.ts"), /export function applySecurityHeaders[\s\S]*for \(const \[name, value\] of SECURITY_HEADERS\)/, "proxy.ts uses the same builder");
 });
 
@@ -128,13 +131,17 @@ function buildArtifact(env: "staging" | "production" = "staging") {
   const pub = path.join(dir, "public-assets");
   const priv = path.join(dir, "private-snapshot");
   const snap = "snap-e55d81c754270c1f";
-  const page = (lang: string, p: string) => `<html lang="${lang}"><head><link rel="canonical" href="https://www.ahanassa.com${p}"/></head><body>ok</body></html>`;
-  write(pub, "index.html", page("fa", "/"));
+  const origin = "https://www.ahanassa.com";
+  const languages = { fa: origin, en: `${origin}/en`, ar: `${origin}/ar`, "x-default": origin };
+  const hreflang = Object.entries(languages).map(([l, h]) => `<link rel="alternate" hrefLang="${l}" href="${h}"/>`).join("");
+  const page = (lang: string, p: string) =>
+    `<html lang="${lang}"><head><meta name="robots" content="${env === "production" ? "index, follow" : "noindex, follow"}"/><link rel="canonical" href="${origin}${p}"/>${hreflang}</head><body>ok</body></html>`;
+  write(pub, "index.html", page("fa", ""));
   write(pub, "en.html", page("en", "/en"));
   write(pub, "ar.html", page("ar", "/ar"));
-  for (const f of ["404.html", "en/404.html", "ar/404.html"]) write(pub, f, "<html><body>404</body></html>");
-  write(pub, "robots.txt", "User-Agent: *\nDisallow: /\n");
-  write(pub, "sitemap.xml", renderSitemapXml([]));
+  for (const f of ["404.html", "en/404.html", "ar/404.html"]) write(pub, f, '<html><head><meta name="robots" content="noindex, nofollow"/></head><body>404</body></html>');
+  write(pub, "robots.txt", env === "production" ? PRODUCTION_ROBOTS_TXT : "User-Agent: *\nDisallow: /\n");
+  write(pub, "sitemap.xml", renderSitemapXml(env === "production" ? Object.values(languages).slice(0, 3).map((url) => ({ url, lastModified: "2026-10-01T00:00:00.000Z", alternates: { languages } })) : []));
   write(pub, "_headers", buildHeadersFile(env, STATIC_TARGETS[env].rfqApiOrigin));
   write(pub, "_redirects", buildRedirectsFile());
   write(pub, ".assetsignore", buildAssetsIgnoreFile());
@@ -182,11 +189,11 @@ test("artifact gate: checksum drift, unlisted files and missing required files a
   }
 });
 
-test("artifact gate: staging must be noindex and never self-canonical; production must not be noindex", () => {
+test("artifact gate: staging must be noindex and never self-canonical; production pages must not be noindex", () => {
   const a = buildArtifact();
   write(a.pub, "_headers", buildHeadersFile("production", STATIC_TARGETS["production"].rfqApiOrigin));
   a.seal();
-  assert.ok(runArtifactGate(a.dir).failures.some((f) => f.includes("staging must send X-Robots-Tag")));
+  assert.ok(runArtifactGate(a.dir).failures.some((f) => f.includes("staging _headers /* must send X-Robots-Tag")));
   const b = buildArtifact();
   write(b.pub, "about.html", `<link rel="canonical" href="https://ahanassa-bootstrap-staging.nova-b1e6f0.workers.dev/about"/>`);
   b.seal();
@@ -195,7 +202,7 @@ test("artifact gate: staging must be noindex and never self-canonical; productio
   assert.deepEqual(runArtifactGate(c.dir).failures, []);
   write(c.pub, "_headers", buildHeadersFile("staging", STATIC_TARGETS["staging"].rfqApiOrigin));
   c.seal();
-  assert.ok(runArtifactGate(c.dir).failures.some((f) => f.includes("production must not send noindex")));
+  assert.ok(runArtifactGate(c.dir).failures.some((f) => f.includes("production _headers sends X-Robots-Tag: noindex, nofollow on /*")));
 });
 
 test("artifact gate: leak findings fail the gate", () => {

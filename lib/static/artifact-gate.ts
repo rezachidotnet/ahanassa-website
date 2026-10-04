@@ -5,12 +5,13 @@ import { artifactManifest, publicManifest, publicRfqCatalog, PRIVATE_DIR, PUBLIC
 import { scanPublicFile, type LeakFinding } from "./leak-scan.ts";
 import { internalIdsFromSnapshot, scanPublication } from "./publication-gate.ts";
 import { STATIC_TARGETS, TURNSTILE_ORIGIN } from "./targets.ts";
+import { checkIndexingPolicy, PRODUCTION_ORIGIN } from "./indexing-gate.ts";
 
 /**
  * artifact.v1 gate (architecture V1.1 §7.1 step 6, docs/contracts/ARTIFACT_V1.md).
  * A deploy MUST be refused unless `runArtifactGate` returns no failures.
  */
-export const PRODUCTION_ORIGIN = "https://www.ahanassa.com";
+export { PRODUCTION_ORIGIN };
 export const REQUIRED_PUBLIC_FILES = [
   "index.html",
   "404.html",
@@ -129,9 +130,8 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
   }
   if (publicPaths.has("_headers") && parsed.success) {
     const headers = readPublic("_headers");
-    const noindex = /X-Robots-Tag:\s*noindex, nofollow/.test(headers);
-    if (parsed.data.environment === "staging" && !noindex) failures.push("_headers: staging must send X-Robots-Tag: noindex, nofollow");
-    if (parsed.data.environment === "production" && /noindex/i.test(headers)) failures.push("_headers: production must not send noindex");
+    // Indexing (D6): staging never indexable; production exactly lib/seo/indexing-policy.ts.
+    failures.push(...checkIndexingPolicy(parsed.data.environment, publicEntries.map((e) => e.path), readPublic));
     // CSP connect-src: exactly 'self', Turnstile and this target's RFQ API origin (architecture §6.1).
     const origin = STATIC_TARGETS[parsed.data.environment].rfqApiOrigin;
     const connect = /connect-src ([^;\n]*)/.exec(headers)?.[1]?.trim().split(/\s+/) ?? [];

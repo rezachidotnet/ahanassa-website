@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { isLocale, localizedPath, type Locale } from "@/config/locales";
 import { buildPageMetadata } from "@/lib/metadata/resolve";
+import { publicPageIndexable } from "@/lib/seo/indexing-policy";
 import { ProductsListing, productsHeroCopy } from "@/components/products/products-listing";
 import { LegacyCategoryRedirect } from "@/components/products/legacy-category-redirect";
 
@@ -14,10 +15,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { locale: rawLocale } = await params;
   const locale = isLocale(rawLocale) ? rawLocale : "fa";
   const t = productsHeroCopy[locale];
-  // The listing shell itself follows the same site-wide pre-launch noindex
-  // posture every other page currently uses (CLAUDE.md §5a / DAR-037) —
-  // independent of how many templates happen to be published right now.
-  return buildPageMetadata({ locale, path: "/products", title: t.title, description: t.body, indexable: false });
+  // D6 (docs/OWNER_DECISIONS.md): index,follow on the production target only.
+  return buildPageMetadata({ locale, path: "/products", title: t.title, description: t.body, indexable: publicPageIndexable() });
 }
 
 /**

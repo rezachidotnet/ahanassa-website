@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { env } from "cloudflare:workers";
 import { isLocale, type Locale } from "@/config/locales";
 import { buildPageMetadata } from "@/lib/metadata/resolve";
+import { publicPageIndexable } from "@/lib/seo/indexing-policy";
 import { organizationSchema, websiteSchema, jsonLdGraph } from "@/lib/seo/schema";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { Hero } from "@/components/home/hero";
@@ -126,12 +127,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     path: "/",
     title: text.title,
     description: text.description,
-    // Content is adapted from HOMEPAGE_SPEC.md's "working copy direction";
-    // section composition follows the approved v0 implementation
-    // (PROJECT_OVERRIDES.md §8b). Classified `draft` per HOMEPAGE_SPEC.md
-    // §20.5 until the content owner reviews it — keep unindexed until then.
-    // See DOCUMENT_AUDIT_REPORT.md DAR-020/DAR-021.
-    indexable: false,
+    // Owner decision D6 (2026-10-04, docs/OWNER_DECISIONS.md): index,follow on
+    // the production target; staging keeps its pre-D6 noindex.
+    indexable: publicPageIndexable(),
   });
 }
 

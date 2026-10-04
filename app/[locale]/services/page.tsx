@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { isLocale, type Locale } from "@/config/locales";
 import { buildPageMetadata } from "@/lib/metadata/resolve";
+import { publicPageIndexable } from "@/lib/seo/indexing-policy";
 import { servicesCopy } from "@/lib/content/pages";
 import { homepageCopy } from "@/lib/content/homepage";
 import { PageHero } from "@/components/ui/page-hero";
@@ -18,7 +19,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { locale: rawLocale } = await params;
   const locale = isLocale(rawLocale) ? rawLocale : "fa";
   const t = servicesCopy[locale];
-  return buildPageMetadata({ locale, path: "/services", title: t.hero.title, description: t.hero.body, indexable: false });
+  return buildPageMetadata({ locale, path: "/services", title: t.hero.title, description: t.hero.body, indexable: publicPageIndexable() });
 }
 
 export default async function ServicesPage({ params }: PageProps) {

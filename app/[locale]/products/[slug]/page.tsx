@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import { isLocale, localizedPath, type Locale } from "@/config/locales";
 import { buildPageMetadata, buildLanguageAlternatesFromEntries } from "@/lib/metadata/resolve";
+import { publicPageIndexable } from "@/lib/seo/indexing-policy";
 import { getPublishedCatalogTemplateBySlug, listPublishedCatalogTemplates, listPublishedLocalesForProduct } from "@/lib/catalog/editorial-repository";
 import { resolveRouteRedirect } from "@/lib/catalog/route-redirects";
 import { PageHero } from "@/components/ui/page-hero";
@@ -53,10 +54,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     path: `/products/${slug}`,
     title: entry.seo.seoTitle ?? entry.seo.h1 ?? entry.product.commercialTemplateName,
     description: entry.seo.seoDescription ?? entry.seo.intro ?? "",
-    // Site-wide pre-launch posture (see /products' own generateMetadata)
-    // still applies via robots.ts outside production, but per-entity
-    // indexability is real once the site does launch — never hardcoded true.
-    indexable: entry.seo.indexStatus === "index",
+    // D6 (docs/OWNER_DECISIONS.md): every published product page is
+    // index,follow on the production target; other targets keep the
+    // editorial index_status as before.
+    indexable: publicPageIndexable(entry.seo.indexStatus === "index"),
     languageAlternates,
   });
 }

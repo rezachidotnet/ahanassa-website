@@ -63,7 +63,10 @@ extra), with matching `bytes` and `sha256`. Production deploys only an artifact 
 3. Required public files present; `manifest.public.json` and every `rfq-catalog` JSON validate and carry
    the manifest's `snapshot_version`.
 4. Every `canonical`/`alternate` link points at `https://www.ahanassa.com` (staging never self-canonical);
-   staging `_headers` sends `X-Robots-Tag: noindex, nofollow`; production never sends `noindex`.
+   the **indexing gate** (W5, owner decision D6, `docs/INDEXING_POLICY.md`): staging `_headers` sends
+   `X-Robots-Tag: noindex, nofollow` on `/*` and `robots.txt` is disallow-all; production sends `noindex` only on
+   the data paths, its `robots.txt` is exactly the policy's, every page but the 404s is `index, follow` with a
+   self canonical and hreflang, and the sitemap lists exactly those pages with lastmod and reciprocal alternates.
 5. Leak scan (`lib/static/leak-scan.ts`): no forbidden commercial field (cost, supplier, margin, stock,
    purchase price, …) as a JSON key; no server-only field in public JSON; no e-mail/phone other than the
    company's; no Persian on en/ar pages or en/ar JSON outside the explicit allowlist (brand name,

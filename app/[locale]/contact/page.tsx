@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { isLocale, type Locale } from "@/config/locales";
 import { buildPageMetadata } from "@/lib/metadata/resolve";
+import { publicPageIndexable } from "@/lib/seo/indexing-policy";
 import { siteConfig } from "@/lib/metadata/site";
 import { homepageCopy } from "@/lib/content/homepage";
 import { PageHero } from "@/components/ui/page-hero";
@@ -67,7 +68,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { locale: rawLocale } = await params;
   const locale = isLocale(rawLocale) ? rawLocale : "fa";
   const t = copy[locale];
-  return buildPageMetadata({ locale, path: "/contact", title: t.title, description: t.body, indexable: false });
+  return buildPageMetadata({ locale, path: "/contact", title: t.title, description: t.body, indexable: publicPageIndexable() });
 }
 
 export default async function ContactPage({ params }: PageProps) {

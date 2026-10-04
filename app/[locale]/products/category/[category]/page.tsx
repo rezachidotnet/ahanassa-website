@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { isLocale, type Locale } from "@/config/locales";
 import { buildPageMetadata } from "@/lib/metadata/resolve";
+import { publicPageIndexable } from "@/lib/seo/indexing-policy";
 import { listPublicCatalogCategories } from "@/lib/catalog/editorial-repository";
 import { categoryListingPath, categoryPathSegment, findCategoryByPathSegment } from "@/lib/catalog/public-categories";
 import { ProductsListing, productsHeroCopy } from "@/components/products/products-listing";
@@ -27,7 +28,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const category = await resolveCategory(locale, segment);
   const t = productsHeroCopy[locale];
   if (!category) return { title: t.title };
-  return buildPageMetadata({ locale, path: categoryListingPath(category.code), title: `${category.name} — ${t.eyebrow}`, description: t.body, indexable: false });
+  return buildPageMetadata({ locale, path: categoryListingPath(category.code), title: `${category.name} — ${t.eyebrow}`, description: t.body, indexable: publicPageIndexable() });
 }
 
 export default async function ProductCategoryPage({ params }: PageProps) {

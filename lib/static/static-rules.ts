@@ -1,4 +1,5 @@
 import { buildSecurityHeaders } from "../security/headers.ts";
+import { PRODUCTION_NOINDEX_HEADER_PATHS } from "../seo/indexing-policy.ts";
 
 /**
  * Static replacements for what `proxy.ts` and the metadata routes did on the
@@ -12,12 +13,17 @@ export type StaticEnvironment = "staging" | "production";
  * `_headers`: the security headers on every path (single source:
  * lib/security/headers.ts), with CSP connect-src = 'self' + Turnstile + the
  * target's RFQ API origin only (§6.1); staging additionally
- * `X-Robots-Tag: noindex, nofollow` (§4.2, R2-4).
+ * `X-Robots-Tag: noindex, nofollow` (§4.2, R2-4). Production marks only the
+ * non-page data files noindex (D6, lib/seo/indexing-policy.ts); its pages never.
  */
 export function buildHeadersFile(env: StaticEnvironment, rfqApiOrigin: string): string {
   const lines = ["/*", ...buildSecurityHeaders([rfqApiOrigin]).map(([name, value]) => `  ${name}: ${value}`)];
   if (env === "staging") lines.push("  X-Robots-Tag: noindex, nofollow");
-  lines.push("", "/_next/static/*", "  Cache-Control: public, max-age=31536000, immutable", "", "/data/*", "  Cache-Control: public, max-age=300", "");
+  const noindex = new Set<string>(env === "production" ? PRODUCTION_NOINDEX_HEADER_PATHS : []);
+  lines.push("", "/_next/static/*", "  Cache-Control: public, max-age=31536000, immutable", "", "/data/*", "  Cache-Control: public, max-age=300");
+  if (noindex.delete("/data/*")) lines.push("  X-Robots-Tag: noindex");
+  lines.push("");
+  for (const p of noindex) lines.push(p, "  X-Robots-Tag: noindex", "");
   return lines.join("\n");
 }
 
@@ -55,15 +61,20 @@ export function renderRobotsTxt(robots: RobotsInput): string {
 export interface SitemapEntry {
   url: string;
   lastModified?: string | Date;
+  /** hreflang alternates (Next.js MetadataRoute.Sitemap shape), rendered as <xhtml:link rel="alternate">. */
+  alternates?: { languages?: Record<string, string | undefined> };
 }
 
 const xmlEscape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-/** sitemap.xml text for the app's own `app/sitemap.ts` result. */
+/** sitemap.xml text for the app's own `app/sitemap.ts` result. The xhtml namespace is declared only when an entry has alternates. */
 export function renderSitemapXml(entries: SitemapEntry[]): string {
+  const alternatesOf = (e: SitemapEntry) => Object.entries(e.alternates?.languages ?? {}).filter((pair): pair is [string, string] => Boolean(pair[1]));
   const urls = entries.map((e) => {
     const lastmod = e.lastModified ? `<lastmod>${xmlEscape(new Date(e.lastModified).toISOString())}</lastmod>` : "";
-    return `  <url><loc>${xmlEscape(e.url)}</loc>${lastmod}</url>`;
+    const links = alternatesOf(e).map(([lang, href]) => `<xhtml:link rel="alternate" hreflang="${xmlEscape(lang)}" href="${xmlEscape(href)}"/>`).join("");
+    return `  <url><loc>${xmlEscape(e.url)}</loc>${lastmod}${links}</url>`;
   });
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}${urls.length ? "\n" : ""}</urlset>\n`;
+  const xhtml = entries.some((e) => alternatesOf(e).length) ? ' xmlns:xhtml="http://www.w3.org/1999/xhtml"' : "";
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"${xhtml}>\n${urls.join("\n")}${urls.length ? "\n" : ""}</urlset>\n`;
 }

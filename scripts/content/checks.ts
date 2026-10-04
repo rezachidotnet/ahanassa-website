@@ -9,7 +9,8 @@
  *    sitemap (lib/static/link-check.ts);
  * 3. hydration + no-RSC on every page, and ZERO console errors on the
  *    interactive pages (contact form, product listing/category filters,
- *    product variant highlight) — headless Chrome.
+ *    product variant highlight) — headless Chrome;
+ * 4. the thin-content report (W5, D6) — report only, never fails the step.
  *
  *   node scripts/content/checks.ts --work <dir> [--skip-hydration]
  */
@@ -19,6 +20,8 @@ import path from "node:path";
 import { CONTACT_PHONE_E164 } from "../../lib/content/contact-channels.ts";
 import { listFiles, runArtifactGate } from "../../lib/static/artifact-gate.ts";
 import { checkLinks } from "../../lib/static/link-check.ts";
+import { thinContentMarkdown, thinContentReport } from "../../lib/content-pipeline/thin-content.ts";
+import { readSnapshotFile } from "../../lib/static/snapshot-io.ts";
 import { log as logger, parseArgs, paths, repoRoot, runStep, summary, workDir } from "./common.ts";
 
 const args = parseArgs();
@@ -49,6 +52,12 @@ await runStep("checks", async () => {
     process.stdout.write(strict.stdout);
     if (strict.status !== 0) throw new Error(`interactive pages have console errors:\n${strict.stdout.split("\n").filter((l) => l.startsWith("FAIL")).join("\n")}`);
     hydration = `${/hydration: (\d+\/\d+)/.exec(all.stdout)?.[1]} pages clean; interactive ${/hydration: (\d+\/\d+)/.exec(strict.stdout)?.[1]} with zero console errors`;
+  }
+  // Report only (D6): what Google will index with thin Odoo data. Never throws.
+  try {
+    summary(thinContentMarkdown(thinContentReport(readSnapshotFile(p.snapshot))));
+  } catch (err) {
+    log(`thin-content report skipped: ${err instanceof Error ? err.message : String(err)}`);
   }
   summary(`### Content checks: PASS\n- artifact gate (incl. publication gate, Persian leak scan): pass\n- links, images, canonical/hreflang reciprocity, sitemap: pass\n- hydration/no-RSC: ${hydration}`);
 });
