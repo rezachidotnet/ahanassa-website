@@ -7,6 +7,7 @@ import { homepageCopy } from "@/lib/content/homepage";
 import { PageHero } from "@/components/ui/page-hero";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { StaticEnquiryForm } from "@/components/contact/static-enquiry-form";
+import { WhatsAppDrawingsLink } from "@/components/contact/whatsapp-drawings-link";
 import { FaqSection } from "@/components/contact/faq-section";
 import { getTurnstileSiteKey } from "@/lib/env";
 
@@ -98,6 +99,8 @@ export default async function ContactPage({ params }: PageProps) {
       <section className="border-border bg-background border-b py-20 lg:py-28">
         <div className="container-x">
           <SectionHeading eyebrow={t.formEyebrow} title={t.formTitle} body={t.formBody} />
+          {/* Drawings/files channel = WhatsApp (owner decision 2026-10-04); a plain link, rendered only when a number is configured. */}
+          <WhatsAppDrawingsLink locale={locale} className="mt-6 max-w-2xl" />
           <div className="mt-12">
             <StaticEnquiryForm locale={locale} turnstileSiteKey={getTurnstileSiteKey()} rfqEndpoint={rfqSubmitEndpoint()} />
           </div>

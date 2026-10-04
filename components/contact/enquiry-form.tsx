@@ -24,6 +24,7 @@ import { RfqItemRow } from "@/components/contact/rfq-item-row";
 import { getDefaultPhoneCountry, getCountryLabel, PHONE_COUNTRIES } from "@/lib/rfq/phone-country-registry";
 import { normalizeDigits } from "@/lib/rfq/quantity";
 import { submitRfqWithRetry } from "@/lib/rfq/submit-with-retry";
+import { WhatsAppDrawingsLink } from "@/components/contact/whatsapp-drawings-link";
 
 /**
  * Multi-item RFQ / purchase-list form (docs/RFQ_MULTI_ITEM_FORM.md).
@@ -525,6 +526,7 @@ export function EnquiryForm({
       <div className="border-border bg-surface border p-10">
         <h3 className="text-navy text-xl font-bold">{t.successTitle}</h3>
         <p className="text-muted-foreground mt-4 max-w-md text-sm leading-relaxed">{t.successBody(reference)}</p>
+        <WhatsAppDrawingsLink locale={locale} reference={reference} className="mt-4 max-w-md" />
         <Button variant="outline" className="mt-8" onClick={startNewRequest}>
           {t.again}
         </Button>

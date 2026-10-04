@@ -1,3 +1,5 @@
+import { isValidWhatsAppNumber, WHATSAPP_BUSINESS_NUMBER } from "./whatsapp.ts";
+
 /**
  * Owner-supplied contact channel. Originally confirmed 2026-09-02 (RFQ/UX
  * polish task) as a mobile E.164 number; replaced 2026-09-14
@@ -12,3 +14,6 @@
  * locale — components/home/hero.tsx).
  */
 export const CONTACT_PHONE_E164 = "03135134";
+
+/** Every company number that may appear on public pages — the leak scan allows exactly these (WhatsApp only when configured). */
+export const COMPANY_PUBLIC_NUMBERS: readonly string[] = [CONTACT_PHONE_E164, ...(isValidWhatsAppNumber(WHATSAPP_BUSINESS_NUMBER) ? [WHATSAPP_BUSINESS_NUMBER] : [])];

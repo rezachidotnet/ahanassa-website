@@ -120,7 +120,7 @@ const { buildPublicRfqCatalog } = await load("lib/catalog/public-rfq-catalog.ts"
 const { listRfqSelectableCatalogItems } = await load("lib/catalog/editorial-repository.ts");
 const robots = (await load("app/robots.ts")).default;
 const sitemap = (await load("app/sitemap.ts")).default;
-const { CONTACT_PHONE_E164 } = await load("lib/content/contact-channels.ts");
+const { COMPANY_PUBLIC_NUMBERS } = await load("lib/content/contact-channels.ts");
 
 fs.mkdirSync(path.join(publicDir, "data"), { recursive: true });
 const indexRows: RfqVariantIndexRow[] = [];
@@ -185,7 +185,7 @@ const manifest = artifactManifest.parse({
 fs.writeFileSync(path.join(outDir, "manifest.json"), JSON.stringify(manifest, null, 1) + "\n");
 
 // --- 4. gate -----------------------------------------------------------------
-const gate = runArtifactGate(outDir, { companyPhones: [CONTACT_PHONE_E164] });
+const gate = runArtifactGate(outDir, { companyPhones: COMPANY_PUBLIC_NUMBERS });
 log(`artifact: ${gate.stats.publicFiles} public files (${gate.stats.htmlPages} HTML), ${gate.stats.privateFiles} private files; largest ${gate.stats.largestPublicFile?.path} (${gate.stats.largestPublicFile?.bytes} B)`);
 if (gate.failures.length) {
   for (const f of gate.failures) console.error(`[static] GATE FAIL: ${f}`);
