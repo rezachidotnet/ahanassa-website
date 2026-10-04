@@ -157,7 +157,7 @@ export function piiRetentionSummaryMarkdown(r: PiiRetentionResult, env: string):
   return [
     `### PII retention (${env})${r.dryRun ? " — DRY RUN, nothing written" : ""}`,
     `- rule: delivered RFQs (Odoo reference present) are cleared ${r.retentionDays} days after delivery; Odoo keeps the data; undelivered RFQs are never cleared`,
-    `- retention_until ${r.dryRun ? "would be" : ""} written: ${r.stamped} (of ${r.unstamped} without one)`,
+    `- retention_until ${r.dryRun ? "would be written" : "written"}: ${r.stamped} (of ${r.unstamped} without one)`,
     `- due before this run: ${r.due}; ${r.dryRun ? "would be cleared" : "cleared"}: ${r.purged} (batch ${r.batch}); still due: ${r.remainingDue}`,
     `- already cleared earlier: ${r.alreadyPurged}; not delivered (never cleared): ${r.undelivered}`,
     "",
