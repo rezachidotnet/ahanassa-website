@@ -45,7 +45,19 @@ Gate tests on local copies: `scripts/content/simulate.ts remove-family|inject-le
 `lib/content-pipeline/config.ts`: decrease threshold (0.2), retained versions (3), Odoo rate (600 ms between
 requests), timeouts, page size, D1 batch size. Schedule: daily 22:47 UTC (02:17 Tehran) + manual dispatch.
 
-## Not in W4
+## W5 additions
 
-Production job (W8: same artifact, checksum check, no refetch, no rebuild), `CONTENT_REBUILD` release type
-(W5), alerting (W6 — failures write the job summary only).
+- **`CONTENT_REBUILD`** (owner decision D4, `docs/release/RELEASE_POLICY.md` §19): a production content
+  publication runs without manual approval only when the artifact's `code_sha` is the latest `STABLE_100`
+  production release, only static assets + snapshot change, and every gate passed; `allow_decrease` or a failed
+  gate needs the approval; anything else is a code release. Check: `node lib/ci/content-rebuild-cli.ts
+  --artifact <dir> --ledger-ref <trusted production branch>` (exit 0 AUTO, 3 APPROVAL_REQUIRED, 1 REFUSED).
+  The W8 production job must run it before any production write.
+- **Indexing** (owner decision D6, `docs/INDEXING_POLICY.md`): the artifact gate's indexing gate refuses a
+  staging artifact that could be indexed and a production artifact that does not match the policy.
+- **Thin-content report** (report only): the checks step adds it to the job summary.
+
+## Not yet
+
+Production job (W8: same artifact, checksum check, no refetch, no rebuild, the `CONTENT_REBUILD` check).
+Alerting: W6 (`docs/OPS_ALERTS.md`).
