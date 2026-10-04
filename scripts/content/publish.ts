@@ -32,7 +32,7 @@ import { artifactManifest, type ArtifactManifest } from "../../lib/contracts/art
 import { rfqVariantIndexRow, type RfqVariantIndexRow } from "../../lib/contracts/snapshot-v1.ts";
 import { COMPANY_PUBLIC_NUMBERS } from "../../lib/content/contact-channels.ts";
 import { PIPELINE_CONFIG } from "../../lib/content-pipeline/config.ts";
-import { categoryReplaceBatches, batchStatements, failStagedSql, mirrorStatements, pruneSql, restorePointerSql, stagedStateSql, switchPointerSql, variantIndexBatches, versionsToPrune } from "../../lib/content-pipeline/publication-sql.ts";
+import { categoryReplaceBatches, batchStatements, clearFirstPointerSql, failStagedSql, mirrorStatements, pruneSql, restorePointerSql, stagedStateSql, switchPointerSql, variantIndexBatches, versionsToPrune } from "../../lib/content-pipeline/publication-sql.ts";
 import { isPipelineVersion } from "../../lib/content-pipeline/version.ts";
 import { describeFiles, runArtifactGate } from "../../lib/static/artifact-gate.ts";
 import { readSnapshotFile } from "../../lib/static/snapshot-io.ts";
@@ -178,6 +178,28 @@ async function variantDryRun(submittedVersion: string | null, expectFrom: string
   return lines;
 }
 
+/** First publication only: the staged rfq_variant_index rows of this version, compared with the artifact. */
+async function stagedIndexCheck(): Promise<string> {
+  const rows = indexRows();
+  const parts: string[] = [];
+  for (const locale of ["fa", "en", "ar"] as const) {
+    const expected = rows.filter((r) => r.locale === locale);
+    const sample = expected.slice(0, 3);
+    const got = await db()
+      .prepare(`SELECT canonical_variant_id, selection_json FROM rfq_variant_index WHERE snapshot_version = ? AND locale = ? AND canonical_variant_id IN (?, ?, ?)`)
+      .bind(version, locale, ...sample.map((r) => r.canonical_variant_id))
+      .all<{ canonical_variant_id: string; selection_json: string }>();
+    for (const r of sample) {
+      const hit = got.results.find((g) => g.canonical_variant_id === r.canonical_variant_id);
+      if (!hit || hit.selection_json !== r.selection_json) throw new Error(`staged index ${locale}: ${r.canonical_variant_id} missing or different`);
+    }
+    const n = await db().prepare(`SELECT COUNT(*) AS n FROM rfq_variant_index WHERE snapshot_version = ? AND locale = ?`).bind(version, locale).first<number>("n");
+    if (n !== expected.length) throw new Error(`staged index ${locale}: ${n} rows, artifact has ${expected.length}`);
+    parts.push(`${locale} ${n} rows, 3/3 samples = artifact`);
+  }
+  return `staged rfq_variant_index ${parts.join("; ")}`;
+}
+
 await runStep(`publish ${command}`, async () => {
   switch (command) {
     case "load": {
@@ -280,7 +302,13 @@ await runStep(`publish ${command}`, async () => {
       const health = await fetchText(TARGET.rfqHealthUrl);
       if (health.status !== 200) throw new Error(`smoke RFQ Worker /healthz: ${health.status}`);
       lines.push(`RFQ Worker ${TARGET.rfqHealthUrl} 200`);
-      lines.push(...(await variantDryRun(version, version)).map((l) => `variant dry run (submitted ${version}) ${l}`));
+      if (state.previous_active_version === null) {
+        // First publication of this DB_PUBLIC: no publication_pointer row exists yet, and the RFQ Worker's
+        // resolver reads through it, so it cannot resolve anything before the switch (by design). Check the
+        // staged rows directly here; `switch` then runs the Worker's own resolver through the active path.
+        const staged = await stagedIndexCheck();
+        lines.push(`first publication (no pointer yet): ${staged}; the Worker's resolver runs right after the switch`);
+      } else lines.push(...(await variantDryRun(version, version)).map((l) => `variant dry run (submitted ${version}) ${l}`));
       if (env === "staging" && process.env.CONTENT_SMOKE_FORCE_FAIL === "1") throw new Error("CONTENT_SMOKE_FORCE_FAIL=1: forced smoke failure after deploy (rollback test)");
       save("smoke_passed");
       summary(`### Publish: smoke PASS\n${lines.map((l) => `- ${l}`).join("\n")}`);
@@ -316,9 +344,13 @@ await runStep(`publish ${command}`, async () => {
       const actions: string[] = [];
       state.rolled_back = actions;
       if (state.switched) {
-        if (!state.previous_active_version) throw new Error("no previous version to restore the pointer to");
-        d1Exec(restorePointerSql(state.previous_active_version, version, now()));
-        actions.push(`pointer restored to \`${state.previous_active_version}\`; \`${version}\` marked failed`);
+        if (state.previous_active_version) {
+          d1Exec(restorePointerSql(state.previous_active_version, version, now()));
+          actions.push(`pointer restored to \`${state.previous_active_version}\`; \`${version}\` marked failed`);
+        } else {
+          d1Exec(clearFirstPointerSql(version, now()));
+          actions.push(`first publication: the pointer row was removed (nothing published again); \`${version}\` marked failed`);
+        }
       } else if (state.steps.includes("staged_state")) {
         d1Exec(failStagedSql(version, now()));
         actions.push(`staged \`${version}\` marked failed and its index rows removed; pointer untouched`);

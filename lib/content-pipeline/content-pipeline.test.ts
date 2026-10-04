@@ -3,13 +3,14 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { PUBLIC_MIGRATIONS } from "../testing/sqlite-d1.ts";
 import type { CatalogApiProduct } from "../catalog/odoo-api-client.ts";
 import type { SnapshotV1 } from "../contracts/snapshot-v1.ts";
 import { assembleSnapshotTables } from "./assemble.ts";
 import { compareArtifacts } from "./compare.ts";
 import type { D1Source } from "./d1-source.ts";
 import { createGuardedFetch, fetchOdooSource, type OdooSource } from "./odoo-source.ts";
-import { batchStatements, failStagedSql, mirrorStatements, pruneSql, restorePointerSql, stagedStateSql, switchPointerSql, variantIndexBatches, versionsToPrune } from "./publication-sql.ts";
+import { batchStatements, clearFirstPointerSql, failStagedSql, mirrorStatements, pruneSql, restorePointerSql, stagedStateSql, switchPointerSql, variantIndexBatches, versionsToPrune } from "./publication-sql.ts";
 import { decreaseFindings, sourceCounts, validateSource } from "./validate.ts";
 import { isPipelineVersion, nextSnapshotVersion, versionTimestamp } from "./version.ts";
 import { buildVersionedSnapshot, parseSnapshot, readSnapshotFile } from "../static/snapshot-io.ts";
@@ -299,4 +300,22 @@ test("compareArtifacts: version-stamp-only differences pass, anything else fails
   assert.deepEqual([ok.identical_files, ok.stamp_only_files, ok.identical_except_stamp], [1, ["m.json"], true]);
   const c = mk("snap-2", { "a.html": "different", "m.json": '{"v":"snap-2","t":"snap-2-time"}' });
   assert.equal(compareArtifacts(a, c).identical_except_stamp, false);
+});
+
+test("first publication of an empty DB_PUBLIC: switch creates the pointer; a rollback removes it again (W8.0)", () => {
+  const db = new DatabaseSync(":memory:");
+  for (const f of fs.readdirSync(PUBLIC_MIGRATIONS).filter((x) => x.endsWith(".sql")).sort()) db.exec(fs.readFileSync(path.join(PUBLIC_MIGRATIONS, f), "utf8"));
+  const v = "snap-2026100417354600";
+  const t = "2026-10-04T18:00:00.000Z";
+  db.exec(stagedStateSql({ version: v, manifestSha256: "e".repeat(64), createdAt: t, counts: {}, now: t }));
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM publication_pointer").get()!.n, 0);
+  db.exec(switchPointerSql(v, "snap-SOMETHING", t));
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM publication_pointer").get()!.n, 0, "guard: expected a pointer that does not exist -> no switch");
+  db.exec(switchPointerSql(v, null, t));
+  assert.equal(db.prepare("SELECT active_version FROM publication_pointer").get()!.active_version, v);
+  db.exec(clearFirstPointerSql("snap-2026100417354601", t));
+  assert.equal(db.prepare("SELECT active_version FROM publication_pointer").get()!.active_version, v, "guard: only the failed version's own pointer is removed");
+  db.exec(clearFirstPointerSql(v, t));
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM publication_pointer").get()!.n, 0);
+  assert.equal(db.prepare("SELECT status FROM publication_state WHERE version = ?").get(v)!.status, "failed");
 });

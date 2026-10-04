@@ -77,6 +77,18 @@ export function restorePointerSql(previous: string, failed: string, now: string)
   ].join(";\n") + ";";
 }
 
+/**
+ * §7.2 for the FIRST publication of a database (no previous version): smoke failed after the switch ->
+ * the pointer row this publication created is removed (guarded: only if it still points at it) and the
+ * version is `failed` — the database is back to "nothing published".
+ */
+export function clearFirstPointerSql(failed: string, now: string): string {
+  return [
+    `DELETE FROM publication_pointer WHERE id = 1 AND active_version = ${sqlLiteral(failed)}`,
+    `UPDATE publication_state SET status = 'failed', updated_at = ${sqlLiteral(now)} WHERE version = ${sqlLiteral(failed)}`,
+  ].join(";\n") + ";";
+}
+
 /** §7.2: failure BEFORE the switch — the staged version is marked failed and its index rows removed; the pointer is not touched. */
 export function failStagedSql(version: string, now: string): string {
   return [
