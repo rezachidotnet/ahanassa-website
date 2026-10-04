@@ -12,10 +12,12 @@
 # (CLAUDE.md §5b). main and the application branch have unrelated histories, so the job checks out
 # feat/v11-static-site for scripts/ops/health/*. At cutover, change `ref` to the real application branch.
 #
-# TODO(W8, production): a separate `health-production` job in environment `production` with its own
-# read-only monitor token, `--env production` (enable OPS_TARGETS.production in scripts/ops/health/config.ts
-# first). It must NOT expose `test_force_alert` (staging-only test input). Not in W6.
-name: Ops health (staging)
+# W8.0: a second job, `health-production`, checks the production-prep resources (OPS_TARGETS.production:
+# RFQ Worker CPU/1102, the empty v11 production DB_OPS, the production-prep publish — report only — and Odoo).
+# It runs in environment production-v11-monitor (no reviewer, branch main, read-only monitor token only) —
+# not production-v11, whose reviewer gate would hold every 15-min run. Until that environment has the
+# monitor token it skips with a notice. It never exposes `test_force_alert` (staging-only).
+name: Ops health
 
 on:
   workflow_dispatch:
@@ -91,3 +93,34 @@ jobs:
           else
             echo "::warning title=healthchecks ping failed::could not reach healthchecks.io"
           fi
+
+  health-production:
+    name: health (production-prep)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production-v11-monitor
+    steps:
+      - name: Checkout scripts/ops (application branch)
+        uses: actions/checkout@v4
+        with:
+          ref: feat/v11-static-site
+          sparse-checkout: scripts/ops
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Health checks, production-prep (fails only on ALERT)
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.V11_PRODUCTION_CLOUDFLARE_MONITOR_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.V11_PRODUCTION_CLOUDFLARE_ACCOUNT_ID }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::notice title=production health skipped::V11_PRODUCTION_CLOUDFLARE_MONITOR_TOKEN / _ACCOUNT_ID are not set in environment production-v11-monitor"
+            exit 0
+          fi
+          node scripts/ops/health/run.ts --env production
