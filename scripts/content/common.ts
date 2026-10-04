@@ -65,6 +65,17 @@ export function summary(markdown: string): void {
   if (file) fs.appendFileSync(file, markdown + "\n");
 }
 
+/**
+ * A GitHub annotation (W6): the failed-run e-mail and the run page show its title, so a failure
+ * reads "ALERT: content <step> failed" instead of only "Process completed with exit code 1".
+ */
+export function annotate(level: "error" | "warning", title: string, message: string): void {
+  if (!process.env.GITHUB_ACTIONS) return;
+  const data = message.split("\n")[0].slice(0, 300).replace(/%/g, "%25").replace(/\r/g, "%0D");
+  const prop = title.replace(/%/g, "%25").replace(/:/g, "%3A").replace(/,/g, "%2C");
+  console.log(`::${level} title=${prop}::${data}`);
+}
+
 export const log = (step: string) => (msg: string) => console.log(`[content:${step}] ${msg}`);
 
 /** DB_PUBLIC (staging) through `wrangler d1 execute --remote` — the same adapter the CI reconciler uses. */
@@ -79,6 +90,7 @@ export async function runStep(step: string, body: () => Promise<void>): Promise<
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     summary(`### ❌ content ${step} failed\n\n\`\`\`\n${message}\n\`\`\``);
+    annotate("error", `ALERT: content ${step} failed`, message);
     process.exit(1);
   }
 }

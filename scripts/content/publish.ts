@@ -31,7 +31,7 @@ import { isPipelineVersion } from "../../lib/content-pipeline/version.ts";
 import { describeFiles, runArtifactGate } from "../../lib/static/artifact-gate.ts";
 import { readSnapshotFile } from "../../lib/static/snapshot-io.ts";
 import { resolveVariantsFromIndex } from "../../lib/rfq-worker/variant-index.ts";
-import { log as logger, parseArgs, paths, publicDb, readJson, repoRoot, runStep, summary, workDir, writeJson } from "./common.ts";
+import { annotate, log as logger, parseArgs, paths, publicDb, readJson, repoRoot, runStep, summary, workDir, writeJson } from "./common.ts";
 
 const command = process.argv[2];
 const args = parseArgs(process.argv.slice(3));
@@ -286,6 +286,7 @@ await runStep(`publish ${command}`, async () => {
       actions.push(`verified: active_version = \`${active}\``);
       save("rolled_back");
       summary(`### ⚠️ Publish rolled back (\`${version}\`)\n${actions.map((a) => `- ${a}`).join("\n") || "- nothing was written; nothing to roll back"}`);
+      annotate("error", "ALERT: content publish rolled back", `${version} rolled back; active_version ${active}`);
       break;
     }
     default:
