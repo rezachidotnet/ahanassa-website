@@ -26,4 +26,4 @@ node scripts/content/export.ts --work "$work"
 npx tsc --noEmit
 npm test
 node scripts/content/checks.ts --work "$work" $skip
-echo "dry run complete: $work/artifact (not published)"
+echo "dry run complete: $work/artifact + $work/artifact-production (not published)"

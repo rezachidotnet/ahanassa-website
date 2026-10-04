@@ -17,7 +17,7 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { CONTACT_PHONE_E164 } from "../../lib/content/contact-channels.ts";
+import { COMPANY_PUBLIC_NUMBERS } from "../../lib/content/contact-channels.ts";
 import { listFiles, runArtifactGate } from "../../lib/static/artifact-gate.ts";
 import { checkLinks } from "../../lib/static/link-check.ts";
 import { thinContentMarkdown, thinContentReport } from "../../lib/content-pipeline/thin-content.ts";
@@ -34,14 +34,17 @@ await runStep("checks", async () => {
   const p = paths(workDir(args.get("work")));
   const publicDir = path.join(p.artifact, "public-assets");
 
-  const gate = runArtifactGate(p.artifact, { companyPhones: [CONTACT_PHONE_E164] });
-  if (gate.failures.length) throw new Error(`artifact gate failed:\n${gate.failures.slice(0, 50).join("\n")}`);
-  log(`gate: pass (${gate.stats.publicFiles} public files)`);
-
-  const files = listFiles(publicDir);
-  const links = checkLinks(files, (f) => fs.readFileSync(path.join(publicDir, f), "utf8"));
-  if (links.length) throw new Error(`link/image check failed (${links.length}):\n${links.slice(0, 50).map((l) => `${l.kind} in ${l.file}: ${l.target}`).join("\n")}`);
-  log(`links/images/hreflang/sitemap: pass (${files.filter((f) => f.endsWith(".html")).length} HTML files)`);
+  const productionPublicDir = path.join(p.artifactProduction, "public-assets");
+  for (const [target, dir] of [["staging", p.artifact], ["production", p.artifactProduction]] as const) {
+    const gate = runArtifactGate(dir, { companyPhones: COMPANY_PUBLIC_NUMBERS });
+    if (gate.failures.length) throw new Error(`artifact gate failed (${target}):\n${gate.failures.slice(0, 50).join("\n")}`);
+    log(`gate ${target}: pass (${gate.stats.publicFiles} public files)`);
+    const pub = path.join(dir, "public-assets");
+    const files = listFiles(pub);
+    const links = checkLinks(files, (f) => fs.readFileSync(path.join(pub, f), "utf8"));
+    if (links.length) throw new Error(`link/image check failed (${target}, ${links.length}):\n${links.slice(0, 50).map((l) => `${l.kind} in ${l.file}: ${l.target}`).join("\n")}`);
+    log(`links/images/hreflang/sitemap ${target}: pass (${files.filter((f) => f.endsWith(".html")).length} HTML files)`);
+  }
 
   let hydration = "skipped";
   if (!args.has("skip-hydration")) {
@@ -51,7 +54,10 @@ await runStep("checks", async () => {
     const strict = spawnSync("node", ["scripts/static/hydration-check.ts", publicDir, "--pages", INTERACTIVE_PAGES.join(","), "--strict-console"], { cwd: repoRoot, encoding: "utf8" });
     process.stdout.write(strict.stdout);
     if (strict.status !== 0) throw new Error(`interactive pages have console errors:\n${strict.stdout.split("\n").filter((l) => l.startsWith("FAIL")).join("\n")}`);
-    hydration = `${/hydration: (\d+\/\d+)/.exec(all.stdout)?.[1]} pages clean; interactive ${/hydration: (\d+\/\d+)/.exec(strict.stdout)?.[1]} with zero console errors`;
+    // Production twin (r4): hydration on every page. Not --strict-console: its Turnstile key only accepts www.ahanassa.com.
+    const prod = spawnSync("node", ["scripts/static/hydration-check.ts", productionPublicDir, "--all"], { cwd: repoRoot, encoding: "utf8" });
+    if (prod.status !== 0) throw new Error(`production hydration/no-RSC check failed:\n${prod.stdout.split("\n").filter((l) => l.startsWith("FAIL")).join("\n")}`);
+    hydration = `staging ${/hydration: (\d+\/\d+)/.exec(all.stdout)?.[1]} pages clean; interactive ${/hydration: (\d+\/\d+)/.exec(strict.stdout)?.[1]} with zero console errors; production ${/hydration: (\d+\/\d+)/.exec(prod.stdout)?.[1]} pages clean`;
   }
   // Report only (D6): what Google will index with thin Odoo data. Never throws.
   try {
@@ -59,5 +65,5 @@ await runStep("checks", async () => {
   } catch (err) {
     log(`thin-content report skipped: ${err instanceof Error ? err.message : String(err)}`);
   }
-  summary(`### Content checks: PASS\n- artifact gate (incl. publication gate, Persian leak scan): pass\n- links, images, canonical/hreflang reciprocity, sitemap: pass\n- hydration/no-RSC: ${hydration}`);
+  summary(`### Content checks: PASS\n- artifact gate (incl. publication gate, Persian leak scan, indexing gate), staging + production: pass\n- links, images, canonical/hreflang reciprocity, sitemap, staging + production: pass\n- hydration/no-RSC: ${hydration}`);
 });

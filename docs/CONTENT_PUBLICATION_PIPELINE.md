@@ -57,6 +57,22 @@ requests), timeouts, page size, D1 batch size. Schedule: daily 22:47 UTC (02:17 
   staging artifact that could be indexed and a production artifact that does not match the policy.
 - **Thin-content report** (report only): the checks step adds it to the job summary.
 
+## W8.0 additions (architecture r4)
+
+- **Two targets per build.** `export.ts` builds `<work>/artifact` (staging) and `<work>/artifact-production` from
+  the same code_sha + snapshot, then runs the **allowlisted-diff gate** (`lib/static/target-diff-gate.ts`,
+  result in `<work>/target-diff.json`). Allowed: the whole files `robots.txt`, `sitemap.xml`, `_headers`; the
+  `<meta name="robots">` value (HTML + its RSC copy); the Turnstile site key and RFQ API origin only as each
+  target's registered pair (`lib/static/targets.ts`) — a value of the other target anywhere fails; the target
+  label in the manifests (+ the derived `sitemap_urls` count). Any other byte fails. `checks.ts` runs the
+  artifact gate, link check and hydration on both.
+- **Production-prep publish** (`content-publish.yml` job `publish-production`, `workflow_dispatch` with
+  `target=production-prep`, environment `production-v11`): after the staging publish of the same run,
+  `publish.ts <step> --env production` publishes the production twin to `ahanassa-v11-static-production`
+  (workers.dev) and the v11 production DB_PUBLIC (publication state + `rfq_variant_index` only; no catalog
+  mirror). `load` re-checks that the staging twin is active on staging and the diff gate. The
+  CONTENT_REBUILD classification is recorded (a code release until a v11 `STABLE_100` exists).
+
 ## Not yet
 
 Production job (W8: same artifact, checksum check, no refetch, no rebuild, the `CONTENT_REBUILD` check).

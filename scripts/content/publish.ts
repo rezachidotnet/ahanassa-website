@@ -18,30 +18,61 @@
  *
  * Test-only: CONTENT_SMOKE_FORCE_FAIL=1 makes `smoke` fail after the deploy (rollback proof, W4 E23).
  * Honoured only with --env staging; the workflow exposes it only on the staging job.
+ *
+ * --env production (W8.0, r4): publishes <work>/artifact-production — the production-target twin built in the
+ * same run — to the PRODUCTION-PREP targets: the assets-only Worker ahanassa-v11-static-production on
+ * workers.dev and the v11 production DB_PUBLIC (publication state + rfq_variant_index only; no catalog
+ * mirror: nothing reads it). `load` additionally requires (r4 §2.3) that the staging twin is the ACTIVE
+ * version on staging and that the allowlisted-diff gate passes again; no Odoo fetch, no build.
  */
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { artifactManifest, type ArtifactManifest } from "../../lib/contracts/artifact-v1.ts";
 import { rfqVariantIndexRow, type RfqVariantIndexRow } from "../../lib/contracts/snapshot-v1.ts";
-import { CONTACT_PHONE_E164 } from "../../lib/content/contact-channels.ts";
+import { COMPANY_PUBLIC_NUMBERS } from "../../lib/content/contact-channels.ts";
 import { PIPELINE_CONFIG } from "../../lib/content-pipeline/config.ts";
 import { categoryReplaceBatches, batchStatements, failStagedSql, mirrorStatements, pruneSql, restorePointerSql, stagedStateSql, switchPointerSql, variantIndexBatches, versionsToPrune } from "../../lib/content-pipeline/publication-sql.ts";
 import { isPipelineVersion } from "../../lib/content-pipeline/version.ts";
 import { describeFiles, runArtifactGate } from "../../lib/static/artifact-gate.ts";
 import { readSnapshotFile } from "../../lib/static/snapshot-io.ts";
 import { resolveVariantsFromIndex } from "../../lib/rfq-worker/variant-index.ts";
+import { compareTargetArtifacts } from "../../lib/static/target-diff-gate.ts";
+import { PRODUCTION_ROBOTS_TXT, STAGING_ROBOTS_TXT } from "../../lib/static/indexing-gate.ts";
+import { STATIC_TARGETS } from "../../lib/static/targets.ts";
 import { annotate, log as logger, parseArgs, paths, publicDb, readJson, repoRoot, runStep, summary, workDir, writeJson } from "./common.ts";
 
 const command = process.argv[2];
 const args = parseArgs(process.argv.slice(3));
 const log = logger(`publish:${command}`);
 const env = args.get("env") ?? "staging";
-if (env !== "staging") throw new Error("W4 publishes to staging only (the production job is W8)");
+if (env !== "staging" && env !== "production") throw new Error(`--env must be staging or production (got ${env})`);
 
+/** Per-target publish targets. Production = W8.0 production-prep: workers.dev only, never www.ahanassa.com. */
+const TARGET = {
+  staging: {
+    worker: "ahanassa-v11-static-staging",
+    baseUrl: "https://ahanassa-v11-static-staging.nova-b1e6f0.workers.dev",
+    /** The origin the static /contact page posts to (lib/static/targets.ts). */
+    formApiOrigin: STATIC_TARGETS.staging.rfqApiOrigin,
+    /** Where the smoke reaches that RFQ Worker's /healthz. */
+    rfqHealthUrl: `${STATIC_TARGETS.staging.rfqApiOrigin}/healthz`,
+    robotsTxt: STAGING_ROBOTS_TXT,
+    pageRobots: null as RegExp | null,
+  },
+  production: {
+    worker: "ahanassa-v11-static-production",
+    baseUrl: "https://ahanassa-v11-static-production.nova-b1e6f0.workers.dev",
+    formApiOrigin: STATIC_TARGETS.production.rfqApiOrigin,
+    // Until the W8.1 cutover attaches api.ahanassa.com, the production RFQ Worker is reachable on workers.dev only.
+    rfqHealthUrl: "https://ahanassa-v11-rfq-production.nova-b1e6f0.workers.dev/healthz",
+    robotsTxt: PRODUCTION_ROBOTS_TXT,
+    pageRobots: /<meta name="robots" content="index, follow"/,
+  },
+}[env];
 const STATIC_CONFIG = "workers/static/wrangler.jsonc";
-const STATIC_BASE_URL = "https://ahanassa-v11-static-staging.nova-b1e6f0.workers.dev";
-const RFQ_API_ORIGIN = "https://api-staging.ahanassa.com";
+const STATIC_BASE_URL = TARGET.baseUrl;
+const RFQ_API_ORIGIN = TARGET.formApiOrigin;
 const DEPLOY_DIR = path.join(repoRoot, ".artifact/public-assets");
 
 interface PublishState {
@@ -55,12 +86,16 @@ interface PublishState {
 }
 
 const work = workDir(args.get("work"));
-const p = paths(work);
+const paths0 = paths(work);
+// The artifact this target publishes; `p.artifact` below always means "this target's artifact".
+const p = { ...paths0, artifact: env === "production" ? paths0.artifactProduction : paths0.artifact, publish: env === "production" ? paths0.publishProduction : paths0.publish };
 const manifestPath = path.join(p.artifact, "manifest.json");
 const manifest: ArtifactManifest = artifactManifest.parse(JSON.parse(fs.readFileSync(manifestPath, "utf8")));
 const version = manifest.snapshot_version;
 const now = () => new Date().toISOString();
-const state: PublishState = fs.existsSync(p.publish) ? readJson<PublishState>(p.publish) : { version, previous_active_version: manifest.pipeline?.previous_active_version ?? null, steps: [] };
+if (manifest.environment !== env) throw new Error(`the ${env} publish got an artifact built for ${manifest.environment}`);
+// Production: previous_active_version is the PRODUCTION pointer, read when `load` starts (below).
+const state: PublishState = fs.existsSync(p.publish) ? readJson<PublishState>(p.publish) : { version, previous_active_version: env === "staging" ? (manifest.pipeline?.previous_active_version ?? null) : null, steps: [] };
 if (state.version !== version) throw new Error(`publish-state.json is for ${state.version}, the artifact is ${version}`);
 const save = (step?: string) => {
   if (step) state.steps.push(step);
@@ -89,7 +124,7 @@ async function stateRows(): Promise<{ version: string; status: string; created_a
 }
 
 function verifyArtifact(): void {
-  const gate = runArtifactGate(p.artifact, { companyPhones: [CONTACT_PHONE_E164] });
+  const gate = runArtifactGate(p.artifact, { companyPhones: COMPANY_PUBLIC_NUMBERS });
   if (gate.failures.length) throw new Error(`artifact gate refused the deploy:\n${gate.failures.slice(0, 30).join("\n")}`);
 }
 
@@ -122,7 +157,7 @@ async function waitForServedVersion(expected: string, timeoutMs = 90_000): Promi
     }
     await new Promise((res) => setTimeout(res, 3000));
   }
-  throw new Error(`staging still serves ${last || "nothing"} instead of ${expected}`);
+  throw new Error(`${env} still serves ${last || "nothing"} instead of ${expected}`);
 }
 
 /** Variant validation dry run: the RFQ Worker's own one-query resolver against DB_PUBLIC; no RFQ is created. */
@@ -147,6 +182,15 @@ await runStep(`publish ${command}`, async () => {
   switch (command) {
     case "load": {
       verifyArtifact();
+      if (env === "production") {
+        // r4 §2.3: the staging twin went live on staging, and the twins differ only in allowlisted places.
+        const stagingActive = await publicDb({ get: (k: string) => (k === "env" ? "staging" : args.get(k)), has: (k: string) => args.has(k) }).prepare(`SELECT active_version FROM publication_pointer WHERE id = 1`).first<string>("active_version");
+        if (stagingActive !== version) throw new Error(`the staging twin is not active on staging (staging active_version ${stagingActive}, this artifact ${version}); refusing`);
+        const diff = compareTargetArtifacts(paths0.artifact, paths0.artifactProduction);
+        if (diff.failures.length) throw new Error(`allowlisted-diff gate (r4) failed:\n${diff.failures.slice(0, 20).join("\n")}`);
+        if (!state.steps.length) state.previous_active_version = await pointer();
+        summary(`### Publish (production-prep): preconditions\n- staging twin \`${version}\` is active on staging\n- r4 allowlisted-diff gate: pass (${diff.stats.identical} identical, ${diff.stats.normalizedEqual} allowlisted, ${diff.stats.wholeFileAllowed.join(", ")})\n- production pointer before: \`${state.previous_active_version}\``);
+      }
       const rows = await stateRows();
       if (rows.some((r) => r.version === version)) throw new Error(`${version} already exists in publication_state`);
       const newer = rows.filter((r) => isPipelineVersion(r.version) && r.version >= version);
@@ -184,7 +228,7 @@ await runStep(`publish ${command}`, async () => {
       state.deployed_worker_version_id = /Current Version ID:\s*([0-9a-f-]{36})/.exec(r.stdout)?.[1] ?? currentWorkerVersionId();
       save("deployed");
       await waitForServedVersion(version);
-      summary(`### Publish: deploy\n- static Worker \`ahanassa-v11-static-staging\`: version \`${state.deployed_worker_version_id}\` (previous \`${state.previous_worker_version_id}\`), ${copied.length} files, checksums = manifest\n- ${STATIC_BASE_URL}/manifest.public.json serves \`${version}\``);
+      summary(`### Publish: deploy\n- static Worker \`${TARGET.worker}\`: version \`${state.deployed_worker_version_id}\` (previous \`${state.previous_worker_version_id}\`), ${copied.length} files, checksums = manifest\n- ${STATIC_BASE_URL}/manifest.public.json serves \`${version}\``);
       break;
     }
     case "smoke": {
@@ -204,9 +248,14 @@ await runStep(`publish ${command}`, async () => {
       for (const [page, must] of pages) {
         const r = await fetchText(`${STATIC_BASE_URL}${page}`);
         if (r.status !== 200 || !must.test(r.text)) throw new Error(`smoke ${page}: HTTP ${r.status}${r.status === 200 ? `, missing ${must}` : ""}`);
-        if (!/noindex/.test(r.headers.get("x-robots-tag") ?? "")) throw new Error(`smoke ${page}: staging X-Robots-Tag noindex missing`);
+        if (env === "staging" && !/noindex/.test(r.headers.get("x-robots-tag") ?? "")) throw new Error(`smoke ${page}: staging X-Robots-Tag noindex missing`);
+        if (TARGET.pageRobots && !TARGET.pageRobots.test(r.text)) throw new Error(`smoke ${page}: production page is not <meta name="robots" content="index, follow">`);
       }
-      lines.push(`${pages.length} pages 200 (home, products, category, product with Product JSON-LD, contact × fa/en/ar), X-Robots-Tag noindex`);
+      lines.push(
+        env === "staging"
+          ? `${pages.length} pages 200 (home, products, category, product with Product JSON-LD, contact × fa/en/ar), X-Robots-Tag noindex`
+          : `${pages.length} pages 200 (home, products, category, product with Product JSON-LD, contact × fa/en/ar), each <meta robots "index, follow">; contact posts to ${RFQ_API_ORIGIN}`,
+      );
       for (const l of ["fa", "en", "ar"]) {
         const r = await fetchText(`${STATIC_BASE_URL}/data/rfq-catalog.${l}.json`);
         const v = r.status === 200 ? (JSON.parse(r.text) as { snapshot_version: string }).snapshot_version : null;
@@ -216,21 +265,23 @@ await runStep(`publish ${command}`, async () => {
       const sitemap = await fetchText(`${STATIC_BASE_URL}/sitemap.xml`);
       if (sitemap.status !== 200 || !/<urlset/.test(sitemap.text)) throw new Error(`smoke sitemap.xml: ${sitemap.status}`);
       const robots = await fetchText(`${STATIC_BASE_URL}/robots.txt`);
-      if (robots.status !== 200 || !/Disallow: \//.test(robots.text)) throw new Error(`smoke robots.txt: ${robots.status}`);
+      if (robots.status !== 200 || robots.text !== TARGET.robotsTxt) throw new Error(`smoke robots.txt: ${robots.status}, not the ${env} policy file`);
+      const sitemapUrls = (sitemap.text.match(/<loc>/g) ?? []).length;
+      if (sitemapUrls !== manifest.counts.sitemap_urls) throw new Error(`smoke sitemap.xml: ${sitemapUrls} URLs, the artifact has ${manifest.counts.sitemap_urls}`);
       for (const nf of ["/w4-smoke-missing-page", "/en/w4-smoke-missing-page", "/ar/products/w4-smoke-missing"]) {
         const r = await fetchText(`${STATIC_BASE_URL}${nf}`);
         if (r.status !== 404) throw new Error(`smoke ${nf}: expected 404, got ${r.status}`);
       }
-      lines.push(`sitemap.xml (${(sitemap.text.match(/<loc>/g) ?? []).length} URLs), robots.txt disallow-all, 404 × 3`);
+      lines.push(`sitemap.xml (${sitemapUrls} URLs = artifact), robots.txt = the ${env} policy file, 404 × 3`);
       const form = spawnSync("node", ["scripts/static/hydration-check.ts", "--base-url", STATIC_BASE_URL, "--pages", "/contact,/en/contact,/ar/contact", "--expect-snapshot", version], { cwd: repoRoot, encoding: "utf8" });
       process.stdout.write(form.stdout);
       if (form.status !== 0) throw new Error(`smoke /contact form: ${form.stdout.split("\n").filter((l) => l.startsWith("FAIL")).join(" | ") || form.stderr.slice(-400)}`);
       lines.push(`/contact fa/en/ar hydrated in Chrome; the form loads catalog_snapshot_version ${version}`);
-      const health = await fetchText(`${RFQ_API_ORIGIN}/healthz`);
+      const health = await fetchText(TARGET.rfqHealthUrl);
       if (health.status !== 200) throw new Error(`smoke RFQ Worker /healthz: ${health.status}`);
-      lines.push("RFQ Worker /healthz 200");
+      lines.push(`RFQ Worker ${TARGET.rfqHealthUrl} 200`);
       lines.push(...(await variantDryRun(version, version)).map((l) => `variant dry run (submitted ${version}) ${l}`));
-      if (process.env.CONTENT_SMOKE_FORCE_FAIL === "1") throw new Error("CONTENT_SMOKE_FORCE_FAIL=1: forced smoke failure after deploy (rollback test)");
+      if (env === "staging" && process.env.CONTENT_SMOKE_FORCE_FAIL === "1") throw new Error("CONTENT_SMOKE_FORCE_FAIL=1: forced smoke failure after deploy (rollback test)");
       save("smoke_passed");
       summary(`### Publish: smoke PASS\n${lines.map((l) => `- ${l}`).join("\n")}`);
       break;
@@ -249,7 +300,8 @@ await runStep(`publish ${command}`, async () => {
     case "finalize": {
       if (!state.switched) throw new Error("not switched");
       const snapshot = readSnapshotFile(path.join(p.artifact, "private-snapshot/snapshot.json"));
-      const mirror = [...categoryReplaceBatches(snapshot.tables), ...batchStatements(mirrorStatements(snapshot.tables))];
+      // Production DB_PUBLIC holds publication state + rfq_variant_index only (the RFQ Worker's A8 reads); no mirror.
+      const mirror = env === "production" ? [] : [...categoryReplaceBatches(snapshot.tables), ...batchStatements(mirrorStatements(snapshot.tables))];
       for (const b of mirror) d1Exec(b);
       const rows = await stateRows();
       const prune = versionsToPrune(rows, version, PIPELINE_CONFIG.retainVersions);
@@ -257,7 +309,7 @@ await runStep(`publish ${command}`, async () => {
       if (sql) d1Exec(sql);
       save("finalized");
       const after = await stateRows();
-      summary(`### Publish: finalize\n- DB_PUBLIC catalog mirror updated (${mirror.length} atomic batches; Odoo-owned columns only)\n- retention ${PIPELINE_CONFIG.retainVersions}: pruned ${prune.length ? prune.map((v) => `\`${v}\``).join(", ") : "none"}; kept ${after.map((r) => `\`${r.version}\` ${r.status}`).join(", ")}`);
+      summary(`### Publish: finalize\n- ${env === "production" ? "production DB_PUBLIC: no catalog mirror (not read by anything)" : `DB_PUBLIC catalog mirror updated (${mirror.length} atomic batches; Odoo-owned columns only)`}\n- retention ${PIPELINE_CONFIG.retainVersions}: pruned ${prune.length ? prune.map((v) => `\`${v}\``).join(", ") : "none"}; kept ${after.map((r) => `\`${r.version}\` ${r.status}`).join(", ")}`);
       break;
     }
     case "rollback": {
@@ -279,7 +331,7 @@ await runStep(`publish ${command}`, async () => {
           actions.push(`static Worker redeployed to previous version \`${prev}\` (the previous artifact's exact assets)`);
         } else actions.push(`static Worker already on previous version \`${prev}\``);
         if (state.previous_active_version) await waitForServedVersion(state.previous_active_version);
-        actions.push(`staging serves \`${state.previous_active_version}\` again (manifest.public.json)`);
+        actions.push(`${env} serves \`${state.previous_active_version}\` again (manifest.public.json)`);
       }
       const active = await pointer();
       if (active !== state.previous_active_version) throw new Error(`after rollback the pointer is ${active}, expected ${state.previous_active_version}`);

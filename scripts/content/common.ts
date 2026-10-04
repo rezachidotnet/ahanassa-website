@@ -46,7 +46,12 @@ export const paths = (work: string) => ({
   validation: path.join(work, "validation.json"),
   snapshot: path.join(work, "snapshot.json"),
   artifact: path.join(work, "artifact"),
+  /** r4: the production-target twin of `artifact` (same code_sha + snapshot). */
+  artifactProduction: path.join(work, "artifact-production"),
+  /** r4 §2 allowlisted-diff gate result. */
+  targetDiff: path.join(work, "target-diff.json"),
   publish: path.join(work, "publish-state.json"),
+  publishProduction: path.join(work, "publish-state.production.json"),
 });
 
 export function readJson<T>(file: string): T {
