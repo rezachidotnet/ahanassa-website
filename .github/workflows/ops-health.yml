@@ -16,6 +16,9 @@
 name: Ops health (staging)
 
 on:
+  # TEMPORARY (W6): registers the workflow from this branch so it can be dispatched before the merge. Removed before merge.
+  push:
+    branches: [feat/w6-ops-health]
   workflow_dispatch:
     inputs:
       test_force_alert:
