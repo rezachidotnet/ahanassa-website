@@ -14,6 +14,9 @@
 # feat/v11-static-site for the reconciler script and its dependencies. At cutover, change `ref` below to the
 # real application branch (or remove it once main carries the v11 code).
 #
+# W6.1: also dispatched about hourly (:19) by the Odoo-server timer ahanassa-ops-dispatch (GitHub `schedule`
+# is best-effort; it stays as a second path); pings healthchecks.io (dead-man's switch).
+#
 # GitHub runs `schedule` and accepts `workflow_dispatch` only for workflow
 # files on the default branch (main) — until this file is there, neither fires.
 name: RFQ CI reconciler (staging)
@@ -70,3 +73,26 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/rfq/ci-reconciler.ts --config workers/rfq/wrangler.jsonc --env staging --database DB_OPS --max "$MAX"
+
+      # W6.1 dead-man's switch: healthchecks.io alerts when this ping does NOT arrive (a run that never
+      # happened). Always runs; failure pings /fail. Never fails the job; a missing secret is skipped.
+      - name: Dead-man's switch ping (healthchecks.io)
+        if: ${{ always() }}
+        shell: bash
+        env:
+          HC_URL: ${{ secrets.HC_PING_RFQ_RECONCILER }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          if [ -z "$HC_URL" ]; then
+            echo "::notice title=healthchecks ping skipped::HC_PING_RFQ_RECONCILER is not set"
+            exit 0
+          fi
+          url="$HC_URL"
+          if [ "$JOB_STATUS" != "success" ]; then url="$HC_URL/fail"; fi
+          # URL passed as a curl config on stdin (it is a secret; not in argv).
+          if printf 'url = "%s"\n' "$url" | curl -fsS -K - -o /dev/null --max-time 10 --retry 2; then
+            echo "healthchecks ping sent ($([ "$JOB_STATUS" = success ] && echo success || echo fail))"
+          else
+            echo "::warning title=healthchecks ping failed::could not reach healthchecks.io"
+          fi

@@ -5,6 +5,8 @@
 # Odoo GET /api/v1/catalog/meta. Writes a job summary table and FAILS the job only on ALERT, with one
 # "ALERT: <check>" annotation per alert — GitHub then e-mails the failed run (docs/OPS_ALERTS.md).
 # Alerting never depends on what it watches: no Worker cron/Queue; read-only Cloudflare token; no writes.
+# W6.1: also dispatched every 15 min by the Odoo-server timer ahanassa-ops-dispatch (GitHub `schedule` is
+# best-effort; it stays as a second path), and pings healthchecks.io so a run that never happens alerts too.
 #
 # BRANCH NOTE (until cutover): this file lives on `main` only so GitHub will schedule/dispatch it
 # (CLAUDE.md §5b). main and the application branch have unrelated histories, so the job checks out
@@ -66,3 +68,26 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/ops/health/run.ts --env staging
+
+      # W6.1 dead-man's switch: healthchecks.io alerts when this ping does NOT arrive (a run that never
+      # happened). Always runs; failure pings /fail. Never fails the job; a missing secret is skipped.
+      - name: Dead-man's switch ping (healthchecks.io)
+        if: ${{ always() }}
+        shell: bash
+        env:
+          HC_URL: ${{ secrets.HC_PING_OPS_HEALTH }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          if [ -z "$HC_URL" ]; then
+            echo "::notice title=healthchecks ping skipped::HC_PING_OPS_HEALTH is not set"
+            exit 0
+          fi
+          url="$HC_URL"
+          if [ "$JOB_STATUS" != "success" ]; then url="$HC_URL/fail"; fi
+          # URL passed as a curl config on stdin (it is a secret; not in argv).
+          if printf 'url = "%s"\n' "$url" | curl -fsS -K - -o /dev/null --max-time 10 --retry 2; then
+            echo "healthchecks ping sent ($([ "$JOB_STATUS" = success ] && echo success || echo fail))"
+          else
+            echo "::warning title=healthchecks ping failed::could not reach healthchecks.io"
+          fi
