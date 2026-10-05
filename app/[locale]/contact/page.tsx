@@ -22,6 +22,22 @@ function rfqSubmitEndpoint(): string {
   return origin ? `${origin.replace(/\/+$/, "")}/api/rfqs` : "/api/rfqs";
 }
 
+/**
+ * r4: the target's Turnstile key + RFQ API origin are the only target-specific
+ * strings on this page, and the two origins differ in length. React Flight
+ * splits a payload row into lazy chunks once it passes 3200 characters, so a
+ * length difference inside the page row moved that split point and changed
+ * the payload STRUCTURE between the staging and production artifacts (W8.1:
+ * en/contact.html). This async boundary always suspends once, so React
+ * always emits the form in its own row: the page row carries no
+ * target-specific string, and the form row ends with the target values
+ * (nothing after them in that row can be split differently).
+ */
+async function TargetEnquiryForm({ locale }: { locale: Locale }) {
+  await Promise.resolve();
+  return <StaticEnquiryForm locale={locale} turnstileSiteKey={getTurnstileSiteKey()} rfqEndpoint={rfqSubmitEndpoint()} />;
+}
+
 interface PageProps {
   params: Promise<{ locale: string }>;
 }
@@ -102,7 +118,7 @@ export default async function ContactPage({ params }: PageProps) {
           {/* Drawings/files channel = WhatsApp (owner decision 2026-10-04); a plain link, rendered only when a number is configured. */}
           <WhatsAppDrawingsLink locale={locale} className="mt-6 max-w-2xl" />
           <div className="mt-12">
-            <StaticEnquiryForm locale={locale} turnstileSiteKey={getTurnstileSiteKey()} rfqEndpoint={rfqSubmitEndpoint()} />
+            <TargetEnquiryForm locale={locale} />
           </div>
         </div>
       </section>
