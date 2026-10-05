@@ -53,17 +53,17 @@
       }
       // Secrets (wrangler secret put --env staging): TURNSTILE_SECRET_KEY, ODOO_RFQ_API_TOKEN (= stub bearer), ADMIN_TOKEN.
     },
-    // W8.0 production preparation (owner-authorized 2026-10-04): workers.dev ONLY — no route/custom domain
-    // (api.ahanassa.com is attached at the W8.1 cutover). DELIVERY IS OFF: no cron trigger (account at 5/5),
-    // no Queue, delivery flags 0, no ODOO_BASE_URL and no ODOO_RFQ_API_TOKEN — it can never reach Odoo.
-    // Production entry index.ts (no test routes). Secrets: TURNSTILE_SECRET_KEY (production widget).
-    // W8.1 adds: the api.ahanassa.com custom domain, ODOO_BASE_URL + ODOO_RFQ_API_TOKEN, DELIVERY_ON_CRON=1,
-    // and the */5 cron (after the legacy crons are removed).
+    // W8.0 production preparation (owner-authorized 2026-10-04), live since the W8.1 cutover (2026-10-05):
+    // custom domain api.ahanassa.com; delivery by the */5 cron reconciler to production Odoo (bearer =
+    // the Odoo `next` slot, secret ODOO_RFQ_API_TOKEN); Queue delivery stays off (W2 CPU decision).
+    // Production entry index.ts (no test routes). Secrets: TURNSTILE_SECRET_KEY (production widget), ODOO_RFQ_API_TOKEN.
+    // The */5 cron took the slot of the removed ahanassa-bootstrap-staging cron (account 5/5).
     "production": {
       "name": "ahanassa-v11-rfq-production",
       "main": "index.ts",
       "workers_dev": true,
       "preview_urls": false,
+      "routes": [{ "pattern": "api.ahanassa.com", "custom_domain": true }],
       "d1_databases": [
         { "binding": "DB_OPS", "database_name": "ahanassa-v11-ops-production", "database_id": "72b8fb96-43c5-45bd-8f1e-b0f2a3a2fa9a", "migrations_dir": "../../migrations" },
         // Read-only use by the Worker (rfq_variant_index + publication_pointer, A8).
@@ -71,14 +71,15 @@
       ],
       // Own namespace (staging 1102, legacy production 2001); 20/60 s per client-IP key; missing -> 503.
       "ratelimits": [{ "name": "RFQ_RATE_LIMITER", "namespace_id": "1103", "simple": { "limit": 20, "period": 60 } }],
-      "triggers": { "crons": [] },
+      "triggers": { "crons": ["*/5 * * * *"] },
       "vars": {
         "APP_ENV": "production",
         "ALLOWED_ORIGINS": "https://www.ahanassa.com",
         "TURNSTILE_EXPECTED_HOSTNAMES": "www.ahanassa.com",
+        "ODOO_BASE_URL": "https://odoo.ahanassa.com",
         "ODOO_INTAKE_V11": "1",
         "DELIVERY_ON_QUEUE": "0",
-        "DELIVERY_ON_CRON": "0",
+        "DELIVERY_ON_CRON": "1",
         "QUEUE_FAST_PATH": "0"
       }
     }
