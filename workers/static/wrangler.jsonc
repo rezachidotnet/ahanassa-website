@@ -13,12 +13,13 @@
       "workers_dev": true,
       "preview_urls": false
     },
-    // W8.0 production preparation: workers.dev ONLY — no route, no custom domain (www.ahanassa.com stays on the
-    // legacy ahanassa-production Worker until the W8.1 cutover). Deployed only by content-publish.yml's
-    // production-prep job (environment production-v11) with the PRODUCTION-target artifact.
+    // Production: serves www.ahanassa.com since the W8.1 cutover (2026-10-05; custom domain reassigned from the
+    // legacy ahanassa-production Worker). workers.dev disabled (owner decision D-WORKERSDEV). Deployed only by
+    // content-publish.yml's production job with the PRODUCTION-target artifact.
     "production": {
       "name": "ahanassa-v11-static-production",
-      "workers_dev": true,
+      "workers_dev": false,
+      "routes": [{ "pattern": "www.ahanassa.com", "custom_domain": true }],
       "preview_urls": false
     }
   }

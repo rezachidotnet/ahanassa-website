@@ -48,7 +48,7 @@ const log = logger(`publish:${command}`);
 const env = args.get("env") ?? "staging";
 if (env !== "staging" && env !== "production") throw new Error(`--env must be staging or production (got ${env})`);
 
-/** Per-target publish targets. Production = W8.0 production-prep: workers.dev only, never www.ahanassa.com. */
+/** Per-target publish targets. Production = www.ahanassa.com since the W8.1 cutover (2026-10-05); its workers.dev URL is disabled. */
 const TARGET = {
   staging: {
     worker: "ahanassa-v11-static-staging",
@@ -62,10 +62,9 @@ const TARGET = {
   },
   production: {
     worker: "ahanassa-v11-static-production",
-    baseUrl: "https://ahanassa-v11-static-production.nova-b1e6f0.workers.dev",
+    baseUrl: "https://www.ahanassa.com",
     formApiOrigin: STATIC_TARGETS.production.rfqApiOrigin,
-    // Until the W8.1 cutover attaches api.ahanassa.com, the production RFQ Worker is reachable on workers.dev only.
-    rfqHealthUrl: "https://ahanassa-v11-rfq-production.nova-b1e6f0.workers.dev/healthz",
+    rfqHealthUrl: `${STATIC_TARGETS.production.rfqApiOrigin}/healthz`,
     robotsTxt: PRODUCTION_ROBOTS_TXT,
     pageRobots: /<meta name="robots" content="index, follow"/,
   },

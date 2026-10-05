@@ -49,16 +49,17 @@ export const OPS_TARGETS: Record<OpsEnv, OpsTarget> = {
     opsHealthWorkflow: "ops-health.yml",
     contentStaleAlert: true,
   },
-  // W8.0 production-prep (workers.dev only; workers/rfq/wrangler.jsonc env.production). Read with its own
-  // read-only monitor token (GitHub environment production-v11-monitor). W8.1 (cutover) changes:
-  //   cronWorkers -> ["ahanassa-v11-rfq-production"] once its */5 cron exists; apiHost -> "api.ahanassa.com"
-  //   once the custom domain is attached; contentStaleAlert -> true once the daily production publish runs.
+  // Production (live since the W8.1 cutover, 2026-10-05; workers/rfq/wrangler.jsonc env.production). Read with
+  // its own read-only monitor token (GitHub environment production-v11-monitor). contentStaleAlert stays false
+  // until the daily production CONTENT_REBUILD publish runs unattended (needs a STABLE_100 v11 release, §19).
   production: {
     env: "production",
     enabled: true,
+    // W8.1 finding F3: the */5 cron is registered but Cloudflare does not invoke it; the CI reconciler
+    // (production job) delivers. Add "ahanassa-v11-rfq-production" here once scheduled runs appear.
     cronWorkers: [],
     rfqWorker: "ahanassa-v11-rfq-production",
-    apiHost: null,
+    apiHost: "api.ahanassa.com",
     intakePath: "/api/rfqs",
     dbOpsId: "72b8fb96-43c5-45bd-8f1e-b0f2a3a2fa9a",
     dbPublicId: "6e74ff59-9961-40f2-b8e5-8a9619f45776",
