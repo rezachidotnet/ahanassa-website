@@ -149,13 +149,13 @@ test("summary: table with check/value/threshold/status and the alert headline", 
   assert.match(md, /TEST override: odoo/);
 });
 
-test("targets: staging enabled; production live since W8.1 (API host checked; cron check off until it fires; content report-only until STABLE_100)", () => {
+test("targets: staging enabled; production live since W8.1 (cron + API host checked, content report-only until STABLE_100)", () => {
   assert.equal(OPS_TARGETS.staging.enabled, true);
   assert.equal(OPS_TARGETS.staging.contentStaleAlert, true);
   const p = OPS_TARGETS.production;
   assert.equal(p.enabled, true);
   assert.notEqual(p.rfqWorker, OPS_TARGETS.staging.rfqWorker);
-  assert.deepEqual(p.cronWorkers, [], "cron check off until the production cron fires (W8.1 F3)");
+  assert.deepEqual(p.cronWorkers, ["ahanassa-v11-rfq-production"], "the production RFQ Worker's */5 cron (W8.1)");
   assert.equal(p.apiHost, "api.ahanassa.com", "custom domain attached at W8.1");
   assert.equal(p.contentStaleAlert, false);
   assert.ok(p.dbOpsId && p.dbPublicId && p.dbOpsId !== OPS_TARGETS.staging.dbOpsId && p.dbPublicId !== OPS_TARGETS.staging.dbPublicId);

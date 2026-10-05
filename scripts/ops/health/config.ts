@@ -55,9 +55,8 @@ export const OPS_TARGETS: Record<OpsEnv, OpsTarget> = {
   production: {
     env: "production",
     enabled: true,
-    // W8.1 finding F3: the */5 cron is registered but Cloudflare does not invoke it; the CI reconciler
-    // (production job) delivers. Add "ahanassa-v11-rfq-production" here once scheduled runs appear.
-    cronWorkers: [],
+    // W8.1 finding F3: the */5 cron first fired at 2026-10-05T20:10:27Z, ~90 min after it was deployed.
+    cronWorkers: ["ahanassa-v11-rfq-production"],
     rfqWorker: "ahanassa-v11-rfq-production",
     apiHost: "api.ahanassa.com",
     intakePath: "/api/rfqs",
