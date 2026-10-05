@@ -10,8 +10,10 @@ import type { Locale } from "../../config/locales.ts";
  * While it is null — or not a valid number — the link is NOT rendered
  * anywhere: never a placeholder. A plain wa.me link: no third-party script,
  * no tracking parameter, rel="noopener noreferrer".
+ *
+ * Owner-provided business number, 2026-10-05 (W8.1).
  */
-export const WHATSAPP_BUSINESS_NUMBER: string | null = null;
+export const WHATSAPP_BUSINESS_NUMBER: string | null = "989134222795";
 
 /** International format, digits only: 8–15 digits, no leading 0 (E.164 without "+"). */
 export function isValidWhatsAppNumber(value: string | null | undefined): value is string {

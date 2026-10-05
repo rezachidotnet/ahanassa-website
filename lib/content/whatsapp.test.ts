@@ -19,7 +19,8 @@ test("number format: international digits only; anything else renders nothing (n
   for (const ok of [NUMBER, "12025550123"]) assert.ok(isValidWhatsAppNumber(ok), ok);
   for (const bad of [null, undefined, "", "+989000000000", "09120000000", "98 900 000 0000", "<number>", "1234567"]) {
     assert.equal(isValidWhatsAppNumber(bad), false, String(bad));
-    assert.equal(whatsappDrawingsHref("fa", REF, bad as string | null), null);
+    // undefined selects the configured default, so it is checked for validity only.
+    if (bad !== undefined) assert.equal(whatsappDrawingsHref("fa", REF, bad), null);
   }
 });
 
@@ -30,6 +31,11 @@ test("without a number nothing is rendered, on /contact and in the confirmation"
   }
   // The repository default: rendered only once the owner's number is configured.
   if (!isValidWhatsAppNumber(WHATSAPP_BUSINESS_NUMBER)) assert.equal(render({ locale: "en" }), "");
+});
+
+test("the configured number is the owner's (2026-10-05) and is rendered by default", () => {
+  assert.equal(WHATSAPP_BUSINESS_NUMBER, "989134222795");
+  assert.match(render({ locale: "fa" }), /href="https:\/\/wa\.me\/989134222795\?text=/);
 });
 
 test("with a number: a plain wa.me link, rel noopener, no script, no tracking", () => {
