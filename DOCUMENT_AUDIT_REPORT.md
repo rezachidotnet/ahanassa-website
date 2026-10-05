@@ -1524,4 +1524,22 @@ Policy: `RELEASE_POLICY.md` §11 (contract item) and new §11.1. Tests: `lib/ci/
 
 ---
 
+### DAR-063 — The v11 cutover has no release path in `RELEASE_POLICY.md`: no ledger state fits it and no v11 promotion workflow exists (2026-10-05)
+
+**Severity:** HIGH (governance) — **owner decision required.**
+**Status:** OPEN.
+
+**Finding.** On 2026-10-05 (W8.1, owner-authorized cutover) `www.ahanassa.com` was moved from the legacy Worker `ahanassa-production` (version `4a32c5f9…`, the ledger's `STABLE_100` `f2202ab`) to the v11 static Worker `ahanassa-v11-static-production` (version `22d0015a-91a8-40ce-b992-d6dab608b2ae`, code `d4f57f6`, published by `content-publish.yml` run `37357572054` with the `production-v11` reviewer approval) by reassigning the custom domain — 100% at once. `RELEASE_POLICY.md` has no path for this:
+
+1. The release is a code release (the `content-publish.yml` CONTENT_REBUILD check recorded `REFUSED (CODE_SHA_MISMATCH)`), and by its paths it is HIGH — but the §5 HIGH path (10% canary → `verify-production.yml` → §12 observation → `promote-production.yml`) operates on the legacy Worker `ahanassa-production` only. A static-assets Worker switched by custom domain has no 10% split.
+2. The ledger (`docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md` on `feat/header-hero-integrated`) accepts only `STABLE_100` / `CANARY_ACTIVE` / `ROLLED_BACK` / `SUPERSEDED` / `LEGACY_IN_FLIGHT_RELEASE`. A `STABLE_100` row needs a numeric `PROMOTION_RUN_ID` from `promote-production.yml`, which cannot promote v11. `CANARY_ACTIVE` with 100% traffic would misstate the release.
+3. `MINIMUM_OBSERVATION_DURATION = TBE` (§12), so no earliest `STABLE_100` date can be derived.
+4. Consequence: no v11 `STABLE_100` row can exist, so `CONTENT_REBUILD` stays `REFUSED` and the daily production content publish (owner decision D-CONTENT) stays on the approval path.
+
+**Not done (deliberately).** No ledger row was appended in W8.1 — an append the policy cannot validate would be a silent resolution (`CLAUDE.md` §8). The proposed row is recorded in `AHANASSA_WEBSITE_W8_1_RESULT_*.md` §G6.
+
+**To close (owner):** amend `RELEASE_POLICY.md` with a v11 release path (static Worker + RFQ Worker; what counts as canary/observation for a custom-domain switch; who promotes, and how a v11 `STABLE_100` row is produced), set `MINIMUM_OBSERVATION_DURATION`, then append the v11 row through that path.
+
+---
+
 **End of `DOCUMENT_AUDIT_REPORT.md`**
