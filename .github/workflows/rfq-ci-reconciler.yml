@@ -4,10 +4,15 @@
 # After delivering it publishes the delivery health as the job summary and
 # FAILS the job when any RFQ is undelivered for more than 30 minutes (W3).
 #
-# STAGING ONLY. Delivers to the v11 contract stub, never to Odoo (§6.7).
-# TODO(production cutover): add a separate production job/environment with the
-# real Odoo base URL and the production ODOO_RFQ_API_TOKEN, and its own
-# schedule (§15: every 15 min in business hours, hourly otherwise). Not in W3.
+# Job `reconcile` (staging): delivers to the v11 contract stub, never to Odoo (§6.7). Hourly + dispatch.
+#
+# Job `reconcile-production` (W8.1, owner decision 2026-10-05): the production RFQ Worker's */5 cron is
+# registered but Cloudflare does not invoke it (W8.1 report, finding F3), so until it fires this job is the
+# production DELIVERY path, not only a fallback: it delivers every due RFQ (--older-than-minutes 0) to
+# https://odoo.ahanassa.com with the Odoo `next` bearer, every 15 min (GitHub schedule is best-effort), then
+# runs the PII retention step on the v11 production DB_OPS. Environment production-v11-reconciler: no
+# reviewer (a reviewer would stop every scheduled run), branch main only, its own D1-only token. Both paths
+# are idempotent (claim + Idempotency-Key), so the Worker cron can start firing at any time.
 #
 # BRANCH NOTE (until cutover): this file lives on `main` only so GitHub will schedule/dispatch it
 # (CLAUDE.md §5b). main and the application branch have unrelated histories, so the job checks out
@@ -24,11 +29,17 @@
 #
 # GitHub runs `schedule` and accepts `workflow_dispatch` only for workflow
 # files on the default branch (main) — until this file is there, neither fires.
-name: RFQ CI reconciler (staging)
+name: RFQ CI reconciler
 
 on:
   workflow_dispatch:
     inputs:
+      target:
+        description: "staging (default; also the Odoo-server timer's dispatch) or production"
+        type: choice
+        required: false
+        default: staging
+        options: [staging, production]
       max:
         description: "Maximum RFQs to deliver in this run"
         required: false
@@ -39,19 +50,21 @@ on:
         required: false
         default: false
   schedule:
-    # Hourly, staging. TODO(production): business-hours */15 schedule for production (see header).
+    # Hourly, staging.
     - cron: "17 * * * *"
+    # Every 15 min, production (W8.1).
+    - cron: "*/15 * * * *"
 
 permissions:
   contents: read
 
-concurrency:
-  group: rfq-ci-reconciler-staging
-  cancel-in-progress: false
-
 jobs:
   reconcile:
     name: reconcile (staging)
+    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '17 * * * *') || (github.event_name == 'workflow_dispatch' && (inputs.target || 'staging') == 'staging') }}
+    concurrency:
+      group: rfq-ci-reconciler-staging
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: staging
@@ -114,6 +127,78 @@ jobs:
           url="$HC_URL"
           if [ "$JOB_STATUS" != "success" ]; then url="$HC_URL/fail"; fi
           # URL passed as a curl config on stdin (it is a secret; not in argv).
+          if printf 'url = "%s"\n' "$url" | curl -fsS -K - -o /dev/null --max-time 10 --retry 2; then
+            echo "healthchecks ping sent ($([ "$JOB_STATUS" = success ] && echo success || echo fail))"
+          else
+            echo "::warning title=healthchecks ping failed::could not reach healthchecks.io"
+          fi
+
+  # W8.1: production delivery + PII retention (see header). Never runs on the staging hourly schedule.
+  reconcile-production:
+    name: reconcile (production)
+    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '*/15 * * * *') || (github.event_name == 'workflow_dispatch' && inputs.target == 'production') }}
+    concurrency:
+      group: rfq-ci-reconciler-production
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production-v11-reconciler
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: feat/v11-static-site
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies (immutable)
+        run: npm ci
+
+      - name: Deliver due RFQs to production Odoo (one RFQ per delivery, idempotent) + delivery health summary
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.V11_PRODUCTION_CLOUDFLARE_D1_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.V11_PRODUCTION_CLOUDFLARE_ACCOUNT_ID }}
+          ODOO_BASE_URL: https://odoo.ahanassa.com
+          ODOO_RFQ_API_TOKEN: ${{ secrets.V11_PRODUCTION_ODOO_RFQ_API_TOKEN }}
+          ODOO_INTAKE_V11: "1"
+          MAX: ${{ inputs.max || '10' }}
+        run: |
+          set -euo pipefail
+          test -n "$ODOO_RFQ_API_TOKEN" || { echo "::error title=missing secret::V11_PRODUCTION_ODOO_RFQ_API_TOKEN"; exit 1; }
+          # --older-than-minutes 0: this job is the production delivery path while the Worker cron does not fire.
+          node scripts/rfq/ci-reconciler.ts --config workers/rfq/wrangler.jsonc --env production --database DB_OPS --max "$MAX" --older-than-minutes 0
+
+      - name: PII retention (delivered RFQs, 30 days after delivery; one bounded batch)
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.V11_PRODUCTION_CLOUDFLARE_D1_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.V11_PRODUCTION_CLOUDFLARE_ACCOUNT_ID }}
+          RETENTION_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.retention_dry_run == true && 'true' || 'false' }}
+        run: |
+          set -euo pipefail
+          node scripts/rfq/pii-retention.ts --config workers/rfq/wrangler.jsonc --env production --database DB_OPS --retention-days 30 --batch 25 --dry-run "$RETENTION_DRY_RUN"
+
+      # Dead-man's switch for production; skipped until the owner adds HC_PING_RFQ_RECONCILER_PRODUCTION.
+      - name: Dead-man's switch ping (healthchecks.io)
+        if: ${{ always() }}
+        shell: bash
+        env:
+          HC_URL: ${{ secrets.HC_PING_RFQ_RECONCILER_PRODUCTION }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          if [ -z "$HC_URL" ]; then
+            echo "::notice title=healthchecks ping skipped::HC_PING_RFQ_RECONCILER_PRODUCTION is not set"
+            exit 0
+          fi
+          url="$HC_URL"
+          if [ "$JOB_STATUS" != "success" ]; then url="$HC_URL/fail"; fi
           if printf 'url = "%s"\n' "$url" | curl -fsS -K - -o /dev/null --max-time 10 --retry 2; then
             echo "healthchecks ping sent ($([ "$JOB_STATUS" = success ] && echo success || echo fail))"
           else
