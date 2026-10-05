@@ -464,3 +464,134 @@ jobs:
             ${{ runner.temp }}/content/publish-state.production.json
           retention-days: 90
           if-no-files-found: warn
+
+  # W8.1 owner decision D-CONTENT (2026-10-05): the scheduled (daily) production content publish. Environment
+  # production-v11-content (no reviewer, branch main only, its own deploy token) — used ONLY by this job.
+  # It publishes ONLY when the CONTENT_REBUILD check (RELEASE_POLICY.md §19, lib/ci/content-rebuild-cli.ts)
+  # returns AUTO (exit 0). APPROVAL_REQUIRED (3) or REFUSED (1) publish nothing: the owner then dispatches
+  # target=production-prep, which runs the reviewer-gated `publish-production` job above. Until a v11 release
+  # is STABLE_100 in the ledger (DOCUMENT_AUDIT_REPORT.md DAR-063) every run takes the REFUSED path.
+  publish-production-content:
+    name: publish-production-content (scheduled; CONTENT_REBUILD AUTO only)
+    needs: [build, publish]
+    if: ${{ github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production-v11-content
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.V11_PRODUCTION_CONTENT_CLOUDFLARE_DEPLOY_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.V11_PRODUCTION_CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Work directory (outside the checkout; never committed)
+        shell: bash
+        run: echo "WORK=$RUNNER_TEMP/content" >> "$GITHUB_ENV"
+
+      - name: Checkout the exact code the artifact was built from
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.build.outputs.code_sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies (immutable)
+        run: npm ci
+
+      - name: Download the build's artifact (both targets)
+        uses: actions/download-artifact@v4
+        with:
+          name: content-${{ needs.build.outputs.snapshot_version }}
+          path: ${{ runner.temp }}/content/download
+
+      - name: Place artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$WORK"
+          mv "$WORK/download/artifact" "$WORK/artifact"
+          mv "$WORK/download/artifact-production" "$WORK/artifact-production"
+          for d in artifact artifact-production; do
+            test "$(jq -r .snapshot_version "$WORK/$d/manifest.json")" = "${{ needs.build.outputs.snapshot_version }}"
+            test "$(jq -r .code_sha "$WORK/$d/manifest.json")" = "${{ needs.build.outputs.code_sha }}"
+          done
+          test "$(jq -r .environment "$WORK/artifact-production/manifest.json")" = "production"
+
+      - name: "CONTENT_REBUILD check (RELEASE_POLICY.md §19): publish only on AUTO"
+        id: classify
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The ledger is read from the trusted production application branch, never from code_sha.
+          git fetch --no-tags --depth=1 origin +refs/heads/feat/header-hero-integrated:refs/remotes/origin/feat/header-hero-integrated
+          status=0
+          node lib/ci/content-rebuild-cli.ts --artifact "$WORK/artifact-production" --ledger-ref origin/feat/header-hero-integrated \
+            --gates-passed true --decision-file "$WORK/content-rebuild.json" || status=$?
+          case "$status" in
+            0) echo "auto=true" >> "$GITHUB_OUTPUT"; echo "- CONTENT_REBUILD: **AUTO** — publishing to production" >> "$GITHUB_STEP_SUMMARY" ;;
+            3) echo "auto=false" >> "$GITHUB_OUTPUT"; echo "::notice title=production content not published::CONTENT_REBUILD APPROVAL_REQUIRED — dispatch content-publish.yml target=production-prep (owner approval)"; echo "- CONTENT_REBUILD: APPROVAL_REQUIRED — **not published**; dispatch target=production-prep" >> "$GITHUB_STEP_SUMMARY" ;;
+            1) echo "auto=false" >> "$GITHUB_OUTPUT"; echo "::notice title=production content not published::CONTENT_REBUILD REFUSED (code release) — dispatch content-publish.yml target=production-prep (owner approval)"; echo "- CONTENT_REBUILD: REFUSED (code release) — **not published**; dispatch target=production-prep" >> "$GITHUB_STEP_SUMMARY" ;;
+            *) echo "::error title=ALERT: content-rebuild check could not run::exit $status"; exit 1 ;;
+          esac
+
+      - name: "12. Load snapshot into v11 production DB_PUBLIC (staged; staging twin active + r4 diff gate re-verified)"
+        if: ${{ steps.classify.outputs.auto == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/content/publish.ts load --work "$WORK" --env production
+
+      - name: "12. Deploy the production twin to ahanassa-v11-static-production (www.ahanassa.com)"
+        if: ${{ steps.classify.outputs.auto == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/content/publish.ts deploy --work "$WORK" --env production
+
+      - name: "13. Smoke (www.ahanassa.com: pages index,follow, production robots/sitemap, RFQ Worker health, variant dry run)"
+        if: ${{ steps.classify.outputs.auto == 'true' }}
+        shell: bash
+        env:
+          CHROME_PATH: google-chrome
+        run: |
+          set -euo pipefail
+          node scripts/content/publish.ts smoke --work "$WORK" --env production
+
+      - name: "12. Switch production active_version"
+        if: ${{ steps.classify.outputs.auto == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/content/publish.ts switch --work "$WORK" --env production
+
+      - name: "12. Finalize (retention; no catalog mirror in production)"
+        id: finalize
+        if: ${{ steps.classify.outputs.auto == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/content/publish.ts finalize --work "$WORK" --env production
+
+      - name: "14. Rollback (automatic, on any failure before finalize)"
+        if: ${{ failure() && steps.finalize.outcome != 'failure' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f "$WORK/publish-state.production.json" ]; then
+            node scripts/content/publish.ts rollback --work "$WORK" --env production
+          else
+            echo "### Production content publish failed before any write; nothing to roll back" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Keep the classification decision and publish state (90 days)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-content-evidence-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/content/content-rebuild.json
+            ${{ runner.temp }}/content/publish-state.production.json
+          retention-days: 90
+          if-no-files-found: warn
