@@ -278,10 +278,18 @@ await runStep(`publish ${command}`, async () => {
           ? `${pages.length} pages 200 (home, products, category, product with Product JSON-LD, contact × fa/en/ar), X-Robots-Tag noindex`
           : `${pages.length} pages 200 (home, products, category, product with Product JSON-LD, contact × fa/en/ar), each <meta robots "index, follow">; contact posts to ${RFQ_API_ORIGIN}`,
       );
+      // /data/* is edge-cached for 300 s (lib/static/static-rules.ts), so a copy fetched shortly before the
+      // deploy (e.g. by ops-health) is served until it expires (W8.1). Poll the exact visitor URL — no
+      // cache-buster, so this checks what the browser form will load — for up to 330 s.
+      const dataUntil = Date.now() + 330_000;
       for (const l of ["fa", "en", "ar"]) {
-        const r = await fetchText(`${STATIC_BASE_URL}/data/rfq-catalog.${l}.json`);
-        const v = r.status === 200 ? (JSON.parse(r.text) as { snapshot_version: string }).snapshot_version : null;
-        if (v !== version) throw new Error(`smoke rfq-catalog.${l}.json: ${r.status} ${v}`);
+        for (;;) {
+          const r = await fetchText(`${STATIC_BASE_URL}/data/rfq-catalog.${l}.json`);
+          const v = r.status === 200 ? (JSON.parse(r.text) as { snapshot_version: string }).snapshot_version : null;
+          if (v === version) break;
+          if (Date.now() >= dataUntil) throw new Error(`smoke rfq-catalog.${l}.json: ${r.status} ${v}`);
+          await new Promise((resolve) => setTimeout(resolve, 15_000));
+        }
       }
       lines.push(`data/rfq-catalog.{fa,en,ar}.json carry ${version}`);
       const sitemap = await fetchText(`${STATIC_BASE_URL}/sitemap.xml`);
