@@ -23,12 +23,23 @@ with their date and their effect in this repository. The architecture's own list
 
 Architecture amendment **r4** (owner-approved 2026-10-04): every build makes a staging and a production artifact from one code_sha + one snapshot; the production artifact may differ only in the allowlisted places (`lib/static/target-diff-gate.ts`). "Same bytes" in §2.7 / §7.1 step 8 now means "same code_sha, same snapshot, difference only in the r4 allowlist".
 
+## Decisions of 2026-10-06
+
+D-DAR-063 and D-SCHEDULE are implemented now (W9.1). D-PRICE and D-ARTICLES are recorded now and implemented later.
+
+| # | Decision (as given) | Effect |
+|---|---|---|
+| **D-DAR-063** | **v11 release path:** staging publish + smoke → production-prep publish (environment approval) → observation → `STABLE_100`. **`MINIMUM_OBSERVATION_DURATION` (v11) = 24 h** with ops-health production showing no alert. **`PROMOTION_RUN_ID` substitute for v11** = the `content-publish.yml` production job run id. The 10% canary does not apply to a custom-domain static Worker. Scheduled production builds use the ledger's `STABLE_100` SHA, not the branch tip. | `docs/release/RELEASE_POLICY.md` §20 (path, §20.2 observation, §20.3 field mapping, §20.4 ledger branch `feat/v11-static-site`, §20.5 scheduled build) and §12. Closes `DOCUMENT_AUDIT_REPORT.md` DAR-063 (policy). **Follow-up the same day (W9.1 finding):** the cutover release `d4f57f6` predates the post-cutover config `785b532`, so it is recorded as **history only** (`SUPERSEDED`). The first v11 `STABLE_100` is a post-cutover SHA released through §20, dispatched with the owner present after a pre-check that the www custom-domain binding stays unchanged and `workers_dev` stays false. |
+| **D-SCHEDULE** | Production content publish **daily at 10:30 Asia/Tehran (07:00 UTC)**. The staging cron is unchanged. | `content-publish.yml` on `main`: second schedule `0 7 * * *`. That run builds `BASE_PRODUCTION_SHA` and publishes production only on CONTENT_REBUILD `AUTO` (`RELEASE_POLICY.md` §20.5). The 22:47 UTC staging run is unchanged. |
+| **D-PRICE** | Indicative Ahan Asa **ex-warehouse** price, **per kg, Toman, VAT included**, **product page only**, **selected products** (others "price on request"), **no JSON-LD offers**. **One manager** enters and publishes; **entry cut-off 10:00**. Prices **do not expire**: show the date and age, plus a fixed "ask for today's price" line. **Internal stale-price alert after 5 days.** | **Recorded now, implemented later (W9.2).** Supersedes architecture V1.1's "hide after `valid_until`" for prices. The 10:00 cut-off fits the 10:30 production publish (D-SCHEDULE). Nothing is built yet: no price field exists in Odoo's export, the snapshot or the site (`AHANASSA_W9_0_DISCOVERY_RESULT_*.md` §1a). The publication gate and leak scan keep refusing price keys until W9.2 changes them as a code release (§20). |
+| **D-ARTICLES** | Articles are **not in Odoo**. An agent drafts them; the owner approves via PR in a **separate content source** (not the app branch), which the pipeline reads as data. **fa may publish alone**; no machine-made final en/ar translations; **no invented prices or stock**; technical claims **cite a source**. | **Recorded now, implemented later.** Supersedes architecture V1.1 §11 "off until an Odoo article model exists" (no Odoo article model will be built). Content approval is the owner's PR merge in the content source. Article pages remain a code release (§20); a new article after that is content. Language rule as `PROJECT_OVERRIDES.md` §1 (no machine-made final translations; each locale published only with real approved text). |
+
 ## Architecture §19 — status of every owner decision
 
 | # | Decision | Architecture default | Status (2026-10-04) |
 |---|---|---|---|
 | 1 | Alert channel and owner | one operations owner + a deputy | **Decided 2026-10-04 (evening): owner only, no deputy** (accepted single point of contact). Built in W6/W6.1 (`docs/OPS_ALERTS.md`). |
-| 2 | Daily publication hour | 03:00 Tehran | **Implemented** (W4): 22:47 UTC = 02:17 Tehran + manual dispatch. |
+| 2 | Daily publication hour | 03:00 Tehran | **Implemented** (W4): 22:47 UTC = 02:17 Tehran + manual dispatch (staging). **Production decided 2026-10-06 (D-SCHEDULE): 10:30 Tehran = 07:00 UTC**, unattended on CONTENT_REBUILD `AUTO`. |
 | 3 | PII retention period | 90 days, after legal confirmation | **Decided 2026-10-04** (PII above): Odoo unlimited; website `DB_OPS` 30 days after delivery. |
 | 4 | CONTENT_REBUILD in the release policy | yes | **Decided 2026-10-04: YES** (D4). |
 | 5 | Official channel for drawings until attachments exist | the company's e-mail | **Decided 2026-10-04 (evening): WhatsApp**, no upload; link built (W8.0), rendered once the number is configured. |
