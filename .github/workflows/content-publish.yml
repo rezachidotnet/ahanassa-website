@@ -11,10 +11,22 @@
 # Odoo: production, GET https://odoo.ahanassa.com/api/v1/catalog/* and /api/v1/processing/groups only
 # (owner decision 2026-10-03), never a POST, never an RFQ (§6.7).
 #
-# BRANCH NOTE (until cutover): this file lives on `main` only so GitHub will schedule/dispatch it
-# (CLAUDE.md §5b). main and the application branch have unrelated histories, so the jobs check out
-# feat/v11-static-site for the scripts (scripts/content/*); the publish job checks out the exact commit
-# the build job used. At cutover, change `ref` to the real application branch.
+# BRANCH NOTE: this file lives on `main` only so GitHub will schedule/dispatch it (CLAUDE.md §5b). main and
+# the application branch have unrelated histories, so the jobs check out the application branch
+# feat/v11-static-site (APP_REF) for the scripts (scripts/content/*); the publish jobs check out the exact
+# commit the build job used. Since the W8.1 cutover feat/v11-static-site is also the production application
+# branch: the release ledger is read from it, and only from it (LEDGER_REF; RELEASE_POLICY.md §20.4) —
+# feat/header-hero-integrated is the frozen legacy branch.
+#
+# W9.1 (owner decisions D-DAR-063 + D-SCHEDULE, 2026-10-06; RELEASE_POLICY.md §20.5): two schedules.
+#   22:47 UTC (02:17 Tehran) — unchanged: build the APP_REF tip, publish staging only.
+#   07:00 UTC (10:30 Tehran) — production content: the build checks out BASE_PRODUCTION_SHA (the latest
+#     STABLE_100 RELEASE_SHA in the ledger on LEDGER_REF), never the branch tip, so an app-branch commit cannot
+#     turn the daily content publish into a code release. Selection: .github/scripts/v11-stable-release.mjs
+#     (resolver read from LEDGER_REF). It is "production eligible" only for a v11 release whose own static
+#     config declares the www.ahanassa.com custom domain with workers_dev false (else the job FAILS: alert);
+#     with no v11 STABLE_100 row yet it builds the tip, staging only, and says so. The staging publish of the
+#     same artifact still runs first (the production load verifies the staging twin is active).
 #
 # TODO(W8, production): a separate `publish-production` job in environment `production`, needing an
 # approved staging run: download THE SAME artifact (by run id), verify every checksum in manifest.json and
@@ -64,8 +76,11 @@ on:
         default: staging
         options: [staging, production-prep]
   schedule:
-    # Daily 22:47 UTC = 02:17 Tehran (§7.4: outside Tehran business hours). Staging only.
+    # Daily 22:47 UTC = 02:17 Tehran (§7.4: outside Tehran business hours). Staging only (branch tip).
     - cron: "47 22 * * *"
+    # Daily 07:00 UTC = 10:30 Tehran (D-SCHEDULE): production content, built from BASE_PRODUCTION_SHA (§20.5).
+    # Keep this string identical to every `github.event.schedule == '0 7 * * *'` below.
+    - cron: "0 7 * * *"
 
 permissions:
   contents: read
@@ -76,6 +91,8 @@ concurrency:
 
 env:
   APP_REF: feat/v11-static-site
+  # The one branch the release ledger (docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md) is read from (§20.4).
+  LEDGER_REF: feat/v11-static-site
 
 jobs:
   build:
@@ -86,6 +103,8 @@ jobs:
     outputs:
       code_sha: ${{ steps.meta.outputs.code_sha }}
       snapshot_version: ${{ steps.meta.outputs.snapshot_version }}
+      # 'true' only on the 07:00 schedule when the build checked out a v11 STABLE_100 release (§20.5).
+      production_eligible: ${{ steps.select.outputs.eligible == 'true' && 'true' || 'false' }}
     env:
       # Read-only use here: DB_PUBLIC editorial layer + publication state.
       CLOUDFLARE_API_TOKEN: ${{ secrets.V11_STAGING_CLOUDFLARE_DEPLOY_TOKEN }}
@@ -95,10 +114,11 @@ jobs:
         shell: bash
         run: echo "WORK=$RUNNER_TEMP/content" >> "$GITHUB_ENV"
 
-      - name: Checkout application code
+      - name: Checkout application code (branch tip; full history on the production schedule)
         uses: actions/checkout@v4
         with:
           ref: ${{ env.APP_REF }}
+          fetch-depth: ${{ github.event_name == 'schedule' && github.event.schedule == '0 7 * * *' && 0 || 1 }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -106,8 +126,48 @@ jobs:
           node-version: "24"
           cache: npm
 
+      - name: Checkout the release selector (this workflow's own commit on main)
+        if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 7 * * *' }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: .ci-selector
+          sparse-checkout: .github/scripts/v11-stable-release.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: "Production schedule: build BASE_PRODUCTION_SHA, not the branch tip (RELEASE_POLICY.md §20.5)"
+        id: select
+        if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 7 * * *' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Ledger AND resolver are read from origin/$LEDGER_REF (trusted), never from the checkout's working tree.
+          node .ci-selector/.github/scripts/v11-stable-release.mjs resolve --app . --ledger-ref "origin/$LEDGER_REF" | tee "$RUNNER_TEMP/stable-release.json"
+          sha="$(jq -r .sha "$RUNNER_TEMP/stable-release.json")"
+          reason="$(jq -r .reason "$RUNNER_TEMP/stable-release.json")"
+          if [ "$(jq -r .eligible "$RUNNER_TEMP/stable-release.json")" = "true" ]; then
+            git checkout --quiet --detach "$sha"
+            test "$(git rev-parse HEAD)" = "$sha"
+            echo "- production schedule: building BASE_PRODUCTION_SHA \`$sha\` (latest v11 STABLE_100), not the $APP_REF tip" >> "$GITHUB_STEP_SUMMARY"
+          else
+            rm -rf .ci-selector
+            echo "::notice title=production content not eligible::$reason — building the $APP_REF tip for staging only"
+            echo "- production schedule: **not eligible** ($reason); building the $APP_REF tip, staging only" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Install dependencies (immutable)
         run: npm ci
+
+      - name: "Production schedule: the release's own config keeps www.ahanassa.com and workers.dev off"
+        if: ${{ steps.select.outputs.eligible == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! node .ci-selector/.github/scripts/v11-stable-release.mjs check-config --app .; then
+            echo "::error title=ALERT: v11 STABLE_100 release has no www binding::the latest STABLE_100 release's workers/static/wrangler.jsonc (env production) does not declare the www.ahanassa.com custom domain with workers_dev false — it must not be deployed (RELEASE_POLICY.md §20.5)"
+            exit 1
+          fi
+          rm -rf .ci-selector
 
       - name: "5. Fetch (Odoo full fetch, GET only; DB_PUBLIC read-only)"
         shell: bash
@@ -337,10 +397,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # The ledger is read from the trusted production application branch, never from code_sha.
-          git fetch --no-tags --depth=1 origin +refs/heads/feat/header-hero-integrated:refs/remotes/origin/feat/header-hero-integrated
+          # The ledger is read from LEDGER_REF, the trusted production application branch (§20.4), never from code_sha.
+          git fetch --no-tags --depth=1 origin "+refs/heads/$LEDGER_REF:refs/remotes/origin/$LEDGER_REF"
           status=0
-          node lib/ci/content-rebuild-cli.ts --artifact "$WORK/artifact-production" --ledger-ref origin/feat/header-hero-integrated \
+          node lib/ci/content-rebuild-cli.ts --artifact "$WORK/artifact-production" --ledger-ref "origin/$LEDGER_REF" \
             --gates-passed true --decision-file "$WORK/content-rebuild.json" || status=$?
           case "$status" in
             0) echo "- classification: CONTENT_REBUILD (AUTO)" >> "$GITHUB_STEP_SUMMARY" ;;
