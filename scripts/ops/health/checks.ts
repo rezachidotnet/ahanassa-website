@@ -181,7 +181,7 @@ export function evaluateIntake(host: string, intakePath: string, groups: HttpGro
 // 7. Content publication -------------------------------------------------------------------------
 
 export function evaluateContentPublish(lastSuccessAt: string | null, activeVersion: string | null, now: Date, t: Thresholds, alert = true): CheckResult {
-  const threshold = `last successful publish ≤ ${t.contentPublishMaxAgeHours} h ago${alert ? "" : " (report only until W8.1)"}`;
+  const threshold = `last successful publish ≤ ${t.contentPublishMaxAgeHours} h ago${alert ? "" : " (report only: alert off)"}`;
   const base = { id: "content:publish", title: "content publish stale" };
   const active = activeVersion ? `; active_version ${activeVersion}` : "";
   const stale = alert ? "ALERT" : "INFO";

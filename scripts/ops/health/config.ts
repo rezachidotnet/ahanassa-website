@@ -22,14 +22,25 @@ export interface OpsTarget {
   /** D1 database UUIDs (read-only queries through the D1 REST API). */
   dbOpsId: string | null;
   dbPublicId: string | null;
-  /** GitHub workflow files on `main` and the job-name prefix that proves an actual publish. */
+  /**
+   * GitHub workflow file on `main`, the job-name prefix of its publish job(s), and the step that proves the job
+   * actually published (W9.1): a job counts only when that step concluded "success". A job that ran but
+   * published nothing (CONTENT_REBUILD REFUSED / APPROVAL_REQUIRED: its publish steps are skipped and the job
+   * still ends "success") or a dry run never counts.
+   */
   contentPublishWorkflow: string;
   contentPublishJobPrefix: string;
+  contentPublishProofStep: string;
   reconcilerWorkflow: string;
   /** This check's own workflow (the window starts where its previous run started). */
   opsHealthWorkflow: string;
-  /** false = a stale content publish is reported (INFO), not alerted — W8.0 production-prep publishes only on dispatch. */
+  /** false = a stale content publish is reported (INFO), not alerted. */
   contentStaleAlert: boolean;
+  /**
+   * When set, contentStaleAlert takes effect only while this environment variable is "on" — a GitHub variable
+   * the owner sets, passed by ops-health.yml. Unset or any other value = report only (INFO). W9.1: production.
+   */
+  contentStaleAlertFlag: string | null;
 }
 
 export const OPS_TARGETS: Record<OpsEnv, OpsTarget> = {
@@ -44,14 +55,19 @@ export const OPS_TARGETS: Record<OpsEnv, OpsTarget> = {
     dbOpsId: "938579c2-c28a-4765-a7da-86d9c198072f",
     dbPublicId: "8902191f-3dd6-4714-a785-ac0149657ac3",
     contentPublishWorkflow: "content-publish.yml",
-    contentPublishJobPrefix: "publish",
+    // "publish (staging …)": the bare prefix "publish" also matched the production jobs.
+    contentPublishJobPrefix: "publish (",
+    contentPublishProofStep: "12. Finalize",
     reconcilerWorkflow: "rfq-ci-reconciler.yml",
     opsHealthWorkflow: "ops-health.yml",
     contentStaleAlert: true,
+    contentStaleAlertFlag: null,
   },
   // Production (live since the W8.1 cutover, 2026-10-05; workers/rfq/wrangler.jsonc env.production). Read with
-  // its own read-only monitor token (GitHub environment production-v11-monitor). contentStaleAlert stays false
-  // until the daily production CONTENT_REBUILD publish runs unattended (needs a STABLE_100 v11 release, §19).
+  // its own read-only monitor token (GitHub environment production-v11-monitor). The stale-content alert is on in
+  // config but gated by OPS_PRODUCTION_CONTENT_STALE_ALERT (W9.1): the owner sets that variable to "on" after the
+  // first unattended CONTENT_REBUILD AUTO publish (07:00 UTC, RELEASE_POLICY.md §20.5). Only runs whose publish
+  // job actually finalized count (contentPublishProofStep).
   production: {
     env: "production",
     enabled: true,
@@ -63,12 +79,22 @@ export const OPS_TARGETS: Record<OpsEnv, OpsTarget> = {
     dbOpsId: "72b8fb96-43c5-45bd-8f1e-b0f2a3a2fa9a",
     dbPublicId: "6e74ff59-9961-40f2-b8e5-8a9619f45776",
     contentPublishWorkflow: "content-publish.yml",
+    // publish-production (dispatch, production-prep) and publish-production-content (07:00 UTC schedule).
     contentPublishJobPrefix: "publish-production",
+    contentPublishProofStep: "12. Finalize",
     reconcilerWorkflow: "rfq-ci-reconciler.yml",
     opsHealthWorkflow: "ops-health.yml",
-    contentStaleAlert: false,
+    contentStaleAlert: true,
+    contentStaleAlertFlag: "OPS_PRODUCTION_CONTENT_STALE_ALERT",
   },
 };
+
+/** Whether a stale content publish ALERTs for this target: contentStaleAlert, gated by contentStaleAlertFlag === "on". */
+export function contentStaleAlertEffective(target: OpsTarget, env: Record<string, string | undefined> = process.env): boolean {
+  if (!target.contentStaleAlert) return false;
+  if (target.contentStaleAlertFlag === null) return true;
+  return env[target.contentStaleAlertFlag]?.trim().toLowerCase() === "on";
+}
 
 export interface Thresholds {
   /** Last scheduled invocation older than this → ALERT "cron silent". */

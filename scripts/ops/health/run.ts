@@ -5,14 +5,15 @@
  *
  * Env: CLOUDFLARE_API_TOKEN (read-only monitor token), CLOUDFLARE_ACCOUNT_ID, GITHUB_TOKEN,
  *      GITHUB_REPOSITORY, GITHUB_RUN_ID (Actions sets the last two), GITHUB_EVENT_NAME,
- *      OPS_HEALTH_TEST_FORCE = none|cron|rfq|cpu|intake|content|odoo (staging-only alert test).
+ *      OPS_HEALTH_TEST_FORCE = none|cron|rfq|cpu|intake|content|odoo (staging-only alert test),
+ *      OPS_PRODUCTION_CONTENT_STALE_ALERT = on (production stale-content alert; config.ts contentStaleAlertFlag).
  *
  * Writes the result table to $GITHUB_STEP_SUMMARY and stdout, one `::error title=ALERT: …` annotation
  * per ALERT (the failed-run e-mail shows them), and exits 1 only on ALERT. Output holds counts, ages
  * and timestamps — no RFQ, reference, contact or other personal data.
  */
 import fs from "node:fs";
-import { ODOO_META_URL, OPS_TARGETS, WINDOW, thresholdsFor, type OpsEnv } from "./config.ts";
+import { ODOO_META_URL, OPS_TARGETS, WINDOW, contentStaleAlertEffective, thresholdsFor, type OpsEnv } from "./config.ts";
 import {
   annotations,
   evaluateContentPublish,
@@ -101,13 +102,13 @@ async function main(): Promise<number> {
   }
   // 7. content publication (+ active_version, §15)
   await guard("content:publish", "content publish stale", `last successful publish ≤ ${t.contentPublishMaxAgeHours} h ago`, async () => {
-    const last = await lastSuccessfulPublish(gh, target.contentPublishWorkflow, target.contentPublishJobPrefix);
+    const last = await lastSuccessfulPublish(gh, target.contentPublishWorkflow, target.contentPublishJobPrefix, target.contentPublishProofStep);
     let active: string | null = null;
     if (target.dbPublicId) {
       const rows = await d1Select(cf, target.dbPublicId, "SELECT active_version FROM publication_pointer WHERE id = 1");
       active = (rows[0]?.active_version as string | undefined) ?? null;
     }
-    return evaluateContentPublish(last, active, now, t, target.contentStaleAlert);
+    return evaluateContentPublish(last, active, now, t, contentStaleAlertEffective(target));
   });
   // 8. Odoo reachability (GET only)
   results.push(evaluateOdoo(await probeOdoo(ODOO_META_URL, t.odooTimeoutMs), t));
