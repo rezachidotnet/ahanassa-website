@@ -132,13 +132,45 @@ export async function previousRunStart(auth: GitHubAuth, workflow: string, curre
   return prev?.run_started_at ?? null;
 }
 
-/** Completion time of the newest run whose publish job (name prefix) succeeded — dry runs never count. */
-export async function lastSuccessfulPublish(auth: GitHubAuth, workflow: string, jobPrefix: string): Promise<string | null> {
-  const { workflow_runs } = await gh<{ workflow_runs: Run[] }>(auth, `/actions/workflows/${workflow}/runs?status=success&per_page=15`);
+export interface JobStep {
+  name: string;
+  conclusion: string | null;
+  completed_at?: string | null;
+}
+
+export interface Job {
+  name: string;
+  conclusion: string | null;
+  completed_at: string | null;
+  steps?: JobStep[];
+}
+
+/**
+ * W9.1: when a job of this run ACTUALLY published, the completion time of its proof step; otherwise null.
+ * "Actually published" = a job whose name starts with jobPrefix and whose proof step (e.g. "12. Finalize")
+ * concluded "success". The job's own conclusion is not enough: the scheduled production job ends "success"
+ * when CONTENT_REBUILD is REFUSED or APPROVAL_REQUIRED, with every publish step skipped. A dry run (publish job
+ * skipped) never counts.
+ */
+export function publishedAt(jobs: readonly Job[], jobPrefix: string, proofStep: string): string | null {
+  let latest: string | null = null;
+  for (const j of jobs) {
+    if (!j.name.startsWith(jobPrefix)) continue;
+    const step = (j.steps ?? []).find((s) => s.name.startsWith(proofStep) && s.conclusion === "success");
+    const at = step ? (step.completed_at ?? j.completed_at) : null;
+    if (at && (latest === null || at > latest)) latest = at;
+  }
+  return latest;
+}
+
+/** Completion time of the newest actual publish (publishedAt) among the workflow's recent completed runs. */
+export async function lastSuccessfulPublish(auth: GitHubAuth, workflow: string, jobPrefix: string, proofStep: string): Promise<string | null> {
+  // completed, not only success: a run whose publish finalized but a later step (evidence upload) failed still published.
+  const { workflow_runs } = await gh<{ workflow_runs: Run[] }>(auth, `/actions/workflows/${workflow}/runs?status=completed&per_page=30`);
   for (const run of workflow_runs) {
-    const { jobs } = await gh<{ jobs: { name: string; conclusion: string | null; completed_at: string | null }[] }>(auth, `/actions/runs/${run.id}/jobs?per_page=50`);
-    const job = jobs.find((j) => j.name.startsWith(jobPrefix) && j.conclusion === "success" && j.completed_at);
-    if (job?.completed_at) return job.completed_at;
+    const { jobs } = await gh<{ jobs: Job[] }>(auth, `/actions/runs/${run.id}/jobs?per_page=50`);
+    const at = publishedAt(jobs, jobPrefix, proofStep);
+    if (at) return at;
   }
   return null;
 }

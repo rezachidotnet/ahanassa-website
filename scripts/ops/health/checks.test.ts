@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { OPS_TARGETS, THRESHOLDS, TEST_FORCE, WINDOW, thresholdsFor } from "./config.ts";
+import { OPS_TARGETS, THRESHOLDS, TEST_FORCE, WINDOW, contentStaleAlertEffective, thresholdsFor } from "./config.ts";
 import {
   annotations,
   evaluateContentPublish,
@@ -16,6 +16,7 @@ import {
   unavailable,
   windowStart,
 } from "./checks.ts";
+import { publishedAt } from "./sources.ts";
 
 const NOW = new Date("2026-10-04T10:00:00Z");
 const minsAgo = (m: number) => new Date(NOW.getTime() - m * 60_000).toISOString();
@@ -149,16 +150,65 @@ test("summary: table with check/value/threshold/status and the alert headline", 
   assert.match(md, /TEST override: odoo/);
 });
 
-test("targets: staging enabled; production live since W8.1 (cron + API host checked, content report-only until STABLE_100)", () => {
+test("targets: staging enabled; production live since W8.1 (cron + API host checked, stale-content alert gated by the owner's flag)", () => {
   assert.equal(OPS_TARGETS.staging.enabled, true);
   assert.equal(OPS_TARGETS.staging.contentStaleAlert, true);
+  assert.equal(OPS_TARGETS.staging.contentStaleAlertFlag, null);
   const p = OPS_TARGETS.production;
   assert.equal(p.enabled, true);
   assert.notEqual(p.rfqWorker, OPS_TARGETS.staging.rfqWorker);
   assert.deepEqual(p.cronWorkers, ["ahanassa-v11-rfq-production"], "the production RFQ Worker's */5 cron (W8.1)");
   assert.equal(p.apiHost, "api.ahanassa.com", "custom domain attached at W8.1");
-  assert.equal(p.contentStaleAlert, false);
+  assert.equal(p.contentStaleAlert, true);
+  assert.equal(p.contentStaleAlertFlag, "OPS_PRODUCTION_CONTENT_STALE_ALERT");
   assert.ok(p.dbOpsId && p.dbPublicId && p.dbOpsId !== OPS_TARGETS.staging.dbOpsId && p.dbPublicId !== OPS_TARGETS.staging.dbPublicId);
+});
+
+test("stale-content alert (W9.1): production alerts only while the owner's flag is 'on'; staging always", () => {
+  const p = OPS_TARGETS.production;
+  assert.equal(contentStaleAlertEffective(p, {}), false, "unset = report only");
+  assert.equal(contentStaleAlertEffective(p, { OPS_PRODUCTION_CONTENT_STALE_ALERT: "" }), false);
+  assert.equal(contentStaleAlertEffective(p, { OPS_PRODUCTION_CONTENT_STALE_ALERT: "off" }), false);
+  assert.equal(contentStaleAlertEffective(p, { OPS_PRODUCTION_CONTENT_STALE_ALERT: "true" }), false, "only the exact word 'on'");
+  assert.equal(contentStaleAlertEffective(p, { OPS_PRODUCTION_CONTENT_STALE_ALERT: "on" }), true);
+  assert.equal(contentStaleAlertEffective(p, { OPS_PRODUCTION_CONTENT_STALE_ALERT: " ON " }), true);
+  assert.equal(contentStaleAlertEffective(OPS_TARGETS.staging, {}), true);
+  assert.equal(contentStaleAlertEffective({ ...p, contentStaleAlert: false }, { OPS_PRODUCTION_CONTENT_STALE_ALERT: "on" }), false);
+});
+
+const step = (name: string, conclusion: string | null, completed_at: string | null = "2026-10-08T07:20:00Z") => ({ name, conclusion, completed_at });
+const FINALIZE_PROD = "12. Finalize (retention; no catalog mirror in production)";
+const FINALIZE_STAGING = "12. Finalize (catalog mirror, keep 3 versions)";
+
+test("published runs (W9.1): a production job counts only when its Finalize step succeeded, not by job name/conclusion", () => {
+  const p = OPS_TARGETS.production;
+  const refused = [
+    { name: "publish (staging DB_PUBLIC + static Worker)", conclusion: "success", completed_at: "2026-10-08T07:10:00Z", steps: [step(FINALIZE_STAGING, "success", "2026-10-08T07:09:00Z")] },
+    { name: "publish-production-content (scheduled; CONTENT_REBUILD AUTO only)", conclusion: "success", completed_at: "2026-10-08T07:15:00Z", steps: [step("CONTENT_REBUILD check (RELEASE_POLICY.md §19): publish only on AUTO", "success"), step(FINALIZE_PROD, "skipped")] },
+  ];
+  assert.equal(publishedAt(refused, p.contentPublishJobPrefix, p.contentPublishProofStep), null, "REFUSED run published nothing to production");
+  assert.equal(publishedAt(refused, OPS_TARGETS.staging.contentPublishJobPrefix, OPS_TARGETS.staging.contentPublishProofStep), "2026-10-08T07:09:00Z", "but staging did publish");
+
+  const auto = [{ ...refused[1]!, steps: [step(FINALIZE_PROD, "success", "2026-10-08T07:14:00Z")] }];
+  assert.equal(publishedAt(auto, p.contentPublishJobPrefix, p.contentPublishProofStep), "2026-10-08T07:14:00Z");
+
+  const prep = [{ name: "publish-production (production-prep, workers.dev + v11 production DB_PUBLIC)", conclusion: "success", completed_at: "2026-10-07T07:40:00Z", steps: [step(FINALIZE_PROD, "success", "2026-10-07T07:39:00Z")] }];
+  assert.equal(publishedAt(prep, p.contentPublishJobPrefix, p.contentPublishProofStep), "2026-10-07T07:39:00Z", "a dispatched production-prep publish counts too");
+
+  const failedAfterFinalize = [{ ...auto[0]!, conclusion: "failure" }];
+  assert.equal(publishedAt(failedAfterFinalize, p.contentPublishJobPrefix, p.contentPublishProofStep), "2026-10-08T07:14:00Z", "finalized, then the evidence upload failed: it still published");
+
+  const rolledBack = [{ ...auto[0]!, conclusion: "failure", steps: [step(FINALIZE_PROD, "skipped"), step("14. Rollback (automatic, on any failure before finalize)", "success")] }];
+  assert.equal(publishedAt(rolledBack, p.contentPublishJobPrefix, p.contentPublishProofStep), null);
+
+  const dryRun = [{ name: "publish-production-content (scheduled; CONTENT_REBUILD AUTO only)", conclusion: "skipped", completed_at: "2026-10-08T07:15:00Z", steps: [] }];
+  assert.equal(publishedAt(dryRun, p.contentPublishJobPrefix, p.contentPublishProofStep), null);
+});
+
+test("published runs: the staging prefix no longer matches the production jobs", () => {
+  const s = OPS_TARGETS.staging;
+  const onlyProduction = [{ name: "publish-production-content (scheduled; CONTENT_REBUILD AUTO only)", conclusion: "success", completed_at: "2026-10-08T07:15:00Z", steps: [step(FINALIZE_PROD, "success")] }];
+  assert.equal(publishedAt(onlyProduction, s.contentPublishJobPrefix, s.contentPublishProofStep), null);
 });
 
 test("content check: report-only targets never ALERT on a stale or missing publish", () => {
