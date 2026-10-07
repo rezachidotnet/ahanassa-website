@@ -1527,7 +1527,7 @@ Policy: `RELEASE_POLICY.md` §11 (contract item) and new §11.1. Tests: `lib/ci/
 ### DAR-063 — The v11 cutover has no release path in `RELEASE_POLICY.md`: no ledger state fits it and no v11 promotion workflow exists (2026-10-05)
 
 **Severity:** HIGH (governance) — **owner decision required.**
-**Status:** OPEN.
+**Status:** OPEN. → **RESOLVED (policy), 2026-10-06** — see "Resolution" below.
 
 **Finding.** On 2026-10-05 (W8.1, owner-authorized cutover) `www.ahanassa.com` was moved from the legacy Worker `ahanassa-production` (version `4a32c5f9…`, the ledger's `STABLE_100` `f2202ab`) to the v11 static Worker `ahanassa-v11-static-production` (version `22d0015a-91a8-40ce-b992-d6dab608b2ae`, code `d4f57f6`, published by `content-publish.yml` run `37357572054` with the `production-v11` reviewer approval) by reassigning the custom domain — 100% at once. `RELEASE_POLICY.md` has no path for this:
 
@@ -1539,6 +1539,30 @@ Policy: `RELEASE_POLICY.md` §11 (contract item) and new §11.1. Tests: `lib/ci/
 **Not done (deliberately).** No ledger row was appended in W8.1 — an append the policy cannot validate would be a silent resolution (`CLAUDE.md` §8). The proposed row is recorded in `AHANASSA_WEBSITE_W8_1_RESULT_*.md` §G6.
 
 **To close (owner):** amend `RELEASE_POLICY.md` with a v11 release path (static Worker + RFQ Worker; what counts as canary/observation for a custom-domain switch; who promotes, and how a v11 `STABLE_100` row is produced), set `MINIMUM_OBSERVATION_DURATION`, then append the v11 row through that path.
+
+**Resolution (2026-10-06, owner decision D-DAR-063, `docs/OWNER_DECISIONS.md`) — status: RESOLVED (policy); closes fully with the first v11 `STABLE_100` row.**
+- `RELEASE_POLICY.md` §20 defines the v11 release path:
+  1. staging publish + smoke;
+  2. production-prep publish with `production-v11` environment approval;
+  3. observation;
+  4. `STABLE_100`.
+- **Other rules set by the decision:**
+  - No 10% canary for a custom-domain static Worker.
+  - `MINIMUM_OBSERVATION_DURATION (v11)` = 24 h with ops-health production showing no ALERT (§12, §20.2).
+  - The `PROMOTION_RUN_ID` substitute is the `content-publish.yml` production job's run id (§20.3, with the full field mapping).
+  - The ledger is read from `feat/v11-static-site` (§20.4).
+  - Scheduled production builds use the ledger's `STABLE_100` SHA, not the branch tip (§20.5).
+- **W9.1 finding, owner decision of 2026-10-06:** the cutover release `d4f57f6` is recorded as **history only** (`SUPERSEDED`), not `STABLE_100`.
+  - `d4f57f6` predates the post-cutover configuration `785b532`: its static production config has `workers_dev: true` and no `www.ahanassa.com` custom domain, and its production smoke targets the workers.dev URL.
+  - A scheduled build of `d4f57f6` would therefore deploy the pre-cutover configuration.
+  - The first v11 `STABLE_100` is a post-cutover application-branch SHA released through §20.
+
+**To close:**
+1. Before the production-prep dispatch of the branch tip, run a pre-check proving the deploy keeps the `www.ahanassa.com` custom domain binding (same domain id, same service) and `workers_dev: false`; stop if it does not.
+2. Dispatch `content-publish.yml` `target=production-prep` for the tip with the owner present and the rollback ready (previous version `22d0015a-91a8-40ce-b992-d6dab608b2ae` + publication pointer `snap-2026100518400900`).
+3. Observe 24 h (§20.2).
+4. In one row-only commit on `feat/v11-static-site`, append the `d4f57f6` history row (`SUPERSEDED`) and the tip's `STABLE_100` row (§20.3). Rows are prepared in `docs/release/V11_RELEASE_PATH_W9_1_REPORT.md`.
+5. Still open, not covered by D-DAR-063: a release path for the RFQ Worker `ahanassa-v11-rfq-production` (§20.6).
 
 ---
 
