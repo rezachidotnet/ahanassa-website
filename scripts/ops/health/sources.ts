@@ -43,6 +43,24 @@ export async function d1Select(auth: CloudflareAuth, databaseId: string, sql: st
   return json.result[0]?.results ?? [];
 }
 
+/**
+ * Workers Analytics Engine SQL API (token: Account › Account Analytics › Read — the same permission as GraphQL).
+ * One read-only SELECT; anything else is refused before it leaves the runner.
+ */
+export async function analyticsEngineSelect(auth: CloudflareAuth, sql: string): Promise<Record<string, unknown>[]> {
+  if (!/^\s*SELECT\b/i.test(sql) || sql.includes(";")) throw new Error("analyticsEngineSelect accepts a single SELECT only");
+  const res = await fetch(`${CF_API}/accounts/${auth.accountId}/analytics_engine/sql`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${auth.token}`, "Content-Type": "text/plain" },
+    body: sql,
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) throw new Error(`Analytics Engine SQL ${res.status}`);
+  const json = (await res.json().catch(() => null)) as { data?: Record<string, unknown>[] } | null;
+  if (!json || !Array.isArray(json.data)) throw new Error("Analytics Engine SQL: no data array");
+  return json.data;
+}
+
 // Workers analytics ------------------------------------------------------------------------------
 
 type Accounts<T> = { viewer: { accounts: T[] } };

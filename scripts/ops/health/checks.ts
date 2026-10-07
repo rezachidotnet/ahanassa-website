@@ -206,6 +206,66 @@ export function evaluateOdoo(p: OdooProbe, t: Thresholds): CheckResult {
   return { ...base, value: `HTTP ${p.httpStatus} in ${Math.round(p.latencyMs)} ms`, threshold, status: ok ? "OK" : "ALERT" };
 }
 
+// 9. Price collector (W9.3) ----------------------------------------------------------------------
+
+/** The latest run, as written by the price collector Worker's writeMetrics() (private repo ahanassa-odoo, workers/price-collector). */
+export interface PriceCollectorRun {
+  at: string;
+  runId: string;
+  postStatus: string;
+  rowsTotal: number;
+  /** Rows with a price read, per source ("code:status" → priced rows). */
+  sites: { source: string; pricedRows: number }[];
+  /** Rows dropped to fit 5000 rows / 2 MB — a Worker bug per the contract (rule 7). */
+  droppedRows: number;
+}
+
+/** Latest data point of one environment. Analytics Engine SQL (read-only); the dataset name is from config. */
+export function priceCollectorSql(dataset: string, envIndex: string): string {
+  if (!/^[a-z0-9_]+$/.test(dataset) || !/^[a-z0-9_-]+$/.test(envIndex)) throw new Error("bad dataset or index");
+  return `SELECT timestamp, blob1, blob3, blob4, blob5, blob6, blob7, double1, double5, double6, double7, double8, double9 FROM ${dataset} WHERE index1 = '${envIndex}' AND timestamp > NOW() - INTERVAL '7' DAY ORDER BY timestamp DESC LIMIT 1 FORMAT JSON`;
+}
+
+export function priceCollectorRunFromRow(row: Record<string, unknown> | undefined): PriceCollectorRun | null {
+  if (!row) return null;
+  const n = (k: string) => Number(row[k] ?? 0);
+  const ts = String(row.timestamp ?? "");
+  return {
+    // Analytics Engine returns "YYYY-MM-DD HH:MM:SS" (UTC).
+    at: /Z$/.test(ts) ? ts : `${ts.replace(" ", "T")}Z`,
+    runId: String(row.blob1 ?? ""),
+    postStatus: String(row.blob3 ?? ""),
+    rowsTotal: n("double1"),
+    sites: ["blob4", "blob5", "blob6", "blob7"].map((b, i) => ({ source: String(row[b] ?? `source${i + 1}`), pricedRows: n(`double${i + 5}`) })),
+    droppedRows: n("double9"),
+  };
+}
+
+export function evaluatePriceCollector(last: PriceCollectorRun | null, now: Date, t: Thresholds): CheckResult[] {
+  const threshold = `last run ≤ ${t.priceCollectorMaxAgeHours} h ago`;
+  const age = { id: "price-collector:age", title: "price collector stale" };
+  if (!last) return [{ ...age, value: "no run in 7 days", threshold, status: "ALERT" }];
+  const hours = minutesBetween(last.at, now) / 60;
+  const perSite = last.sites.map((s) => `${s.source} ${s.pricedRows}`).join(", ");
+  return [
+    { ...age, value: `${hours.toFixed(1)} h (${last.at}; POST ${last.postStatus})`, threshold, status: hours > t.priceCollectorMaxAgeHours ? "ALERT" : "OK" },
+    {
+      id: "price-collector:rows",
+      title: "price collector 0 valid rows",
+      value: `${perSite} (rows with a price, last run)`,
+      threshold: "≥ 1 source with ≥ 1 priced row",
+      status: last.sites.every((s) => s.pricedRows <= 0) ? "ALERT" : "OK",
+    },
+    {
+      id: "price-collector:limits",
+      title: "price collector over contract limits",
+      value: `${last.droppedRows} rows dropped (last run, ${last.rowsTotal} sent)`,
+      threshold: "0 (PRICE_INGEST_API_V1 rule 7: a run over 5000 rows / 2 MB is a Worker bug)",
+      status: last.droppedRows > 0 ? "ALERT" : "OK",
+    },
+  ];
+}
+
 // Info: CI reconciler ----------------------------------------------------------------------------
 
 export function evaluateReconciler(lastRunAt: string | null, now: Date, t: Thresholds): CheckResult {

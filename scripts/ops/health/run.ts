@@ -21,8 +21,11 @@ import {
   evaluateCronLiveness,
   evaluateIntake,
   evaluateOdoo,
+  evaluatePriceCollector,
   evaluateReconciler,
   evaluateRfqs,
+  priceCollectorRunFromRow,
+  priceCollectorSql,
   RFQ_COUNTS_SQL,
   rfqCountsFromRow,
   summaryMarkdown,
@@ -30,7 +33,7 @@ import {
   windowStart,
   type CheckResult,
 } from "./checks.ts";
-import { d1Select, httpByHost, lastRunStart, lastScheduledRun, lastSuccessfulPublish, previousRunStart, probeOdoo, workerCpu, type CloudflareAuth, type GitHubAuth } from "./sources.ts";
+import { analyticsEngineSelect, d1Select, httpByHost, lastRunStart, lastScheduledRun, lastSuccessfulPublish, previousRunStart, probeOdoo, workerCpu, type CloudflareAuth, type GitHubAuth } from "./sources.ts";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -112,6 +115,13 @@ async function main(): Promise<number> {
   });
   // 8. Odoo reachability (GET only)
   results.push(evaluateOdoo(await probeOdoo(ODOO_META_URL, t.odooTimeoutMs), t));
+  // 9. price collector (W9.3): off until the collector runs (config.ts priceCollector.enabled)
+  if (target.priceCollector?.enabled) {
+    const pc = target.priceCollector;
+    await guard("price-collector", "price collector", `last run ≤ ${t.priceCollectorMaxAgeHours} h ago, ≥ 1 priced row`, async () =>
+      evaluatePriceCollector(priceCollectorRunFromRow((await analyticsEngineSelect(cf, priceCollectorSql(pc.dataset, pc.envIndex)))[0]), now, t),
+    );
+  }
   // info: CI reconciler
   await guard("info:reconciler", "CI reconciler last run", "info", async () => evaluateReconciler(await lastRunStart(gh, target.reconcilerWorkflow), now, t));
 

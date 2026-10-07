@@ -102,6 +102,7 @@ All thresholds live in `scripts/ops/health/config.ts`.
 | content publish stale | GitHub API: newest run whose `publish` job succeeded (dry runs do not count) + `DB_PUBLIC` `active_version` | > **30 h** |
 | Odoo unreachable | `GET https://odoo.ahanassa.com/api/v1/catalog/meta` | not 200 within **10 s** |
 | CI reconciler last run | GitHub API | INFO only |
+| price collector stale / 0 valid rows (W9.3; **off**: `OPS_TARGETS.production.priceCollector.enabled = false`) | Analytics Engine SQL, dataset `ahanassa_price_collector`, `index1 = production` (one data point per collector run) | last run > **26 h** ago (or none in 7 days), or the last run had 0 rows with a price from every source, or it dropped rows to fit the ingest limits (5000 rows / 2 MB) |
 
 - **Window:** previous ops-health run start − 5 min → now, clamped to 15 min … 24 h.
 - **A source that cannot be read** (token, API error) is an ALERT. A blind check never passes.
@@ -199,6 +200,14 @@ Local commands assume a checkout of `feat/v11-static-site` with `npx wrangler lo
   1. Check `curl -sS -o /dev/null -w '%{http_code} %{time_total}\n' https://odoo.ahanassa.com/api/v1/catalog/meta` from another network.
   2. Check the Odoo server and its reverse proxy.
   3. Note: reachability from outside Iran is a known risk (§16).
+
+### price collector stale / 0 valid rows (W9.3, off until enabled)
+
+**Meaning:** the daily price collector Worker (private repository `ahanassa-odoo`, `workers/price-collector`; cron `15 7 * * *`) has not run for 26 h, or its last run read no price from any source. Odoo then gets no observations and proposes no drafts; the published prices stay as they are.
+
+1. `npx wrangler tail ahanassa-v11-price-collector-production --format json` during 07:15 UTC, or Workers → Observability: look for `price_collector.site` (per source: status, rows, message) and `price_collector.run`.
+2. One source `blocked`/`unreachable`/`robots_disallowed` is expected now and then and does not alert. All sources at 0 → check the messages; a markup change shows as `parse_error` with `0 rows: <path>` (re-capture the fixture, fix the adapter, run the parser tests).
+3. Never work around a block, CAPTCHA or robots rule (owner rule, W9.3).
 
 ### ops health could not run / check could not run
 

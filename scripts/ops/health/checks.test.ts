@@ -8,8 +8,11 @@ import {
   evaluateCronLiveness,
   evaluateIntake,
   evaluateOdoo,
+  evaluatePriceCollector,
   evaluateRfqs,
   percentile,
+  priceCollectorRunFromRow,
+  priceCollectorSql,
   RFQ_COUNTS_SQL,
   rfqCountsFromRow,
   summaryMarkdown,
@@ -217,4 +220,59 @@ test("content check: report-only targets never ALERT on a stale or missing publi
   assert.equal(evaluateContentPublish("2026-10-01T00:00:00Z", "snap-x", now, THRESHOLDS, false).status, "INFO");
   assert.equal(evaluateContentPublish("2026-10-04T11:00:00Z", "snap-x", now, THRESHOLDS, false).status, "OK");
   assert.equal(evaluateContentPublish(null, null, now, THRESHOLDS).status, "ALERT");
+});
+
+// W9.3 price collector --------------------------------------------------------------------------
+
+const pcRow = (at: string, priced: number[], dropped = 0) => ({
+  timestamp: at,
+  blob1: "5b0e8f3c-2c1d-4a8e-9f00-1d2c3b4a5e6f",
+  blob3: "stored",
+  blob4: "source1:ok",
+  blob5: "source2:ok",
+  blob6: "source3:ok",
+  blob7: "source4:ok",
+  double1: 1500,
+  double5: priced[0],
+  double6: priced[1],
+  double7: priced[2],
+  double8: priced[3],
+  double9: dropped,
+});
+
+test("price collector check: behind a config flag, OFF; staging has no collector to watch", () => {
+  assert.equal(OPS_TARGETS.production.priceCollector?.enabled, false);
+  assert.equal(OPS_TARGETS.staging.priceCollector, null);
+  assert.equal(THRESHOLDS.priceCollectorMaxAgeHours, 26);
+});
+
+test("price collector: last run older than 26 h alerts; none in 7 days alerts", () => {
+  const ok = evaluatePriceCollector(priceCollectorRunFromRow(pcRow("2026-10-03 07:15:30", [300, 100, 400, 280])), new Date("2026-10-04T09:00:00Z"), THRESHOLDS);
+  assert.deepEqual(ok.map((r) => r.status), ["OK", "OK", "OK"]);
+  const stale = evaluatePriceCollector(priceCollectorRunFromRow(pcRow("2026-10-03 07:15:30", [300, 100, 400, 280])), new Date("2026-10-04T09:16:00Z"), THRESHOLDS);
+  assert.equal(stale[0].status, "ALERT");
+  const none = evaluatePriceCollector(priceCollectorRunFromRow(undefined), NOW, THRESHOLDS);
+  assert.equal(none.length, 1);
+  assert.equal(none[0].status, "ALERT");
+});
+
+test("price collector: 0 priced rows from every source alerts; one source with rows is enough", () => {
+  const zero = evaluatePriceCollector(priceCollectorRunFromRow(pcRow("2026-10-04 07:15:30", [0, 0, 0, 0])), NOW, THRESHOLDS);
+  assert.equal(zero.find((r) => r.id === "price-collector:rows")?.status, "ALERT");
+  const one = evaluatePriceCollector(priceCollectorRunFromRow(pcRow("2026-10-04 07:15:30", [0, 0, 12, 0])), NOW, THRESHOLDS);
+  assert.equal(one.find((r) => r.id === "price-collector:rows")?.status, "OK");
+  assert.match(one[1].value, /source3:ok 12/);
+});
+
+test("price collector SQL: one read-only SELECT on the configured dataset and index", () => {
+  const sql = priceCollectorSql("ahanassa_price_collector", "production");
+  assert.match(sql, /^SELECT .* FROM ahanassa_price_collector WHERE index1 = 'production' .* LIMIT 1 FORMAT JSON$/);
+  assert.ok(!sql.includes(";"));
+  assert.throws(() => priceCollectorSql("x; DROP", "production"));
+  assert.throws(() => priceCollectorSql("ahanassa_price_collector", "p' OR '1'='1"));
+});
+
+test("price collector: rows dropped for the contract limits alert (contract rule 7: a Worker bug)", () => {
+  const r = evaluatePriceCollector(priceCollectorRunFromRow(pcRow("2026-10-04 07:15:30", [10, 10, 10, 10], 25)), NOW, THRESHOLDS);
+  assert.equal(r.find((x) => x.id === "price-collector:limits")?.status, "ALERT");
 });

@@ -41,6 +41,12 @@ export interface OpsTarget {
    * the owner sets, passed by ops-health.yml. Unset or any other value = report only (INFO). W9.1: production.
    */
   contentStaleAlertFlag: string | null;
+  /**
+   * W9.3 price collector Worker (private repo ahanassa-odoo, workers/price-collector): its runs write one Analytics Engine data point each
+   * (dataset, index1 = the Worker's APP_ENV). null = no such Worker for this target. `enabled: false` = the check is
+   * not run at all — switch it on after the collector is deployed with its cron (W9.3 report, deploy steps).
+   */
+  priceCollector: { enabled: boolean; dataset: string; envIndex: string } | null;
 }
 
 export const OPS_TARGETS: Record<OpsEnv, OpsTarget> = {
@@ -62,6 +68,8 @@ export const OPS_TARGETS: Record<OpsEnv, OpsTarget> = {
     opsHealthWorkflow: "ops-health.yml",
     contentStaleAlert: true,
     contentStaleAlertFlag: null,
+    // The staging collector has no cron (account at 5/5 triggers): nothing to watch.
+    priceCollector: null,
   },
   // Production (live since the W8.1 cutover, 2026-10-05; workers/rfq/wrangler.jsonc env.production). Read with
   // its own read-only monitor token (GitHub environment production-v11-monitor). The stale-content alert is on in
@@ -86,6 +94,8 @@ export const OPS_TARGETS: Record<OpsEnv, OpsTarget> = {
     opsHealthWorkflow: "ops-health.yml",
     contentStaleAlert: true,
     contentStaleAlertFlag: "OPS_PRODUCTION_CONTENT_STALE_ALERT",
+    // OFF until the collector is deployed and its cron enabled (W9.3).
+    priceCollector: { enabled: false, dataset: "ahanassa_price_collector", envIndex: "production" },
   },
 };
 
@@ -118,6 +128,8 @@ export interface Thresholds {
   odooMaxLatencyMs: number;
   /** INFO only: reported, never fails the job (GitHub does not guarantee schedule times). */
   reconcilerInfoMaxAgeHours: number;
+  /** W9.3: the price collector's last run older than this → ALERT (daily cron + 2 h). */
+  priceCollectorMaxAgeHours: number;
 }
 
 export const THRESHOLDS: Thresholds = {
@@ -132,6 +144,7 @@ export const THRESHOLDS: Thresholds = {
   odooTimeoutMs: 10_000,
   odooMaxLatencyMs: 10_000,
   reconcilerInfoMaxAgeHours: 3,
+  priceCollectorMaxAgeHours: 26,
 };
 
 /**
