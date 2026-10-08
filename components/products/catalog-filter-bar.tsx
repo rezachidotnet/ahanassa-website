@@ -29,9 +29,10 @@ export function CatalogFilterBar({ locale, categories, activeCategoryCode }: { l
                 key={category.code}
                 href={localizedPath(locale, isActive ? "/products" : categoryListingPath(category.code))}
                 aria-current={isActive ? "true" : undefined}
+                // Filter chip (W10.2): 44px target, 8px control radius, 3:1 border, n-600 text (navy-600 was 3.66:1).
                 className={cn(
-                  "inline-flex items-center border px-3 py-1.5 text-[13px] font-semibold transition-colors",
-                  isActive ? "border-navy bg-navy text-white" : "border-border text-navy-600 hover:border-navy hover:text-navy",
+                  "inline-flex min-h-11 items-center rounded-[var(--aa-radius-control)] border px-4 text-sm font-semibold transition-colors duration-[160ms]",
+                  isActive ? "border-navy bg-navy text-white" : "border-border-control text-muted-foreground hover:border-navy hover:text-navy",
                 )}
               >
                 {category.name}

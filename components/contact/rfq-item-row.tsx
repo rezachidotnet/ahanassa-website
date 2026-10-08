@@ -3,6 +3,7 @@
 import { Trash2, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { controlClass, selectClass } from "@/components/ui/form-control";
 import type { Locale } from "@/config/locales";
 import { RFQ_UOM_LABELS, type RfqUomCode } from "@/lib/rfq/uom";
 import { CUSTOM_ITEM_LAUNCH_UOMS, getAllowedUomsForCatalogGroup } from "@/lib/rfq/uom-policy";
@@ -122,8 +123,8 @@ const copy: Record<Locale, RowCopy> = {
   },
 };
 
-const cellInput =
-  "w-full border border-border bg-background px-3 py-2.5 text-sm text-navy outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-copper disabled:opacity-60 disabled:bg-muted";
+// Shared control styles (components/ui/form-control.ts, W10.2) — the same 48px / 8px / 3:1-border controls as the customer fields.
+const cellInput = controlClass;
 
 /**
  * `<select>`-specific variant of `cellInput` — Go-Live Readiness RTL-select
@@ -134,17 +135,17 @@ const cellInput =
  * rendering; the select is always wrapped in a `relative` container with an
  * explicit `<ChevronDown>` positioned via `end-3` (a CSS logical property —
  * "inline-end", which resolves to the LEFT in RTL and the RIGHT in LTR
- * automatically, unlike a hardcoded `right-3`), and `pe-9` guarantees fixed,
+ * automatically, unlike a hardcoded `right-3`), and `pe-10` (form-control.ts) guarantees fixed,
  * generous padding-inline-end so text can never render under the icon in
  * either direction. `truncate` lets a genuinely long value elide with an
  * ellipsis instead of overflowing; the select's own `title` attribute (set
  * by the caller to the full selected label) exposes the untruncated value
  * on hover/assistive tech.
  */
-const selectInput = cn(cellInput, "appearance-none truncate pe-9");
+const selectInput = selectClass;
 
 function SelectChevron() {
-  return <ChevronDown aria-hidden="true" className="text-muted-foreground pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2" />;
+  return <ChevronDown aria-hidden="true" className="text-muted-foreground pointer-events-none absolute end-3.5 top-1/2 size-4 -translate-y-1/2" />;
 }
 
 /** Wraps a native `<select>` with the positioning context `SelectChevron` needs — never changes the select's own semantics/behavior. */

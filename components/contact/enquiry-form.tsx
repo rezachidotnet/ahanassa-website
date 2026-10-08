@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Script from "next/script";
 import { Plus, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { controlClass, labelClass, textareaClass } from "@/components/ui/form-control";
 import type { Locale } from "@/config/locales";
 import type { RfqItemInput } from "@/lib/rfq/types";
 import type { RfqCatalogSelection } from "@/lib/catalog/editorial-repository";
@@ -208,9 +209,9 @@ const copy: Record<
   },
 };
 
-const field =
-  "w-full border border-border bg-background px-4 py-3 text-sm text-navy outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-copper disabled:opacity-60";
-const label = "block text-[11px] font-bold uppercase tracking-[0.14em] text-navy";
+// Shared control styles (components/ui/form-control.ts, W10.2): 48px, 8px radius, 3:1 border, copper focus ring.
+const field = controlClass;
+const label = labelClass;
 
 /**
  * Visible required-field marker — Go-Live Readiness "Required Fields Must
@@ -630,7 +631,7 @@ export function EnquiryForm({
                     </option>
                   ))}
                 </select>
-                <ChevronDown aria-hidden="true" className="text-muted-foreground pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2" />
+                <ChevronDown aria-hidden="true" className="text-muted-foreground pointer-events-none absolute end-3.5 top-1/2 size-4 -translate-y-1/2" />
               </div>
               <input
                 id="phone-local"
@@ -653,7 +654,7 @@ export function EnquiryForm({
           </fieldset>
           <div className="grid gap-2 sm:col-span-2">
             <label className={label} htmlFor="message">{t.message}</label>
-            <textarea id="message" name="message" rows={3} placeholder={t.messagePlaceholder} disabled={submitting} onChange={regenerateIdempotencyKey} className={`${field} resize-y`} />
+            <textarea id="message" name="message" rows={3} placeholder={t.messagePlaceholder} disabled={submitting} onChange={regenerateIdempotencyKey} className={textareaClass} />
           </div>
         </div>
       </fieldset>
