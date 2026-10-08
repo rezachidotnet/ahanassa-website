@@ -560,12 +560,12 @@ The copy on `feat/header-hero-integrated` (the legacy branch, frozen since D-FRE
 ### 20.5 The scheduled production content publish (D-CONTENT, D-SCHEDULE)
 
 **Schedule.**
-- **Production:** daily at **07:00 UTC (10:30 Asia/Tehran)**.
+- **Production:** daily at **08:00 UTC (11:30 Asia/Tehran)**.
 - **Staging:** the 22:47 UTC run is unchanged. It builds the branch tip and publishes staging only.
 
-**What the 07:00 run builds.** Its build job checks out `BASE_PRODUCTION_SHA`, the `RELEASE_SHA` of the latest `STABLE_100` row read from the ledger branch. It never checks out the branch tip, so that a commit to the application branch cannot turn a content publish into a code release.
+**What the 08:00 run builds.** Its build job checks out `BASE_PRODUCTION_SHA`, the `RELEASE_SHA` of the latest `STABLE_100` row read from the ledger branch. It never checks out the branch tip, so that a commit to the application branch cannot turn a content publish into a code release.
 
-**When the 07:00 run publishes to production.** All three must hold:
+**When the 08:00 run publishes to production.** All three must hold:
 - the release at that SHA is a v11 release: its tree contains the content pipeline;
 - its production configuration declares the `www.ahanassa.com` custom domain with `workers_dev: false`;
 - the CONTENT_REBUILD check (§19) returns `AUTO`.
