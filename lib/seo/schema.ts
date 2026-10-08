@@ -50,7 +50,8 @@ export function organizationSchema(locale: Locale = "fa") {
     name: siteConfig.name,
     alternateName: siteConfig.alternateName,
     url: siteConfig.baseUrl,
-    logo: `${siteConfig.baseUrl}/icon.jpg`,
+    // The full brand mark (byte-identical to the former app/icon.jpg, which W10.2 replaced with sized favicons).
+    logo: `${siteConfig.baseUrl}/brand/ahan-asa-mark.jpg`,
     // Confirmed address (PROJECT_OVERRIDES.md §7 item 6), now rendered in
     // the footer and contact page — safe to add per this file's own rule.
     address: {
