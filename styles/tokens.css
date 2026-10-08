@@ -18,6 +18,8 @@
   --aa-color-neutral-700: #344054;
   --aa-color-neutral-600: #475467;
   --aa-color-neutral-500: #667085;
+  /* W10.2: control boundary — 3.26:1 on white, 3.00:1 on cream (WCAG 1.4.11). */
+  --aa-color-neutral-450: #868fa0;
   --aa-color-neutral-300: #d0d5dd;
   --aa-color-neutral-200: #eaecf0;
   --aa-color-neutral-100: #f2f4f7;
@@ -47,6 +49,14 @@
   --aa-color-text-inverse: var(--aa-color-white);
   --aa-color-border-subtle: var(--aa-color-neutral-200);
   --aa-color-border-strong: var(--aa-color-neutral-300);
+  /* Decorative borders (dividers, card hairlines) stay border-subtle; a
+     border that is the only visible boundary of a control uses this (W10.2). */
+  --aa-color-border-control: var(--aa-color-neutral-450);
+  --aa-color-border-control-hover: var(--aa-color-neutral-600);
+  /* Text on navy: muted copy (>= 7:1) and the accent for eyebrows/headings
+     (7.5:1). Copper text is never used on navy (W10.2). */
+  --aa-color-text-on-inverse-muted: rgb(255 255 255 / 0.72);
+  --aa-color-accent-on-inverse: #e9a58f;
   --aa-color-action-primary-bg: var(--aa-color-brand-navy-900);
   --aa-color-action-primary-bg-hover: #12355f;
   --aa-color-action-primary-bg-active: #071c35;
@@ -54,6 +64,9 @@
   --aa-color-action-accent-bg-hover: #963d27;
   --aa-color-action-accent-bg-active: #7e321f;
   --aa-color-focus-ring: var(--aa-color-brand-copper-600);
+  /* Navy surfaces: cream ring (14.2:1); copper on navy is only 2.83:1. Set by
+     the `on-inverse` utility (styles/theme-extensions.css). */
+  --aa-color-focus-ring-inverse: var(--aa-color-brand-cream-50);
 
   /* Typography scale (size/line-height) */
   --aa-text-display-xl: clamp(2.75rem, 6vw, 5.75rem);
@@ -71,13 +84,23 @@
   --aa-text-body-lg: 1.125rem;
   --aa-leading-body-lg: 1.9;
   --aa-text-body-md: 1rem;
-  --aa-leading-body-md: 1.85;
+  --aa-leading-body-md: 1.8;
   --aa-text-body-sm: 0.875rem;
   --aa-leading-body-sm: 1.75;
   --aa-text-label: 0.875rem;
   --aa-leading-label: 1.5;
   --aa-text-caption: 0.75rem;
   --aa-leading-caption: 1.6;
+  /* W10.2 type roles: inner-page h1/h2/h3, and the compact UI size for
+     controls, tables and buttons (body copy keeps body-md). */
+  --aa-text-h1: clamp(1.875rem, 3.5vw, 2.75rem);
+  --aa-leading-h1: 1.25;
+  --aa-text-h2: clamp(1.5rem, 2.5vw, 2rem);
+  --aa-leading-h2: 1.35;
+  --aa-text-h3: 1.125rem;
+  --aa-leading-h3: 1.5;
+  --aa-text-ui: 0.9375rem;
+  --aa-leading-ui: 1.5;
 
   --aa-font-weight-regular: 400;
   --aa-font-weight-medium: 500;
@@ -91,12 +114,39 @@
   --aa-radius-lg: 1rem;
   --aa-radius-xl: 1.5rem;
   --aa-radius-pill: 999px;
+  /* Radius roles (W10.2; DESIGN_SYSTEM.md §9.1 + Button V1.0's 8px). Full-
+     bleed sections (page hero, CTA band, footer) stay square; anything that
+     sits inside the container takes a role radius. */
+  --aa-radius-tag: var(--aa-radius-xs); /* technical tags (incoterms, codes) */
+  --aa-radius-control: var(--aa-radius-sm); /* buttons, inputs, selects, chips */
+  --aa-radius-card: var(--aa-radius-md); /* cards, price block, table frame */
+  --aa-radius-panel: var(--aa-radius-lg); /* form sections, feature panels */
+  --aa-radius-badge: var(--aa-radius-pill); /* status badges and counters only */
 
   /* Shadow */
   --aa-shadow-xs: 0 1px 2px rgb(16 24 40 / 0.05);
   --aa-shadow-sm: 0 4px 12px rgb(16 24 40 / 0.07);
   --aa-shadow-md: 0 12px 32px rgb(16 24 40 / 0.1);
   --aa-shadow-focus: 0 0 0 4px rgb(176 74 47 / 0.2);
+  /* Form-control focus: copper border plus this ring (W10.2). */
+  --aa-shadow-focus-control: 0 0 0 3px rgb(176 74 47 / 0.28);
+
+  /* Spacing scale (4px base) and section rhythm (W10.2). */
+  --aa-space-1: 0.25rem;
+  --aa-space-2: 0.5rem;
+  --aa-space-3: 0.75rem;
+  --aa-space-4: 1rem;
+  --aa-space-5: 1.25rem;
+  --aa-space-6: 1.5rem;
+  --aa-space-8: 2rem;
+  --aa-space-10: 2.5rem;
+  --aa-space-12: 3rem;
+  --aa-space-16: 4rem;
+  --aa-space-20: 5rem;
+  --aa-space-24: 6rem;
+  --aa-section-y: var(--aa-space-16);
+  /* Control geometry: 48px tall (>= 44px touch target). */
+  --aa-control-height: 3rem;
 
   /* Container / layout */
   --aa-container-max: 80rem;
@@ -142,4 +192,10 @@
   --aa-font-family-fa: var(--font-ahan-asa), Tahoma, Arial, sans-serif;
   --aa-font-family-ar: var(--font-ahan-asa), Tahoma, "Segoe UI", Arial, sans-serif;
   --aa-font-family-en: var(--font-ahan-asa), system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+@media (min-width: 64rem) {
+  :root {
+    --aa-section-y: var(--aa-space-24);
+  }
 }
