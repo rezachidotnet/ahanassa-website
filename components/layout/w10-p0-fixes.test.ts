@@ -53,3 +53,9 @@ test("P1-4: breadcrumbs, footer links and the footer phone are 44px tap targets"
   assert.match(code("components/ui/page-hero.tsx"), /const CRUMB = "inline-flex min-h-11 items-center/);
   assert.match(code("components/layout/SiteFooter.tsx"), /const FOOTER_LINK = "text-on-inverse-muted inline-flex min-h-11 items-center/);
 });
+
+test("r4: the not-found tree renders through an async boundary that always suspends (own Flight row), like TargetEnquiryForm", () => {
+  const source = code("app/[locale]/not-found.tsx");
+  assert.match(source, /export default function LocaleNotFound\(\) \{\s*return <NotFoundContent \/>;/);
+  assert.match(source, /async function NotFoundContent\(\) \{\s*await Promise\.resolve\(\);/);
+});

@@ -1,13 +1,25 @@
 /**
  * not-found.tsx does not reliably receive the [locale] route param, so this
  * renders all three locales together rather than guessing one.
- *
- * Keep this markup short: it is serialized into every page's RSC payload,
- * and a longer row moves React Flight's lazy-chunk split point differently
- * in the staging and production artifacts (r4 target-diff gate; W10.2 hit
- * this with the full Button class string). A plain link with a 44px target.
  */
 export default function LocaleNotFound() {
+  return <NotFoundContent />;
+}
+
+/**
+ * r4 isolation (same technique as TargetEnquiryForm in contact/page.tsx).
+ * The not-found boundary is serialized into EVERY page's RSC payload, next to
+ * the target-specific robots value, whose length differs between the staging
+ * and production artifacts. React Flight splits a row into lazy chunks once
+ * it passes ~3200 characters, so markup growth here moved that split point
+ * differently in the two targets and failed the allowlisted-diff gate (W10.2,
+ * en/services and products/category/angle). This async boundary always
+ * suspends once, so React always emits the not-found tree in its own row:
+ * its size can no longer shift the structure of the row that carries the
+ * target-specific value.
+ */
+async function NotFoundContent() {
+  await Promise.resolve();
   return (
     <div className="mx-auto max-w-[var(--aa-reading-max)] px-[var(--aa-page-gutter)] py-24 text-center">
       <p dir="rtl" lang="fa" className="text-[length:var(--aa-text-heading-md)] text-[var(--aa-color-text-brand)]">
