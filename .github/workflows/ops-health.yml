@@ -40,16 +40,18 @@ permissions:
   contents: read
   actions: read
 
-concurrency:
-  group: ops-health-staging
-  cancel-in-progress: false
-
+# W9.1c: concurrency is per job, not per workflow. A staging job that GitHub never moves out of "waiting" on
+# environment `staging` (F3 2026-10-06, again 2026-10-07: no protection rule held it) then blocks only staging
+# runs; health-production keeps running every 15 min in its own group.
 jobs:
   health:
     name: health (staging)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: staging
+    concurrency:
+      group: ops-health-staging
+      cancel-in-progress: false
     steps:
       - name: Checkout scripts/ops (application branch)
         uses: actions/checkout@v4
@@ -102,6 +104,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production-v11-monitor
+    concurrency:
+      group: ops-health-production
+      cancel-in-progress: false
     steps:
       - name: Checkout scripts/ops (application branch)
         uses: actions/checkout@v4
@@ -129,3 +134,26 @@ jobs:
             exit 0
           fi
           node scripts/ops/health/run.ts --env production
+
+      # W9.1c: production's own dead-man's switch (a separate healthchecks.io check from the staging one, so a stuck
+      # staging job cannot hide a silent production monitor, nor the reverse). Same behaviour as the staging ping.
+      - name: Dead-man's switch ping (healthchecks.io, production)
+        if: ${{ always() }}
+        shell: bash
+        env:
+          HC_URL: ${{ secrets.HC_PING_OPS_HEALTH_PRODUCTION }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          if [ -z "$HC_URL" ]; then
+            echo "::notice title=healthchecks ping skipped::HC_PING_OPS_HEALTH_PRODUCTION is not set"
+            exit 0
+          fi
+          url="$HC_URL"
+          if [ "$JOB_STATUS" != "success" ]; then url="$HC_URL/fail"; fi
+          # URL passed as a curl config on stdin (it is a secret; not in argv).
+          if printf 'url = "%s"\n' "$url" | curl -fsS -K - -o /dev/null --max-time 10 --retry 2; then
+            echo "healthchecks ping sent ($([ "$JOB_STATUS" = success ] && echo success || echo fail))"
+          else
+            echo "::warning title=healthchecks ping failed::could not reach healthchecks.io"
+          fi
