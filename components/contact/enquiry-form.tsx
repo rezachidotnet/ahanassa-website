@@ -524,7 +524,7 @@ export function EnquiryForm({
 
   if (status === "success" && reference) {
     return (
-      <div className="border-border bg-surface border p-10">
+      <div className="border-border bg-surface rounded-[var(--aa-radius-panel)] border p-6 sm:p-10">
         <h3 className="text-navy text-xl font-bold">{t.successTitle}</h3>
         <p className="text-muted-foreground mt-4 max-w-md text-sm leading-relaxed">{t.successBody(reference)}</p>
         <WhatsAppDrawingsLink locale={locale} reference={reference} className="mt-4 max-w-md" />
@@ -660,7 +660,7 @@ export function EnquiryForm({
       </fieldset>
 
       {catalogPreselectionInvalid && (
-        <p role="status" className="border-[var(--aa-color-warning-800)] bg-[var(--aa-color-warning-50)] text-[var(--aa-color-warning-800)] border px-5 py-3 text-sm leading-relaxed">
+        <p role="status" className="border-[var(--aa-color-warning-800)] bg-[var(--aa-color-warning-50)] text-[var(--aa-color-warning-800)] rounded-[var(--aa-radius-control)] border px-5 py-3 text-sm leading-relaxed">
           {t.catalogPreselectionInvalid}
         </p>
       )}
@@ -675,7 +675,7 @@ export function EnquiryForm({
             <h3 className="text-navy text-base font-bold">{t.itemsTitle}</h3>
             <p className="text-muted-foreground mt-1 text-sm leading-relaxed">{t.itemsBody}</p>
           </div>
-          <span className="bg-navy shrink-0 rounded-[var(--aa-radius-pill)] px-4 py-1.5 text-xs font-bold text-white" aria-live="polite">
+          <span className="bg-navy shrink-0 rounded-[var(--aa-radius-badge)] px-4 py-1.5 text-xs font-bold text-white" aria-live="polite">
             {t.counter(rows.length, MAX_ITEMS)}
           </span>
         </div>
@@ -765,7 +765,7 @@ export function EnquiryForm({
         </div>
 
         {errorRowEntries.length > 0 && (
-          <div role="alert" className="border-[var(--aa-color-danger-700)] bg-[var(--aa-color-danger-50)] mt-6 border p-4">
+          <div role="alert" className="border-[var(--aa-color-danger-700)] bg-[var(--aa-color-danger-50)] mt-6 rounded-[var(--aa-radius-control)] border p-4">
             <p className="text-sm font-bold text-[var(--aa-color-danger-700)]">{t.errorSummaryTitle}</p>
             <ul className="mt-2 grid gap-1 text-sm text-[var(--aa-color-danger-700)]">
               {errorRowEntries.map(([rowId, fieldErrors]) => {

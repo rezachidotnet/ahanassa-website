@@ -1,6 +1,7 @@
 import Link from "@/components/ui/link";
 import { ArrowUpRight } from "lucide-react";
 import { localizedPath, type Locale } from "@/config/locales";
+import { cardVariants } from "@/components/ui/surface-variants";
 import type { PublishedCatalogTemplate } from "@/lib/catalog/editorial-repository";
 
 const chrome: Record<Locale, { resultCount: (n: number) => string; variantCount: (n: number) => string }> = {
@@ -25,19 +26,20 @@ export function CatalogTemplateGrid({ locale, templates }: { locale: Locale; tem
           {t.resultCount(templates.length)}
         </p>
 
-        <ul className="border-border grid gap-px border-t border-s sm:grid-cols-2 lg:grid-cols-3">
+        {/* Gap grid of 12px-radius cards, equal heights per row (owner decision D-W10-1; was a square shared-hairline grid). */}
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {templates.map(({ product, seo, eligibleVariantCount }) => (
-            <li key={product.templateXid}>
+            <li key={product.templateXid} className="flex">
               <Link
                 href={localizedPath(locale, `/products/${seo.slug}`)}
-                className="group border-border bg-background hover:bg-surface flex h-full flex-col gap-4 border-e border-b p-6 transition-colors"
+                className={cardVariants({ variant: "interactive", className: "group w-full gap-4 p-6" })}
               >
                 <div className="flex items-start justify-between gap-3">
                   <h2 className="text-navy text-lg font-bold">{seo.h1}</h2>
-                  <ArrowUpRight className="text-copper mt-1 size-4 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 rtl:-scale-x-100" aria-hidden="true" />
+                  <ArrowUpRight className="text-copper mt-1 size-4 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 rtl:-scale-x-100" aria-hidden="true" />
                 </div>
                 {seo.intro && <p className="text-muted-foreground flex-1 text-sm leading-relaxed">{seo.intro}</p>}
-                <span className="text-muted-foreground text-xs font-semibold">{t.variantCount(eligibleVariantCount)}</span>
+                <span className="text-muted-foreground border-border mt-auto border-t pt-4 text-xs font-semibold">{t.variantCount(eligibleVariantCount)}</span>
               </Link>
             </li>
           ))}
