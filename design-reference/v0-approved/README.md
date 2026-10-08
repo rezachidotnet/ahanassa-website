@@ -8,6 +8,10 @@
 - **Frozen from source migration commit:** `b1d0841` (`feat: adopt approved v0 design as visual authority`), on branch `feat/integrate-v0-design`.
 - **Captured:** 2026-08-28, from the canonical repository's own `vinext dev` server running at that commit — not from the external `ahanassa-v0` project directly, and not from the older `design-reference/homepage-desktop-v1.png`.
 
+### Recapture of 2026-10-08 (W10.2)
+
+All six screenshots were **recaptured** after the owner-approved W10 design-system change (`docs/OWNER_DECISIONS.md`, decisions of 2026-10-08: **D-W10-1** inner pages move to rounded cards, panels and controls — superseding the square v0 "spec-sheet" grid for inner pages; **D-W10-2** copper buttons retired, navy primary everywhere). Same pages and viewports as below; captured with Playwright driving the installed Chrome against a local static build (`scripts/static/build.ts`, fixture snapshot `fixtures/snapshot/staging-2026-10-01.snapshot.json`, staging target), with `prefers-reduced-motion` unset and each page scrolled once. Tooling stayed outside the repository, as before. The 2026-08-28 captures remain in git history.
+
 ## Visual authority rule
 
 1. **Visual/UI/layout/styling:** the current canonical implementation in this repository (`app/`, `components/`) **plus this directory** as the version-controlled visual record of what that implementation looked like when approved. Neither the screenshots here nor the external `ahanassa-v0` folder are themselves rendered by the production site — the canonical codebase is.
