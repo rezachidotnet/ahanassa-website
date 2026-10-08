@@ -150,3 +150,40 @@ export function formatCompactVariantSpecification(variant: CompactVariantSpecInp
   const sizeLabel = variant.commercialSize ?? variant.sectionSize ?? variant.sku;
   return variant.grade.code ? `${variant.grade.code} · ${sizeLabel}` : sizeLabel;
 }
+
+/** Splits a commercial size into text and number runs: "IPE 80" -> ["ipe", 80]; "114.3×6.02 SCH40" -> [114.3, "×", 6.02, "sch", 40]. */
+function sizeSortKey(size: string): (string | number)[] {
+  const parts: (string | number)[] = [];
+  for (const match of size.toLowerCase().matchAll(/(\d+(?:\.\d+)?)|([^\d\s.]+)/g)) {
+    parts.push(match[1] !== undefined ? Number(match[1]) : match[2]);
+  }
+  return parts;
+}
+
+/**
+ * Natural order for commercial sizes (W10.0 P0-1): numbers compare as
+ * numbers, so "IPE 80" < "IPE 100" < "IPE 600" and "Ø8" < "Ø10" — a plain
+ * string sort (D1's `ORDER BY commercial_size`) put "IPE 80" after
+ * "IPE 600". Text runs compare as text; a number sorts before text at the
+ * same position. Ties fall back to the SKU so the order is total and stable.
+ */
+export function compareCommercialSize(a: string, b: string): number {
+  const ka = sizeSortKey(a);
+  const kb = sizeSortKey(b);
+  for (let i = 0; i < Math.min(ka.length, kb.length); i++) {
+    const x = ka[i];
+    const y = kb[i];
+    if (x === y) continue;
+    if (typeof x === "number" && typeof y === "number") return x - y;
+    if (typeof x === "number") return -1;
+    if (typeof y === "number") return 1;
+    return x < y ? -1 : 1;
+  }
+  return ka.length - kb.length;
+}
+
+/** The display order of a template's variants: by commercial size (natural), then SKU. Returns a new array. */
+export function sortVariantsBySize<T extends Pick<ProductVariant, "commercialSize" | "sectionSize" | "sku">>(variants: readonly T[]): T[] {
+  const label = (v: T) => v.commercialSize ?? v.sectionSize ?? v.sku;
+  return [...variants].sort((a, b) => compareCommercialSize(label(a), label(b)) || (a.sku < b.sku ? -1 : a.sku > b.sku ? 1 : 0));
+}

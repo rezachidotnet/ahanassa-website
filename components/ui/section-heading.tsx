@@ -34,7 +34,7 @@ export function SectionHeading({
         className={cn(
           "eyebrow flex items-center gap-3",
           align === "center" && "justify-center",
-          invert ? "text-copper-400" : "text-copper",
+          invert ? "text-accent-on-inverse" : "text-copper",
         )}
       >
         <span className="h-px w-6 bg-current" aria-hidden="true" />
@@ -50,7 +50,7 @@ export function SectionHeading({
         {title}
       </h2>
       {body && (
-        <p className={cn("mt-5 text-base leading-relaxed", invert ? "text-white/60" : "text-muted-foreground")}>
+        <p className={cn("mt-5 text-base leading-relaxed", invert ? "text-on-inverse-muted" : "text-muted-foreground")}>
           {body}
         </p>
       )}

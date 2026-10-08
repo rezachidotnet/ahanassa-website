@@ -1,4 +1,4 @@
-import Link from "@/components/ui/link";
+import { ButtonLink } from "@/components/ui/button";
 import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import { isLocale, localizedPath, type Locale } from "@/config/locales";
@@ -136,14 +136,14 @@ export default async function ProductDetailPage({ params }: PageProps) {
           </div>
           <VariantHighlightFromQuery rows={variantRowIds} selectedLabel={variantSelectedLabel(locale)} />
 
-          <Link href={localizedPath(locale, "/contact")} className="bg-navy hover:bg-navy-700 mt-10 inline-flex items-center gap-2.5 px-7 py-4 text-sm font-semibold tracking-wide text-white transition-colors">
+          <ButtonLink href={localizedPath(locale, "/contact")} variant="primary" size="md" className="mt-10 h-auto min-h-12 py-3">
             {primaryCta[locale].full}
-          </Link>
+          </ButtonLink>
 
-          <div className="mt-6">
-            <Link href={localizedPath(locale, "/products")} className="text-copper text-sm font-semibold hover:underline">
+          <div className="mt-4">
+            <ButtonLink href={localizedPath(locale, "/products")} variant="link">
               {t.back}
-            </Link>
+            </ButtonLink>
           </div>
         </div>
       </section>

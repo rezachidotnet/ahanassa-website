@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Script from "next/script";
 import { Plus, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { controlClass, labelClass, textareaClass } from "@/components/ui/form-control";
 import type { Locale } from "@/config/locales";
 import type { RfqItemInput } from "@/lib/rfq/types";
 import type { RfqCatalogSelection } from "@/lib/catalog/editorial-repository";
@@ -208,9 +209,9 @@ const copy: Record<
   },
 };
 
-const field =
-  "w-full border border-border bg-background px-4 py-3 text-sm text-navy outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-copper disabled:opacity-60";
-const label = "block text-[11px] font-bold uppercase tracking-[0.14em] text-navy";
+// Shared control styles (components/ui/form-control.ts, W10.2): 48px, 8px radius, 3:1 border, copper focus ring.
+const field = controlClass;
+const label = labelClass;
 
 /**
  * Visible required-field marker — Go-Live Readiness "Required Fields Must
@@ -523,11 +524,11 @@ export function EnquiryForm({
 
   if (status === "success" && reference) {
     return (
-      <div className="border-border bg-surface border p-10">
+      <div className="border-border bg-surface rounded-[var(--aa-radius-panel)] border p-6 sm:p-10">
         <h3 className="text-navy text-xl font-bold">{t.successTitle}</h3>
         <p className="text-muted-foreground mt-4 max-w-md text-sm leading-relaxed">{t.successBody(reference)}</p>
         <WhatsAppDrawingsLink locale={locale} reference={reference} className="mt-4 max-w-md" />
-        <Button variant="outline" className="mt-8" onClick={startNewRequest}>
+        <Button variant="secondary" className="mt-8" onClick={startNewRequest}>
           {t.again}
         </Button>
       </div>
@@ -630,7 +631,7 @@ export function EnquiryForm({
                     </option>
                   ))}
                 </select>
-                <ChevronDown aria-hidden="true" className="text-muted-foreground pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2" />
+                <ChevronDown aria-hidden="true" className="text-muted-foreground pointer-events-none absolute end-3.5 top-1/2 size-4 -translate-y-1/2" />
               </div>
               <input
                 id="phone-local"
@@ -653,13 +654,13 @@ export function EnquiryForm({
           </fieldset>
           <div className="grid gap-2 sm:col-span-2">
             <label className={label} htmlFor="message">{t.message}</label>
-            <textarea id="message" name="message" rows={3} placeholder={t.messagePlaceholder} disabled={submitting} onChange={regenerateIdempotencyKey} className={`${field} resize-y`} />
+            <textarea id="message" name="message" rows={3} placeholder={t.messagePlaceholder} disabled={submitting} onChange={regenerateIdempotencyKey} className={textareaClass} />
           </div>
         </div>
       </fieldset>
 
       {catalogPreselectionInvalid && (
-        <p role="status" className="border-[var(--aa-color-warning-800)] bg-[var(--aa-color-warning-50)] text-[var(--aa-color-warning-800)] border px-5 py-3 text-sm leading-relaxed">
+        <p role="status" className="border-[var(--aa-color-warning-800)] bg-[var(--aa-color-warning-50)] text-[var(--aa-color-warning-800)] rounded-[var(--aa-radius-control)] border px-5 py-3 text-sm leading-relaxed">
           {t.catalogPreselectionInvalid}
         </p>
       )}
@@ -674,7 +675,7 @@ export function EnquiryForm({
             <h3 className="text-navy text-base font-bold">{t.itemsTitle}</h3>
             <p className="text-muted-foreground mt-1 text-sm leading-relaxed">{t.itemsBody}</p>
           </div>
-          <span className="bg-navy shrink-0 rounded-[var(--aa-radius-pill)] px-4 py-1.5 text-xs font-bold text-white" aria-live="polite">
+          <span className="bg-navy shrink-0 rounded-[var(--aa-radius-badge)] px-4 py-1.5 text-xs font-bold text-white" aria-live="polite">
             {t.counter(rows.length, MAX_ITEMS)}
           </span>
         </div>
@@ -756,20 +757,15 @@ export function EnquiryForm({
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-4">
-          <button
-            type="button"
-            onClick={addRow}
-            disabled={submitting || rows.length >= MAX_ITEMS}
-            className="border-copper text-copper hover:bg-copper inline-flex items-center gap-2 rounded-[var(--aa-radius-sm)] border border-dashed px-5 py-2.5 text-sm font-semibold transition-colors hover:text-white disabled:pointer-events-none disabled:opacity-40"
-          >
+          <Button type="button" variant="secondary" className="border-dashed" onClick={addRow} disabled={submitting || rows.length >= MAX_ITEMS}>
             <Plus className="size-4" aria-hidden="true" />
             {t.addRow}
-          </button>
+          </Button>
           {rows.length >= MAX_ITEMS && <p className="text-muted-foreground text-xs">{t.maxReached}</p>}
         </div>
 
         {errorRowEntries.length > 0 && (
-          <div role="alert" className="border-[var(--aa-color-danger-700)] bg-[var(--aa-color-danger-50)] mt-6 border p-4">
+          <div role="alert" className="border-[var(--aa-color-danger-700)] bg-[var(--aa-color-danger-50)] mt-6 rounded-[var(--aa-radius-control)] border p-4">
             <p className="text-sm font-bold text-[var(--aa-color-danger-700)]">{t.errorSummaryTitle}</p>
             <ul className="mt-2 grid gap-1 text-sm text-[var(--aa-color-danger-700)]">
               {errorRowEntries.map(([rowId, fieldErrors]) => {
@@ -834,7 +830,7 @@ export function EnquiryForm({
           <Button type="button" variant="ghost" size="sm" disabled={submitting} onClick={startNewRequest}>
             {t.clearForm}
           </Button>
-          <Button type="submit" size="lg" disabled={submitting || turnstileBlocking} aria-busy={submitting}>
+          <Button type="submit" size="lg" disabled={submitting || turnstileBlocking} loading={submitting}>
             {submitting ? t.submitting : t.submit}
           </Button>
         </div>

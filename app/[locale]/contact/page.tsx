@@ -10,6 +10,7 @@ import { StaticEnquiryForm } from "@/components/contact/static-enquiry-form";
 import { WhatsAppDrawingsLink } from "@/components/contact/whatsapp-drawings-link";
 import { FaqSection } from "@/components/contact/faq-section";
 import { getTurnstileSiteKey } from "@/lib/env";
+import { cardVariants } from "@/components/ui/surface-variants";
 
 export { generateLocaleStaticParams as generateStaticParams } from "@/lib/static/locale-params";
 
@@ -112,7 +113,7 @@ export default async function ContactPage({ params }: PageProps) {
         section to the approved content max-width/page gutters — "full
         width" means full width of that container, not the raw viewport.
       */}
-      <section className="border-border bg-background border-b py-20 lg:py-28">
+      <section className="border-border bg-background border-b section-y">
         <div className="container-x">
           <SectionHeading eyebrow={t.formEyebrow} title={t.formTitle} body={t.formBody} />
           {/* Drawings/files channel = WhatsApp (owner decision 2026-10-04); a plain link, rendered only when a number is configured. */}
@@ -123,32 +124,37 @@ export default async function ContactPage({ params }: PageProps) {
         </div>
       </section>
 
-      <section className="border-border bg-background border-b py-16 lg:py-20">
+      {/* Next steps, then head office: each its own section (owner-approved order), now as 16px panels (W10.2, D-W10-1). */}
+      <section className="border-border bg-background border-b py-12 lg:py-16">
         <div className="container-x">
-          <h2 className="eyebrow text-navy">{t.nextTitle}</h2>
-          <ol className="divide-border border-border mt-5 max-w-2xl divide-y border-y">
-            {process.steps.slice(0, 3).map((step, i) => (
-              <li key={step.title} className="flex gap-4 py-5">
-                <span className="text-copper text-lg font-bold">{String(i + 1).padStart(2, "0")}</span>
-                <div>
-                  <h3 className="text-navy text-sm font-bold">{step.title}</h3>
-                  <p className="text-muted-foreground mt-1 text-[13px] leading-relaxed">{step.activity}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
+          <div className={cardVariants({ variant: "panel", tone: "subtle", className: "max-w-2xl" })}>
+            <h2 className="eyebrow text-navy">{t.nextTitle}</h2>
+            <ol className="divide-border mt-3 divide-y">
+              {process.steps.slice(0, 3).map((step, i) => (
+                <li key={step.title} className="flex gap-4 py-5">
+                  <span className="text-copper text-lg font-bold" aria-hidden="true">{String(i + 1).padStart(2, "0")}</span>
+                  <div>
+                    <h3 className="text-navy text-sm font-bold">{step.title}</h3>
+                    <p className="text-muted-foreground mt-1 text-[13px] leading-relaxed">{step.activity}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
         </div>
       </section>
 
-      <section className="border-border bg-background border-b py-16 lg:py-20">
+      <section className="border-border bg-background border-b py-12 lg:py-16">
         <div className="container-x">
-          <h2 className="eyebrow text-navy">{t.officeTitle}</h2>
-          <address className="border-border bg-surface text-muted-foreground mt-5 max-w-md border p-6 text-sm leading-relaxed not-italic">
-            <span className="text-navy block font-bold">{siteConfig.name}</span>
-            {t.addressLines.map((line) => (
-              <span key={line} className="block">{line}</span>
-            ))}
-          </address>
+          <div className={cardVariants({ variant: "panel", tone: "subtle", className: "max-w-md" })}>
+            <h2 className="eyebrow text-navy">{t.officeTitle}</h2>
+            <address className="text-muted-foreground mt-5 text-sm leading-relaxed not-italic">
+              <span className="text-navy block font-bold">{siteConfig.name}</span>
+              {t.addressLines.map((line) => (
+                <span key={line} className="block">{line}</span>
+              ))}
+            </address>
+          </div>
         </div>
       </section>
 

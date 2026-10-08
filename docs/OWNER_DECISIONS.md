@@ -45,6 +45,18 @@ D-DAR-063 and D-SCHEDULE are implemented now (W9.1). D-PRICE and D-ARTICLES are 
 | **D-PRICE-OUTLIERS** (2026-10-07/08) | Outliers more than 15% from the median are flagged and excluded. | Recorded now. |
 | **D-PRICE-AGE** (2026-10-07/08) | Prices never expire; date and age are shown; internal stale alert after 5 days. | Recorded now. |
 
+## Decisions of 2026-10-08 (W10 design system)
+
+Answers to the five owner decisions of the W10.0 design review. Implemented in W10.2 (branch `w10-2/design-system`).
+
+| # | Decision (as given) | Effect |
+|---|---|---|
+| **D-W10-1** | **YES — inner pages move to the rounded look.** The owner asked for it explicitly; this **supersedes the square v0 "spec-sheet" direction** for inner pages (`PROJECT_OVERRIDES.md` §8b, `design-reference/v0-approved/`). | Radius roles in `styles/tokens.css` (tag 4 / control 8 / card 12 / panel 16 / badge pill). Products listing, services, about, contact, industries/markets tags, the spec table and the RFQ form use rounded cards, panels and controls (`components/ui/surface-variants.ts`, `form-control.ts`). Full-bleed sections (page hero, CTA band, footer) stay square. The home Product Showcase (frozen V2.0) is unchanged. `design-reference/v0-approved/` is recaptured from this implementation. |
+| **D-W10-2** | **YES — retire the copper buttons; navy primary everywhere.** | `components/ui/button-variants.ts` has one Button (primary / secondary / ghost / link × sm / md / lg / icon); the copper `default`, `inverse` and `outline` variants are deleted. On navy surfaces (`on-inverse`) the primary is cream. Copper stays the accent for eyebrows, icons and links. |
+| **D-W10-3** | **Keep Estedad.** | No font change (`lib/fonts/estedad.ts`). |
+| **D-W10-4** | **Build the Price block now as a component wired to a typed prop, but render it on no page yet** (pricing data arrives in a later task). Persian pages only. Shows: price in Toman per kg; «شامل ارزش افزوده» (always true); the factory name; the delivery location (e.g. «درب کارخانه» / «انبار تهران»); the date and age; the change since the last price (only when present); the fixed line «برای قیمت روز استعلام بگیرید»; an RFQ CTA. Never an empty value, never the source website, never JSON-LD offers. A "missing price" variant shows only «استعلام قیمت» + the RFQ CTA. | `components/products/price-block.tsx` + `lib/pricing/price-block-presentation.ts` (typed `PriceBlockData`, which has no source field). Incomplete data falls back to the missing-price variant. The age is computed in the browser (`price-age.tsx`). Change is shown in neutral colours. Not imported by any page (a test enforces it until the pricing task wires it). |
+| **D-W10-5** | **Calculator URL `/tools/weight-calculator`.** Build only the home-page CTA block component now, not rendered until the calculator ships. | `components/home/calculator-cta.tsx` (`WEIGHT_CALCULATOR_PATH`), fa/en/ar, no price in the block, not rendered (a test enforces it). The task that ships the calculator places it after the Hero and adds the section-order note to `docs/HOMEPAGE_RANKING.md`. |
+
 ## Architecture §19 — status of every owner decision
 
 | # | Decision | Architecture default | Status (2026-10-04) |

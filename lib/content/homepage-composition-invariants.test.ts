@@ -195,7 +195,7 @@ test("the shared CtaBand is no longer the Homepage's closing CTA, but is UNCHANG
   // It must survive INTACT, not be gutted, and must still be really used.
   const ctaBand = readCode("components/ui/cta-band.tsx");
   assert.match(ctaBand, /export function CtaBand\(/, "the retained component must still export its component");
-  assert.match(ctaBand, /<Link/, "the retained component must still render its own actions");
+  assert.match(ctaBand, /<ButtonLink/, "the retained component must still render its own actions (shared Buttons since W10.2)");
   for (const consumer of [
     // /products renders through the shared listing component (static category routes, architecture V1.1 A2).
     "components/products/products-listing.tsx",

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeVariantDimensions, normalizeVariantNominalWeight, normalizeVariantSpecifications, formatCompactVariantSpecification } from "./specification-presenter.ts";
+import { normalizeVariantDimensions, normalizeVariantNominalWeight, normalizeVariantSpecifications, formatCompactVariantSpecification, compareCommercialSize, sortVariantsBySize } from "./specification-presenter.ts";
 
 /**
  * Fixtures mirror real dimensions_json/nominal_weight_json shapes verified
@@ -158,4 +158,38 @@ test("falls back to sku when both commercialSize and sectionSize are null", () =
 test("locale-invariant by construction: the function accepts no locale parameter at all, so a technical size/grade token can never be mistranslated", () => {
   const spec = formatCompactVariantSpecification({ grade: { code: "S235JR", name: "S235JR" }, commercialSize: "35×2000×6000", sectionSize: null, sku: "AA-SH-HR-S235JR-S35X2000X6000" });
   assert.equal(spec, "S235JR · 35×2000×6000");
+});
+
+// --- W10.2 (W10.0 P0-1): natural size order — real commercial_size strings from the 2026-10-01 snapshot ---
+
+const sorted = (sizes: string[]) => [...sizes].sort(compareCommercialSize);
+
+test("compareCommercialSize: IPE 80 sorts before IPE 100 and IPE 600 (was last under a string sort)", () => {
+  assert.deepEqual(sorted(["IPE 600", "IPE 100", "IPE 80", "IPE 270", "IPE 1000"]), ["IPE 80", "IPE 100", "IPE 270", "IPE 600", "IPE 1000"]);
+  assert.deepEqual(sorted(["IPN 100", "IPN 80"]), ["IPN 80", "IPN 100"]);
+});
+
+test("compareCommercialSize: rebar diameters, sheets, hollow sections and pipes compare number by number", () => {
+  assert.deepEqual(sorted(["Ø10", "Ø8", "Ø50", "Ø12"]), ["Ø8", "Ø10", "Ø12", "Ø50"]);
+  assert.deepEqual(sorted(["10×1500×6000", "2×1000×2000", "2×1500×6000", "3×1000×2000"]), ["2×1000×2000", "2×1500×6000", "3×1000×2000", "10×1500×6000"]);
+  assert.deepEqual(sorted(["120×60×4", "60×40×2.5", "60×40×3", "100×50×3"]), ["60×40×2.5", "60×40×3", "100×50×3", "120×60×4"]);
+  assert.deepEqual(sorted(["114.3×6.02 SCH40", "21.336×2.769 SCH40", "88.9×5.486 SCH40"]), ["21.336×2.769 SCH40", "88.9×5.486 SCH40", "114.3×6.02 SCH40"]);
+  assert.deepEqual(sorted(["100X100X10", "50X50X5", "75X75X7"]), ["50X50X5", "75X75X7", "100X100X10"]);
+});
+
+test("compareCommercialSize: different prefixes group by text, equal strings compare equal", () => {
+  assert.deepEqual(sorted(["UPN 80", "UPE 100", "UPE 80"]), ["UPE 80", "UPE 100", "UPN 80"]);
+  assert.equal(compareCommercialSize("IPE 80", "IPE 80"), 0);
+});
+
+test("sortVariantsBySize: falls back to sectionSize then SKU, ties break on SKU, input is not mutated", () => {
+  const input = [
+    { commercialSize: "IPE 600", sectionSize: null, sku: "B" },
+    { commercialSize: null, sectionSize: "IPE 80", sku: "C" },
+    { commercialSize: "IPE 100", sectionSize: null, sku: "Z" },
+    { commercialSize: "IPE 100", sectionSize: null, sku: "A" },
+  ];
+  const copy = structuredClone(input);
+  assert.deepEqual(sortVariantsBySize(input).map((v) => v.sku), ["C", "A", "Z", "B"]);
+  assert.deepEqual(input, copy);
 });

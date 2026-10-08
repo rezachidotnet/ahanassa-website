@@ -5,6 +5,7 @@ import { publicPageIndexable } from "@/lib/seo/indexing-policy";
 import { industriesCopy } from "@/lib/content/pages";
 import { PageHero } from "@/components/ui/page-hero";
 import { CtaBand } from "@/components/ui/cta-band";
+import { Badge } from "@/components/ui/badge";
 
 export { generateLocaleStaticParams as generateStaticParams } from "@/lib/static/locale-params";
 
@@ -47,9 +48,9 @@ export default async function IndustriesPage({ params }: PageProps) {
           <h2 className="text-navy text-lg font-bold">{t.listTitle}</h2>
           <ul className="mt-6 flex flex-wrap gap-2">
             {t.industries.map((s) => (
-              <li key={s} className="border-border bg-background text-navy-600 border px-3 py-1.5 text-xs font-medium">
+              <Badge as="li" key={s} tone="tag" className="text-sm font-medium">
                 {s}
-              </li>
+              </Badge>
             ))}
           </ul>
         </div>

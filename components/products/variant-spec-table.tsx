@@ -1,11 +1,13 @@
 import Link from "@/components/ui/link";
 import { localizedPath, type Locale } from "@/config/locales";
-import { normalizeVariantDimensions, normalizeVariantNominalWeight, normalizeVariantSpecifications, NOMINAL_WEIGHT_DISCLAIMER } from "@/lib/catalog/specification-presenter";
+import { cn } from "@/lib/utils";
+import { buttonVariants } from "@/components/ui/button";
+import { normalizeVariantDimensions, normalizeVariantNominalWeight, normalizeVariantSpecifications, sortVariantsBySize, NOMINAL_WEIGHT_DISCLAIMER } from "@/lib/catalog/specification-presenter";
 import type { ProductVariant } from "@/lib/catalog/types";
 
 const chrome: Record<
   Locale,
-  { caption: string; size: string; sku: string; units: (u: string) => string; request: string; requestAria: (size: string) => string; selected: string }
+  { caption: string; size: string; sku: string; units: (u: string) => string; request: string; requestAria: (size: string) => string; selected: string; swipe: string }
 > = {
   fa: {
     caption: "جدول مشخصات فنی و اندازه‌های موجود",
@@ -15,6 +17,7 @@ const chrome: Record<
     request: "درخواست این قلم",
     requestAria: (size) => `درخواست این قلم — سایز ${size}`,
     selected: "قلم انتخاب‌شده",
+    swipe: "جدول را افقی بکشید",
   },
   en: {
     caption: "Technical specifications and available sizes",
@@ -24,6 +27,7 @@ const chrome: Record<
     request: "Request this item",
     requestAria: (size) => `Request this item — size ${size}`,
     selected: "Selected item",
+    swipe: "Swipe the table sideways",
   },
   ar: {
     caption: "جدول المواصفات الفنية والمقاسات المتاحة",
@@ -33,8 +37,13 @@ const chrome: Record<
     request: "طلب هذا الصنف",
     requestAria: (size) => `طلب هذا الصنف — مقاس ${size}`,
     selected: "الصنف المحدد",
+    swipe: "اسحب الجدول أفقيًا",
   },
 };
+
+const HEAD = "border-border text-muted-foreground border-b bg-surface px-4 py-3 text-start text-xs font-bold whitespace-nowrap";
+// Row separators on every cell (border-separate tables do not paint <tr> borders); the last row has none.
+const CELL = "border-b border-[var(--aa-color-neutral-100)] px-4 py-3 whitespace-nowrap group-last:border-b-0";
 
 /** A stable, URL/HTML-id-safe anchor derived from the variant's own SKU — never the internal xid (kept out of the DOM/URL per the existing "xid is never rendered" rule). Lets a link elsewhere (query param today, a future `#anchor` deep link) point at one specific row. */
 export function variantRowAnchorId(sku: string): string {
@@ -58,8 +67,10 @@ export function variantRowAnchorId(sku: string): string {
  * `VariantHighlightFromQuery` — the page is static and takes no searchParams
  * (architecture V1.1 §4.2) — without ever creating a Variant SEO page.
  */
-export function VariantSpecTable({ locale, variants }: { locale: Locale; variants: ProductVariant[] }) {
-  if (variants.length === 0) return null;
+export function VariantSpecTable({ locale, variants: unsorted }: { locale: Locale; variants: ProductVariant[] }) {
+  if (unsorted.length === 0) return null;
+  // Natural size order (IPE 80 before IPE 600) — the presenter owns it, W10.0 P0-1.
+  const variants = sortVariantsBySize(unsorted);
   const t = chrome[locale];
 
   const dimensionColumns: { key: string; label: string }[] = [];
@@ -86,33 +97,44 @@ export function VariantSpecTable({ locale, variants }: { locale: Locale; variant
 
   return (
     <div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-max border-collapse text-start text-sm">
+      {/* Mobile: the table scrolls inside this region, never the page. */}
+      <p className="text-tertiary mb-2 text-xs md:hidden" aria-hidden="true">
+        {t.swipe}
+      </p>
+      {/*
+        The scroll region (W10.0 P0-1). `relative` is load-bearing: it makes
+        this box the containing block of the absolutely-positioned sr-only
+        header/caption text, which otherwise escaped the overflow clip and
+        scrolled the whole page sideways (346/468/385 px at 390 px, fa/en/ar).
+        Focusable + named so keyboard users can scroll it (WCAG 2.1.1).
+      */}
+      <div role="region" aria-label={t.caption} tabIndex={0} className="border-border bg-background relative overflow-x-auto rounded-[var(--aa-radius-card)] border">
+        <table className="text-ui w-full min-w-max border-separate border-spacing-0 text-start">
           <caption className="sr-only">{t.caption}</caption>
           <thead>
-            <tr className="border-border border-b">
-              <th scope="col" className="text-navy px-3 py-2.5 text-start text-xs font-bold tracking-wide">
+            <tr>
+              <th scope="col" className={cn(HEAD, "bg-surface sticky start-0 z-[2]")}>
                 {t.size}
               </th>
               {dimensionColumns.map((c) => (
-                <th key={c.key} scope="col" className="text-navy px-3 py-2.5 text-start text-xs font-bold tracking-wide">
+                <th key={c.key} scope="col" className={HEAD}>
                   {c.label}
                 </th>
               ))}
               {weightColumns.map((c) => (
-                <th key={c.key} scope="col" className="text-navy px-3 py-2.5 text-start text-xs font-bold tracking-wide">
+                <th key={c.key} scope="col" className={HEAD}>
                   {c.label}
                 </th>
               ))}
-              <th scope="col" className="text-navy px-3 py-2.5 text-start text-xs font-bold tracking-wide">
+              <th scope="col" className={HEAD}>
                 {t.sku}
               </th>
-              <th scope="col" className="px-3 py-2.5">
+              <th scope="col" className={HEAD}>
                 <span className="sr-only">{t.request}</span>
               </th>
             </tr>
           </thead>
-          <tbody className="divide-border divide-y">
+          <tbody>
             {variants.map((variant) => {
               const spec = normalizeVariantSpecifications(variant, locale);
               const dimByKey = new Map(spec.dimensions.map((r) => [r.key, r.value]));
@@ -122,30 +144,30 @@ export function VariantSpecTable({ locale, variants }: { locale: Locale; variant
                   // Public canonical id (CVAR): React keys are serialized into the static HTML, internal row ids must not be (W4 publication gate).
                   key={variant.xid}
                   id={variantRowAnchorId(variant.sku)}
-                  className="scroll-mt-24"
+                  className="group scroll-mt-24"
                 >
-                  <th scope="row" className="text-navy px-3 py-2.5 text-start font-semibold">
+                  <th scope="row" className={cn(CELL, "text-navy bg-background group-hover:bg-surface sticky start-0 z-[1] text-start font-bold")}>
                     <span dir="ltr">{variant.commercialSize ?? variant.sectionSize ?? "—"}</span>
                   </th>
                   {dimensionColumns.map((c) => (
-                    <td key={c.key} className="text-muted-foreground px-3 py-2.5">
+                    <td key={c.key} className={cn(CELL, "text-muted-foreground group-hover:bg-surface")}>
                       <span dir="ltr">{dimByKey.get(c.key) ?? "—"}</span>
                     </td>
                   ))}
                   {weightColumns.map((c) => (
-                    <td key={c.key} className="text-muted-foreground px-3 py-2.5">
+                    <td key={c.key} className={cn(CELL, "text-muted-foreground group-hover:bg-surface")}>
                       <span dir="ltr">{weightByKey.get(c.key) ?? "—"}</span>
                     </td>
                   ))}
-                  <td className="text-muted-foreground px-3 py-2.5">
+                  <td className={cn(CELL, "text-muted-foreground group-hover:bg-surface")}>
                     <span dir="ltr">{variant.sku}</span>
                   </td>
-                  <td className="px-3 py-2.5">
+                  <td className={cn(CELL, "group-hover:bg-surface py-0")}>
                     {/* Plain <a> (components/ui/link.tsx): no prefetch of any kind, so 38 per-variant links cost nothing until clicked. */}
                     <Link
                       href={`${localizedPath(locale, "/contact")}?variant=${encodeURIComponent(variant.xid)}`}
                       aria-label={t.requestAria(variant.commercialSize ?? variant.sectionSize ?? variant.sku)}
-                      className="text-copper text-xs font-semibold whitespace-nowrap hover:underline"
+                      className={buttonVariants({ variant: "link", className: "font-semibold whitespace-nowrap" })}
                     >
                       {t.request}
                     </Link>

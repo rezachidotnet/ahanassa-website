@@ -28,6 +28,33 @@
   --color-muted-foreground: var(--aa-color-text-secondary);
   --color-border: var(--aa-color-border-subtle);
   --color-ring: var(--aa-color-focus-ring);
+
+  /* W10.2 roles (styles/tokens.css). `navy-600` above is a hover/border
+     tint only — at 3.66:1 it must not be used as a text colour. */
+  --color-cream: var(--aa-color-brand-cream-50);
+  --color-border-control: var(--aa-color-border-control);
+  --color-border-control-hover: var(--aa-color-border-control-hover);
+  --color-on-inverse-muted: var(--aa-color-text-on-inverse-muted);
+  --color-accent-on-inverse: var(--aa-color-accent-on-inverse);
+  --color-tertiary: var(--aa-color-text-tertiary);
+  --color-neutral-700: var(--aa-color-neutral-700);
+  --color-danger: var(--aa-color-danger-700);
+  --color-danger-50: var(--aa-color-danger-50);
+
+  --radius-tag: var(--aa-radius-tag);
+  --radius-control: var(--aa-radius-control);
+  --radius-card: var(--aa-radius-card);
+  --radius-panel: var(--aa-radius-panel);
+  --radius-badge: var(--aa-radius-badge);
+
+  --text-ui: var(--aa-text-ui);
+  --text-ui--line-height: var(--aa-leading-ui);
+  --text-h1: var(--aa-text-h1);
+  --text-h1--line-height: var(--aa-leading-h1);
+  --text-h2: var(--aa-text-h2);
+  --text-h2--line-height: var(--aa-leading-h2);
+  --text-h3: var(--aa-text-h3);
+  --text-h3--line-height: var(--aa-leading-h3);
 }
 
 :root {
@@ -51,6 +78,22 @@
   margin-inline: auto;
   max-width: var(--aa-container-max);
   padding-inline: var(--aa-page-gutter);
+}
+
+/* One vertical rhythm for content sections: 64px, 96px from 1024px (W10.2). */
+@utility section-y {
+  padding-block: var(--aa-section-y);
+}
+
+/*
+ * Navy surface context (W10.2): every focus ring inside it turns cream
+ * (copper on navy is 2.83:1, under the 3:1 minimum), and shared Buttons
+ * inside it switch to their on-navy treatment (button-variants.ts,
+ * `in-[.on-inverse]:` classes). Same mechanism final-cta.tsx already uses
+ * for its own subtree.
+ */
+@utility on-inverse {
+  --aa-color-focus-ring: var(--aa-color-focus-ring-inverse);
 }
 
 /* uppercase technical metadata label, matches the reference's spec-sheet voice */
@@ -278,7 +321,8 @@
     outline-offset: 3px;
   }
   @media (forced-colors: active) {
-    .aa-button {
+    /* The link variant stays an underlined link, with no box (W10.2). */
+    .aa-button:not(.aa-button-link) {
       border: 2px solid ButtonBorder !important;
     }
     .aa-button:focus-visible {

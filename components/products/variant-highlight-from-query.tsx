@@ -4,6 +4,8 @@ import { useEffect } from "react";
 
 /** Highlight classes — the same ones VariantSpecTable used for its server-rendered `highlightXid` row. */
 export const HIGHLIGHT_ROW_CLASSES = ["bg-copper/10", "outline-copper", "-outline-offset-2", "outline-2"] as const;
+/** The sticky size cell is opaque (it covers columns scrolled under it, W10.2), so it gets the same tint as an opaque colour; `!` beats its own bg-background. */
+export const HIGHLIGHT_HEADER_CLASSES = ["bg-[color-mix(in_srgb,var(--aa-color-brand-copper-600)_10%,white)]!"] as const;
 
 /**
  * `?variant=` row highlight on a product page, applied in the browser
@@ -20,6 +22,7 @@ export function VariantHighlightFromQuery({ rows, selectedLabel }: { rows: Recor
     if (!row) return;
     row.classList.add(...HIGHLIGHT_ROW_CLASSES);
     const header = row.querySelector("th");
+    header?.classList.add(...HIGHLIGHT_HEADER_CLASSES);
     if (header && !header.querySelector("[data-selected-label]")) {
       const label = document.createElement("span");
       label.dataset.selectedLabel = "";

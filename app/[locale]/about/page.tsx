@@ -4,6 +4,7 @@ import { buildPageMetadata } from "@/lib/metadata/resolve";
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";
 import { aboutCopy } from "@/lib/content/pages";
 import { PageHero } from "@/components/ui/page-hero";
+import { cardVariants } from "@/components/ui/surface-variants";
 import { CtaBand } from "@/components/ui/cta-band";
 
 export { generateLocaleStaticParams as generateStaticParams } from "@/lib/static/locale-params";
@@ -45,8 +46,8 @@ export default async function AboutPage({ params }: PageProps) {
       </section>
 
       <section className="border-border bg-surface border-b py-20 lg:py-28">
-        <div className="container-x grid gap-10 sm:grid-cols-2">
-          <div>
+        <div className="container-x grid gap-4 sm:grid-cols-2">
+          <div className={cardVariants({ variant: "panel" })}>
             <h2 className="text-navy text-lg font-bold">{t.isTitle}</h2>
             <ul className="mt-5 space-y-3">
               {t.isItems.map((item) => (
@@ -56,7 +57,7 @@ export default async function AboutPage({ params }: PageProps) {
               ))}
             </ul>
           </div>
-          <div>
+          <div className={cardVariants({ variant: "panel" })}>
             <h2 className="text-navy text-lg font-bold">{t.notTitle}</h2>
             <ul className="mt-5 space-y-3">
               {t.notItems.map((item) => (

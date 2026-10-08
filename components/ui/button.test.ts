@@ -51,12 +51,13 @@ test("Primary/Secondary share identical geometry: 48px height, 8px radius, 28px 
 });
 
 test("Primary and Secondary produce byte-identical structural classes (geometry never diverges by variant)", () => {
-  // Strip color/fill-only tokens (bg-*, text-navy/text-white, border-*, shadow-*, hover:/active: color changes)
+  // Strip color/fill-only tokens (bg-*, text-navy/text-white, border-*, shadow-*, hover:/active: color changes,
+  // and the on-navy colour overrides `in-[.on-inverse]:*`)
   // and compare what's left — the shared shape/interaction contract.
   const stripColor = (cls: string) =>
     cls
       .split(" ")
-      .filter((token) => !/^(bg-|text-navy$|text-white$|border-navy|border$|shadow-|hover:bg-|hover:border-|hover:text-|active:bg-)/.test(token))
+      .filter((token) => !/^(bg-|text-navy$|text-white$|border-navy|border$|shadow-|hover:bg-|hover:border-|hover:text-|active:bg-|in-\[\.on-inverse\]:)/.test(token))
       .sort()
       .join(" ");
   assert.equal(stripColor(primaryClass), stripColor(secondaryClass));
@@ -152,11 +153,71 @@ test("Exactly one variant pair owns the frozen Primary/Secondary geometry — no
   assert.equal(buttonSizeMatches.length, 1, "expected exactly one size=\"button\" definition (single source of truth)");
 });
 
-test("Pre-existing default/inverse/outline/ghost variants are untouched (no unrelated-consumer drift)", () => {
-  assert.equal(buttonVariants({ variant: "default" }), buttonVariants({ variant: "default" }));
-  const defaultClass = buttonVariants({ variant: "default" });
-  assert.match(defaultClass, /\bbg-copper\b/, "existing copper 'default' variant must remain, for cta-band.tsx/catalog-empty-state.tsx");
-  assert.ok(!/\bh-12\b/.test(defaultClass), "existing 'default' size must not gain the new exact 48px height unless it already had it");
+// --- W10.2: one Button for the whole site (owner decision D-W10-2) ---
+
+const ALL_VARIANTS = ["primary", "secondary", "ghost", "link"] as const;
+const ALL_SIZES = ["sm", "md", "lg", "icon", "button"] as const;
+
+test("W10.2: the copper default, inverse and outline variants are retired (D-W10-2) — navy primary everywhere", () => {
+  const source = stripComments(readSource("components/ui/button-variants.ts"));
+  for (const retired of ["default:", "inverse:", "outline:"]) assert.ok(!source.includes(retired), `retired variant still defined: ${retired}`);
+  assert.ok(!/bg-copper/.test(source), "no copper-filled Button variant may remain");
+  assert.match(buttonVariants(), /\bbg-navy\b/, "the default variant is the navy primary");
+  assert.match(buttonVariants(), /\bh-12\b/, "the default size is md = Button V1.0's 48px");
+});
+
+test("W10.2: every variant x size carries the shared focus ring (.aa-button) and the 8px control radius", () => {
+  for (const variant of ALL_VARIANTS) {
+    for (const size of ALL_SIZES) {
+      const cls = buttonVariants({ variant, size });
+      assert.match(cls, /\baa-button\b/, `${variant}/${size} must carry aa-button`);
+      assert.match(cls, /rounded-\[var\(--aa-radius-sm\)\]/, `${variant}/${size} must carry the 8px radius`);
+      assert.ok(!/\boutline-none\b/.test(cls), `${variant}/${size}: outline-none resolves the Tailwind focus utilities to outline-style:none (W10.0 §3.4)`);
+    }
+  }
+});
+
+test("W10.2: disabled is a neutral fill, never opacity; a loading (aria-busy) button keeps its colours", () => {
+  const cls = buttonVariants({ variant: "primary" });
+  assert.ok(!/disabled:opacity/.test(cls), "disabled must not be an opacity fade (white on 50% copper was 2.17:1)");
+  assert.match(cls, /\[&:disabled:not\(\[aria-busy=true\]\)\]:bg-\[var\(--aa-color-neutral-100\)\]/);
+  assert.match(cls, /\[&:disabled:not\(\[aria-busy=true\]\)\]:text-\[var\(--aa-color-neutral-500\)\]/);
+  assert.match(cls, /\baria-busy:cursor-progress\b/);
+});
+
+test("W10.2: sizes — sm 40px with a 44px hit area, md 48px, lg 56px, icon 44x44, link >= 44px", () => {
+  const sm = buttonVariants({ size: "sm" });
+  assert.match(sm, /\bh-10\b/);
+  assert.match(sm, /after:-inset-y-0\.5/, "sm extends its hit area to 44px with ::after");
+  assert.match(buttonVariants({ size: "md" }), /\bh-12\b/);
+  assert.match(buttonVariants({ size: "lg" }), /\bh-14\b/);
+  assert.match(buttonVariants({ size: "icon" }), /\bsize-11\b/);
+  const link = buttonVariants({ variant: "link" });
+  assert.match(link, /\bmin-h-11\b/);
+  assert.match(link, /\bpx-0\b/);
+  assert.ok(!/\bh-12\b|\bpx-7\b/.test(link), "the link variant drops the box geometry (tailwind-merge)");
+});
+
+test("W10.2: on a navy surface (.on-inverse) primary turns cream and secondary white-outlined", () => {
+  assert.match(buttonVariants({ variant: "primary" }), /in-\[\.on-inverse\]:bg-cream/);
+  assert.match(buttonVariants({ variant: "secondary" }), /in-\[\.on-inverse\]:border-white\/70/);
+  const css = CSS_CODE;
+  assert.match(css, /@utility on-inverse \{\s*--aa-color-focus-ring: var\(--aa-color-focus-ring-inverse\);/);
+});
+
+test("W10.2: Button has a loading state (aria-busy + spinner) without blocking via preventDefault", () => {
+  const source = readSource("components/ui/button.tsx");
+  assert.match(source, /aria-busy=\{loading \|\| undefined\}/);
+  assert.match(source, /animate-spin/);
+});
+
+test("W10.2: no hand-rolled or retired button styles remain in app/ and components/", () => {
+  const files = ["components/ui/cta-band.tsx", "components/products/catalog-empty-state.tsx", "components/contact/enquiry-form.tsx", "components/contact/rfq-item-row.tsx", "app/[locale]/products/[slug]/page.tsx", "app/[locale]/error.tsx", "app/[locale]/not-found.tsx"];
+  for (const file of files) {
+    const source = stripComments(readSource(file));
+    assert.ok(!/variant(:\s*|=)"(default|inverse|outline)"/.test(source), `${file}: retired Button variant`);
+    assert.ok(!/bg-copper/.test(source), `${file}: copper-filled control`);
+  }
 });
 
 // --- Header/Hero/Drawer adoption (cross-file, source-level) ---

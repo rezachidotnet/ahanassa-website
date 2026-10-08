@@ -139,7 +139,7 @@ export function SiteHeader({
       >
         {/* Header shell height: 80px default / ~68px compact scrolled (desktop, §46.1/§46.3/§58.5); 72px fixed on mobile (§46.2, below `lg`). */}
         <div className={cn("container-x flex items-center justify-between gap-4 transition-[height] duration-[180ms] motion-reduce:transition-none", "h-[72px] lg:h-20", scrolled && "lg:h-[68px]")}>
-          <Link href={localizedPath(locale, "/")} aria-label={siteConfig.name} className="flex shrink-0 items-center gap-2.5">
+          <Link href={localizedPath(locale, "/")} aria-label={siteConfig.name} className="relative flex shrink-0 items-center gap-2.5 after:absolute after:-inset-0.5 after:content-['']">
             {/* No official horizontal lockup asset exists in this repository yet
                 (verified: only a square mark, public/brand/ahan-asa-mark.jpg —
                 identical files under logo/ confirm no separate wordmark

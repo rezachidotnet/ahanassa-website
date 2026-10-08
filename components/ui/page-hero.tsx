@@ -3,6 +3,9 @@ import Link from "@/components/ui/link";
 import { ChevronRight } from "lucide-react";
 import { localizedPath, type Locale } from "@/config/locales";
 
+/** Breadcrumb links: 44px tall tap targets (W10.0 P1-4), underline on hover. */
+const CRUMB = "inline-flex min-h-11 items-center transition-colors hover:text-white hover:underline underline-offset-4";
+
 const homeLabel: Record<Locale, string> = {
   fa: "خانه",
   en: "Home",
@@ -27,7 +30,7 @@ export function PageHero({
   breadcrumb?: { path: string; label: string }[];
 }) {
   return (
-    <section className="bg-navy relative isolate overflow-hidden">
+    <section className="bg-navy on-inverse relative isolate overflow-hidden">
       {image && (
         <>
           <Image
@@ -39,7 +42,8 @@ export function PageHero({
             className="object-cover opacity-30"
           />
           <div
-            className="from-navy via-navy/90 to-navy/45 absolute inset-0 bg-linear-to-r"
+            // Darkest where the text starts: mirrored in RTL (fa/ar text sits on the right), W10.0 P1-3.
+            className="from-navy via-navy/90 to-navy/45 absolute inset-0 bg-linear-to-r rtl:bg-linear-to-l"
             aria-hidden="true"
           />
         </>
@@ -49,9 +53,9 @@ export function PageHero({
       <div className="container-x relative py-16 lg:py-24">
         {breadcrumb && breadcrumb.length > 0 && (
           <nav aria-label={homeLabel[locale]} className="mb-8">
-            <ol className="flex flex-wrap items-center gap-1.5 text-xs text-white/50">
+            <ol className="text-on-inverse-muted flex flex-wrap items-center gap-x-1.5 text-xs">
               <li>
-                <Link href={localizedPath(locale, "/")} className="transition-colors hover:text-white">
+                <Link href={localizedPath(locale, "/")} className={CRUMB}>
                   {homeLabel[locale]}
                 </Link>
               </li>
@@ -59,11 +63,11 @@ export function PageHero({
                 <li key={b.path} className="flex items-center gap-1.5">
                   <ChevronRight className="size-3.5 rtl:-scale-x-100" aria-hidden="true" />
                   {i === breadcrumb.length - 1 ? (
-                    <span className="text-white/80" aria-current="page">
+                    <span className="text-white" aria-current="page">
                       {b.label}
                     </span>
                   ) : (
-                    <Link href={localizedPath(locale, b.path)} className="transition-colors hover:text-white">
+                    <Link href={localizedPath(locale, b.path)} className={CRUMB}>
                       {b.label}
                     </Link>
                   )}
@@ -73,14 +77,14 @@ export function PageHero({
           </nav>
         )}
 
-        <p className="eyebrow text-copper-400 flex items-center gap-3">
+        <p className="eyebrow text-accent-on-inverse flex items-center gap-3">
           <span className="h-px w-8 bg-current" aria-hidden="true" />
           {eyebrow}
         </p>
         <h1 className="mt-6 max-w-3xl text-4xl leading-[1.05] font-extrabold text-white sm:text-5xl lg:text-[3.5rem]">
           {title}
         </h1>
-        {body && <p className="mt-6 max-w-2xl text-lg leading-relaxed text-white/65">{body}</p>}
+        {body && <p className="mt-6 max-w-2xl text-on-inverse-muted text-lg leading-relaxed">{body}</p>}
       </div>
     </section>
   );
