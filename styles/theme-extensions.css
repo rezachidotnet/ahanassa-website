@@ -321,7 +321,8 @@
     outline-offset: 3px;
   }
   @media (forced-colors: active) {
-    .aa-button {
+    /* The link variant stays an underlined link, with no box (W10.2). */
+    .aa-button:not(.aa-button-link) {
       border: 2px solid ButtonBorder !important;
     }
     .aa-button:focus-visible {

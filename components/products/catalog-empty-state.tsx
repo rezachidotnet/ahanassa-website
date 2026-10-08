@@ -71,10 +71,10 @@ export function CatalogEmptyState({ locale, variant = "catalog-preparing" }: { l
         <p className="text-navy mx-auto max-w-xl text-xl font-bold">{t.title}</p>
         <p className="text-muted-foreground mx-auto mt-4 max-w-xl text-sm leading-relaxed">{t.body}</p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-          <Link href={localizedPath(locale, "/products")} className={buttonVariants({ variant: "outline", size: "lg" })}>
+          <Link href={localizedPath(locale, "/products")} className={buttonVariants({ variant: "secondary", size: "lg" })}>
             {t.clear}
           </Link>
-          <Link href={localizedPath(locale, "/contact")} className={buttonVariants({ variant: "default", size: "lg" })}>
+          <Link href={localizedPath(locale, "/contact")} className={buttonVariants({ variant: "primary", size: "lg" })}>
             {t.cta}
           </Link>
         </div>
@@ -87,7 +87,7 @@ export function CatalogEmptyState({ locale, variant = "catalog-preparing" }: { l
     <div className="container-x py-16 text-center lg:py-24">
       <p className="text-navy mx-auto max-w-xl text-xl font-bold">{t.title}</p>
       <p className="text-muted-foreground mx-auto mt-4 max-w-xl text-sm leading-relaxed">{t.body}</p>
-      <Link href={localizedPath(locale, "/contact")} className={buttonVariants({ variant: "default", size: "lg", className: "mt-8" })}>
+      <Link href={localizedPath(locale, "/contact")} className={buttonVariants({ variant: "primary", size: "lg", className: "mt-8" })}>
         {t.cta}
       </Link>
     </div>

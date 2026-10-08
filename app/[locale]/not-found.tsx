@@ -1,3 +1,5 @@
+import { ButtonLink } from "@/components/ui/button";
+
 /**
  * not-found.tsx does not reliably receive the [locale] route param, so this
  * renders all three locales together rather than guessing one.
@@ -14,9 +16,9 @@ export default function LocaleNotFound() {
       <p dir="rtl" lang="ar" className="mt-1 text-[var(--aa-color-text-secondary)]">
         الصفحة غير موجودة.
       </p>
-      <a href="/" className="mt-6 inline-block text-[var(--aa-color-text-accent)] underline">
+      <ButtonLink href="/" variant="link" className="mt-4">
         آهن آسا
-      </a>
+      </ButtonLink>
     </div>
   );
 }

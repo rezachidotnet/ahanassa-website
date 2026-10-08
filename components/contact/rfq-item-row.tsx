@@ -2,6 +2,7 @@
 
 import { Trash2, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import type { Locale } from "@/config/locales";
 import { RFQ_UOM_LABELS, type RfqUomCode } from "@/lib/rfq/uom";
 import { CUSTOM_ITEM_LAUNCH_UOMS, getAllowedUomsForCatalogGroup } from "@/lib/rfq/uom-policy";
@@ -450,15 +451,16 @@ export function RfqItemRow({ layout, index, fields, locale, disabled, errors, ca
   );
 
   const removeButton = (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
+      size="icon"
       onClick={onRemove}
       disabled={disabled || !canRemove}
       aria-label={`${t.remove} ${index + 1}`}
-      className="text-muted-foreground hover:bg-[var(--aa-color-danger-50)] hover:text-[var(--aa-color-danger-700)] inline-flex size-9 shrink-0 items-center justify-center rounded-[var(--aa-radius-sm)] transition-colors disabled:pointer-events-none disabled:opacity-40"
+      className="text-muted-foreground hover:bg-danger-50 hover:text-danger"
     >
       <Trash2 className="size-4" aria-hidden="true" />
-    </button>
+    </Button>
   );
 
   if (layout === "table") {

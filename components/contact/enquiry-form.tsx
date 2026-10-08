@@ -527,7 +527,7 @@ export function EnquiryForm({
         <h3 className="text-navy text-xl font-bold">{t.successTitle}</h3>
         <p className="text-muted-foreground mt-4 max-w-md text-sm leading-relaxed">{t.successBody(reference)}</p>
         <WhatsAppDrawingsLink locale={locale} reference={reference} className="mt-4 max-w-md" />
-        <Button variant="outline" className="mt-8" onClick={startNewRequest}>
+        <Button variant="secondary" className="mt-8" onClick={startNewRequest}>
           {t.again}
         </Button>
       </div>
@@ -756,15 +756,10 @@ export function EnquiryForm({
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-4">
-          <button
-            type="button"
-            onClick={addRow}
-            disabled={submitting || rows.length >= MAX_ITEMS}
-            className="border-copper text-copper hover:bg-copper inline-flex items-center gap-2 rounded-[var(--aa-radius-sm)] border border-dashed px-5 py-2.5 text-sm font-semibold transition-colors hover:text-white disabled:pointer-events-none disabled:opacity-40"
-          >
+          <Button type="button" variant="secondary" className="border-dashed" onClick={addRow} disabled={submitting || rows.length >= MAX_ITEMS}>
             <Plus className="size-4" aria-hidden="true" />
             {t.addRow}
-          </button>
+          </Button>
           {rows.length >= MAX_ITEMS && <p className="text-muted-foreground text-xs">{t.maxReached}</p>}
         </div>
 
@@ -834,7 +829,7 @@ export function EnquiryForm({
           <Button type="button" variant="ghost" size="sm" disabled={submitting} onClick={startNewRequest}>
             {t.clearForm}
           </Button>
-          <Button type="submit" size="lg" disabled={submitting || turnstileBlocking} aria-busy={submitting}>
+          <Button type="submit" size="lg" disabled={submitting || turnstileBlocking} loading={submitting}>
             {submitting ? t.submitting : t.submit}
           </Button>
         </div>
