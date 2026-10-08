@@ -6,9 +6,9 @@
 **Domain:** `https://www.ahanassa.com`
 **ERP:** `https://odoo.ahanassa.com`
 **Document role:** Highest-authority record of confirmed decisions that supersede conflicting statements anywhere in the active `01-sources/` corpus or older historical source-layer references
-**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered; customer account/portal future-phase architecture registered 2026-08-28; Odoo RFQ-path version/mapping verified against the live environment 2026-08-28; production D1 jurisdiction (EU) confirmed and production D1 provisioned 2026-08-29; §7.2 phone status corrected 2026-09-13 to reflect the already-live 2026-09-02 owner confirmation (FOOTER-P1); §10's own stale phone-unconfirmed bullet reconciled 2026-09-13 (CI-CD-P1 governance pass); §7.1/§7.2 updated 2026-09-14 with new owner-confirmed phone (`03135134`, superseding the 2026-09-02 mobile number) and address plaque number (HP-CONTENT-P1, staging-only content patch)
-**Version:** 2.5.0
-**Last updated:** 2026-09-14
+**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered; customer account/portal future-phase architecture registered 2026-08-28; Odoo RFQ-path version/mapping verified against the live environment 2026-08-28; production D1 jurisdiction (EU) confirmed and production D1 provisioned 2026-08-29; §7.2 phone status corrected 2026-09-13 to reflect the already-live 2026-09-02 owner confirmation (FOOTER-P1); §10's own stale phone-unconfirmed bullet reconciled 2026-09-13 (CI-CD-P1 governance pass); §7.1/§7.2 updated 2026-09-14 with new owner-confirmed phone (`03135134`, superseding the 2026-09-02 mobile number) and address plaque number (HP-CONTENT-P1, staging-only content patch); §8b note 2026-10-08: inner pages move to the rounded look (D-W10-1)
+**Version:** 2.6.0
+**Last updated:** 2026-10-08
 
 ---
 
@@ -267,6 +267,8 @@ homepage-desktop-v1.png STATUS    = HISTORICAL / REFERENCE ONLY — not the acti
 **Immutability unchanged:** `/design-reference/homepage-desktop-v1.png` is still never modified, replaced, regenerated, or deleted — it is simply no longer the active visual target.
 
 **Superseded (portability only) 2026-08-28 — see §8c below.** §8c does not change anything stated above; it removes this section's dependency on the external `ahanassa-v0` path existing. Every rule above still applies, read with "the approved v0 implementation" now meaning "the current canonical implementation, frozen from that source."
+
+**Superseded in part 2026-10-08 — inner pages move to the rounded look (owner decision D-W10-1, `docs/OWNER_DECISIONS.md`).** The square, shared-hairline "spec-sheet" treatment of **inner pages** that came from v0 (square cards, square buttons, square controls and chips) is no longer the approved direction. Inner pages use the rounded radius roles in `styles/tokens.css`: tag 4 px, control 8 px, card 12 px, panel 16 px, status badge pill. Full-bleed sections (page hero, CTA band, footer) stay square. Copper-filled buttons are retired; the navy primary is used everywhere (D-W10-2). The rest of this section is unchanged. `design-reference/v0-approved/` was recaptured from the implementation on 2026-10-08 (W10.2).
 
 ---
 
