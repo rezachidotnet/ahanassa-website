@@ -15,7 +15,7 @@
 # W8.0: a second job, `health-production`, checks production (OPS_TARGETS.production; live on www.ahanassa.com
 # and api.ahanassa.com since the W8.1 cutover): RFQ cron liveness, RFQ Worker CPU/1102, production DB_OPS, intake,
 # the last production content publish, and Odoo. W9.1: the stale-content check ALERTs only while the GitHub variable
-# OPS_PRODUCTION_CONTENT_STALE_ALERT is "on" (the owner sets it after the first 07:00 UTC CONTENT_REBUILD AUTO
+# OPS_PRODUCTION_CONTENT_STALE_ALERT is "on" (the owner sets it after the first 08:00 UTC CONTENT_REBUILD AUTO
 # publish); unset = report only. Only runs whose publish job actually finalized count (scripts/ops/health).
 # It runs in environment production-v11-monitor (no reviewer, branch main, read-only monitor token only) —
 # not production-v11, whose reviewer gate would hold every 15-min run. Until that environment has the
