@@ -47,8 +47,8 @@
 # artifact from one code_sha + one snapshot; the allowlisted-diff gate (lib/static/target-diff-gate.ts)
 # runs in the export step. The production twin is published ONLY by the gated `publish-production` job:
 # workflow_dispatch with target=production-prep, after the staging publish of the same run, in environment
-# production-v11 (owner approval). It deploys to the workers.dev production-prep Worker
-# (ahanassa-v11-static-production) and the v11 production DB_PUBLIC — never www.ahanassa.com.
+# production-v11 (owner approval). It deploys to the production static Worker ahanassa-v11-static-production,
+# which serves www.ahanassa.com since the W8.1 cutover (2026-10-05), and the v11 production DB_PUBLIC.
 name: Content publish
 
 on:
@@ -70,7 +70,7 @@ on:
         required: false
         default: false
       target:
-        description: "staging = staging only (as before); production-prep = also publish the production twin to the workers.dev production-prep Worker (W8.0; owner approval)"
+        description: "staging = staging only (as before); production-prep = also publish the production twin to ahanassa-v11-static-production = www.ahanassa.com (owner approval; v11 release path, RELEASE_POLICY.md §20)"
         type: choice
         required: false
         default: staging
@@ -344,9 +344,9 @@ jobs:
   # W8.0 production-prep (r4 §2.3): the production twin of the artifact the staging job just published.
   # No Odoo fetch, no build: checksums + the allowlisted-diff gate + "staging twin is active" are verified
   # again by publish.ts load. CONTENT_REBUILD classification (RELEASE_POLICY.md §19) is RECORDED; the
-  # approval of this run is the production-v11 reviewer gate. workers.dev only — never www.ahanassa.com.
+  # approval of this run is the production-v11 reviewer gate. Deploys to www.ahanassa.com (W8.1 cutover).
   publish-production:
-    name: publish-production (production-prep, workers.dev + v11 production DB_PUBLIC)
+    name: publish-production (production-prep, www.ahanassa.com + v11 production DB_PUBLIC)
     needs: [build, publish]
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'production-prep' && inputs.dry_run != true }}
     runs-on: ubuntu-latest
@@ -408,7 +408,7 @@ jobs:
             1) echo "- classification: code release (not a CONTENT_REBUILD) — expected before a v11 STABLE_100 exists" >> "$GITHUB_STEP_SUMMARY" ;;
             *) echo "::error title=ALERT: content-rebuild check could not run::exit $status"; exit 1 ;;
           esac
-          echo "- production-prep publish approved through the production-v11 reviewer gate (workers.dev only)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- production-prep publish approved through the production-v11 reviewer gate (www.ahanassa.com)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: "12. Load snapshot into v11 production DB_PUBLIC (staged; staging twin active + r4 diff gate re-verified)"
         shell: bash
@@ -416,13 +416,13 @@ jobs:
           set -euo pipefail
           node scripts/content/publish.ts load --work "$WORK" --env production
 
-      - name: "12. Deploy the production twin to ahanassa-v11-static-production (workers.dev)"
+      - name: "12. Deploy the production twin to ahanassa-v11-static-production (www.ahanassa.com)"
         shell: bash
         run: |
           set -euo pipefail
           node scripts/content/publish.ts deploy --work "$WORK" --env production
 
-      - name: "13. Smoke (workers.dev host: pages index,follow, production robots/sitemap, RFQ Worker health, variant dry run)"
+      - name: "13. Smoke (www.ahanassa.com: pages index,follow, production robots/sitemap, RFQ Worker health, variant dry run)"
         shell: bash
         env:
           CHROME_PATH: google-chrome

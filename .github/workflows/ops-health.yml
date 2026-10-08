@@ -12,8 +12,11 @@
 # (CLAUDE.md §5b). main and the application branch have unrelated histories, so the job checks out
 # feat/v11-static-site for scripts/ops/health/*. At cutover, change `ref` to the real application branch.
 #
-# W8.0: a second job, `health-production`, checks the production-prep resources (OPS_TARGETS.production:
-# RFQ Worker CPU/1102, the empty v11 production DB_OPS, the production-prep publish — report only — and Odoo).
+# W8.0: a second job, `health-production`, checks production (OPS_TARGETS.production; live on www.ahanassa.com
+# and api.ahanassa.com since the W8.1 cutover): RFQ cron liveness, RFQ Worker CPU/1102, production DB_OPS, intake,
+# the last production content publish, and Odoo. W9.1: the stale-content check ALERTs only while the GitHub variable
+# OPS_PRODUCTION_CONTENT_STALE_ALERT is "on" (the owner sets it after the first 08:00 UTC CONTENT_REBUILD AUTO
+# publish); unset = report only. Only runs whose publish job actually finalized count (scripts/ops/health).
 # It runs in environment production-v11-monitor (no reviewer, branch main, read-only monitor token only) —
 # not production-v11, whose reviewer gate would hold every 15-min run. Until that environment has the
 # monitor token it skips with a notice. It never exposes `test_force_alert` (staging-only).
@@ -117,6 +120,8 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.V11_PRODUCTION_CLOUDFLARE_MONITOR_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.V11_PRODUCTION_CLOUDFLARE_ACCOUNT_ID }}
           GITHUB_TOKEN: ${{ github.token }}
+          # W9.1: "on" turns the production stale-content ALERT on (owner: gh variable set OPS_PRODUCTION_CONTENT_STALE_ALERT --body on).
+          OPS_PRODUCTION_CONTENT_STALE_ALERT: ${{ vars.OPS_PRODUCTION_CONTENT_STALE_ALERT }}
         run: |
           set -euo pipefail
           if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
