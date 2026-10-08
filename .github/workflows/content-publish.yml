@@ -20,7 +20,7 @@
 #
 # W9.1 (owner decisions D-DAR-063 + D-SCHEDULE, 2026-10-06; RELEASE_POLICY.md §20.5): two schedules.
 #   22:47 UTC (02:17 Tehran) — unchanged: build the APP_REF tip, publish staging only.
-#   07:00 UTC (10:30 Tehran) — production content: the build checks out BASE_PRODUCTION_SHA (the latest
+#   08:00 UTC (11:30 Tehran) — production content: the build checks out BASE_PRODUCTION_SHA (the latest
 #     STABLE_100 RELEASE_SHA in the ledger on LEDGER_REF), never the branch tip, so an app-branch commit cannot
 #     turn the daily content publish into a code release. Selection: .github/scripts/v11-stable-release.mjs
 #     (resolver read from LEDGER_REF). It is "production eligible" only for a v11 release whose own static
@@ -78,9 +78,9 @@ on:
   schedule:
     # Daily 22:47 UTC = 02:17 Tehran (§7.4: outside Tehran business hours). Staging only (branch tip).
     - cron: "47 22 * * *"
-    # Daily 07:00 UTC = 10:30 Tehran (D-SCHEDULE): production content, built from BASE_PRODUCTION_SHA (§20.5).
-    # Keep this string identical to every `github.event.schedule == '0 7 * * *'` below.
-    - cron: "0 7 * * *"
+    # Daily 08:00 UTC = 11:30 Tehran (D-SCHEDULE): production content, built from BASE_PRODUCTION_SHA (§20.5).
+    # Keep this string identical to every `github.event.schedule == '0 8 * * *'` below.
+    - cron: "0 8 * * *"
 
 permissions:
   contents: read
@@ -103,7 +103,7 @@ jobs:
     outputs:
       code_sha: ${{ steps.meta.outputs.code_sha }}
       snapshot_version: ${{ steps.meta.outputs.snapshot_version }}
-      # 'true' only on the 07:00 schedule when the build checked out a v11 STABLE_100 release (§20.5).
+      # 'true' only on the 08:00 schedule when the build checked out a v11 STABLE_100 release (§20.5).
       production_eligible: ${{ steps.select.outputs.eligible == 'true' && 'true' || 'false' }}
     env:
       # Read-only use here: DB_PUBLIC editorial layer + publication state.
@@ -118,7 +118,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ env.APP_REF }}
-          fetch-depth: ${{ github.event_name == 'schedule' && github.event.schedule == '0 7 * * *' && 0 || 1 }}
+          fetch-depth: ${{ github.event_name == 'schedule' && github.event.schedule == '0 8 * * *' && 0 || 1 }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -127,7 +127,7 @@ jobs:
           cache: npm
 
       - name: Checkout the release selector (this workflow's own commit on main)
-        if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 7 * * *' }}
+        if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 8 * * *' }}
         uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
@@ -137,7 +137,7 @@ jobs:
 
       - name: "Production schedule: build BASE_PRODUCTION_SHA, not the branch tip (RELEASE_POLICY.md §20.5)"
         id: select
-        if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 7 * * *' }}
+        if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 8 * * *' }}
         shell: bash
         run: |
           set -euo pipefail

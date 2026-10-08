@@ -1,5 +1,5 @@
 // RELEASE_POLICY.md §20.5 (owner decisions D-DAR-063 + D-SCHEDULE, 2026-10-06) — the scheduled production
-// content build (07:00 UTC) builds BASE_PRODUCTION_SHA, never the application branch tip.
+// content build (08:00 UTC) builds BASE_PRODUCTION_SHA, never the application branch tip.
 //
 //   node v11-stable-release.mjs resolve --app <checkout> --ledger-ref <ref>
 //     Reads docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md AND the strict resolver lib/ci/release-ledger.ts from
