@@ -88,12 +88,17 @@ export function MobileNavDrawer({
   }, [open]);
 
   // Focus the close button on open; restore focus to the trigger on close (§55.12, §58.17).
+  // Only after a real open -> close transition: on first mount the drawer is
+  // closed too, and focusing the trigger then stole focus from the page start
+  // and the skip link on every mobile page load (W10.0 P0-2).
+  const wasOpenRef = useRef(false);
   useEffect(() => {
     if (open) {
       closeButtonRef.current?.focus();
-    } else {
+    } else if (wasOpenRef.current) {
       triggerRef.current?.focus();
     }
+    wasOpenRef.current = open;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -144,9 +149,10 @@ export function MobileNavDrawer({
         aria-label={drawerLabel}
         inert={!open}
         className={cn(
-          "bg-background fixed inset-y-0 z-50 flex w-[min(88vw,360px)] flex-col shadow-[0_0_32px_rgba(11,37,69,0.2)] transition-transform duration-200 motion-reduce:transition-none lg:hidden",
+          "bg-background fixed inset-y-0 z-50 flex w-[min(88vw,360px)] flex-col transition-[translate,visibility] duration-200 motion-reduce:transition-none lg:hidden",
           sideClass,
-          open ? "translate-x-0" : translateClosed,
+          // Closed: invisible as well as off-screen, so its shadow no longer bleeds 32px into the viewport edge (W10.0 P0-3).
+          open ? "visible translate-x-0 shadow-[0_0_32px_rgba(11,37,69,0.2)]" : cn(translateClosed, "invisible"),
         )}
       >
         <div className="border-border flex h-18 shrink-0 items-center justify-between border-b px-4">

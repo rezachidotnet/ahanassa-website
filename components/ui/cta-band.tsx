@@ -57,15 +57,15 @@ export function CtaBand({
         sizes="100vw"
         className="object-cover opacity-25"
       />
-      <div className="from-navy-800 via-navy-800/90 to-navy-800/50 absolute inset-0 bg-linear-to-r" aria-hidden="true" />
+      <div className="from-navy-800 via-navy-800/90 to-navy-800/50 absolute inset-0 bg-linear-to-r rtl:bg-linear-to-l" aria-hidden="true" />
       <div className="container-x relative grid gap-10 py-16 lg:grid-cols-12 lg:items-end lg:py-20">
         <div className="lg:col-span-7">
-          <p className="eyebrow text-copper-400 flex items-center gap-3">
+          <p className="eyebrow text-accent-on-inverse flex items-center gap-3">
             <span className="h-px w-8 bg-current" aria-hidden="true" />
             {copy.eyebrow}
           </p>
           <h2 className="mt-5 text-3xl leading-[1.1] font-bold text-white sm:text-4xl">{title ?? copy.title}</h2>
-          <p className="mt-5 max-w-xl text-base leading-relaxed text-white/60">{body ?? copy.body}</p>
+          <p className="mt-5 max-w-xl text-on-inverse-muted text-base leading-relaxed">{body ?? copy.body}</p>
         </div>
         <div className="flex flex-col gap-3 lg:col-span-5 lg:items-end">
           <ButtonLink href={localizedPath(locale, "/contact")} variant="primary" size="lg" className="group h-auto min-h-14 py-3">

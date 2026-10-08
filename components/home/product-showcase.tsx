@@ -60,7 +60,7 @@ export function ProductShowcase({ locale, items }: { locale: Locale; items: Publ
       <div className="container-x">
         <div className="flex flex-wrap items-end justify-between gap-8">
           <SectionHeading headingId={HEADING_ID} eyebrow={t.eyebrow} title={t.title} body={t.body} />
-          <Link href={localizedPath(locale, "/products")} className="group text-navy inline-flex items-center gap-2 border-b-2 border-navy pb-1.5 text-sm font-semibold">
+          <Link href={localizedPath(locale, "/products")} className="group text-navy relative inline-flex items-center gap-2 border-b-2 border-navy pb-1.5 text-sm font-semibold after:absolute after:inset-x-0 after:-top-3 after:-bottom-1 after:content-['']">
             {t.cta}
             <ArrowUpRight className="size-4 rtl:-scale-x-100 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 rtl:group-hover:-translate-x-0.5" />
           </Link>

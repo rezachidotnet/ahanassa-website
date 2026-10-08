@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "@/components/ui/link";
+import { cn } from "@/lib/utils";
 import { localizedPath, type Locale } from "@/config/locales";
 import { siteConfig } from "@/lib/metadata/site";
 import { navLinks, headerPhoneLabel } from "@/lib/content/nav";
@@ -65,6 +66,9 @@ const copy: Record<
   },
 };
 
+/** Footer links: 44px tap targets (W10.0 P1-4), white/72 muted text (>= 7:1; white/45-65 was down to 4.21:1). */
+const FOOTER_LINK = "text-on-inverse-muted inline-flex min-h-11 items-center transition-colors hover:text-white";
+
 const incotermCodes = ["FOB", "CFR", "CIF", "FCA", "DAP", "EXW"];
 
 export function SiteFooter({ locale }: { locale: Locale }) {
@@ -72,7 +76,7 @@ export function SiteFooter({ locale }: { locale: Locale }) {
   const links = navLinks[locale];
 
   return (
-    <footer aria-labelledby="site-footer-title" className="bg-navy text-white">
+    <footer aria-labelledby="site-footer-title" className="bg-navy on-inverse text-white">
       <h2 id="site-footer-title" className="sr-only">
         {t.footerTitle}
       </h2>
@@ -82,15 +86,15 @@ export function SiteFooter({ locale }: { locale: Locale }) {
             <Image src="/brand/ahan-asa-mark.jpg" alt="" aria-hidden="true" width={32} height={32} className="rounded-[var(--aa-radius-xs)]" />
             <span className="text-[15px] font-extrabold tracking-[0.06em] text-white">{siteConfig.name}</span>
           </div>
-          <p className="mt-6 max-w-xs text-sm leading-relaxed text-white/60">{t.role}</p>
-          <p className="text-copper-400 mt-4 text-sm font-medium">{siteConfig.tagline}</p>
+          <p className="mt-6 max-w-xs text-on-inverse-muted text-sm leading-relaxed">{t.role}</p>
+          <p className="text-accent-on-inverse mt-4 text-sm font-medium">{siteConfig.tagline}</p>
         </div>
 
         <nav className="lg:col-span-3" aria-label={t.productsNav}>
-          <h3 className="eyebrow text-copper-400">{t.productsNav}</h3>
-          <ul className="mt-5 space-y-3 text-sm">
+          <h3 className="eyebrow text-accent-on-inverse">{t.productsNav}</h3>
+          <ul className="mt-3 text-sm">
             <li>
-              <Link href={localizedPath(locale, "/products")} className="text-white/65 transition-colors hover:text-white">
+              <Link href={localizedPath(locale, "/products")} className={FOOTER_LINK}>
                 {t.catalogueCta}
               </Link>
             </li>
@@ -98,11 +102,11 @@ export function SiteFooter({ locale }: { locale: Locale }) {
         </nav>
 
         <nav className="lg:col-span-2" aria-label={t.companyNav}>
-          <h3 className="eyebrow text-copper-400">{t.companyNav}</h3>
-          <ul className="mt-5 space-y-3 text-sm">
+          <h3 className="eyebrow text-accent-on-inverse">{t.companyNav}</h3>
+          <ul className="mt-3 text-sm">
             {links.map((l) => (
               <li key={l.path}>
-                <Link href={localizedPath(locale, l.path)} className="text-white/65 transition-colors hover:text-white">
+                <Link href={localizedPath(locale, l.path)} className={FOOTER_LINK}>
                   {l.label}
                 </Link>
               </li>
@@ -111,25 +115,25 @@ export function SiteFooter({ locale }: { locale: Locale }) {
         </nav>
 
         <div className="lg:col-span-3">
-          <h3 className="eyebrow text-copper-400">{t.office}</h3>
+          <h3 className="eyebrow text-accent-on-inverse">{t.office}</h3>
           <a
             href={`tel:${CONTACT_PHONE_E164}`}
             dir="ltr"
             aria-label={headerPhoneLabel[locale].srLabel}
-            className="mt-5 inline-flex text-sm text-white/65 transition-colors hover:text-white"
+            className={cn(FOOTER_LINK, "mt-3 text-sm")}
           >
             {CONTACT_PHONE_E164}
           </a>
-          <address className="mt-3 space-y-1 text-sm not-italic text-white/65">
+          <address className="mt-3 space-y-1 text-on-inverse-muted text-sm not-italic">
             {t.addressLines.map((line) => (
               <p key={line}>{line}</p>
             ))}
           </address>
 
-          <h3 className="eyebrow text-copper-400 mt-8">{t.incoterms}</h3>
+          <h3 className="eyebrow text-accent-on-inverse mt-8">{t.incoterms}</h3>
           <ul className="mt-4 flex flex-wrap gap-1.5">
             {incotermCodes.map((code) => (
-              <li key={code} className="border border-white/15 px-2.5 py-1 text-[11px] font-semibold tracking-wider text-white/70">
+              <li key={code} className="text-on-inverse-muted rounded-[var(--aa-radius-tag)] border border-white/30 px-2.5 py-1 text-[11px] font-semibold tracking-wider">
                 {code}
               </li>
             ))}
@@ -138,7 +142,7 @@ export function SiteFooter({ locale }: { locale: Locale }) {
       </div>
 
       <div className="border-t border-white/10">
-        <div className="container-x flex flex-col gap-3 py-6 text-xs text-white/45 sm:flex-row sm:items-center sm:justify-between">
+        <div className="container-x flex flex-col gap-3 py-6 text-on-inverse-muted text-xs sm:flex-row sm:items-center sm:justify-between">
           <p>
             &copy; {new Date().getFullYear()} {t.rights} {siteConfig.name} ({siteConfig.legalOwner})
           </p>

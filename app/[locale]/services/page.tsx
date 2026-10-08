@@ -45,7 +45,7 @@ export default async function ServicesPage({ params }: PageProps) {
             {t.functions.map((f, i) => (
               <Reveal as="li" key={f.title} delay={i * 60}>
                 <div className="border-border bg-background hover:bg-surface h-full border-e border-b p-7 transition-colors">
-                  <span className="text-surface-2 text-3xl font-bold">{String(i + 1).padStart(2, "0")}</span>
+                  <span className="text-border-control text-3xl font-bold" aria-hidden="true">{String(i + 1).padStart(2, "0")}</span>
                   <h3 className="text-navy mt-4 text-lg font-bold">{f.title}</h3>
                   <p className="text-muted-foreground mt-3 text-sm leading-relaxed">{f.body}</p>
                 </div>
@@ -55,7 +55,7 @@ export default async function ServicesPage({ params }: PageProps) {
         </div>
       </section>
 
-      <section className="bg-navy border-border border-b py-20 lg:py-28">
+      <section className="bg-navy on-inverse border-border border-b py-20 lg:py-28">
         <div className="container-x">
           <SectionHeading invert eyebrow={process.eyebrow} title={process.title} body={process.body} />
           <ol className="mt-14 grid gap-px border-t border-s border-white/10 sm:grid-cols-2 lg:grid-cols-3">
@@ -63,10 +63,10 @@ export default async function ServicesPage({ params }: PageProps) {
               <Reveal as="li" key={step.title} delay={i * 60}>
                 <div className="h-full border-e border-b border-white/10 p-7">
                   <div className="flex items-baseline gap-4">
-                    <span className="text-3xl font-bold text-white/15">{String(i + 1).padStart(2, "0")}</span>
+                    <span className="text-3xl font-bold text-white/45" aria-hidden="true">{String(i + 1).padStart(2, "0")}</span>
                     <h3 className="text-lg font-bold text-white">{step.title}</h3>
                   </div>
-                  <p className="mt-4 text-sm leading-relaxed text-white/55">{step.activity}</p>
+                  <p className="mt-4 text-on-inverse-muted text-sm leading-relaxed">{step.activity}</p>
                 </div>
               </Reveal>
             ))}
