@@ -470,14 +470,14 @@ jobs:
   # It publishes ONLY when the CONTENT_REBUILD check (RELEASE_POLICY.md §19, lib/ci/content-rebuild-cli.ts)
   # returns AUTO (exit 0). APPROVAL_REQUIRED (3) or REFUSED (1) publish nothing: the owner then dispatches
   # target=production-prep, which runs the reviewer-gated `publish-production` job above.
-  # W9.1 (D-DAR-063 + D-SCHEDULE, RELEASE_POLICY.md §20.5): runs ONLY on the 07:00 UTC schedule (10:30 Tehran) and
+  # W9.1 (D-DAR-063 + D-SCHEDULE, RELEASE_POLICY.md §20.5): runs ONLY on the 08:00 UTC schedule (11:30 Tehran) and
   # only when the build checked out a v11 STABLE_100 release (build.outputs.production_eligible); the 22:47
   # staging schedule never reaches it. The ledger is read from LEDGER_REF (§20.4). Until the first v11
   # STABLE_100 row exists the job is skipped (the build posts a "not eligible" notice).
   publish-production-content:
     name: publish-production-content (scheduled; CONTENT_REBUILD AUTO only)
     needs: [build, publish]
-    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 7 * * *' && needs.build.outputs.production_eligible == 'true' }}
+    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 8 * * *' && needs.build.outputs.production_eligible == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production-v11-content
