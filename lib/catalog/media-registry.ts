@@ -19,6 +19,7 @@
  *
  * All 13 existing files under public/images/products/ remain completely
  * untouched by this module — it only reads their paths as string constants.
+ * (W10.3, 2026-10-09: the owner replaced sheet-plate.png with sheet-plate.jpg.)
  *
  * Mapping verified live against actual synced DB_PUBLIC classification
  * codes (2026-09-03, local D1, `SELECT DISTINCT family_code, group_code,
@@ -59,7 +60,8 @@ const TEMPLATE_XID_IMAGE_OVERRIDES: Record<string, string> = {};
 /** Verified-live group codes only — see file header. */
 const GROUP_DEFAULT_IMAGES: Record<string, string> = {
   REBAR: `${PRODUCTS_DIR}/rebar.png`,
-  SHEET_PLATE: `${PRODUCTS_DIR}/sheet-plate.png`,
+  // sheet-plate.jpg replaced the deleted sheet-plate.png (owner, W10.3, 2026-10-09) — same photo as the SHEET_PLATE category card.
+  SHEET_PLATE: `${PRODUCTS_DIR}/sheet-plate.jpg`,
   BEAMS: `${PRODUCTS_DIR}/beams.png`,
   SEAMLESS_PIPE: `${PRODUCTS_DIR}/pipe.png`,
 };
@@ -88,7 +90,8 @@ const CATEGORY_IMAGES: Record<string, string> = {
   ANGLE: `${PRODUCTS_DIR}/angle inventory.jpg`,
   CHANNEL: `${PRODUCTS_DIR}/u channel.jpg`,
   BOX_SECTION: `${PRODUCTS_DIR}/box-shs.jpg`,
-  SHEET_PLATE: `${PRODUCTS_DIR}/sheet-plate.png`,
+  // Owner-supplied photo, 2026-10-09 (W10.3): 1200×900 (4:3, centre crop) JPEG q80, like steel-pipe.jpg.
+  SHEET_PLATE: `${PRODUCTS_DIR}/sheet-plate.jpg`,
   PIPE: `${PRODUCTS_DIR}/steel-pipe.jpg`,
 };
 

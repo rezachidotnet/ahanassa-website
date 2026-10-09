@@ -192,7 +192,7 @@ const EXPECTED_IMAGES: Record<string, string> = {
   ANGLE: "/images/products/angle inventory.jpg",
   CHANNEL: "/images/products/u channel.jpg",
   BOX_SECTION: "/images/products/box-shs.jpg",
-  SHEET_PLATE: "/images/products/sheet-plate.png",
+  SHEET_PLATE: "/images/products/sheet-plate.jpg",
   PIPE: "/images/products/steel-pipe.jpg",
 };
 
@@ -210,7 +210,8 @@ test("PIPE uses steel-pipe.jpg and BOX_SECTION uses box-shs.jpg — never pipe.p
   for (const code of ODOO_ORDER) {
     const { path } = resolveCategoryMedia(code);
     assert.ok(!path.endsWith("steel-placeholder.svg"), `${code} must not use the placeholder on a successful response`);
-    for (const rejected of ["pipe.png", "beams.png", "u-channel.png", "sheet and plate.jpg"]) {
+    // sheet-plate.png: the old SHEET_PLATE photo, replaced by sheet-plate.jpg and deleted (owner, W10.3, 2026-10-09).
+    for (const rejected of ["pipe.png", "beams.png", "u-channel.png", "sheet-plate.png"]) {
       assert.ok(!path.endsWith(`/${rejected}`), `${code} must not use ${rejected}`);
     }
   }
