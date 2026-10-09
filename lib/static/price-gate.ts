@@ -1,28 +1,34 @@
-import { PUBLISHED_PRICE_COLUMNS, type PublishedPriceRow } from "../contracts/snapshot-prices.ts";
+import { irrToToman, PUBLISHED_PRICE_COLUMNS, type PublishedPriceRow } from "../contracts/snapshot-prices.ts";
 import { PRICE_BLOCK_COPY } from "../pricing/price-block-presentation.ts";
-import { allowedPriceTexts, PRICE_BLOCK_ATTRIBUTE, PRICE_BLOCK_ON_REQUEST, PRICE_CELL_ATTRIBUTE, PRICE_COLUMN_COPY, renderedAmount } from "../pricing/product-page-price.ts";
-import { fileLocale } from "./leak-scan.ts";
+import { allowedPriceTexts, AR_PRICE_COPY, PRICE_BLOCK_ATTRIBUTE, PRICE_BLOCK_ON_REQUEST, PRICE_CELL_ATTRIBUTE, PRICE_COLUMN_COPY, priceDateLabel, renderedAmount, type PriceLocale } from "../pricing/product-page-price.ts";
+import { CALCULATOR_PRICE_PAGES, fileLocale } from "./leak-scan.ts";
 
 /**
  * W9.4 price gate — the price half of the publication gate, run by the artifact gate on every
- * artifact (lib/static/artifact-gate.ts). Pure. Owner decisions D-PRICE-DISPLAY / D-PRICE-AGE / D-W10-4.
+ * artifact (lib/static/artifact-gate.ts). Pure. Owner decisions D-PRICE-DISPLAY / D-PRICE-AGE / D-W10-4,
+ * and the decision change of 2026-10-09 (fa full, ar price only, en nothing).
  *
  * 1. Private snapshot: `published_prices` rows carry exactly PUBLISHED_PRICE_COLUMNS (the rendered
  *    fields) — any other field fails, even though the snapshot schema already refuses it.
- * 2. Persian pages: the text inside every price element (`data-aa-price-cell` / `data-aa-price-block`)
- *    is exactly the allow-listed, rendered fields of THAT variant's snapshot row (amount in Toman,
- *    factory, delivery location, date, change) plus the fixed copy — anything else fails. An element
- *    for a variant without a price may show only the fixed copy («استعلام قیمت», the CTA). A rendered
- *    amount outside a price element fails.
- * 3. en/ar pages and every other public file of those locales: no price at all — no price element,
- *    no price copy, no amount, no factory or delivery-location name.
+ * 2. fa pages: the text inside every price element (`data-aa-price-cell` / `data-aa-price-block`) is
+ *    exactly the allow-listed, rendered fields of THAT variant's snapshot row (amount in Toman, factory,
+ *    delivery location, date, change) plus the fixed copy. A rendered amount outside a price element fails.
+ * 3. ar pages: price cells only (no PriceBlock); their text is the amount + date label + the ar copy, and
+ *    nothing of the fa-only fields appears anywhere in an ar file: no factory, no delivery location, no
+ *    price timestamp, no Persian price copy or Persian-digit amount.
+ * 4. en files: no price at all — no price element, no price copy, no amount, no factory/location, no
+ *    calculator price map (`tomanPerKg`).
+ * 5. The weight calculator's client price map (fa/ar calculator pages only; the leak scan refuses
+ *    `tomanPerKg` everywhere else): every entry is a known priced variant, with exactly the allowed keys
+ *    for its locale (fa: tomanPerKg, datetime, dateLabel; ar: tomanPerKg, dateLabel) and values equal to
+ *    the snapshot row's.
  *
- * The pricing-API field names and factory codes are refused in every public file by the leak scan
- * (lib/static/leak-scan.ts, kind `pricing_field`); JSON-LD offers/price by the publication gate.
+ * The pricing-API field names, source-like keys and factory codes are refused in every public file by the
+ * leak scan (lib/static/leak-scan.ts, kind `pricing_field`); JSON-LD offers/price by the publication gate.
  */
 export interface PriceFinding {
   file: string;
-  kind: "price_field_not_allowed" | "price_text_not_allowed" | "price_unknown_variant" | "price_outside_markup" | "price_on_non_persian_page";
+  kind: "price_field_not_allowed" | "price_text_not_allowed" | "price_unknown_variant" | "price_outside_markup" | "price_on_en_page" | "price_fa_field_on_ar_page" | "calculator_price_not_allowed";
   match: string;
 }
 
@@ -108,25 +114,72 @@ export function residue(text: string, allowed: readonly string[]): string {
 
 const PAGE_H1 = /<h1\b[^>]*>([\s\S]*?)<\/h1>/i;
 
-/** Copy that only a price element shows; on en/ar it must never appear. */
-const PRICE_ONLY_COPY = [PRICE_BLOCK_COPY.unit, PRICE_BLOCK_COPY.vat, PRICE_BLOCK_COPY.askToday, PRICE_BLOCK_COPY.missing, PRICE_COLUMN_COPY.note, `${PRICE_BLOCK_COPY.title} `];
+/** Persian copy that only a fa price element shows; never on ar or en. */
+const FA_PRICE_COPY = [PRICE_BLOCK_COPY.unit, PRICE_BLOCK_COPY.vat, PRICE_BLOCK_COPY.askToday, PRICE_BLOCK_COPY.missing, PRICE_COLUMN_COPY.fa.note, `${PRICE_BLOCK_COPY.title} `];
+/** Arabic copy of the ar price cells; never on en. */
+const AR_COPY = Object.values(AR_PRICE_COPY);
+
+/** Calculator price-map entries (`"CVAR-…":{…tomanPerKg…}`), plain or escaped inside the RSC payload string. */
+const CALCULATOR_ENTRY = /\\?"(CVAR-[A-Za-z0-9-]+)\\?":(\{[^{}]*?tomanPerKg[^{}]*\})/g;
+const CALCULATOR_KEYS: Record<PriceLocale, string[]> = { fa: ["dateLabel", "datetime", "tomanPerKg"], ar: ["dateLabel", "tomanPerKg"] };
+
+function parseEntry(raw: string): Record<string, unknown> | null {
+  for (const text of [raw, raw.replace(/\\"/g, '"')]) {
+    try {
+      const v = JSON.parse(text);
+      if (v && typeof v === "object") return v as Record<string, unknown>;
+    } catch {}
+  }
+  return null;
+}
+
+export function scanCalculatorPrices(path: string, content: string, locale: PriceLocale, byVariant: ReadonlyMap<string, PublishedPriceRow>): PriceFinding[] {
+  const findings: PriceFinding[] = [];
+  const entries = [...content.matchAll(CALCULATOR_ENTRY)];
+  const total = content.split("tomanPerKg").length - 1;
+  if (total !== entries.length) findings.push({ file: path, kind: "calculator_price_not_allowed", match: `${total} tomanPerKg, only ${entries.length} in the allowed {variant: price} shape` });
+  for (const m of entries) {
+    const xid = m[1];
+    const entry = parseEntry(m[2]);
+    const row = byVariant.get(xid);
+    if (!entry || !row) {
+      findings.push({ file: path, kind: "calculator_price_not_allowed", match: `${xid}: ${row ? "unparseable entry" : "no published price"}` });
+      continue;
+    }
+    const keys = Object.keys(entry).sort();
+    if (keys.join(",") !== CALCULATOR_KEYS[locale].join(",")) findings.push({ file: path, kind: "calculator_price_not_allowed", match: `${xid}: keys ${keys.join(",")}` });
+    const expected: Record<string, unknown> = { tomanPerKg: irrToToman(row.price_irr_per_kg), dateLabel: priceDateLabel(locale, row.published_at) };
+    if (locale === "fa") expected.datetime = new Date(row.published_at).toISOString();
+    for (const [k, v] of Object.entries(entry)) if (k in expected && expected[k] !== v) findings.push({ file: path, kind: "calculator_price_not_allowed", match: `${xid}.${k}=${JSON.stringify(v)} (snapshot: ${JSON.stringify(expected[k])})` });
+  }
+  return findings;
+}
 
 export function scanPrices(files: ReadonlyArray<{ path: string; content: string }>, input: PriceGateInput): PriceFinding[] {
   const findings: PriceFinding[] = [...input.findings];
   const byVariant = new Map(input.rows.map((r) => [r.canonical_variant_id, r]));
-  const amounts = [...new Set(input.rows.map(renderedAmount))];
+  const amounts = { fa: [...new Set(input.rows.map((r) => renderedAmount(r, "fa")))], ar: [...new Set(input.rows.map((r) => renderedAmount(r, "ar")))] };
   const names = [...new Set(input.rows.flatMap((r) => [r.factory_name_fa, r.location_fa]))];
+  const times = [...new Set(input.rows.flatMap((r) => [r.published_at, new Date(r.published_at).toISOString()]))];
 
   for (const { path, content } of files) {
     const locale = fileLocale(path);
-    if (locale === "en" || locale === "ar") {
-      // 3. No price on en/ar — in the HTML, the RSC payload and any locale JSON.
-      if (content.includes("data-aa-price")) findings.push({ file: path, kind: "price_on_non_persian_page", match: "data-aa-price" });
-      for (const s of [...PRICE_ONLY_COPY, ...amounts, ...names]) if (content.includes(s)) findings.push({ file: path, kind: "price_on_non_persian_page", match: s.trim() });
+    if (locale === "en") {
+      // 4. No price on en — in the HTML, the RSC payload and any locale JSON.
+      const forbidden = ["data-aa-price", "tomanPerKg", ...FA_PRICE_COPY, ...AR_COPY, ...amounts.fa, ...amounts.ar, ...names];
+      for (const s of forbidden) if (content.includes(s)) findings.push({ file: path, kind: "price_on_en_page", match: s.trim() });
       continue;
     }
+    if (locale === "ar") {
+      // 3. ar is price only: none of the fa-only fields, anywhere in the file (HTML and payload).
+      const forbidden = [PRICE_BLOCK_ATTRIBUTE, ...FA_PRICE_COPY, ...amounts.fa, ...names, ...times];
+      for (const s of forbidden) if (content.includes(s)) findings.push({ file: path, kind: "price_fa_field_on_ar_page", match: s.trim() });
+    }
+    if (locale !== "fa" && locale !== "ar") continue;
+    // 5. The calculator's price map (fa/ar calculator pages only; elsewhere the leak scan refuses it).
+    if (CALCULATOR_PRICE_PAGES.includes(path)) findings.push(...scanCalculatorPrices(path, content, locale, byVariant));
     if (!path.endsWith(".html")) continue;
-    // 2. Persian pages: allow-listed text inside every price element, no amount outside one.
+    // 2./3. Allow-listed text inside every price element, no amount outside one.
     const elements = priceElements(content);
     const h1 = visibleText(PAGE_H1.exec(content)?.[1] ?? "");
     let outside = "";
@@ -143,13 +196,13 @@ export function scanPrices(files: ReadonlyArray<{ path: string; content: string 
       }
       const row = variant ? (byVariant.get(variant.xid) ?? null) : null;
       if (el.attribute === PRICE_BLOCK_ATTRIBUTE && variant && !row) findings.push({ file: path, kind: "price_unknown_variant", match: `${el.attribute}="${el.value}" has no published price` });
-      const productName = el.attribute === PRICE_BLOCK_ATTRIBUTE ? (variant ? `${h1} ${variant.size}` : h1) : undefined;
-      const left = residue(visibleText(el.html), allowedPriceTexts(row, productName));
+      const productName = locale === "fa" && el.attribute === PRICE_BLOCK_ATTRIBUTE ? (variant ? `${h1} ${variant.size}` : h1) : undefined;
+      const left = residue(visibleText(el.html), allowedPriceTexts(row, locale, productName));
       if (left) findings.push({ file: path, kind: "price_text_not_allowed", match: `${el.attribute}="${el.value}": ${left.slice(0, 120)}` });
     }
     outside += content.slice(cursor);
     const outsideText = visibleText(outside);
-    for (const a of amounts) if (outsideText.includes(a)) findings.push({ file: path, kind: "price_outside_markup", match: a });
+    for (const a of amounts[locale]) if (outsideText.includes(a)) findings.push({ file: path, kind: "price_outside_markup", match: a });
   }
   return findings;
 }

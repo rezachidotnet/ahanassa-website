@@ -6,7 +6,10 @@ import { getPublishedCatalogTemplateBySlug, listPublishedCatalogTemplates } from
 import { NOMINAL_WEIGHT_DISCLAIMER } from "@/lib/catalog/specification-presenter";
 import { buildCalculatorProducts } from "@/lib/weight-calculator/model";
 import { BASIS_LINES, BASIS_STANDARDS, WEIGHT_CALCULATOR_COPY } from "@/lib/weight-calculator/copy";
-import { toCalculatorPrices } from "@/lib/weight-calculator/price";
+import { toCalculatorPrices, type CalculatorPrices } from "@/lib/weight-calculator/price";
+import { listProductPagePrices } from "@/lib/pricing/product-page-price-repository";
+import { isPriceLocale } from "@/lib/pricing/product-page-price";
+import type { CalculatorProduct } from "@/lib/weight-calculator/model";
 import { WEIGHT_CALCULATOR_LOCALES, WEIGHT_CALCULATOR_ROUTE } from "@/lib/weight-calculator/publication";
 import { PageHero } from "@/components/ui/page-hero";
 import { cardVariants } from "@/components/ui/surface-variants";
@@ -37,6 +40,26 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 /**
+ * W9.4: the optional cost estimate («برآورد هزینه» / «تقدير التكلفة»). The build-time price map of the
+ * calculator's own variants (variant xid → price), fa and ar only; en gets none (owner decision change
+ * 2026-10-09). The map is a client prop, so it travels in the Flight payload: only the variant id,
+ * tomanPerKg and the date label (+ the ISO time on fa), checked against the snapshot by the price gate.
+ *
+ * r4 isolation (as ProductSpecs, TargetEnquiryForm, NotFoundContent): this async boundary always suspends
+ * once, so the calculator and its price map get their own Flight row, away from the page row that carries
+ * the target-specific robots value.
+ */
+async function PricedWeightCalculator({ locale, products }: { locale: Locale; products: CalculatorProduct[] }) {
+  await Promise.resolve();
+  let prices: CalculatorPrices | undefined;
+  if (isPriceLocale(locale)) {
+    const map = await listProductPagePrices(products.flatMap((p) => p.variants.map((v) => v.xid)));
+    prices = toCalculatorPrices(locale, map ? Object.fromEntries(map) : null);
+  }
+  return <WeightCalculator locale={locale} products={products} prices={prices} />;
+}
+
+/**
  * Steel weight / conversion calculator (W10.1, owner decision D-W10-5).
  *
  * The sizes and their nominal weights come from the same published-template
@@ -58,18 +81,13 @@ export default async function WeightCalculatorPage({ params }: PageProps) {
     details.flatMap((entry) => (entry ? [{ templateXid: entry.product.templateXid, label: entry.seo.h1 ?? entry.product.commercialTemplateName, variants: entry.variants }] : [])),
   );
 
-  // Optional cost estimate (fa only): W9.4 passes its build-time price map
-  // (variant xid → price, the D-W10-4 price type) here. Until then there is none and the
-  // calculator renders no cost row.
-  const prices = toCalculatorPrices(locale, null);
-
   return (
     <>
       <PageHero locale={locale} eyebrow={t.eyebrow} title={t.title} body={t.body} breadcrumb={[{ path: WEIGHT_CALCULATOR_ROUTE, label: t.eyebrow }]} />
 
       <section className="border-border bg-background border-b section-y">
         <div className="container-x">
-          <WeightCalculator locale={locale} products={products} prices={prices} />
+          <PricedWeightCalculator locale={locale} products={products} />
         </div>
       </section>
 

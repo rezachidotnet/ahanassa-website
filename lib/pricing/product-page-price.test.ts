@@ -4,7 +4,8 @@ import { readFileSync, readdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { allowedPriceTexts, firstPricedVariant, presentPriceCell, priceBlockDataFromRow, PRICE_COLUMN_COPY } from "./product-page-price.ts";
+import { allowedPriceTexts, AR_PRICE_COPY, firstPricedVariant, presentPriceCell, priceBlockDataFromRow, PRICE_COLUMN_COPY } from "./product-page-price.ts";
+import { toCalculatorPrices } from "../weight-calculator/price.ts";
 import { presentPriceBlock } from "./price-block-presentation.ts";
 import { irrToToman, publishedPriceRow, PUBLISHED_PRICES_BUILD_DDL, type PublishedPriceRow } from "../contracts/snapshot-prices.ts";
 import { snapshotV1 } from "../contracts/snapshot-v1.ts";
@@ -33,13 +34,20 @@ test("row -> PriceBlockData: Toman = IRR ÷ 10, factory, location, time, previou
   assert.ok(v?.kind === "price" && v.amount === "۴۸٬۹۴۷" && v.change?.direction === "down");
 });
 
-test("cell: fa shows amount + compact factory/location + date; a variant without a price shows «استعلام قیمت»; en/ar show nothing", () => {
+test("cell: fa shows amount + compact factory/location + date; ar shows amount + date only; unpriced -> «استعلام قیمت» / «السعر عند الطلب»; en nothing", () => {
   const cell = presentPriceCell("fa", priceBlockDataFromRow(ROW));
   assert.deepEqual(cell, { kind: "price", amount: "۴۸٬۹۴۷", place: "کارخانه آزمایشی الف، درب کارخانه", datetime: "2026-10-08T07:20:00.000Z", dateLabel: "۱۶ مهر ۱۴۰۵" });
   assert.deepEqual(presentPriceCell("fa", undefined), { kind: "missing", label: "استعلام قیمت" });
   assert.equal(presentPriceCell("en", priceBlockDataFromRow(ROW)), null);
-  assert.equal(presentPriceCell("ar", undefined), null);
-  assert.equal(PRICE_COLUMN_COPY.header, "قیمت روز");
+  assert.equal(presentPriceCell("en", undefined), null);
+  // ar (owner decision change 2026-10-09): price only — no factory, no location, no timestamp.
+  assert.deepEqual(presentPriceCell("ar", priceBlockDataFromRow(ROW)), { kind: "price", amount: "٤٨٬٩٤٧", place: null, datetime: null, dateLabel: "٨ أكتوبر ٢٠٢٦" });
+  assert.deepEqual(presentPriceCell("ar", undefined), { kind: "missing", label: "السعر عند الطلب" });
+  assert.equal(PRICE_COLUMN_COPY.fa.header, "قیمت روز");
+  assert.deepEqual(AR_PRICE_COPY, { header: "سعر اليوم", unit: "تومان/كغ", vat: "شامل ضريبة القيمة المضافة", missing: "السعر عند الطلب" });
+  // ar copy and values in Arabic letters/digits only: the leak scan flags Persian-only letters (پ چ ژ گ ک ی) and digits on ar.
+  for (const text of [...Object.values(AR_PRICE_COPY), ...allowedPriceTexts(ROW, "ar")]) assert.ok(!/[پچژگکی۰-۹]/.test(text), text);
+  assert.ok(!allowedPriceTexts(ROW, "ar").some((x) => x.includes("کارخانه") || x.includes("درب")), "no factory or location on ar");
 });
 
 test("the main priced variant is the first priced one in table order; none -> null (missing-price block)", () => {
@@ -49,7 +57,7 @@ test("the main priced variant is the first priced one in table order; none -> nu
 });
 
 test("no fake urgency: no price copy or allowed text uses urgency wording", () => {
-  const texts = [...allowedPriceTexts(ROW, "میلگرد"), ...Object.values(PRICE_COLUMN_COPY)].join(" ");
+  const texts = [...allowedPriceTexts(ROW, "fa", "میلگرد"), ...allowedPriceTexts(ROW, "ar"), ...Object.values(PRICE_COLUMN_COPY).flatMap((c) => Object.values(c))].join(" ");
   assert.ok(!/فقط امروز|محدود|آخرین|فوری|عجله|تخفیف|limited|hurry|last chance/i.test(texts), texts);
 });
 
@@ -96,15 +104,30 @@ test("page wiring: fa-only price block + column inside an always-suspending asyn
   const page = code("app/[locale]/products/[slug]/page.tsx");
   assert.match(page, /async function ProductSpecs\([^)]*\) \{\s*await Promise\.resolve\(\);/);
   assert.match(page, /<ProductSpecs locale=\{locale\}/);
-  assert.match(page, /const prices = locale === "fa" \? await listProductPagePrices\(/);
+  assert.match(page, /const prices = isPriceLocale\(locale\) \? await listProductPagePrices\(/);
+  assert.match(page, /\{prices && locale === "fa" && \(/, "the PriceBlock (factory, location) is fa only");
   assert.ok(!/offers|priceCurrency/.test(page.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "")), "no JSON-LD offers");
   const table = code("components/products/variant-spec-table.tsx");
-  // Owner 2026-10-09: the column is hidden unless at least one variant has a price, and it follows the size column.
-  assert.match(table, /const showPrices = locale === "fa" && Boolean\(prices\) && variants\.some\(\(v\) => prices!\.has\(v\.xid\)\);/);
+  // Owner 2026-10-09: fa and ar (not en); hidden unless at least one variant has a price; right after the size column.
+  assert.match(table, /const priceCopy = isPriceLocale\(locale\) \? PRICE_COLUMN_COPY\[locale\] : null;/);
+  assert.match(table, /const showPrices = priceCopy !== null && Boolean\(prices\) && variants\.some\(\(v\) => prices!\.has\(v\.xid\)\);/);
   const head = table.slice(table.indexOf("<thead>"), table.indexOf("</thead>"));
-  assert.ok(head.indexOf("{t.size}") < head.indexOf("PRICE_COLUMN_COPY.header") && head.indexOf("PRICE_COLUMN_COPY.header") < head.indexOf("dimensionColumns.map"), "price header right after the size header");
+  assert.ok(head.indexOf("{t.size}") < head.indexOf("priceCopy?.header") && head.indexOf("priceCopy?.header") < head.indexOf("dimensionColumns.map"), "price header right after the size header");
   const body = table.slice(table.indexOf("<tbody>"), table.indexOf("</tbody>"));
   assert.ok(body.indexOf("</th>") < body.indexOf("<PriceCell") && body.indexOf("<PriceCell") < body.indexOf("dimensionColumns.map"), "price cell right after the size cell");
   const repo = code("lib/pricing/product-page-price-repository.ts");
   assert.match(repo, /if \(!isStaticExportBuild\(\)\) return null;/, "prices exist only in the static build");
+});
+
+test("calculator price map: fa {tomanPerKg, datetime, dateLabel}; ar {tomanPerKg, dateLabel} only; en none", () => {
+  const map = { "CVAR-000031": priceBlockDataFromRow(ROW) };
+  assert.deepEqual(toCalculatorPrices("fa", map), { "CVAR-000031": { tomanPerKg: 48947, datetime: "2026-10-08T07:20:00.000Z", dateLabel: "۱۶ مهر ۱۴۰۵" } });
+  assert.deepEqual(toCalculatorPrices("ar", map), { "CVAR-000031": { tomanPerKg: 48947, dateLabel: "٨ أكتوبر ٢٠٢٦" } });
+  assert.equal(toCalculatorPrices("en", map), undefined);
+  const page = code("app/[locale]/tools/weight-calculator/page.tsx");
+  assert.match(page, /async function PricedWeightCalculator\([^)]*\) \{\s*await Promise\.resolve\(\);/, "own Flight row (r4)");
+  assert.match(page, /if \(isPriceLocale\(locale\)\) \{/);
+  assert.ok(!/toCalculatorPrices\(locale, null\)/.test(page), "wired to the build-time price map");
+  assert.match(code("lib/weight-calculator/price.ts"), /from "\.\.\/pricing\/price-locale\.ts"/, "the client bundle never imports the zod snapshot contract");
+  assert.ok(!/^import .*(snapshot-prices|zod)/m.test(code("lib/pricing/price-locale.ts")), "price-locale imports neither zod nor the snapshot contract");
 });

@@ -44,7 +44,16 @@ export const PRICING_FIELD_KEYS = [
   "price_irr_per_kg", "price_on_request", "published_at_utc", "updated_at_utc", "basis_note", "vat_included", "price_at_window_start",
   "factory_name_fa", "location_fa", "previous_price_irr_per_kg", "previous_published_at",
   "tomanPerKg", "previousTomanPerKg", "pricedAt", "previousPricedAt", "factoryName", "deliveryLocation",
+  // Source-like keys: the pricing API never serves a source; a key like these in a public file is a leak.
+  "source_code", "source_name", "source_url", "source_id", "market_source", "observations",
 ] as const;
+/**
+ * The ONE exception (owner decision change 2026-10-09): the fa and ar weight-calculator pages carry the
+ * calculator's client price map, whose entries hold `tomanPerKg` (+ the date label, + the ISO time on fa).
+ * Only `tomanPerKg` is exempt, only in these files; lib/static/price-gate.ts checks every entry against
+ * the snapshot. en never: its calculator page (if published) and every other file still refuse it.
+ */
+export const CALCULATOR_PRICE_PAGES: readonly string[] = ["tools/weight-calculator.html", "ar/tools/weight-calculator.html"];
 const PRICING_KEYS = new RegExp(`\\\\?"(${PRICING_FIELD_KEYS.join("|")})\\\\?"\\s*:`, "g");
 /** Odoo factory codes (pricing API `factory.code`): read by the pipeline, never stored or rendered. */
 const FACTORY_CODE = /\bFAC-\d{2,}\b/g;
@@ -84,7 +93,7 @@ export function scanPublicFile(path: string, content: string, companyPhones: rea
   const findings: LeakFinding[] = [];
   const isVendorJs = path.includes("/_next/") || path.startsWith("_next/");
   for (const m of content.matchAll(FORBIDDEN_KEYS)) findings.push({ file: path, kind: "forbidden_field", match: m[1] });
-  for (const m of content.matchAll(PRICING_KEYS)) findings.push({ file: path, kind: "pricing_field", match: m[1] });
+  for (const m of content.matchAll(PRICING_KEYS)) if (!(m[1] === "tomanPerKg" && CALCULATOR_PRICE_PAGES.includes(path))) findings.push({ file: path, kind: "pricing_field", match: m[1] });
   for (const m of content.matchAll(FACTORY_CODE)) findings.push({ file: path, kind: "pricing_field", match: m[0] });
   if (path.endsWith(".json")) for (const m of content.matchAll(SERVER_ONLY_PUBLIC_JSON_KEYS)) findings.push({ file: path, kind: "server_only_field", match: m[1] });
   if (!isVendorJs) {

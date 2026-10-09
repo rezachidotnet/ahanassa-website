@@ -1,12 +1,15 @@
-import { formatPersianDate, presentPriceBlock, type PriceBlockData } from "../pricing/price-block-presentation.ts";
+import { presentPriceBlock, type PriceBlockData } from "../pricing/price-block-presentation.ts";
+import { isPriceLocale, priceDateLabel, type PriceLocale } from "../pricing/price-locale.ts";
 import { roundToThousand } from "./format.ts";
 
 /**
- * Optional cost estimate (W10.1 scope 5) — Persian page only, and only for
- * a variant whose price is in the build data. The price data arrives with
- * W9.4; until then the page passes no prices and the row is not rendered at
- * all. Written against the existing `PriceBlockData` type (D-W10-4), so the
- * W9.4 wiring is a single prop on the page.
+ * Optional cost estimate (W10.1 scope 5), wired in W9.4 — only for a variant
+ * whose price is in the build data. fa and ar (owner decision change
+ * 2026-10-09); en never gets a price. The calculator is a client component,
+ * so this map travels in the Flight payload: it carries ONLY the variant id,
+ * `tomanPerKg` and the date label — plus, on fa, the ISO time for
+ * `<time datetime>`. Never the factory, the location or any source (the
+ * publication gate checks every entry against the snapshot).
  *
  * The date label is formatted here, on the server (build), and travels as a
  * string: `Intl` date output differs between the build runtime and the
@@ -14,9 +17,9 @@ import { roundToThousand } from "./format.ts";
  */
 export interface CalculatorPrice {
   tomanPerKg: number;
-  /** ISO 8601, for <time datetime>. */
-  datetime: string;
-  /** «۱۵ مهر ۱۴۰۵» (Persian calendar, Tehran). */
+  /** ISO 8601, for <time datetime> — fa only (the ar payload carries no timestamp). */
+  datetime?: string;
+  /** fa «۱۵ مهر ۱۴۰۵» (Persian calendar, Tehran); ar «٨ أكتوبر ٢٠٢٦». */
   dateLabel: string;
 }
 
@@ -24,18 +27,19 @@ export interface CalculatorPrice {
 export type CalculatorPrices = Readonly<Record<string, CalculatorPrice>>;
 
 /** Same validity rules as the product-page price block: an invalid or incomplete price gives no estimate (never a 0/NaN amount). */
-export function toCalculatorPrice(data: PriceBlockData | null | undefined): CalculatorPrice | null {
+export function toCalculatorPrice(data: PriceBlockData | null | undefined, locale: PriceLocale = "fa"): CalculatorPrice | null {
   const view = presentPriceBlock("fa", data);
   if (!data || !view || view.kind !== "price") return null;
-  return { tomanPerKg: data.tomanPerKg, datetime: view.datetime, dateLabel: formatPersianDate(new Date(view.datetime)) };
+  const dateLabel = priceDateLabel(locale, view.datetime);
+  return locale === "fa" ? { tomanPerKg: data.tomanPerKg, datetime: view.datetime, dateLabel } : { tomanPerKg: data.tomanPerKg, dateLabel };
 }
 
-/** Prices for the calculator from the build data; anything invalid is dropped. Persian page only — other locales get none. */
+/** Prices for the calculator from the build data; anything invalid is dropped. fa and ar only — en gets none. */
 export function toCalculatorPrices(locale: string, prices: Readonly<Record<string, PriceBlockData>> | null | undefined): CalculatorPrices | undefined {
-  if (locale !== "fa" || !prices) return undefined;
+  if (!isPriceLocale(locale) || !prices) return undefined;
   const out: Record<string, CalculatorPrice> = {};
   for (const [xid, data] of Object.entries(prices)) {
-    const price = toCalculatorPrice(data);
+    const price = toCalculatorPrice(data, locale);
     if (price) out[xid] = price;
   }
   return Object.keys(out).length ? out : undefined;

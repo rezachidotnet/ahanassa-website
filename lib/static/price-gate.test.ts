@@ -4,7 +4,7 @@ import { priceGateInput, priceElements, residue, scanPrices } from "./price-gate
 import { scanPublicFile } from "./leak-scan.ts";
 import { scanPublication } from "./publication-gate.ts";
 import { PRICE_BLOCK_COPY, presentPriceBlock } from "../pricing/price-block-presentation.ts";
-import { presentPriceCell, priceBlockDataFromRow, PRICE_COLUMN_COPY } from "../pricing/product-page-price.ts";
+import { AR_PRICE_COPY, presentPriceCell, priceBlockDataFromRow, PRICE_COLUMN_COPY } from "../pricing/product-page-price.ts";
 import type { PublishedPriceRow } from "../contracts/snapshot-prices.ts";
 
 /** W9.4 price gate. SYNTHETIC rows only (no real price, factory or market source). */
@@ -44,7 +44,7 @@ function cell(xid: string, row: PublishedPriceRow | null): string {
   return `<td data-aa-price-cell="${xid}" class="x">${v.kind === "missing" ? `<span>${v.label}</span>` : `<span>${v.amount}</span><span>${v.place}</span><time dateTime="${v.datetime}">${v.dateLabel}</time>`}</td>`;
 }
 
-const page = (inner: string) => `<html><body><h1 class="t">IPE Beam</h1>${inner}<p>${PRICE_COLUMN_COPY.note}</p><script>self.__next_f.push([1,"\\"data-aa-price-cell\\":\\"CVAR-000053\\""])</script></body></html>`;
+const page = (inner: string) => `<html><body><h1 class="t">IPE Beam</h1>${inner}<p>${PRICE_COLUMN_COPY.fa.note}</p><script>self.__next_f.push([1,"\\"data-aa-price-cell\\":\\"CVAR-000053\\""])</script></body></html>`;
 const CLEAN = page(`${block(ROW, "قیمت روز IPE Beam IPE 120")}<table><tr><th>IPE 100</th>${cell("CVAR-000052", null)}</tr><tr><th>IPE 120</th>${cell("CVAR-000053", ROW)}</tr></table>`);
 const scan = (files: { path: string; content: string }[], snapshot: unknown = SNAPSHOT) => scanPrices(files, priceGateInput(snapshot));
 const kinds = (files: { path: string; content: string }[], snapshot?: unknown) => scan(files, snapshot).map((f) => `${f.kind}:${f.match}`);
@@ -78,16 +78,52 @@ test("unknown variant, a block for an unpriced variant, and an amount outside th
   assert.ok(kinds([{ path: "products/ipe-beam.html", content: outside }]).includes("price_outside_markup:۵۵٬۲۰۰"));
 });
 
-test("fa only: en/ar pages and locale JSON carry no price markup, copy, amount, factory or location", () => {
-  const offenders = ['<td data-aa-price-cell="CVAR-000053">', PRICE_BLOCK_COPY.unit, PRICE_BLOCK_COPY.missing, PRICE_BLOCK_COPY.askToday, "۵۵٬۲۰۰", "کارخانه آزمایشی ج", "انبار تهران", '\\"data-aa-price-block\\":\\"request\\"'];
-  for (const loc of ["en", "ar"]) {
-    for (const o of offenders) {
-      const findings = kinds([{ path: `${loc}/products/ipe-beam.html`, content: `<html><h1>IPE Beam</h1><p>${o}</p></html>` }]);
-      assert.ok(findings.some((k) => k.startsWith("price_on_non_persian_page")), `${loc}: ${o}`);
-    }
-    assert.deepEqual(kinds([{ path: `${loc}/products/ipe-beam.html`, content: "<html><h1>IPE Beam</h1><table><tr><td>IPE 120</td></tr></table></html>" }]), []);
+test("en: zero price data anywhere — no markup, copy, amount (fa or ar digits), factory, location or calculator map", () => {
+  const offenders = ['<td data-aa-price-cell="CVAR-000053">', PRICE_BLOCK_COPY.unit, PRICE_BLOCK_COPY.missing, PRICE_BLOCK_COPY.askToday, "۵۵٬۲۰۰", "٥٥٬٢٠٠", "سعر اليوم", "کارخانه آزمایشی ج", "انبار تهران", '\\"data-aa-price-block\\":\\"request\\"', '{\\"CVAR-000053\\":{\\"tomanPerKg\\":55200}}'];
+  for (const o of offenders) {
+    const findings = kinds([{ path: "en/products/ipe-beam.html", content: `<html><h1>IPE Beam</h1><p>${o}</p></html>` }]);
+    assert.ok(findings.some((k) => k.startsWith("price_on_en_page")), o);
   }
-  assert.ok(kinds([{ path: "data/rfq-catalog.en.json", content: '{"label":"۵۵٬۲۰۰"}' }]).some((k) => k.startsWith("price_on_non_persian_page")));
+  assert.deepEqual(kinds([{ path: "en/products/ipe-beam.html", content: "<html><h1>IPE Beam</h1><table><tr><td>IPE 120</td></tr></table></html>" }]), []);
+  assert.ok(kinds([{ path: "data/rfq-catalog.en.json", content: '{"label":"۵۵٬۲۰۰"}' }]).some((k) => k.startsWith("price_on_en_page")));
+  assert.ok(scanPublicFile("en/tools/weight-calculator.html", '{\\"tomanPerKg\\":55200}').some((f) => f.kind === "pricing_field"), "no calculator exception on en");
+});
+
+const arCell = (xid: string, row: PublishedPriceRow | null) => {
+  const v = presentPriceCell("ar", row ? priceBlockDataFromRow(row) : null)!;
+  return `<td data-aa-price-cell="${xid}">${v.kind === "missing" ? `<span>${v.label}</span>` : `<span>${v.amount}</span><span>${v.dateLabel}</span>`}</td>`;
+};
+const AR_PAGE = `<html><body><h1>عارضة IPE</h1><table><tr><th>IPE 100</th>${arCell("CVAR-000052", null)}</tr><tr><th>IPE 120</th>${arCell("CVAR-000053", ROW)}</tr></table><p>${AR_PRICE_COPY.vat}</p></body></html>`;
+
+test("ar: price only — amount + date + VAT note pass; factory, location, timestamp, PriceBlock or Persian copy fail", () => {
+  assert.deepEqual(kinds([{ path: "ar/products/ipe-beam.html", content: AR_PAGE }]), []);
+  assert.ok(AR_PAGE.includes("٥٥٬٢٠٠") && AR_PAGE.includes("٧ أكتوبر ٢٠٢٦"), AR_PAGE);
+  const offenders = ["کارخانه آزمایشی ج", "انبار تهران", "2026-10-07T07:15:00Z", "2026-10-07T07:15:00.000Z", "۵۵٬۲۰۰", PRICE_BLOCK_COPY.unit, 'data-aa-price-block="request"'];
+  for (const o of offenders) {
+    const k = kinds([{ path: "ar/products/ipe-beam.html", content: AR_PAGE.replace("</body>", `<script>self.__next_f.push([1,"${o.replace(/"/g, '\\"')}"])</script></body>`) }]);
+    assert.ok(k.some((x) => x.startsWith("price_fa_field_on_ar_page")), `${o}: ${k.join(" | ")}`);
+  }
+  const extra = AR_PAGE.replace("<span>٧ أكتوبر ٢٠٢٦</span>", "<span>٧ أكتوبر ٢٠٢٦</span><span>مصنع</span>");
+  assert.ok(kinds([{ path: "ar/products/ipe-beam.html", content: extra }]).some((x) => x.startsWith("price_text_not_allowed")));
+  const outside = AR_PAGE.replace("<h1>عارضة IPE</h1>", "<h1>عارضة IPE</h1><p>٥٥٬٢٠٠</p>");
+  assert.ok(kinds([{ path: "ar/products/ipe-beam.html", content: outside }]).includes("price_outside_markup:٥٥٬٢٠٠"));
+});
+
+test("calculator price map: only on the fa/ar calculator pages, exactly the allowed keys per locale, values = the snapshot", () => {
+  const flight = (entry: string) => `<html><body><script>self.__next_f.push([1,"[\\"$\\",\\"$L1\\",null,{\\"prices\\":{${entry}}}]"])</script></body></html>`;
+  const fa = '\\"CVAR-000053\\":{\\"tomanPerKg\\":55200,\\"datetime\\":\\"2026-10-07T07:15:00.000Z\\",\\"dateLabel\\":\\"۱۵ مهر ۱۴۰۵\\"}';
+  const ar = '\\"CVAR-000053\\":{\\"tomanPerKg\\":55200,\\"dateLabel\\":\\"٧ أكتوبر ٢٠٢٦\\"}';
+  assert.deepEqual(kinds([{ path: "tools/weight-calculator.html", content: flight(fa) }]), []);
+  assert.deepEqual(kinds([{ path: "ar/tools/weight-calculator.html", content: flight(ar) }]), []);
+  assert.deepEqual(scanPublicFile("tools/weight-calculator.html", flight(fa)).filter((f) => f.kind === "pricing_field"), [], "leak-scan exception, calculator page only");
+  assert.deepEqual(scanPublicFile("ar/tools/weight-calculator.html", flight(ar)).filter((f) => f.kind === "pricing_field"), []);
+  assert.ok(scanPublicFile("products/ipe-beam.html", flight(fa)).some((f) => f.kind === "pricing_field"), "nowhere else");
+  const bad = (path: string, entry: string) => kinds([{ path, content: flight(entry) }]).some((k) => k.startsWith("calculator_price_not_allowed"));
+  assert.ok(bad("ar/tools/weight-calculator.html", fa), "ar carries no timestamp");
+  assert.ok(bad("ar/tools/weight-calculator.html", ar.replace("}", ',\\"factoryName\\":\\"x\\"}')), "no factory");
+  assert.ok(bad("tools/weight-calculator.html", fa.replace("55200", "55300")), "value must match the snapshot");
+  assert.ok(bad("tools/weight-calculator.html", fa.replace("CVAR-000053", "CVAR-000052")), "unpriced variant");
+  assert.ok(bad("tools/weight-calculator.html", `${fa},\\"x\\":[{\\"tomanPerKg\\":1}]`), "tomanPerKg outside the {variant: price} shape");
 });
 
 test("private snapshot: a published_prices row with any field beyond the rendered ones fails", () => {

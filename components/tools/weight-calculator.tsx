@@ -131,7 +131,8 @@ export function WeightCalculator({ locale, products, prices }: { locale: Locale;
   const { linear, variant, source, result } = computed;
   const pieceKind = linear ? "bar" : "sheet";
   const n = (value: number, decimals: number) => formatNumber(locale, value, decimals);
-  const price = locale === "fa" && variant && result ? prices?.[variant.xid] : undefined;
+  // fa and ar only (owner decision change 2026-10-09); en is never given prices.
+  const price = (locale === "fa" || locale === "ar") && variant && result ? prices?.[variant.xid] : undefined;
   const tableSizes = tableOnlySizes(product);
   const label = (field: string) => `${id}-${field}`;
 
@@ -300,7 +301,7 @@ export function WeightCalculator({ locale, products, prices }: { locale: Locale;
                   <div className="flex items-baseline justify-between gap-4">
                     <dt className="text-neutral-700">
                       {t.priceLabel.before}
-                      <time dateTime={price.datetime}>{price.dateLabel}</time>
+                      {price.datetime ? <time dateTime={price.datetime}>{price.dateLabel}</time> : price.dateLabel}
                       {t.priceLabel.after}
                     </dt>
                     <dd className="text-navy font-semibold">
