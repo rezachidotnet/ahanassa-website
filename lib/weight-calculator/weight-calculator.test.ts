@@ -210,7 +210,7 @@ test("hand-off: rebar pieces travel as «شاخه», plates as «ورق», tonne
 const SAMPLE_PRICE = { tomanPerKg: 42_300, factoryName: "کارخانه نمونه", deliveryLocation: "درب کارخانه", pricedAt: "2026-10-07T06:00:00Z" };
 
 test("price: valid data gives Toman/kg + a Tehran-date label prepared on the server; invalid data gives nothing", () => {
-  assert.deepEqual(toCalculatorPrice(SAMPLE_PRICE), { tomanPerKg: 42_300, datetime: "2026-10-07T06:00:00.000Z", dateLabel: "۱۵ مهر ۱۴۰۵" });
+  assert.deepEqual(toCalculatorPrice(SAMPLE_PRICE), { tomanPerKg: 42_300, datetime: "2026-10-07T06:00:00.000Z", dateLabel: "۱۵ مهر ۱۴۰۵", factory: "کارخانه نمونه" });
   assert.equal(toCalculatorPrice({ ...SAMPLE_PRICE, tomanPerKg: 0 }), null);
   assert.equal(toCalculatorPrice({ ...SAMPLE_PRICE, pricedAt: "x" }), null);
   assert.equal(toCalculatorPrice(null), null);

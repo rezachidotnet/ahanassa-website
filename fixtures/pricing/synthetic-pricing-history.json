@@ -1,0 +1,334 @@
+{
+ "synthetic": true,
+ "note": "SYNTHETIC TEST DATA (W9.6). Not real prices, not real factories. Shaped like Odoo's GET /api/v1/pricing/history?days=30, consistent with fixtures/pricing/synthetic-pricing-current.json (each newest point = its current price). CVAR-000031 has 9 daily points, 8 of them in the 30-day chart window (chart drawn, ≥ 7; 2026-10-05 has a same-day correction, the later point wins); CVAR-000053 has 2 (no chart). Read only by scripts/static/synthetic-price-snapshot.ts and the tests.",
+ "fetched_at": "2026-10-08T08:00:00Z",
+ "response": {
+  "data": [
+   {
+    "id": null,
+    "canonical_id": "CVAR-000031",
+    "canonical_template_id": "CTMPL-000001",
+    "sku": "AA-RB-AJ400-D10-L12",
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "price_at_window_start": {
+     "price_irr_per_kg": 500000,
+     "price_on_request": false,
+     "published_at_utc": "2026-09-08T07:20:00Z",
+     "factory": {
+      "code": "FAC-9001",
+      "name": {
+       "fa": "کارخانه آزمایشی الف",
+       "en": null,
+       "ar": null
+      }
+     },
+     "location": {
+      "fa": "درب کارخانه",
+      "en": "Factory gate",
+      "ar": null
+     }
+    },
+    "prices": [
+     {
+      "price_irr_per_kg": 499000,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-20T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 498000,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-28T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 497500,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-30T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 496000,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-01T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 497000,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-02T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 495000,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-03T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 495900,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-05T06:00:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 495610,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-05T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 489470,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-08T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     }
+    ]
+   },
+   {
+    "id": null,
+    "canonical_id": "CVAR-000032",
+    "canonical_template_id": "CTMPL-000001",
+    "sku": "AA-RB-AJ400-D12-L12",
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "price_at_window_start": null,
+    "prices": [
+     {
+      "price_irr_per_kg": 478200,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-08T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     }
+    ]
+   },
+   {
+    "id": null,
+    "canonical_id": "CVAR-000033",
+    "canonical_template_id": "CTMPL-000001",
+    "sku": "AA-RB-AJ400-D14-L12",
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "price_at_window_start": null,
+    "prices": []
+   },
+   {
+    "id": null,
+    "canonical_id": "CVAR-000053",
+    "canonical_template_id": "CTMPL-000002",
+    "sku": "AA-BM-IPE-S120-L12",
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "price_at_window_start": null,
+    "prices": [
+     {
+      "price_irr_per_kg": 540000,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-01T07:15:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 552000,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-07T07:15:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     }
+    ]
+   },
+   {
+    "id": null,
+    "canonical_id": "CVAR-000054",
+    "canonical_template_id": "CTMPL-000002",
+    "sku": "AA-BM-IPE-S140-L12",
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "price_at_window_start": null,
+    "prices": [
+     {
+      "price_irr_per_kg": null,
+      "price_on_request": true,
+      "published_at_utc": "2026-10-02T07:15:00Z",
+      "factory": null,
+      "location": null
+     },
+     {
+      "price_irr_per_kg": 552000,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-07T07:15:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     }
+    ]
+   }
+  ],
+  "meta": {
+   "days": 30,
+   "total_prices": 14,
+   "updated_at_utc": "2026-10-08T07:20:00Z",
+   "unit": "kg",
+   "currency": "IRR",
+   "vat_included": true
+  }
+ }
+}
