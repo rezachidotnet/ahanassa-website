@@ -254,12 +254,12 @@ test("«مبنای محاسبه»: every shape has a basis line that names its s
 
 // --- page, publication, SEO ------------------------------------------------------------------
 
-test("publication: one route, fa only (owner 2026-10-09: en/ar copy stays an unpublished draft), and the CTA's constant points at the same route", () => {
+test("publication: one route, fa only (owner 2026-10-09: en/ar copy stays an unpublished draft), and the home button links to the same route", () => {
   assert.equal(WEIGHT_CALCULATOR_ROUTE, "/tools/weight-calculator");
   assert.deepEqual([...WEIGHT_CALCULATOR_LOCALES], ["fa"]);
   assert.equal(isWeightCalculatorPublished("en"), false);
   assert.equal(isWeightCalculatorPublished("ar"), false);
-  assert.match(read("components/home/calculator-cta.tsx"), new RegExp(`WEIGHT_CALCULATOR_PATH = "${WEIGHT_CALCULATOR_ROUTE}"`));
+  assert.match(read("components/home/product-showcase.tsx"), /href=\{localizedPath\(locale, WEIGHT_CALCULATOR_ROUTE\)\}/);
 });
 
 test("page: static params, hreflang and sitemap all come from the published-locale list; index,follow via D6", () => {

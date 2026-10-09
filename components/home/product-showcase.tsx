@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "@/components/ui/link";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Calculator } from "lucide-react";
+import { ButtonLink } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Reveal } from "@/components/ui/reveal";
 import { homepageCopy } from "@/lib/content/homepage";
@@ -8,9 +9,19 @@ import { HOMEPAGE_SHOWCASE_MAX_CARDS, showcaseCountAttribute } from "@/lib/catal
 import { resolveCategoryMedia } from "@/lib/catalog/media-registry";
 import { categoryListingPath } from "@/lib/catalog/public-categories";
 import { localizedPath, type Locale } from "@/config/locales";
+import { isWeightCalculatorPublished, WEIGHT_CALCULATOR_ROUTE } from "@/lib/weight-calculator/publication";
 import type { PublicCatalogCategory } from "@/lib/catalog/types";
 
 const HEADING_ID = "home-product-showcase-heading";
+
+/**
+ * The weight-calculator button under the category grid (owner, W10.3,
+ * 2026-10-09 — it replaced the separate Calculator CTA section after the
+ * Hero). Shown only in a locale the calculator is published in (fa only
+ * today), so only fa copy exists; publishing another locale needs its label
+ * here as well.
+ */
+const CALCULATOR_LINK_LABEL: Partial<Record<Locale, string>> = { fa: "محاسبه وزن آهن‌آلات" };
 
 /** Localized alt text for a category's representative photo — built from Odoo's own translated category name. */
 const imageAlt: Record<Locale, (name: string) => string> = {
@@ -48,6 +59,7 @@ const imageAlt: Record<Locale, (name: string) => string> = {
  */
 export function ProductShowcase({ locale, items }: { locale: Locale; items: PublicCatalogCategory[] }) {
   const t = homepageCopy[locale].productShowcase;
+  const calculatorLabel = isWeightCalculatorPublished(locale) ? CALCULATOR_LINK_LABEL[locale] : undefined;
   // §7/§24 hard cap — Odoo's order is kept, only the tail beyond 8 is dropped.
   const cards = items.slice(0, HOMEPAGE_SHOWCASE_MAX_CARDS);
 
@@ -112,6 +124,15 @@ export function ProductShowcase({ locale, items }: { locale: Locale; items: Publ
             );
           })}
         </ul>
+
+        {calculatorLabel && (
+          <div className="mt-10 flex justify-center">
+            <ButtonLink href={localizedPath(locale, WEIGHT_CALCULATOR_ROUTE)} variant="secondary">
+              <Calculator aria-hidden="true" />
+              {calculatorLabel}
+            </ButtonLink>
+          </div>
+        )}
       </div>
     </section>
   );

@@ -133,7 +133,10 @@ test("the rendered Product Card exposes no transaction control", () => {
   for (const forbidden of ["add to cart", "addtocart", "buy now", "checkout", "quantity", "سبد خرید", "افزودن به سبد", "خرید"]) {
     assert.ok(!source.includes(forbidden), `the Product Card must never surface "${forbidden}"`);
   }
-  assert.ok(!/<button/i.test(readCode("components/home/product-showcase.tsx")), "no button may be nested inside the card link");
+  // Scoped to the card grid: the W10.3 weight-calculator ButtonLink sits under the grid, outside every card.
+  const code = readCode("components/home/product-showcase.tsx");
+  const grid = code.slice(code.indexOf("<ul"), code.indexOf("</ul>"));
+  assert.ok(!/<button/i.test(grid), "no button may be nested inside the card link");
 });
 
 test("each card remains exactly one whole-card link with no nested interactive control (§72.1)", () => {
