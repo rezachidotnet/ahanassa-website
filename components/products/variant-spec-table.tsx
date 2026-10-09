@@ -6,6 +6,7 @@ import { normalizeVariantDimensions, normalizeVariantNominalWeight, normalizeVar
 import type { ProductVariant } from "@/lib/catalog/types";
 import type { PriceBlockData } from "@/lib/pricing/price-block-presentation";
 import { isPriceLocale, presentPriceCell, PRICE_CELL_ATTRIBUTE, PRICE_COLUMN_COPY } from "@/lib/pricing/product-page-price";
+import { PriceCellContent } from "@/components/products/price-cell-content";
 import { FORM_SHAPES, resolveVariantBasis } from "@/lib/weight-calculator/model";
 import { isWeightCalculatorPublished, WEIGHT_CALCULATOR_ROUTE } from "@/lib/weight-calculator/publication";
 
@@ -233,26 +234,11 @@ export function VariantSpecTable({ locale, variants: unsorted, prices }: { local
 }
 
 function PriceCell({ locale, xid, price }: { locale: Locale; xid: string; price: PriceBlockData | undefined }) {
-  const view = presentPriceCell(locale, price);
+  const view = presentPriceCell(locale, price, xid);
   if (!view) return null;
   return (
     <td {...{ [PRICE_CELL_ATTRIBUTE]: xid }} className={cn(CELL, "group-hover:bg-surface")}>
-      {view.kind === "missing" ? (
-        <span className="text-muted-foreground">{view.label}</span>
-      ) : (
-        <>
-          <span className="text-navy font-bold">{view.amount}</span>
-          {view.place && <span className="text-tertiary block text-xs">{view.place}</span>}
-          {/* ar carries no timestamp (owner 2026-10-09: ar payload = variant id, amount, date label). */}
-          {view.datetime ? (
-            <time dateTime={view.datetime} className="text-tertiary block text-xs">
-              {view.dateLabel}
-            </time>
-          ) : (
-            <span className="text-tertiary block text-xs">{view.dateLabel}</span>
-          )}
-        </>
-      )}
+      <PriceCellContent view={view} />
     </td>
   );
 }

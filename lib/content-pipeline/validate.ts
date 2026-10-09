@@ -2,6 +2,7 @@ import { snapshotV1, type SnapshotV1 } from "../contracts/snapshot-v1.ts";
 import { GATED_COUNTS, PIPELINE_CONFIG } from "./config.ts";
 import type { OdooSource } from "./odoo-source.ts";
 import { validatePricing, type PricingOutcome } from "./pricing.ts";
+import { validatePricingHistory } from "./pricing-history.ts";
 
 /**
  * Architecture V1.1 §7.1 step 2: schema, relations and counts of one full
@@ -19,7 +20,7 @@ export interface ValidationResult {
   warnings: string[];
   counts: Record<string, number>;
   /** W9.4: what happened to prices this run (one line for the summary). */
-  pricing?: { outcome: PricingOutcome; summary: string; ignored: string[] };
+  pricing?: { outcome: PricingOutcome; summary: string; ignored: string[]; /** W9.6: the 30-day history, one line. */ history?: string };
 }
 
 function isPublished(seo: Tables["product_seo_contents"][number]): boolean {
@@ -144,6 +145,9 @@ export function validateSource(odoo: OdooSource, tables: Tables, previousCounts:
   const pricing = validatePricing(odoo.prices, odoo.products, odoo.fetched_at, previousCounts?.prices_published ?? null);
   errors.push(...pricing.errors);
   warnings.push(...pricing.warnings);
+  // W9.6: the 30-day history never fails a run; problems are warnings (the chart is then not drawn).
+  const history = validatePricingHistory(odoo.price_history, pricing.rows, odoo.fetched_at);
+  warnings.push(...history.warnings);
 
   // Editorial integrity: every published template is active and has active public variants.
   const counts = { ...sourceCounts(tables), ...pricing.counts };
@@ -157,7 +161,7 @@ export function validateSource(odoo: OdooSource, tables: Tables, previousCounts:
     if (p.is_active !== 1) warnings.push(`editorial: ${s.locale}/${s.slug} is published but its template ${p.template_xid} is no longer in Odoo (page will not be built)`);
     else if (!activeVariantsByProduct.get(p.id)) warnings.push(`editorial: ${s.locale}/${s.slug} is published but has no active public variant`);
   }
-  return { errors, warnings, counts, pricing: { outcome: pricing.outcome, summary: pricing.summary, ignored: pricing.ignored } };
+  return { errors, warnings, counts, pricing: { outcome: pricing.outcome, summary: pricing.summary, ignored: pricing.ignored, history: history.summary } };
 }
 
 export interface DecreaseFinding {
@@ -172,20 +176,20 @@ export interface DecreaseFinding {
 export function decreaseFindings(current: Record<string, number>, previous: Record<string, number> | null, threshold: number = PIPELINE_CONFIG.decreaseThreshold): DecreaseFinding[] {
   if (!previous) return [];
   const findings: DecreaseFinding[] = [];
-  for (const { key, legacy } of GATED_COUNTS) {
+  for (const { key, legacy, threshold: keyThreshold } of GATED_COUNTS) {
     if (!(key in current)) continue;
     const previousKey = key in previous ? key : legacy && legacy in previous ? legacy : null;
     if (!previousKey) continue;
     const prev = previous[previousKey];
     const cur = current[key];
-    if (prev > 0 && cur < prev && (prev - cur) / prev > threshold) findings.push({ key, previousKey, previous: prev, current: cur, drop: Number(((prev - cur) / prev).toFixed(4)) });
+    if (prev > 0 && cur < prev && (prev - cur) / prev > (keyThreshold ?? threshold)) findings.push({ key, previousKey, previous: prev, current: cur, drop: Number(((prev - cur) / prev).toFixed(4)) });
   }
   return findings;
 }
 
 export function describeDecrease(findings: DecreaseFinding[], threshold: number = PIPELINE_CONFIG.decreaseThreshold): string {
   return [
-    `DECREASE GATE: ${findings.length} count(s) fell by more than ${threshold * 100}% against the active publication:`,
+    `DECREASE GATE: ${findings.length} count(s) fell by more than ${threshold * 100}% (articles: by any amount) against the active publication:`,
     ...findings.map((f) => `  - ${f.key}: ${f.previous} -> ${f.current} (-${(f.drop * 100).toFixed(1)}%${f.previousKey !== f.key ? `, previous recorded as ${f.previousKey}` : ""})`),
     "Publication stopped; the active version is untouched. If this drop is intended, re-run the workflow with allow_decrease=true (recorded in the manifest).",
   ].join("\n");

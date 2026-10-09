@@ -57,6 +57,8 @@ Row types (abridged; full in code):
 | `product_variants` | `id`, `product_id`, `xid` (CVAR), `sku`, sizes, family/group/form/grade/standard codes and names, `dimensions_json`, `nominal_weight_json`, `allowed_commercial_units`, flags, … |
 | `product_seo_contents` | `entity_type`, `entity_id`, `locale`, `slug`, `h1`, `intro`, `seo_title`, `seo_description`, `index_status`, `content_quality_status`, `published_at`, … |
 | `public_processing_groups` | `code`, `locale`, `name`, `sequence`, `is_active`, … |
+| `published_articles` (W11.1) | exactly: `locale`, `slug`, `title`, `description`, `date`, `updated`, `category`, `tags_json`, `related_products_json`, `faq_json`, `sources_json`, `author`, `translations_json`, `body_md`, `cover_svg` — see below |
+| `published_price_history` (W9.6) | exactly: `canonical_variant_id`, `day`, `price_irr_per_kg`, `published_at` — see below |
 | `published_prices` (W9.4) | exactly: `canonical_variant_id`, `price_irr_per_kg`, `vat_included`, `factory_name_fa`, `location_fa`, `published_at`, `previous_price_irr_per_kg`, `previous_published_at` — see below |
 
 ## `published_prices` (W9.4, extension)
@@ -65,8 +67,8 @@ Owner decisions D-PRICE-DISPLAY / D-PRICE-AGE (`docs/OWNER_DECISIONS.md`, 2026-1
 `lib/contracts/snapshot-prices.ts` (row), `lib/content-pipeline/pricing.ts` (allow-list + validation).
 
 - **Source:** Odoo `GET /api/v1/pricing/current` in the same CI fetch as the catalog (GET only, the
-  guarded fetch's allowed prefix `/api/v1/pricing/`). `/api/v1/pricing/history` is **not** fetched: nothing
-  on the page renders a trend.
+  guarded fetch's allowed prefix `/api/v1/pricing/`). W9.6: `/api/v1/pricing/history?days=30` is now fetched
+  too, into `published_price_history` (below).
 - **Allow-list:** a row holds **only the fields the Persian product page renders** — one row per variant
   with a numeric price. Every other documented API field (factory code, en/ar names, `basis_note`,
   `unit`, `currency`, `sku`, …) is read for validation and dropped. **Any undocumented field anywhere in
@@ -94,13 +96,49 @@ Owner decisions D-PRICE-DISPLAY / D-PRICE-AGE (`docs/OWNER_DECISIONS.md`, 2026-1
   column (amount, factory, location, date); **ar** — price only: «سعر اليوم» column (amount + date label +
   VAT note), no factory/location/timestamp; **en** — nothing. The column follows the size column and is
   hidden when none of the page's variants has a price (the fa PriceBlock then shows «استعلام قیمت» + the
-  RFQ CTA). The weight calculator gets a build-time price map (fa `{tomanPerKg, datetime, dateLabel}`, ar
+  RFQ CTA). The weight calculator gets a build-time price map (fa `{tomanPerKg, datetime, dateLabel, factory}` — `factory` since W9.6, for the RFQ prefill —, ar
   `{tomanPerKg, dateLabel}`, en none) for its cost estimate. The
   artifact gate's price gate (`lib/static/price-gate.ts`) checks that the rendered price text is exactly
   these fields per locale, that ar files carry none of the fa-only fields, that en files carry no price, and
   that every calculator price-map entry equals the snapshot; the leak scan refuses pricing-API field names,
   source-like keys and factory codes in every public file (`tomanPerKg` is allowed only on the fa/ar
   calculator page). No JSON-LD `offers`.
+
+## `published_price_history` (W9.6, extension)
+
+Owner-approved 2026-10-09 (W9.6: price page, ▲/▼, 30-day chart). Code: `lib/contracts/snapshot-prices.ts` (row),
+`lib/content-pipeline/pricing-history.ts` (allow-list + validation), `lib/pricing/price-history.ts` (chart rules).
+
+- **Source:** Odoo `GET /api/v1/pricing/history?days=30`, in the same CI fetch as `/current` (GET only).
+- **Rows:** one per (priced variant, Tehran calendar day): the day's last numeric point = the price in effect
+  at the end of that day, including `price_at_window_start`. Only variants with a `published_prices` row; a
+  variant's newest point must be its current price (else that variant gets no history). Factory, location
+  and every other field are read for validation only; unknown keys are ignored and reported.
+- **Never blocks a publish:** a failed fetch, a 404 or an invalid body gives an empty history and one warning
+  (the run summary line **Price history (30-day chart)**); the chart is then not drawn.
+- **Rendering:** the fa product page draws a chart only with ≥ 7 daily points in the 30 days ending on the
+  current price's day; the publication gate re-counts them (`lib/static/price-gate.ts`). ▲/▼ uses
+  `published_prices.previous_*` only when it is from an earlier Tehran day.
+- **Build-only**, exactly like `published_prices`: no `migrations_public` table, never mirrored or loaded into D1.
+
+## `published_articles` (W11.1, extension)
+
+Owner-approved 2026-10-09 (W11.1: articles section). Code: `lib/contracts/snapshot-articles.ts` (row),
+`lib/content-pipeline/articles-source.ts` (fetch), `lib/articles/validate.ts` + `lib/content-pipeline/articles.ts`
+(checks, fail-safe). Full description: `docs/ARTICLES.md`.
+
+- **Source:** the PRIVATE content repository's `main` (`articles/**.md`, `assets/articles/**.svg` only; sparse,
+  blob-filtered clone — no other file of that repository is ever downloaded).
+- **Rows:** one per (locale, slug) article that passed the website's checks. Only rendered fields; the
+  content repository's `topic_reason` and `reviewed_by` are dropped. `category` is the code
+  (`buying-guide`, `standards`, `market-analysis`, `application`, `construction-technology`), not the Persian
+  label the source stores. `translations_json` keeps only pairs that both publish and point at each other
+  (the snapshot schema re-checks that).
+- **Fail-safe:** an unconfigured or failed fetch builds without articles (warning) unless the active
+  publication shows articles (`articles_fa/ar/en` counts) — then the run is blocked. A refused article is
+  left out (warning); the article decrease gate (threshold 0) blocks if that removes a live article.
+- **Build-only**, exactly like `published_prices`: no `migrations_public` table, never mirrored or loaded into
+  D1. `cover_svg` is rasterized to PNG/WebP at build time; the SVG itself is never published.
 
 ## `rfq_variant_index` row (architecture §5.1, A8)
 

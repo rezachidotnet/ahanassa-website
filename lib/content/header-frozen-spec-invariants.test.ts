@@ -49,7 +49,13 @@ test("frozen routes: products/services/industries/about/contact resolve exactly 
     assert.ok(byPath.has("/about"));
     assert.ok(byPath.has("/contact"));
     assert.ok(!byPath.has("/markets"), "the primary nav must no longer target /markets — superseded by /industries");
-    assert.equal(links.length, 5, "no new top-level navigation item may be introduced without a new approved architecture decision (§58.1)");
+    // W9.6 (owner instruction 2026-10-09): «قیمت روز» → /prices on fa/ar only.
+    // W11.1 (owner instruction 2026-10-09): «مقالات» → /articles in all three locales (shown only where the build has articles).
+    // Nothing else.
+    const expected = locale === "en" ? 6 : 7;
+    assert.equal(links.length, expected, "no new top-level navigation item may be introduced without a new approved architecture decision (§58.1)");
+    assert.equal(byPath.has("/prices"), locale !== "en", "the price page item is fa/ar only (en has no prices)");
+    assert.ok(byPath.has("/articles"), "the articles item exists in every locale (W11.1)");
   }
 });
 
@@ -480,7 +486,12 @@ test("NAV-P1: View all products / View all services remain present and unchanged
 
 test("NAV-P1: the 5 frozen top-level items, their order, and the Products/Services hybrid gate are unchanged after the localization fix", () => {
   for (const locale of ["fa", "en", "ar"] as const) {
-    const links = navLinks[locale];
+    // W9.6: the owner-approved «قیمت روز» item sits right after Products on fa/ar; the frozen five keep their order.
+    const all = navLinks[locale];
+    if (locale !== "en") assert.equal(all[1].path, "/prices");
+    // W11.1: «مقالات» sits between Industries and About.
+    assert.equal(all[all.findIndex((l) => l.path === "/industries") + 1].path, "/articles");
+    const links = all.filter((l) => l.path !== "/prices" && l.path !== "/articles");
     assert.equal(links.length, 5);
     assert.equal(links[0].path, "/products");
     assert.equal(links[1].path, "/services");

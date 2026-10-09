@@ -26,7 +26,7 @@ export interface D1Source {
   schema: typeof D1_SOURCE_SCHEMA;
   read_at: string;
   /** DB_PUBLIC has no `published_prices` (W9.4: build-only snapshot table, fetched from Odoo every run). */
-  tables: Omit<SnapshotV1["tables"], "published_prices">;
+  tables: Omit<SnapshotV1["tables"], "published_prices" | "published_price_history" | "published_articles">;
   publication: { active_version: string | null; versions: PublicationVersionRow[] };
 }
 

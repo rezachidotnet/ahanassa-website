@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ArrowDown, ArrowUp, Info, Minus } from "lucide-react";
 import type { Locale } from "@/config/locales";
 import { ButtonLink } from "@/components/ui/button";
@@ -15,8 +16,11 @@ import { PriceAge } from "./price-age";
  * never an empty value. No source website, no JSON-LD `offers` — the data
  * type carries neither. Change since the previous price is neutral n-700,
  * not red/green.
+ *
+ * W9.6: `priceCtaLabel` replaces the CTA text when a price is shown («استعلام قیمت نهایی», the RFQ form
+ * prefilled by `rfqHref`); `trend` is the optional 30-day chart, drawn under the details.
  */
-export function PriceBlock({ locale, price, rfqHref, productName }: { locale: Locale; price: PriceBlockData | null | undefined; rfqHref: string; productName?: string }) {
+export function PriceBlock({ locale, price, rfqHref, productName, priceCtaLabel, trend }: { locale: Locale; price: PriceBlockData | null | undefined; rfqHref: string; productName?: string; priceCtaLabel?: string; trend?: ReactNode }) {
   const view = presentPriceBlock(locale, price);
   if (!view) return null;
   const t = PRICE_BLOCK_COPY;
@@ -57,6 +61,7 @@ export function PriceBlock({ locale, price, rfqHref, productName }: { locale: Lo
                 <PriceAge datetime={view.datetime} />
               </dd>
             </dl>
+            {trend}
             <p className="bg-surface text-neutral-700 flex items-start gap-2.5 rounded-[var(--aa-radius-control)] px-4 py-3 text-sm">
               <Info className="text-copper mt-0.5 size-4 shrink-0" aria-hidden="true" />
               {t.askToday}
@@ -64,7 +69,7 @@ export function PriceBlock({ locale, price, rfqHref, productName }: { locale: Lo
           </>
         )}
         <ButtonLink href={rfqHref} variant="primary" className="w-full">
-          {t.cta}
+          {view.kind === "price" && priceCtaLabel ? priceCtaLabel : t.cta}
         </ButtonLink>
       </div>
     </section>

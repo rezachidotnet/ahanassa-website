@@ -1,9 +1,11 @@
 import type { CatalogApiProduct } from "../catalog/odoo-api-client.ts";
 import { normalizeCatalogTimestamp, slugifyFromSku, slugifyTemplateXid } from "../catalog/sync.ts";
 import type { SnapshotV1 } from "../contracts/snapshot-v1.ts";
+import type { PublishedArticleRow } from "../contracts/snapshot-articles.ts";
 import type { D1Source } from "./d1-source.ts";
 import type { OdooSource } from "./odoo-source.ts";
 import { validatePricing } from "./pricing.ts";
+import { validatePricingHistory } from "./pricing-history.ts";
 
 /**
  * Builds the snapshot.v1 tables from one full Odoo fetch plus the
@@ -22,6 +24,8 @@ import { validatePricing } from "./pricing.ts";
  *   Odoo introduces gets the same defaults the sync used (not public).
  * - A row DB_PUBLIC has but the full fetch no longer returns stays in the
  *   snapshot with `is_active = 0` (soft deactivation; editorial rows survive).
+ * - W11.1: `articles` are the rows the validate step accepted from the content
+ *   repository (lib/content-pipeline/articles.ts); build-only, never from D1.
  */
 
 type Tables = SnapshotV1["tables"];
@@ -78,7 +82,7 @@ function sameColumns(a: Record<string, unknown>, b: Record<string, unknown>, key
 
 const byKey = <T>(key: (row: T) => string) => (a: T, b: T) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0);
 
-export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivatedAt: string): Tables {
+export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivatedAt: string, articles: readonly PublishedArticleRow[] = []): Tables {
   // --- templates + variants ---------------------------------------------------
   const existingProducts = d1.tables.catalog_products;
   const productByTemplate = new Map(existingProducts.map((p) => [p.template_xid, p]));
@@ -224,6 +228,9 @@ export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivat
     groups.push(g.is_active === 0 ? g : { ...g, is_active: 0, updated_at: maxIso(g.updated_at, deactivatedAt) });
   }
 
+  // W9.4/W9.6: prices and their daily history, Odoo-owned and build-only.
+  const prices = validatePricing(odoo.prices, odoo.products, odoo.fetched_at).rows;
+
   // --- editorial layer: carried verbatim from DB_PUBLIC -------------------------
   return {
     catalog_public_categories: categories.sort(byKey((c) => `${c.locale}|${String(c.position).padStart(4, "0")}`)),
@@ -236,6 +243,10 @@ export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivat
     catalog_group_labels: [...d1.tables.catalog_group_labels].sort(byKey((r) => `${r.group_code}|${r.locale}`)),
     // W9.4: Odoo-owned, build-only; only the allow-listed fields (empty when the pricing source has any error,
     // which validateSource reports and which stops the run).
-    published_prices: validatePricing(odoo.prices, odoo.products, odoo.fetched_at).rows,
+    published_prices: prices,
+    // W9.6: the daily points of the 30-day chart (empty, never an error, when the history is unusable).
+    published_price_history: validatePricingHistory(odoo.price_history, prices, odoo.fetched_at).rows,
+    // W11.1: build-only articles, already sorted by (locale, slug).
+    published_articles: [...articles],
   };
 }

@@ -73,6 +73,19 @@ requests), timeouts, page size, D1 batch size. Schedule: daily 22:47 UTC (02:17 
   mirror). `load` re-checks that the staging twin is active on staging and the diff gate. The
   CONTENT_REBUILD classification is recorded (a code release until a v11 `STABLE_100` exists).
 
+## W11.1 additions (articles)
+
+- **fetch** also reads the merged articles of the private content repository (`AHANASSA_CONTENT_REPO_TOKEN`,
+  `AHANASSA_CONTENT_DEPLOY_KEY_FILE` or `AHANASSA_CONTENT_DIR`; W9.7 wires the workflow) into
+  `source/articles.json`. Never fails the step.
+- **validate** checks every article (`lib/articles/validate.ts`), writes the accepted rows to `<work>/articles.json`
+  and adds `articles_fa/ar/en` to the counts. Blocked only when the live site shows articles and the fetch is
+  unavailable; any drop of a locale's article count is a gated decrease (threshold 0, `allow_decrease` overrides).
+- **snapshot** adds them as the build-only `published_articles` table; **export** rasterizes the covers.
+- **checks**: the artifact gate adds the article gate (`lib/static/article-gate.ts`); the link check, hydration
+  and the source-name scan cover the article pages like every other page.
+- Details: `docs/ARTICLES.md`.
+
 ## Not yet
 
 Production job (W8: same artifact, checksum check, no refetch, no rebuild, the `CONTENT_REBUILD` check).

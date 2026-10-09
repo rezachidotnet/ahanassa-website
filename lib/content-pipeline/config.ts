@@ -35,8 +35,15 @@ export const PIPELINE_CONFIG = {
  * Count keys the decrease gate compares (§7.1 step 2). Keys missing on either
  * side are skipped. `legacy` maps a key to the count name a pre-W4
  * publication (W1 fixture loader) recorded for the same quantity.
+ * `threshold` overrides `decreaseThreshold` for that key.
+ *
+ * W11.1 article decrease gate: articles only ever accumulate, so ANY drop of a
+ * locale's published article count against the live publication stops the run
+ * (threshold 0) — an article the website's checks now refuse, or one removed
+ * from the content repository, never disappears silently. An intended removal
+ * re-runs with allow_decrease=true (recorded in the manifest).
  */
-export const GATED_COUNTS: ReadonlyArray<{ key: string; legacy?: string }> = [
+export const GATED_COUNTS: ReadonlyArray<{ key: string; legacy?: string; threshold?: number }> = [
   { key: "variants_active", legacy: "product_variants" },
   { key: "templates_active", legacy: "catalog_products" },
   { key: "categories_total", legacy: "catalog_public_categories" },
@@ -55,4 +62,7 @@ export const GATED_COUNTS: ReadonlyArray<{ key: string; legacy?: string }> = [
   { key: "rfq_catalog_ar" },
   { key: "rfq_variant_index_rows" },
   { key: "sitemap_urls" },
+  { key: "articles_fa", threshold: 0 },
+  { key: "articles_ar", threshold: 0 },
+  { key: "articles_en", threshold: 0 },
 ];
