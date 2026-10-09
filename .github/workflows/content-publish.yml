@@ -1,4 +1,4 @@
-# Architecture V1.1 r3 §7.1 (steps 1-7 and 9), §7.2, §7.4 — content publication pipeline, STAGING ONLY (W4).
+# Architecture V1.1 r3 §7.1 (steps 1-7 and 9), §7.2, §7.4 — content publication pipeline.
 #
 #   build:   full Odoo fetch (GET only, read-only, <=2 req/s) + DB_PUBLIC editorial read -> validate
 #            (decrease gate) -> monotonic snapshot -> static fa/en/ar export -> artifact gate -> tsc ->
@@ -18,37 +18,34 @@
 # branch: the release ledger is read from it, and only from it (LEDGER_REF; RELEASE_POLICY.md §20.4) —
 # feat/header-hero-integrated is the frozen legacy branch.
 #
-# W9.1 (owner decisions D-DAR-063 + D-SCHEDULE, 2026-10-06; RELEASE_POLICY.md §20.5): two schedules.
-#   22:47 UTC (02:17 Tehran) — unchanged: build the APP_REF tip, publish staging only.
-#   08:00 UTC (11:30 Tehran) — production content: the build checks out BASE_PRODUCTION_SHA (the latest
-#     STABLE_100 RELEASE_SHA in the ledger on LEDGER_REF), never the branch tip, so an app-branch commit cannot
-#     turn the daily content publish into a code release. Selection: .github/scripts/v11-stable-release.mjs
-#     (resolver read from LEDGER_REF). It is "production eligible" only for a v11 release whose own static
-#     config declares the www.ahanassa.com custom domain with workers_dev false (else the job FAILS: alert);
-#     with no v11 STABLE_100 row yet it builds the tip, staging only, and says so. The staging publish of the
-#     same artifact still runs first (the production load verifies the staging twin is active).
-#
-# TODO(W8, production): a separate `publish-production` job in environment `production`, needing an
-# approved staging run: download THE SAME artifact (by run id), verify every checksum in manifest.json and
-# that code_sha/snapshot_version equal the staging-published ones, NO Odoo refetch and NO rebuild; load the
-# snapshot into production DB_PUBLIC (staged), deploy, smoke, switch, rollback on failure. It must NOT
-# expose `test_force_smoke_failure` (staging-only test input). Not in W4.
-#   Before ANY production write it runs the CONTENT_REBUILD check (W5, owner decision D4,
-#   docs/release/RELEASE_POLICY.md §19):
-#     node lib/ci/content-rebuild-cli.ts --artifact "$WORK/artifact" --ledger-ref origin/<production app branch> \
-#       --gates-passed true --decision-file "$WORK/content-rebuild.json"
-#   exit 0 AUTO -> publish without manual approval (gates + automatic smoke + automatic rollback);
-#   exit 3 APPROVAL_REQUIRED (allow_decrease / overridden decrease / failed gate) -> only through the
-#   production environment's reviewer approval; exit 1/2 REFUSED -> not a content rebuild: stop, it is a
-#   code release (deploy-production.yml: exact SHA, staging provenance, HIGH canary). Keep the decision file
-#   as an artifact (§15). The ledger is read from the trusted production branch, never from code_sha.
-#
 # W8.0 (architecture r4, owner-approved two-target build): every build makes the staging AND the production
-# artifact from one code_sha + one snapshot; the allowlisted-diff gate (lib/static/target-diff-gate.ts)
-# runs in the export step. The production twin is published ONLY by the gated `publish-production` job:
-# workflow_dispatch with target=production-prep, after the staging publish of the same run, in environment
-# production-v11 (owner approval). It deploys to the production static Worker ahanassa-v11-static-production,
-# which serves www.ahanassa.com since the W8.1 cutover (2026-10-05), and the v11 production DB_PUBLIC.
+# artifact from one code_sha + one snapshot; the allowlisted-diff gate (lib/static/target-diff-gate.ts) runs in
+# the export step. The production twin goes to the production static Worker ahanassa-v11-static-production
+# (www.ahanassa.com since the W8.1 cutover, 2026-10-05) and the v11 production DB_PUBLIC.
+#
+# W9.7 (owner decision 2026-10-09; RELEASE_POLICY.md §20) — the owner routine is: merge a PR, tap Approve.
+#   Runs of this workflow:
+#   - merge:   CI passing on a push to feat/v11-static-site starts a run (workflow_run). It builds THAT commit,
+#              publishes staging, classifies the code change against the LIVE code (LOW/HIGH,
+#              .github/scripts/v11-release-risk.mjs) and, when there is one, starts `publish-production`, which
+#              waits in environment production-v11 for the owner's Approve (GitHub app). Variable
+#              V11_AUTO_PRODUCTION_PREP=off turns the auto-start off (staging only). A ledger-only merge never starts it.
+#   - production-prep (dispatch, GitHub UI): the same, for the branch tip.
+#   - 22:47 UTC (02:17 Tehran) schedule: the branch tip, staging only (unchanged).
+#   - 08:00 UTC (11:30 Tehran) schedule: production content. It builds the code LIVE on www.ahanassa.com, resolved
+#     from the production publish state (.github/scripts/v11-live-release.mjs: the newest trusted production record
+#     whose snapshot www serves) — never the ledger's older STABLE_100 and never the branch tip, so it can neither
+#     downgrade the code nor release new code. It refuses (staging only, notice) when the live code is not on
+#     LEDGER_REF, has no pipeline, or does not contain the latest STABLE_100. CONTENT_REBUILD (§19) is checked
+#     against the live code; only AUTO publishes. Do NOT disable this workflow during an observation.
+#   Every production job re-checks right before its first write that www still serves the snapshot the build saw
+#   (a rollback or another publish in between stops it), and after finalize leaves a `v11-live-release` artifact
+#   (live-release.json) — the production publish state that v11-release-watch.yml (auto-rollback, ledger rows)
+#   and the next 08:00 run read.
+#   Secrets: AHANASSA_PRICE_SOURCE_NAMES (newline list) is written to a 0600 file under $RUNNER_TEMP (outside the
+#   checkout) and passed as AHANASSA_PRICE_SOURCE_NAMES_FILE to the artifact gate; the tracked tree is scanned too.
+#   Neither ever prints a name. AHANASSA_CONTENT_REPO_TOKEN (read-only, rezachidotnet/ahanassa-content) is given to
+#   the fetch step only (articles, W11.1).
 name: Content publish
 
 on:
@@ -70,20 +67,27 @@ on:
         required: false
         default: false
       target:
-        description: "staging = staging only (as before); production-prep = also publish the production twin to ahanassa-v11-static-production = www.ahanassa.com (owner approval; v11 release path, RELEASE_POLICY.md §20)"
+        description: "staging = staging only; production-prep = also publish the production twin to www.ahanassa.com (waits for your Approve; RELEASE_POLICY.md §20)"
         type: choice
         required: false
         default: staging
         options: [staging, production-prep]
+  # W9.7: a merge to the application branch (its CI run on the push succeeded) builds staging at once.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [feat/v11-static-site]
   schedule:
     # Daily 22:47 UTC = 02:17 Tehran (§7.4: outside Tehran business hours). Staging only (branch tip).
     - cron: "47 22 * * *"
-    # Daily 08:00 UTC = 11:30 Tehran (D-SCHEDULE): production content, built from BASE_PRODUCTION_SHA (§20.5).
+    # Daily 08:00 UTC = 11:30 Tehran (D-SCHEDULE): production content, built from the LIVE code (§20.5).
     # Keep this string identical to every `github.event.schedule == '0 8 * * *'` below.
     - cron: "0 8 * * *"
 
 permissions:
   contents: read
+  # The production publish state (v11-live-release artifacts) is read through the Actions API.
+  actions: read
 
 concurrency:
   group: content-publish-staging
@@ -97,14 +101,27 @@ env:
 jobs:
   build:
     name: build (fetch, validate, snapshot, export, checks)
-    runs-on: ubuntu-latest
+    # A workflow_run only for a successful CI run of a push to the application branch of this repository.
+    if: >-
+      ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository) }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment: staging
     outputs:
       code_sha: ${{ steps.meta.outputs.code_sha }}
       snapshot_version: ${{ steps.meta.outputs.snapshot_version }}
-      # 'true' only on the 08:00 schedule when the build checked out a v11 STABLE_100 release (§20.5).
-      production_eligible: ${{ steps.select.outputs.eligible == 'true' && 'true' || 'false' }}
+      # 'true' only on the 08:00 schedule when the build checked out the live v11 code (§20.5).
+      production_eligible: ${{ steps.mode.outputs.mode == 'production-content' && steps.live.outputs.eligible == 'true' && 'true' || 'false' }}
+      # What www.ahanassa.com served when the build started (the production jobs' pre-write guard), and its code.
+      live_snapshot: ${{ steps.live.outputs.snapshot }}
+      live_sha: ${{ steps.live.outputs.sha }}
+      # LOW | HIGH | NONE (no code change) — W9.7 classifier, against the live code.
+      risk: ${{ steps.classify.outputs.risk }}
+      # 'true' on a merge run whose code differs from the live code beyond the ledger (publish-production then waits for Approve).
+      auto_prep: ${{ steps.mode.outputs.mode == 'merge' && vars.V11_AUTO_PRODUCTION_PREP != 'off' && (steps.classify.outputs.risk == 'LOW' || steps.classify.outputs.risk == 'HIGH') && steps.classify.outputs.ledger_only != 'true' && steps.classify.outputs.merge_ledger_only != 'true' && steps.classify.outputs.release_safe == 'true' && 'true' || 'false' }}
+      # 'true' when the candidate is the branch tip and contains the live code (never a downgrade or an old re-run).
+      release_safe: ${{ steps.classify.outputs.release_safe }}
     env:
       # Read-only use here: DB_PUBLIC editorial layer + publication state.
       CLOUDFLARE_API_TOKEN: ${{ secrets.V11_STAGING_CLOUDFLARE_DEPLOY_TOKEN }}
@@ -114,63 +131,157 @@ jobs:
         shell: bash
         run: echo "WORK=$RUNNER_TEMP/content" >> "$GITHUB_ENV"
 
-      - name: Checkout application code (branch tip; full history on the production schedule)
-        uses: actions/checkout@v4
+      - name: Run mode
+        id: mode
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "workflow_run" ]; then mode=merge
+          elif [ "$EVENT" = "schedule" ] && [ "$SCHEDULE" = "0 8 * * *" ]; then mode=production-content
+          elif [ "$EVENT" = "workflow_dispatch" ] && [ "$TARGET" = "production-prep" ]; then mode=production-prep
+          else mode=staging; fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "- run mode: **$mode**" >> "$GITHUB_STEP_SUMMARY"
+
+      # merge: the exact commit CI passed; otherwise the branch tip (the 08:00 run moves to the live code below).
+      - name: Checkout application code (full history unless staging-only)
+        uses: actions/checkout@v6
         with:
-          ref: ${{ env.APP_REF }}
-          fetch-depth: ${{ github.event_name == 'schedule' && github.event.schedule == '0 8 * * *' && 0 || 1 }}
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || env.APP_REF }}
+          fetch-depth: ${{ steps.mode.outputs.mode == 'staging' && 1 || 0 }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "24"
           cache: npm
 
-      - name: Checkout the release selector (this workflow's own commit on main)
-        if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 8 * * *' }}
-        uses: actions/checkout@v4
+      - name: Checkout the release scripts (this workflow's own commit on main)
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.sha }}
           path: .ci-selector
-          sparse-checkout: .github/scripts/v11-stable-release.mjs
-          sparse-checkout-cone-mode: false
+          sparse-checkout: .github/scripts
+          persist-credentials: false
 
-      - name: "Production schedule: build BASE_PRODUCTION_SHA, not the branch tip (RELEASE_POLICY.md §20.5)"
-        id: select
-        if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 8 * * *' }}
+      # Out of the application checkout, so nothing of main is built, tested or scanned as application code.
+      - name: Move the release scripts outside the checkout
         shell: bash
         run: |
           set -euo pipefail
-          # Ledger AND resolver are read from origin/$LEDGER_REF (trusted), never from the checkout's working tree.
-          node .ci-selector/.github/scripts/v11-stable-release.mjs resolve --app . --ledger-ref "origin/$LEDGER_REF" | tee "$RUNNER_TEMP/stable-release.json"
-          sha="$(jq -r .sha "$RUNNER_TEMP/stable-release.json")"
-          reason="$(jq -r .reason "$RUNNER_TEMP/stable-release.json")"
-          if [ "$(jq -r .eligible "$RUNNER_TEMP/stable-release.json")" = "true" ]; then
-            git checkout --quiet --detach "$sha"
-            test "$(git rev-parse HEAD)" = "$sha"
-            echo "- production schedule: building BASE_PRODUCTION_SHA \`$sha\` (latest v11 STABLE_100), not the $APP_REF tip" >> "$GITHUB_STEP_SUMMARY"
-          else
-            rm -rf .ci-selector
-            echo "::notice title=production content not eligible::$reason — building the $APP_REF tip for staging only"
-            echo "- production schedule: **not eligible** ($reason); building the $APP_REF tip, staging only" >> "$GITHUB_STEP_SUMMARY"
+          mv .ci-selector "$RUNNER_TEMP/ci-selector"
+          echo "CI_SCRIPTS=$RUNNER_TEMP/ci-selector/.github/scripts" >> "$GITHUB_ENV"
+
+      - name: Price-source name list (secret -> private temp file; never printed)
+        shell: bash
+        env:
+          NAMES: ${{ secrets.AHANASSA_PRICE_SOURCE_NAMES }}
+        run: |
+          set -euo pipefail
+          if [ -z "$NAMES" ]; then
+            echo "::warning title=price-source name scan not configured::repository secret AHANASSA_PRICE_SOURCE_NAMES is not set; the artifact gate reports sourceNameScan not_run"
+            exit 0
           fi
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$NAMES" > "$RUNNER_TEMP/private/source-names.txt"
+          echo "AHANASSA_PRICE_SOURCE_NAMES_FILE=$RUNNER_TEMP/private/source-names.txt" >> "$GITHUB_ENV"
+          echo "price-source name list: $(grep -c . "$RUNNER_TEMP/private/source-names.txt") line(s) (names not shown)"
+
+      - name: "Live code on www.ahanassa.com (production publish state; RELEASE_POLICY.md §20.5)"
+        id: live
+        if: ${{ steps.mode.outputs.mode != 'staging' }}
+        # Unresolvable (GitHub API or www down) = no live code: the 08:00 run stays staging-only, a release is HIGH and
+        # its production job's guard stops it. The staging build never depends on it.
+        continue-on-error: true
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Resolver from this workflow's commit; ledger + strict resolver from origin/$LEDGER_REF (trusted), never
+          # from the working tree. The record must name the snapshot www serves right now.
+          node "$CI_SCRIPTS/v11-live-release.mjs" live --app . --ledger-ref "origin/$LEDGER_REF" | tee "$RUNNER_TEMP/live-release.json"
+          jq -r '"- live: www serves `\(.snapshot)` from code `\(.sha // "unresolved")` (\(.reason))"' "$RUNNER_TEMP/live-release.json" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: "Production schedule: build the LIVE code, not the branch tip and never the older STABLE_100"
+        if: ${{ steps.mode.outputs.mode == 'production-content' }}
+        shell: bash
+        env:
+          ELIGIBLE: ${{ steps.live.outputs.eligible }}
+          SHA: ${{ steps.live.outputs.sha }}
+          REASON: ${{ steps.live.outputs.reason }}
+        run: |
+          set -euo pipefail
+          if [ "$ELIGIBLE" = "true" ]; then
+            git checkout --quiet --detach "$SHA"
+            test "$(git rev-parse HEAD)" = "$SHA"
+            echo "- production schedule: building the live code \`$SHA\`, not the $APP_REF tip" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning title=production content not published::${REASON:-the live code could not be resolved} — building the $APP_REF tip for staging only"
+            echo "- production schedule: **not eligible** ($REASON); building the $APP_REF tip, staging only" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: "Release risk against the live code (LOW / HIGH; RELEASE_POLICY.md §20.1)"
+        id: classify
+        if: ${{ steps.mode.outputs.mode == 'merge' || steps.mode.outputs.mode == 'production-prep' }}
+        shell: bash
+        env:
+          BASE: ${{ steps.live.outputs.sha }}
+          MODE: ${{ steps.mode.outputs.mode }}
+        run: |
+          set -euo pipefail
+          head="$(git rev-parse HEAD)"
+          node "$CI_SCRIPTS/v11-release-risk.mjs" classify --app . --base "$BASE" --candidate "$head" | tee "$RUNNER_TEMP/release-risk.json"
+          # Never a downgrade, never an old commit: the candidate is the branch tip and contains the live code (a re-run
+          # of an old CI run, or a tip behind www, cannot reach production). Unresolved live code: HIGH, guard decides.
+          safe=true
+          if [ "$head" != "$(git rev-parse "origin/$APP_REF")" ]; then safe=false; echo "::warning title=not the branch tip::$head is not the $APP_REF tip; no production step"; fi
+          if [ -n "$BASE" ] && ! git merge-base --is-ancestor "$BASE" "$head"; then safe=false; echo "::warning title=would downgrade::$head does not contain the live code $BASE; no production step"; fi
+          echo "release_safe=$safe" >> "$GITHUB_OUTPUT"
+          # A merge whose own change is only the ledger (e.g. the bot's STABLE_100 / ROLLED_BACK row) never offers a release:
+          # after a rollback the live..tip diff still holds the rolled-back code.
+          mlo=false
+          if [ "$MODE" = "merge" ] && [ "$(git diff --name-only "$head^1" "$head")" = "docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md" ]; then mlo=true; fi
+          echo "merge_ledger_only=$mlo" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Release risk: **$(jq -r .risk "$RUNNER_TEMP/release-risk.json")**"
+            jq -r '"- \(.reason)"' "$RUNNER_TEMP/release-risk.json"
+            jq -r '.files[:40][] | "  - `\(.status)` \(.path) → \(.rule)"' "$RUNNER_TEMP/release-risk.json"
+            echo "- LOW: no blocking observation; auto-rollback if ops-health production ALERTs within 24 h. HIGH: 24 h observation, the owner decides on an ALERT (§20)."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install dependencies (immutable)
         run: npm ci
 
-      - name: "Production schedule: the release's own config keeps www.ahanassa.com and workers.dev off"
-        if: ${{ steps.select.outputs.eligible == 'true' }}
+      - name: "Production schedule: the live code's own config keeps www.ahanassa.com and workers.dev off"
+        if: ${{ steps.mode.outputs.mode == 'production-content' && steps.live.outputs.eligible == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
-          if ! node .ci-selector/.github/scripts/v11-stable-release.mjs check-config --app .; then
-            echo "::error title=ALERT: v11 STABLE_100 release has no www binding::the latest STABLE_100 release's workers/static/wrangler.jsonc (env production) does not declare the www.ahanassa.com custom domain with workers_dev false — it must not be deployed (RELEASE_POLICY.md §20.5)"
+          if ! node "$CI_SCRIPTS/v11-stable-release.mjs" check-config --app .; then
+            echo "::error title=ALERT: production code has no www binding::workers/static/wrangler.jsonc (env production) of $(git rev-parse HEAD) does not declare the www.ahanassa.com custom domain with workers_dev false — it must not be deployed (RELEASE_POLICY.md §20.5)"
             exit 1
           fi
-          rm -rf .ci-selector
 
-      - name: "5. Fetch (Odoo full fetch, GET only; DB_PUBLIC read-only)"
+      # Reported here, blocking in CI (pull requests): a tracked file is already public, and stopping the daily
+      # content publish would not unpublish it. The artifact gate (export step) stays blocking for the build output.
+      - name: "Price-source names in the tracked tree (reported; CI blocks)"
+        continue-on-error: true
         shell: bash
+        run: |
+          set -euo pipefail
+          node "$CI_SCRIPTS/v11-source-names.mjs" scan-tree --app .
+
+      - name: "5. Fetch (Odoo full fetch, GET only; DB_PUBLIC read-only; articles from the content repo)"
+        shell: bash
+        env:
+          # W11.1 articles: read-only fine-grained token, contents:read on rezachidotnet/ahanassa-content only.
+          AHANASSA_CONTENT_REPO_TOKEN: ${{ secrets.AHANASSA_CONTENT_REPO_TOKEN }}
         run: |
           set -euo pipefail
           node scripts/content/fetch.ts --work "$WORK"
@@ -232,9 +343,29 @@ jobs:
           test "$(jq -r .code_sha "$WORK/artifact-production/manifest.json")" = "$(jq -r .code_sha "$WORK/artifact/manifest.json")"
           test "$(jq -r .snapshot_version "$WORK/artifact-production/manifest.json")" = "$(jq -r .snapshot_version "$WORK/artifact/manifest.json")"
           test "$(jq '.failures | length' "$WORK/target-diff.json")" = "0"
+          test "$(jq -r .code_sha "$WORK/artifact/manifest.json")" = "$(git rev-parse HEAD)"
+
+      - name: "Next step for the owner"
+        if: ${{ steps.mode.outputs.mode == 'merge' || steps.mode.outputs.mode == 'production-prep' }}
+        shell: bash
+        env:
+          RISK: ${{ steps.classify.outputs.risk }}
+          LEDGER_ONLY: ${{ steps.classify.outputs.ledger_only == 'true' || steps.classify.outputs.merge_ledger_only == 'true' }}
+          SAFE: ${{ steps.classify.outputs.release_safe }}
+          MODE: ${{ steps.mode.outputs.mode }}
+          AUTO: ${{ vars.V11_AUTO_PRODUCTION_PREP != 'off' && 'on' || 'off' }}
+        run: |
+          set -euo pipefail
+          if [ "$SAFE" != "true" ]; then
+            echo "- **no production step**: this commit is not the $APP_REF tip or does not contain the live code (see the warnings)." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$MODE" = "merge" ] && { [ "$AUTO" = "off" ] || [ "$LEDGER_ONLY" = "true" ] || [ "$RISK" = "NONE" ]; }; then
+            echo "- staging only: no production step started (auto-start $AUTO, ledger-only $LEDGER_ONLY, risk $RISK)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- after the staging publish, **publish-production waits for your Approve** (GitHub app → this run → Review deployments → production-v11 → Approve). Reject = nothing reaches www." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: "11. Upload artifact (public-assets + private-snapshot + manifests; 14 days)"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: content-${{ steps.meta.outputs.snapshot_version }}
           path: |
@@ -250,8 +381,8 @@ jobs:
   publish:
     name: publish (staging DB_PUBLIC + static Worker)
     needs: build
-    if: ${{ github.event_name == 'schedule' || inputs.dry_run != true }}
-    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_run' || inputs.dry_run != true }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: staging
     env:
@@ -262,13 +393,25 @@ jobs:
         shell: bash
         run: echo "WORK=$RUNNER_TEMP/content" >> "$GITHUB_ENV"
 
+      - name: Price-source name list (secret -> private temp file; never printed)
+        shell: bash
+        env:
+          NAMES: ${{ secrets.AHANASSA_PRICE_SOURCE_NAMES }}
+        run: |
+          set -euo pipefail
+          if [ -z "$NAMES" ]; then exit 0; fi
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$NAMES" > "$RUNNER_TEMP/private/source-names.txt"
+          echo "AHANASSA_PRICE_SOURCE_NAMES_FILE=$RUNNER_TEMP/private/source-names.txt" >> "$GITHUB_ENV"
+
       - name: Checkout the exact code the artifact was built from
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ needs.build.outputs.code_sha }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "24"
           cache: npm
@@ -277,7 +420,7 @@ jobs:
         run: npm ci
 
       - name: Download the build's artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: content-${{ needs.build.outputs.snapshot_version }}
           path: ${{ runner.temp }}/content/download
@@ -341,15 +484,18 @@ jobs:
             echo "### Publish failed before any write; nothing to roll back" >> "$GITHUB_STEP_SUMMARY"
           fi
 
-  # W8.0 production-prep (r4 §2.3): the production twin of the artifact the staging job just published.
-  # No Odoo fetch, no build: checksums + the allowlisted-diff gate + "staging twin is active" are verified
-  # again by publish.ts load. CONTENT_REBUILD classification (RELEASE_POLICY.md §19) is RECORDED; the
-  # approval of this run is the production-v11 reviewer gate. Deploys to www.ahanassa.com (W8.1 cutover).
+  # The production twin of the artifact the staging job just published (r4 §2.3): no Odoo fetch, no build;
+  # checksums + the allowlisted-diff gate + "staging twin is active" are verified again by publish.ts load.
+  # Started by a production-prep dispatch or (W9.7) by a merge run whose code differs from the live code. It waits
+  # for the owner's Approve in environment production-v11 (required reviewer). The release reaches 100% at once;
+  # risk LOW/HIGH (build output) decides what v11-release-watch.yml does during the 24 h after (§20).
   publish-production:
     name: publish-production (production-prep, www.ahanassa.com + v11 production DB_PUBLIC)
     needs: [build, publish]
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'production-prep' && inputs.dry_run != true }}
-    runs-on: ubuntu-latest
+    if: >-
+      ${{ (github.event_name == 'workflow_dispatch' && inputs.target == 'production-prep' && inputs.dry_run != true) ||
+      (github.event_name == 'workflow_run' && needs.build.outputs.auto_prep == 'true') }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: production-v11
     env:
@@ -360,13 +506,41 @@ jobs:
         shell: bash
         run: echo "WORK=$RUNNER_TEMP/content" >> "$GITHUB_ENV"
 
-      - name: Checkout the exact code the artifact was built from
-        uses: actions/checkout@v4
+      - name: Price-source name list (secret -> private temp file; never printed)
+        shell: bash
+        env:
+          NAMES: ${{ secrets.AHANASSA_PRICE_SOURCE_NAMES }}
+        run: |
+          set -euo pipefail
+          if [ -z "$NAMES" ]; then exit 0; fi
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$NAMES" > "$RUNNER_TEMP/private/source-names.txt"
+          echo "AHANASSA_PRICE_SOURCE_NAMES_FILE=$RUNNER_TEMP/private/source-names.txt" >> "$GITHUB_ENV"
+
+      - name: Checkout the exact code the artifact was built from (full history for the live-code guard)
+        uses: actions/checkout@v6
         with:
           ref: ${{ needs.build.outputs.code_sha }}
+          fetch-depth: 0
+
+      - name: Checkout the release scripts (this workflow's own commit on main)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          path: .ci-selector
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Move the release scripts outside the checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv .ci-selector "$RUNNER_TEMP/ci-selector"
+          echo "CI_SCRIPTS=$RUNNER_TEMP/ci-selector/.github/scripts" >> "$GITHUB_ENV"
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "24"
           cache: npm
@@ -375,7 +549,7 @@ jobs:
         run: npm ci
 
       - name: Download the build's artifact (both targets)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: content-${{ needs.build.outputs.snapshot_version }}
           path: ${{ runner.temp }}/content/download
@@ -393,19 +567,48 @@ jobs:
           done
           test "$(jq -r .environment "$WORK/artifact-production/manifest.json")" = "production"
 
-      - name: "CONTENT_REBUILD / code-release classification (recorded; RELEASE_POLICY.md §19)"
+      - name: "The release is the branch tip and contains the live code (no downgrade)"
+        shell: bash
+        env:
+          SAFE: ${{ needs.build.outputs.release_safe }}
+        run: |
+          if [ "$SAFE" != "true" ]; then
+            echo "::error title=ALERT: release refused::the build found that this commit is not the $APP_REF tip or does not contain the live code — nothing was written"
+            exit 1
+          fi
+
+      - name: "The release's own config keeps www.ahanassa.com and workers.dev off (RELEASE_POLICY.md §20.5)"
         shell: bash
         run: |
           set -euo pipefail
-          # The ledger is read from LEDGER_REF, the trusted production application branch (§20.4), never from code_sha.
-          git fetch --no-tags --depth=1 origin "+refs/heads/$LEDGER_REF:refs/remotes/origin/$LEDGER_REF"
+          if ! node "$CI_SCRIPTS/v11-stable-release.mjs" check-config --app .; then
+            echo "::error title=ALERT: release has no www binding::workers/static/wrangler.jsonc (env production) of $(git rev-parse HEAD) does not declare the www.ahanassa.com custom domain with workers_dev false — it must not be deployed"
+            exit 1
+          fi
+
+      - name: "Guard: www still serves what the build saw (no rollback or publish in between)"
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          LIVE_SNAPSHOT: ${{ needs.build.outputs.live_snapshot }}
+        run: |
+          set -euo pipefail
+          node "$CI_SCRIPTS/v11-live-release.mjs" live --app . --ledger-ref "origin/$LEDGER_REF" --expect-snapshot "$LIVE_SNAPSHOT" > "$RUNNER_TEMP/live-now.json"
+
+      - name: "Classification (recorded): release risk + CONTENT_REBUILD against the live code (RELEASE_POLICY.md §19, §20)"
+        shell: bash
+        env:
+          LIVE_SHA: ${{ needs.build.outputs.live_sha }}
+          RISK: ${{ needs.build.outputs.risk }}
+        run: |
+          set -euo pipefail
           status=0
-          node lib/ci/content-rebuild-cli.ts --artifact "$WORK/artifact-production" --ledger-ref "origin/$LEDGER_REF" \
-            --gates-passed true --decision-file "$WORK/content-rebuild.json" || status=$?
+          node "$CI_SCRIPTS/v11-live-release.mjs" content-check --artifact "$WORK/artifact-production" --live-sha "$LIVE_SHA" \
+            --decision-file "$WORK/content-rebuild.json" || status=$?
           case "$status" in
-            0) echo "- classification: CONTENT_REBUILD (AUTO)" >> "$GITHUB_STEP_SUMMARY" ;;
+            0) echo "- classification: CONTENT_REBUILD (AUTO) — same code as live" >> "$GITHUB_STEP_SUMMARY" ;;
             3) echo "- classification: CONTENT_REBUILD (APPROVAL_REQUIRED)" >> "$GITHUB_STEP_SUMMARY" ;;
-            1) echo "- classification: code release (not a CONTENT_REBUILD) — expected before a v11 STABLE_100 exists" >> "$GITHUB_STEP_SUMMARY" ;;
+            1) echo "- classification: code release, risk **$RISK** (live code \`${LIVE_SHA:-unresolved}\`)" >> "$GITHUB_STEP_SUMMARY" ;;
             *) echo "::error title=ALERT: content-rebuild check could not run::exit $status"; exit 1 ;;
           esac
           echo "- production-prep publish approved through the production-v11 reviewer gate (www.ahanassa.com)" >> "$GITHUB_STEP_SUMMARY"
@@ -415,6 +618,16 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/content/publish.ts load --work "$WORK" --env production
+
+      # Again right before the deploy, so a rollback that ran while this job loaded the snapshot is not undone.
+      - name: "Guard again: www still serves what the build saw"
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          LIVE_SNAPSHOT: ${{ needs.build.outputs.live_snapshot }}
+        run: |
+          set -euo pipefail
+          node "$CI_SCRIPTS/v11-live-release.mjs" live --app . --ledger-ref "origin/$LEDGER_REF" --expect-snapshot "$LIVE_SNAPSHOT" > /dev/null
 
       - name: "12. Deploy the production twin to ahanassa-v11-static-production (www.ahanassa.com)"
         shell: bash
@@ -435,6 +648,7 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/content/publish.ts switch --work "$WORK" --env production
+          echo "SWITCHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
 
       - name: "12. Finalize (retention; no catalog mirror in production)"
         id: finalize
@@ -454,9 +668,36 @@ jobs:
             echo "### Production-prep publish failed before any write; nothing to roll back" >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      - name: "Production publish state (live-release.json)"
+        id: record
+        if: ${{ steps.finalize.outcome == 'success' }}
+        shell: bash
+        env:
+          CODE_SHA: ${{ needs.build.outputs.code_sha }}
+          LIVE_SHA: ${{ needs.build.outputs.live_sha }}
+          RISK: ${{ needs.build.outputs.risk }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/live-record"
+          kind=release
+          if [ "$CODE_SHA" = "$LIVE_SHA" ]; then kind=content; fi
+          node "$CI_SCRIPTS/v11-live-release.mjs" record --out "$RUNNER_TEMP/live-record/live-release.json" --kind "$kind" \
+            --code-sha "$CODE_SHA" --publish-state "$WORK/publish-state.production.json" --previous-code-sha "$LIVE_SHA" \
+            --risk "$RISK" --run-id "$GITHUB_RUN_ID" --switched-at "$SWITCHED_AT"
+          echo "- live on www since $SWITCHED_AT: \`$CODE_SHA\` ($kind${RISK:+, risk $RISK}); v11-release-watch.yml observes it for 24 h" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the production publish state (90 days)
+        if: ${{ steps.record.outcome == 'success' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: v11-live-release
+          path: ${{ runner.temp }}/live-record/live-release.json
+          retention-days: 90
+          if-no-files-found: error
+
       - name: Keep the classification decision and publish state (90 days)
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: production-prep-evidence-${{ github.run_id }}
           path: |
@@ -466,19 +707,17 @@ jobs:
           if-no-files-found: warn
 
   # W8.1 owner decision D-CONTENT (2026-10-05): the scheduled (daily) production content publish. Environment
-  # production-v11-content (no reviewer, branch main only, its own deploy token) — used ONLY by this job.
-  # It publishes ONLY when the CONTENT_REBUILD check (RELEASE_POLICY.md §19, lib/ci/content-rebuild-cli.ts)
-  # returns AUTO (exit 0). APPROVAL_REQUIRED (3) or REFUSED (1) publish nothing: the owner then dispatches
+  # production-v11-content (no reviewer, branch main only, its own deploy token) — used ONLY by this job and by the
+  # rollback of v11-release-watch.yml. It publishes ONLY when the CONTENT_REBUILD check returns AUTO (exit 0) against
+  # the LIVE code (W9.7). APPROVAL_REQUIRED (3) or REFUSED (1) publish nothing: the owner then dispatches
   # target=production-prep, which runs the reviewer-gated `publish-production` job above.
-  # W9.1 (D-DAR-063 + D-SCHEDULE, RELEASE_POLICY.md §20.5): runs ONLY on the 08:00 UTC schedule (11:30 Tehran) and
-  # only when the build checked out a v11 STABLE_100 release (build.outputs.production_eligible); the 22:47
-  # staging schedule never reaches it. The ledger is read from LEDGER_REF (§20.4). Until the first v11
-  # STABLE_100 row exists the job is skipped (the build posts a "not eligible" notice).
+  # Runs ONLY on the 08:00 UTC schedule (11:30 Tehran) and only when the build checked out the live v11 code
+  # (build.outputs.production_eligible); the 22:47 staging schedule never reaches it.
   publish-production-content:
     name: publish-production-content (scheduled; CONTENT_REBUILD AUTO only)
     needs: [build, publish]
     if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 8 * * *' && needs.build.outputs.production_eligible == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: production-v11-content
     env:
@@ -489,13 +728,41 @@ jobs:
         shell: bash
         run: echo "WORK=$RUNNER_TEMP/content" >> "$GITHUB_ENV"
 
-      - name: Checkout the exact code the artifact was built from
-        uses: actions/checkout@v4
+      - name: Price-source name list (secret -> private temp file; never printed)
+        shell: bash
+        env:
+          NAMES: ${{ secrets.AHANASSA_PRICE_SOURCE_NAMES }}
+        run: |
+          set -euo pipefail
+          if [ -z "$NAMES" ]; then exit 0; fi
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$NAMES" > "$RUNNER_TEMP/private/source-names.txt"
+          echo "AHANASSA_PRICE_SOURCE_NAMES_FILE=$RUNNER_TEMP/private/source-names.txt" >> "$GITHUB_ENV"
+
+      - name: Checkout the exact code the artifact was built from (full history for the live-code guard)
+        uses: actions/checkout@v6
         with:
           ref: ${{ needs.build.outputs.code_sha }}
+          fetch-depth: 0
+
+      - name: Checkout the release scripts (this workflow's own commit on main)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          path: .ci-selector
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Move the release scripts outside the checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv .ci-selector "$RUNNER_TEMP/ci-selector"
+          echo "CI_SCRIPTS=$RUNNER_TEMP/ci-selector/.github/scripts" >> "$GITHUB_ENV"
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "24"
           cache: npm
@@ -504,7 +771,7 @@ jobs:
         run: npm ci
 
       - name: Download the build's artifact (both targets)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: content-${{ needs.build.outputs.snapshot_version }}
           path: ${{ runner.temp }}/content/download
@@ -522,20 +789,24 @@ jobs:
           done
           test "$(jq -r .environment "$WORK/artifact-production/manifest.json")" = "production"
 
-      - name: "CONTENT_REBUILD check (RELEASE_POLICY.md §19): publish only on AUTO"
+      - name: "CONTENT_REBUILD check against the live code (RELEASE_POLICY.md §19): publish only on AUTO"
         id: classify
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          LIVE_SHA: ${{ needs.build.outputs.live_sha }}
+          LIVE_SNAPSHOT: ${{ needs.build.outputs.live_snapshot }}
         run: |
           set -euo pipefail
-          # The ledger is read from LEDGER_REF, the trusted production application branch (§20.4), never from code_sha.
-          git fetch --no-tags --depth=1 origin "+refs/heads/$LEDGER_REF:refs/remotes/origin/$LEDGER_REF"
+          # Right before the first write: www still serves what the build saw, so the build's live code is still live.
+          node "$CI_SCRIPTS/v11-live-release.mjs" live --app . --ledger-ref "origin/$LEDGER_REF" --expect-snapshot "$LIVE_SNAPSHOT" > "$RUNNER_TEMP/live-now.json"
           status=0
-          node lib/ci/content-rebuild-cli.ts --artifact "$WORK/artifact-production" --ledger-ref "origin/$LEDGER_REF" \
-            --gates-passed true --decision-file "$WORK/content-rebuild.json" || status=$?
+          node "$CI_SCRIPTS/v11-live-release.mjs" content-check --artifact "$WORK/artifact-production" --live-sha "$LIVE_SHA" \
+            --decision-file "$WORK/content-rebuild.json" || status=$?
           case "$status" in
-            0) echo "auto=true" >> "$GITHUB_OUTPUT"; echo "- CONTENT_REBUILD: **AUTO** — publishing to production" >> "$GITHUB_STEP_SUMMARY" ;;
+            0) echo "auto=true" >> "$GITHUB_OUTPUT"; echo "- CONTENT_REBUILD: **AUTO** (live code \`$LIVE_SHA\`) — publishing to production" >> "$GITHUB_STEP_SUMMARY" ;;
             3) echo "auto=false" >> "$GITHUB_OUTPUT"; echo "::notice title=production content not published::CONTENT_REBUILD APPROVAL_REQUIRED — dispatch content-publish.yml target=production-prep (owner approval)"; echo "- CONTENT_REBUILD: APPROVAL_REQUIRED — **not published**; dispatch target=production-prep" >> "$GITHUB_STEP_SUMMARY" ;;
-            1) echo "auto=false" >> "$GITHUB_OUTPUT"; echo "::notice title=production content not published::CONTENT_REBUILD REFUSED (code release) — dispatch content-publish.yml target=production-prep (owner approval)"; echo "- CONTENT_REBUILD: REFUSED (code release) — **not published**; dispatch target=production-prep" >> "$GITHUB_STEP_SUMMARY" ;;
+            1) echo "auto=false" >> "$GITHUB_OUTPUT"; echo "::notice title=production content not published::CONTENT_REBUILD REFUSED — dispatch content-publish.yml target=production-prep (owner approval)"; echo "- CONTENT_REBUILD: REFUSED — **not published**; dispatch target=production-prep" >> "$GITHUB_STEP_SUMMARY" ;;
             *) echo "::error title=ALERT: content-rebuild check could not run::exit $status"; exit 1 ;;
           esac
 
@@ -545,6 +816,17 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/content/publish.ts load --work "$WORK" --env production
+
+      # Again right before the deploy, so a rollback that ran while this job loaded the snapshot is not undone.
+      - name: "Guard again: www still serves what the build saw"
+        if: ${{ steps.classify.outputs.auto == 'true' }}
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          LIVE_SNAPSHOT: ${{ needs.build.outputs.live_snapshot }}
+        run: |
+          set -euo pipefail
+          node "$CI_SCRIPTS/v11-live-release.mjs" live --app . --ledger-ref "origin/$LEDGER_REF" --expect-snapshot "$LIVE_SNAPSHOT" > /dev/null
 
       - name: "12. Deploy the production twin to ahanassa-v11-static-production (www.ahanassa.com)"
         if: ${{ steps.classify.outputs.auto == 'true' }}
@@ -568,6 +850,7 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/content/publish.ts switch --work "$WORK" --env production
+          echo "SWITCHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
 
       - name: "12. Finalize (retention; no catalog mirror in production)"
         id: finalize
@@ -588,9 +871,31 @@ jobs:
             echo "### Production content publish failed before any write; nothing to roll back" >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      - name: "Production publish state (live-release.json)"
+        id: record
+        if: ${{ steps.finalize.outcome == 'success' }}
+        shell: bash
+        env:
+          CODE_SHA: ${{ needs.build.outputs.code_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/live-record"
+          node "$CI_SCRIPTS/v11-live-release.mjs" record --out "$RUNNER_TEMP/live-record/live-release.json" --kind content \
+            --code-sha "$CODE_SHA" --publish-state "$WORK/publish-state.production.json" --previous-code-sha "$CODE_SHA" \
+            --risk NONE --run-id "$GITHUB_RUN_ID" --switched-at "$SWITCHED_AT"
+
+      - name: Keep the production publish state (90 days)
+        if: ${{ steps.record.outcome == 'success' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: v11-live-release
+          path: ${{ runner.temp }}/live-record/live-release.json
+          retention-days: 90
+          if-no-files-found: error
+
       - name: Keep the classification decision and publish state (90 days)
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: production-content-evidence-${{ github.run_id }}
           path: |

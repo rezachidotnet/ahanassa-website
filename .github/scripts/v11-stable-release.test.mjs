@@ -1,4 +1,4 @@
-// node --test .github/scripts/  (from a checkout of this repository with origin/feat/v11-static-site fetched)
+// node --test ".github/scripts/*.test.mjs"  (from a checkout of this repository with origin/feat/v11-static-site fetched)
 // Fixture git repositories, synthetic SHAs/IDs only (RELEASE_POLICY.md §14). The strict resolver under test is
 // the real lib/ci/release-ledger.ts, read from the application branch (RESOLVER_SOURCE_REF).
 import assert from "node:assert/strict";

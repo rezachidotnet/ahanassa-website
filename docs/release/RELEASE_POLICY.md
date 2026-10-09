@@ -489,91 +489,192 @@ A production content publication is `OPERATION_TYPE: CONTENT_REBUILD` only when 
 
 **Update 2026-10-06 (D-DAR-063).** The v11 code release path now exists (§20). The trusted ledger branch is `feat/v11-static-site` (§20.4). The scheduled production content publish builds from `BASE_PRODUCTION_SHA`, not from the branch tip (§20.5). Until the first v11 `STABLE_100` row is appended, the check still returns `REFUSED`.
 
+**Update 2026-10-09 (W9.7).** For the v11 static site, item 1 "same code as production" means the **live code** (§20.5), not `BASE_PRODUCTION_SHA`. A `LOW` release serves `www` before its `STABLE_100` row (§20.1), and its content must keep publishing without downgrading it. The check `content-publish.yml` runs is `.github/scripts/v11-live-release.mjs content-check` on `main`. Items 2 and 3 are unchanged; the refusal code is `CODE_SHA_NOT_LIVE` instead of `CODE_SHA_MISMATCH`. `lib/ci/content-rebuild.ts` keeps its `BASE_PRODUCTION_SHA` semantics, but the workflow no longer calls it.
+
 ---
 
 ## 20. v11 static-site release path
 
-**Owner decision D-DAR-063, 2026-10-06 (`docs/OWNER_DECISIONS.md`; closes `DOCUMENT_AUDIT_REPORT.md` DAR-063).** Since the W8.1 cutover (2026-10-05), `www.ahanassa.com` is served by the v11 static-assets Worker `ahanassa-v11-static-production`. A Worker attached by custom domain serves one version to 100% of traffic, so it cannot run the §5 HIGH path (10% canary → `verify-production.yml` → `promote-production.yml`). This section is that Worker's release path.
+**Owner decision D-DAR-063, 2026-10-06 (`docs/OWNER_DECISIONS.md`; closes `DOCUMENT_AUDIT_REPORT.md` DAR-063), amended by owner decision W9.7, 2026-10-09 (release simplification).** Since the W8.1 cutover (2026-10-05), `www.ahanassa.com` is served by the v11 static-assets Worker `ahanassa-v11-static-production`. A Worker attached by custom domain serves one version to 100% of traffic, so it cannot run the §5 HIGH path (10% canary → `verify-production.yml` → `promote-production.yml`). This section is that Worker's release path.
 
-**What counts as a v11 code release.** A `content-publish.yml` production publication whose artifact `code_sha` is not `BASE_PRODUCTION_SHA`. The CONTENT_REBUILD check (§19) returns `REFUSED (CODE_SHA_MISMATCH)` for it. A publication whose `code_sha` equals `BASE_PRODUCTION_SHA` is a `CONTENT_REBUILD` (§19), not a release.
+**What counts as a v11 code release.** A `content-publish.yml` production publication whose artifact `code_sha` is not the **live code**: the code that `www.ahanassa.com` serves at the time of the build (§20.5 "Live code"). A publication whose `code_sha` is the live code is a `CONTENT_REBUILD` (§19), not a release.
+
+**Owner routine (W9.7).** Claude opens a PR → the owner merges it → staging builds automatically (about 15–20 minutes) → the owner taps **Approve** in the GitHub app → `www.ahanassa.com`. No terminal command is part of the routine (§20.7).
 
 ### 20.1 The path
 
-1. **Staging publish + smoke.** The owner dispatches `content-publish.yml` with `target=production-prep`. The run builds the staging and production artifacts from one `code_sha` (the application branch tip) and one snapshot. Its `publish` job publishes the staging artifact, and the automatic staging smoke must pass. This is the release's staging provenance (§5.1): same run, same `code_sha`.
-2. **Production-prep publish, with environment approval.** In the same run, the `publish-production` job runs in environment `production-v11` (reviewer approval). It loads, deploys, smokes `www.ahanassa.com` and switches, and rolls back automatically on any failure. The release reaches 100% at once.
-3. **Observation.** At least `MINIMUM_OBSERVATION_DURATION (v11)` (§20.2), counted from the completion of the production job, ends with the §12 owner attestation (`OBSERVATION_STARTED_AT`, `OBSERVATION_ENDED_AT`, `OBSERVATION_OWNER`, `OBSERVATION_ATTESTATION`).
-4. **`STABLE_100`.** The owner appends the row (§20.3) to the ledger on the ledger branch (§20.4). The row goes in its own commit, which changes nothing else in that file (§3). Only from then on is the release `BASE_PRODUCTION_SHA`.
+1. **Staging publish + smoke.** A merge to `feat/v11-static-site` (a push whose `CI` run succeeds) starts a `content-publish.yml` run (`workflow_run`) that builds **that commit**. The owner can also start the same run from the GitHub UI: `content-publish.yml` → Run workflow → `target=production-prep` (it builds the branch tip). The run builds the staging and production artifacts from one `code_sha` and one snapshot. Its `publish` job publishes the staging artifact, and the automatic staging smoke must pass. This is the release's staging provenance (§5.1): same run, same `code_sha`. The 22:47 UTC staging schedule is unchanged.
+2. **Risk class (§20.1a).** The build job classifies the change from the live code to `code_sha`: `LOW`, `HIGH`, or `NONE` (no file differs).
+3. **Production-prep publish, with environment approval.** The `publish-production` job of the same run starts after the staging publish — on a dispatch, and on a merge run whose code differs from the live code beyond the ledger file — and waits in environment `production-v11` for the required reviewer's **Approve**. **Reject** publishes nothing. Repository variable `V11_AUTO_PRODUCTION_PREP=off` stops merge runs from starting it (they publish staging only).
+   - **Never a downgrade, never an old commit.** The job runs only when the candidate is the branch tip **and contains the live code**. A re-run of an old CI run, or a tip behind `www`, never reaches production.
+   - **A ledger-only merge never offers a release.** A merge whose own change is only the ledger file (the bot's `STABLE_100` or `ROLLED_BACK` row) starts staging only. After a rollback, the diff from the live code to the tip still contains the rolled-back code.
+   - **A waiting Approve holds the workflow's queue.** The 22:47 and 08:00 runs wait behind it, and GitHub keeps only the newest pending run. Approve or Reject promptly; content does not publish meanwhile. An approval given after a later publish changed `www` fails the guard, and nothing is written. Right before its first write the job checks that `www.ahanassa.com` still serves the snapshot the build saw: a rollback or another publish since the build stops it, and nothing is written. It checks again right before the deploy. It loads, deploys, smokes `www.ahanassa.com` and switches, and it rolls back automatically on any failure. The release reaches 100% at once. After finalize it leaves the `v11-live-release` record (§20.5).
+4. **Observation** (§20.2), 24 h from the switch, by `v11-release-watch.yml` (§20.8):
+   - **LOW:** not blocking. The next release need not wait, and an ops-health production ALERT within the 24 h rolls the release back automatically: the previous Worker version and the publication pointer (§20.8).
+   - **HIGH:** the §20.2 observation as before. An ALERT stops it, and the owner decides between a rollback (one tap, §20.7) and a fix. A fix is a new release with a new observation. Nothing happens automatically. While a HIGH release is in its observation, the owner approves no further release, except a fix after an ALERT.
+5. **`STABLE_100`.** After 24 h with no ALERT, `v11-release-watch.yml` opens a bot PR that appends the row (§20.3) to the ledger on the ledger branch (§20.4). The PR changes nothing else in the file (§3). **The owner's merge of that PR is the §12 attestation.** Only from then on is the release `BASE_PRODUCTION_SHA`. After a rollback, the bot PR appends a `ROLLED_BACK` row instead, and the release never gets a `STABLE_100` row.
 
 **Not part of this path:**
-- **10% canary.** It does not apply to a custom-domain static Worker; the observation of step 3 replaces the canary period.
+- **10% canary.** It does not apply to a custom-domain static Worker; the observation of step 4 replaces the canary period.
 - **`verify-production.yml` and `promote-production.yml`.** They operate on the legacy Worker `ahanassa-production` only.
-- **`deploy-production.yml`'s release policy gate (§0.2).** It does not run for v11.
+- **`deploy-production.yml`'s release policy gate (§0.2) and the v1 path classifier (`lib/ci/release-risk-classifier.ts`).** Neither runs for v11. Against the legacy baseline `f2202ab…` the v1 classifier returns `AMBIGUOUS`, because the v11 tree adds entries its taxonomy does not cover (W9.1 evidence). Under §9 that ambiguity is resolved only by amending this policy, and §20.1a is that amendment.
 
-**Risk.** A v11 code release is recorded with `FINAL_RISK = HIGH`. This is a policy rule, not a computed result.
+### 20.1a Risk classes (v11, owner decision W9.7)
 
-The path classifier (`lib/ci/release-risk-classifier.ts`) is **not** run for v11 releases. Against the legacy baseline `f2202ab…` it returns `AMBIGUOUS`: the v11 tree adds entries the v1 taxonomy does not cover (`fixtures/`, `*.sh`, `.env.example`, `.gitignore`; W9.1 evidence).
+The classifier is `.github/scripts/v11-release-risk.mjs` on `main`, run from the workflow's own commit, never from the candidate. It diffs **the live code → `code_sha`** (`git diff --name-status -M -C`) and puts every path on both sides of a rename or copy through an **explicit allowlist**:
 
-Under §9 that ambiguity is resolved only by amending this policy. This section is that amendment: every v11 code release takes the most restrictive class (`HIGH`), with the §20.1 observation in place of the canary.
+| Rule | Paths |
+| --- | --- |
+| `css` | any `*.css` file |
+| `image` | `public/**` raster images and icons: `.png`, `.jpg`, `.jpeg`, `.webp`, `.avif`, `.gif`, `.ico` (**not `.svg`**: SVG can carry script) |
+| `copy` | the copy/message modules `lib/content/{homepage,nav,pages,buyer-value,evaluation-assurance,industries,purchase-process}.ts` and `lib/weight-calculator/copy.ts` |
+| `copy-test` | `lib/content/*.test.ts` (the frozen-spec tests that pin that copy; tests never ship) |
 
-Extending the classifier's taxonomy to the v11 tree is a separate `HIGH_RELEASE_PATHS` change and is not needed for this path.
+- **`LOW`:** every changed path matches a rule.
+- **`HIGH`:** anything else, for example pricing, RFQ, Workers, workflows, D1 migrations, configuration (`wrangler*`, `package*.json`, `vite.config.ts`), the content pipeline (`scripts/content/**`, `lib/content-pipeline/**`, `lib/static/**`), `lib/ci/**`, docs, components and pages. Also `HIGH`: `lib/content/contact-channels.ts` (company numbers, an artifact-gate input), `lib/content/whatsapp.ts`, an unknown git status, and a live code that could not be resolved (no base to diff against).
+- **`NONE`:** no file differs. This is not a code release.
+- There is no `MEDIUM` and no `AMBIGUOUS`: the default is the most restrictive class.
+- A new copy module is `HIGH` until it is added to the list. Adding it is a change to `.github/**`, so it is `HIGH` itself.
 
-**Rollback.**
-- A failure before the switch rolls back automatically: the previous Worker version is redeployed and the publication pointer is left untouched.
-- A failure during observation is rolled back with the run's recorded rollback target: `wrangler versions deploy <ROLLBACK_VERSION_ID>@100` on `ahanassa-v11-static-production`, plus the publication pointer back to the previous snapshot.
-- After a rollback, the release gets a `ROLLED_BACK` row and never a `STABLE_100` row. Emergency rollback (§13) applies unchanged.
+The class is recorded in the build summary, the `v11-live-release` record and the ledger row (`FINAL_RISK`). A v11 release before W9.7 has no recorded class and counts as `HIGH`.
 
 ### 20.2 `MINIMUM_OBSERVATION_DURATION (v11)` = 24 h
 
-The window is 24 h from the completion of the production job, during which ops-health production (`ops-health.yml`, job `health-production`, `scripts/ops/health/run.ts --env production`) reports **no ALERT**.
+The window is 24 h from the completion of the production job's switch. During it, ops-health production (`ops-health.yml`, job `health (production-prep)`, `scripts/ops/health/run.ts --env production`) must report **no ALERT** (a failed job).
 
-Each run's analytics window starts at the previous completed run (at most 24 h back). A period without a completed run (a monitoring gap) therefore counts as observed only when the next completed run covers it with no ALERT. A local run of the same code with the same read-only scope also counts. A gap no run covers extends the observation.
+Each run's analytics window starts at the start of the previous completed run of the same job (success or failure), at most 24 h back. Since W9.7 that run is found job by job, page by page. A run whose other job was cancelled or held still counts. With no completed run in the last 24 h, the window is the full 24 h, never the 15-minute minimum (W9.1c finding).
 
-The observation evidence lists the runs, their outcomes, and every gap with how it was covered. An ALERT during the window stops the observation: the owner decides between a rollback and a fix. A fix is a new release with a new observation.
+A period without a completed run (a monitoring gap) therefore counts as observed only when the next completed run covers it with no ALERT. The window ends with the first run that starts at or after the 24 h mark; that run still reports on the end of the window. A gap of more than 24 h is covered by no run; the watch reports it and the owner decides. A local run of the same code with the same read-only scope also counts (owner, by hand).
+
+The observation evidence lists the runs, their outcomes and every gap over 30 minutes; the `STABLE_100` bot PR carries it. An ALERT during the window stops the observation: `LOW` rolls back automatically (§20.8), `HIGH` goes to the owner (§20.1 step 4).
 
 ### 20.3 `STABLE_100` field mapping (v11)
 
-The ledger schema (§3) and its strict validator (`lib/ci/release-ledger.ts`) are unchanged. A v11 row fills the columns as follows:
+The ledger schema (§3) and its strict validator (`lib/ci/release-ledger.ts`) are unchanged. A v11 row fills the columns as follows (`.github/scripts/v11-ledger-append.mjs` writes it):
 
 | Column | v11 value |
 | --- | --- |
 | `RELEASE_SHA` | the production artifact's private `manifest.json` `code_sha` (full 40 characters) |
 | `WORKER_VERSION_ID` | `deployed_worker_version_id` of the run's `publish-state.production.json` (Worker `ahanassa-v11-static-production`) |
-| `RELEASE_STATE` | `STABLE_100` |
-| `FINAL_TRAFFIC_PERCENT` | `100` (a custom domain serves one version) |
+| `RELEASE_STATE` | `STABLE_100` (`ROLLED_BACK` after a rollback) |
+| `FINAL_TRAFFIC_PERCENT` | `100` (a custom domain serves one version); `0` for `ROLLED_BACK` |
 | `STAGING_RUN_ID` | the `content-publish.yml` run id. The staging `publish` job of the same run published the same `code_sha` and snapshot |
 | `PRODUCTION_RUN_ID` | the same `content-publish.yml` run id (its production job) |
-| `PROMOTION_RUN_ID` | **substitute:** the `content-publish.yml` run id of the production job that put the release on `www.ahanassa.com`. Numeric, as for every `STABLE_100` row |
-| `ROLLBACK_VERSION_ID` | `previous_worker_version_id` of the same `publish-state.production.json` |
-| `FINAL_RISK` | `HIGH` (§20.1) |
-| `RESULT` | `PASS`. The production job succeeded, including its smoke, and the observation passed |
-| `TIMESTAMP` | UTC time the version began serving 100% of `www.ahanassa.com`: the completion of the production job's switch step |
-| `NOTES` | `v11 static`, the snapshot version, `OBSERVATION_STARTED_AT` → `OBSERVATION_ENDED_AT`, the observation evidence (ops-health runs, gaps), and the owner attestation |
+| `PROMOTION_RUN_ID` | **substitute:** the `content-publish.yml` run id of the production job that put the release on `www.ahanassa.com`. Numeric, as for every `STABLE_100` row (`-` for `ROLLED_BACK`) |
+| `ROLLBACK_VERSION_ID` | `previous_worker_version_id` of the same `publish-state.production.json` (for `ROLLED_BACK`: the version the rollback restored) |
+| `FINAL_RISK` | the §20.1a class: `LOW` or `HIGH` (`HIGH` for a release before W9.7) |
+| `RESULT` | `PASS`: the production job succeeded, including its smoke, and the observation passed (`FAIL` for `ROLLED_BACK`) |
+| `TIMESTAMP` | UTC time the version began serving 100% of `www.ahanassa.com`: the completion of the production job's switch step (for `ROLLED_BACK`: the rollback) |
+| `NOTES` | `v11 static`, the class, the snapshot version, `OBSERVATION_STARTED_AT` → `OBSERVATION_ENDED_AT`, the observation evidence (ops-health runs, gaps), the watch run. The owner attestation is the merge of the bot PR, recorded by git |
 
-**A v11 version that served 100% but is not made `STABLE_100`** is recorded as history with `RELEASE_STATE = SUPERSEDED` once a later v11 release serves `www.ahanassa.com`. The W8.1 cutover release `d4f57f6` is such a version. A history row is never `STABLE_100` and never becomes `BASE_PRODUCTION_SHA`.
+**A v11 version that served 100% but is not made `STABLE_100`** is recorded as history with `RELEASE_STATE = SUPERSEDED` once a later v11 release serves `www.ahanassa.com`. The W8.1 cutover release `d4f57f6` is such a version. A history row is never `STABLE_100` and never becomes `BASE_PRODUCTION_SHA`. A `LOW` release replaced by the next release within its 24 h gets no automatic row; the owner may add a `SUPERSEDED` row by hand.
 
 ### 20.4 The ledger branch
 
-`docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md` is read from **`feat/v11-static-site`**, the production application branch since the W8.1 cutover. Every reader uses this one branch: `content-publish.yml` (its `LEDGER_REF`, used for the scheduled build's checkout and for every CONTENT_REBUILD check) and the release's own evidence. New rows are appended there only.
+`docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md` is read from **`feat/v11-static-site`**, the production application branch since the W8.1 cutover. Every reader uses this one branch: `content-publish.yml` (its `LEDGER_REF`), `v11-release-watch.yml`, and the release's own evidence. New rows are appended there only, through the watch's bot PRs (branches `bot/v11-ledger-*`) or by the owner.
 
-The copy on `feat/header-hero-integrated` (the legacy branch, frozen since D-FREEZE) stays as history. It is identical up to the last legacy row and gains no rows. As before, a release never carries its own row (§19 item 1): the row is appended in a commit after `RELEASE_SHA`.
+The copy on `feat/header-hero-integrated` (the legacy branch, frozen since D-FREEZE) stays as history. It is identical up to the last legacy row and gains no rows. As before, a release never carries its own row (§19 item 1): the row is appended in a commit after `RELEASE_SHA`. A merge of a ledger-only change starts a staging build but never a production-prep job.
 
-### 20.5 The scheduled production content publish (D-CONTENT, D-SCHEDULE)
+### 20.5 The scheduled production content publish (D-CONTENT, D-SCHEDULE, W9.7)
 
 **Schedule.**
 - **Production:** daily at **08:00 UTC (11:30 Asia/Tehran)**.
 - **Staging:** the 22:47 UTC run is unchanged. It builds the branch tip and publishes staging only.
 
-**What the 08:00 run builds.** Its build job checks out `BASE_PRODUCTION_SHA`, the `RELEASE_SHA` of the latest `STABLE_100` row read from the ledger branch. It never checks out the branch tip, so that a commit to the application branch cannot turn a content publish into a code release.
+**Live code.** The production publish state is the set of `v11-live-release` artifacts (`live-release.json`: `code_sha`, snapshot, Worker versions, previous code and snapshot, class, switch time). Every production job of `content-publish.yml` writes one after finalize, and `v11-release-watch.yml` writes one after a rollback. For releases before W9.7, the `production-prep-evidence-*` and `production-content-evidence-*` artifacts serve the same purpose. Only artifacts of runs on `main` of those two workflow files count. The live record is the newest one whose snapshot is the one `www.ahanassa.com/manifest.public.json` serves at that moment. It is resolved by `.github/scripts/v11-live-release.mjs` on `main`; the ledger and its strict resolver are read from the ledger branch.
+
+**What the 08:00 run builds.** Its build job checks out **the live code**. It never builds the ledger's older `STABLE_100` (that would downgrade the code) and never the branch tip (that would release unapproved code). The live code must:
+- be on the ledger branch's history;
+- contain the content pipeline;
+- **contain** the latest `STABLE_100` `RELEASE_SHA` (an older code is a downgrade).
+
+If any of these fails, or the live code cannot be resolved, the run builds the tip for staging only and posts a warning. **No one disables `content-publish.yml` during an observation**: it cannot downgrade the code any more.
 
 **When the 08:00 run publishes to production.** All three must hold:
-- the release at that SHA is a v11 release: its tree contains the content pipeline;
+- the live code is eligible (above);
 - its production configuration declares the `www.ahanassa.com` custom domain with `workers_dev: false`;
-- the CONTENT_REBUILD check (§19) returns `AUTO`.
+- the CONTENT_REBUILD check (§19), made against the live code, returns `AUTO`. The check is `.github/scripts/v11-live-release.mjs content-check`.
 
-**Otherwise** it publishes nothing to production, posts a notice and keeps the decision file. If the latest `STABLE_100` release is v11 but its configuration does not declare `www.ahanassa.com`, the run fails (alert).
+Right before the first write, the job checks again that `www` still serves the snapshot the build saw. **Otherwise** it publishes nothing to production, posts a notice and keeps the decision file. If the live code's configuration does not declare `www.ahanassa.com`, the run fails (alert).
 
 **Order.** The run publishes staging first, from the same artifact; the production load verifies that the staging artifact is active. A content rebuild adds no ledger row (§19).
 
 ### 20.6 Not covered by this path
 
-Releases of the v11 RFQ Worker `ahanassa-v11-rfq-production` (`api.ahanassa.com`) are deployed with `wrangler`, not by `content-publish.yml`. D-DAR-063 does not define their path. They remain owner-approved manual deploys, recorded in their release report (open item in `DOCUMENT_AUDIT_REPORT.md` DAR-063).
+Releases of the v11 RFQ Worker `ahanassa-v11-rfq-production` (`api.ahanassa.com`) are deployed with `wrangler`, not by `content-publish.yml`. D-DAR-063 does not define their path. They remain owner-approved manual deploys, recorded in their release report (open item in `DOCUMENT_AUDIT_REPORT.md` DAR-063). The source-name scan (§20.9) and the risk classes do not change that.
+
+### 20.7 The owner routine on a phone (GitHub app)
+
+**Release (any class).**
+1. Open Claude's PR → **Merge**.
+2. Wait about 15–20 min: CI, then the `Content publish` run (the build, then staging).
+3. A notification "Review pending deployments" arrives. Open it (or: Actions → Content publish → the newest run) → **Review deployments** → tick `production-v11` → **Approve and deploy**. To skip this release, tap **Reject**.
+4. The run summary shows the class (`LOW`/`HIGH`), the live code before, and the result.
+
+**About 24 h later.** A bot PR "Ledger: STABLE_100 for …" appears. Open it, check that the observation lists no ALERT, and **Merge**. That is the attestation.
+
+**On an ALERT e-mail during the 24 h.**
+- **LOW:** the release rolls back by itself. A failed `v11 release watch` run reports it by e-mail, and a "Ledger: ROLLED_BACK …" PR appears: **Merge** it. A fix is a new PR.
+- **HIGH:** decide. To roll back: Actions → **v11 release watch** → **Run workflow** → `operation = rollback` → **Run workflow**. To fix forward: merge the fix PR and Approve it as above.
+
+**Starting production-prep by hand** (for example, to re-run a release): Actions → **Content publish** → **Run workflow** → `target = production-prep` → **Run workflow**. Then step 3.
+
+**Before W9.7** the same release needed a manual dispatch, the 24 h observation with local evidence, a hand-written ledger commit, and `content-publish.yml` disabled during the observation (the 08:00 run would have rebuilt the older `STABLE_100` code).
+
+### 20.8 Automatic rollback and ledger rows — `v11-release-watch.yml`
+
+`v11-release-watch.yml` on `main` runs hourly at :52, after the :49 ops-health run, and on demand.
+
+**Watch job.** It finds the event that made the live code live (the newest release or rollback record behind the live record) and reads every ops-health production job since its switch (§20.2). Then it decides:
+
+| State | Action |
+| --- | --- |
+| no ALERT, 24 h covered | job `ledger`: bot PR appending the `STABLE_100` row (§20.3); idempotent (one branch per release) |
+| ALERT, `LOW` | job `rollback`, then the `ROLLED_BACK` bot PR, then `notify` fails the run so GitHub e-mails the owner |
+| ALERT, `HIGH` | nothing automatic; warning in the summary (ops-health already e-mailed); the owner decides |
+| uncovered gap (> 24 h) | nothing automatic; the owner decides |
+| `operation = rollback` (owner dispatch) | job `rollback` for the current release, any class |
+| the live code is a rollback | the `ROLLED_BACK` row, if it is missing. A rollback is never rolled back |
+| the release cannot be identified (an older record without its predecessor, or a broken chain such as a publish of the rolled-back code) | nothing automatic; the owner decides |
+| `operation = rollback` of a release that already has its `STABLE_100` row | refused: that is an `EMERGENCY_ROLLBACK` (§13) |
+
+**E-mail.** GitHub e-mails the owner for a failed run, so the `notify` job fails the run:
+- for every rollback;
+- for a `HIGH` ALERT, once per new failed ops-health run;
+- for a gap or an unidentified release, once a day (at 08:52 UTC).
+
+A health job that hit its timeout counts as an ALERT.
+
+**When `www` is down.** If the release broke `www`, the watch takes the newest production record as live, and the rollback uses the production pointer as the live snapshot.
+
+**Rollback job** (`.github/scripts/v11-rollback.mjs`). It runs in environment `production-v11-content`, with no reviewer (an automatic rollback cannot wait) and its deploy token for the static Worker and `DB_PUBLIC`.
+- **Preconditions, all read before any write.** `www` still serves the snapshot of the decision, and the production pointer equals it. The release's previous snapshot is still in `publication_state` (retention 3). The Worker is not already on the target. The previous live code is known. No `content-publish.yml` production job is running or queued (it waits up to 25 minutes; a job waiting for approval is not running, and its own guard stops it after approval).
+- **Writes.** `wrangler versions deploy <previous_worker_version_id>@100%` on `ahanassa-v11-static-production` (the previous artifact's exact assets), then the publication pointer back to the previous snapshot. The pointer write is guarded on its current value.
+- **Verify.** The Worker version, the pointer, and the snapshot `www` serves.
+- **After.** It writes the `v11-live-release` rollback record. A failure after the first write is an ALERT for the owner, never a silent retry.
+
+This rollback is the §20.1 "failure during observation" rollback with the run's recorded target. It is not the §13 `EMERGENCY_ROLLBACK`, which stays unchanged. The owner's dispatch is the human decision for `HIGH`. For `LOW`, the owner decided in advance (W9.7) that an ALERT is enough.
+
+**Ledger job.** It appends exactly one row with `.github/scripts/v11-ledger-append.mjs`. It re-validates the whole file with the strict resolver read from the ledger branch: `STABLE_100` must make the release `BASE_PRODUCTION_SHA`, and `ROLLED_BACK` must leave it unchanged. Then it pushes `bot/v11-ledger-<state>-<sha12>` and opens a PR to `feat/v11-static-site`. It never pushes to the ledger branch itself. If GitHub Actions may not open PRs in this repository, the job summary gives a one-tap "compare" link instead.
+
+### 20.9 Price-source names (W9.7)
+
+The repository is public: no file in it, and no file of its build output, may name a price source. The list is the repository secret `AHANASSA_PRICE_SOURCE_NAMES`, one name per line. A job writes it to a `0600` file under `$RUNNER_TEMP`, outside the checkout, and passes the path as `AHANASSA_PRICE_SOURCE_NAMES_FILE`.
+- **Artifact gate (blocking).** The gate (`lib/static/source-name-scan.ts`) reads the file in `content-publish.yml` (build, publish and production jobs) and in `CI` (`static-export`).
+- **Tracked tree.** `.github/scripts/v11-source-names.mjs` scans every tracked text file with the same rules. It blocks in `CI` (pull requests and pushes) and in `CI (main)`. In `content-publish.yml` it only reports, because a tracked file is already public and stopping the daily publish would not unpublish it.
+
+Neither scan ever prints a name. A finding names the file and the name's line number in the private list. A path that contains a name is redacted. Without the secret, each scan reports that it did not run.
+
+### 20.10 Tests
+
+`CI (main)` runs `node --test ".github/scripts/*.test.mjs"` and `actionlint` on every PR to `main`; the application's `CI` runs `npm test`.
+
+| Subject | Tests |
+| --- | --- |
+| classifier (§20.1a) | `.github/scripts/v11-release-risk.test.mjs`: LOW only for css/image/copy; HIGH for pricing, RFQ, Workers, workflows, D1, config, pipeline, docs, `contact-channels.ts`, SVG; mixed diff = HIGH; renames/copies both sides; unknown status; ledger-only; no base = HIGH; a real git diff |
+| live-code selection (§20.5) | `.github/scripts/v11-live-release.test.mjs`: the 08:00 build gets the live code, not the older `STABLE_100` and not the tip; refused for an unknown snapshot, a foreign SHA, a downgrade; the release event behind content publishes; legacy evidence; rollback records; only trusted runs on `main` count; CONTENT_REBUILD against the live code |
+| observation + decisions (§20.2, §20.8) | same file: PASSED / OBSERVING / ALERT (inside, on the covering run, not after) / GAP; job-level reading of runs with a stuck job; LOW+ALERT = rollback, HIGH+ALERT = owner, PASSED = `STABLE_100`, a rollback is never rolled back |
+| auto-ledger (§20.3, §20.8) | `.github/scripts/v11-ledger-append.test.mjs`: one line appended, nothing else changed, the strict resolver makes it `BASE_PRODUCTION_SHA`; `ROLLED_BACK` never changes it; no pipe/newline breaks the table; idempotent CLI |
+| rollback (§20.8) | `.github/scripts/v11-rollback.test.mjs`: Worker then guarded pointer then verify; refused before any write (pointer moved, target pruned, www moved, already on target, no target); a failure after a write is an ALERT |
+| ops-health lookback (§20.2) | `scripts/ops/health/checks.test.ts`: 10+ cancelled runs no longer collapse the window; the job of a held run counts; nothing in 24 h = the full window |
+| source names (§20.9) | `.github/scripts/v11-source-names.test.mjs`: findings never show a name; a path is redacted; fails on a finding; reports "not run" without a list |
