@@ -5,7 +5,7 @@ import { artifactManifest, publicManifest, publicRfqCatalog, PRIVATE_DIR, PUBLIC
 import { scanPublicFile, type LeakFinding } from "./leak-scan.ts";
 import { internalIdsFromSnapshot, scanPublication } from "./publication-gate.ts";
 import { priceGateInput, scanPrices } from "./price-gate.ts";
-import { loadSourceNames, scanSourceNames } from "./source-name-scan.ts";
+import { loadSourceNames, redactSourceNames, scanSourceNames } from "./source-name-scan.ts";
 import { STATIC_TARGETS, TURNSTILE_ORIGIN } from "./targets.ts";
 import { checkIndexingPolicy, PRODUCTION_ORIGIN } from "./indexing-gate.ts";
 
@@ -171,9 +171,14 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
   for (const f of scanPrices(textFiles, priceGateInput(snapshotDoc))) failures.push(`price ${f.kind} in ${f.file}: ${f.match}`);
   // 8. Price-source names (W9.6): never in any public file. The names never live in this public repository.
   const sourceNames = options.sourceNames === undefined ? loadSourceNames() : options.sourceNames;
-  // The finding names the file only: the name itself must not reach a public CI log either.
-  if (sourceNames?.length) for (const f of scanSourceNames(textFiles, sourceNames)) failures.push(`price source name in ${f.file} (name #${sourceNames.indexOf(f.name) + 1} of the private list)`);
+  // Never a name in the output: a finding is the file (redacted when its path holds a name) + the list index.
+  if (sourceNames?.length) for (const f of scanSourceNames([...publicEntries.filter((e) => !textFiles.some((t) => t.path === e.path)).map((e) => ({ path: e.path, content: "" })), ...textFiles], sourceNames)) failures.push(`price source name in ${f.file} (name #${f.index} of the private list)`);
+  // Every other failure line names a path or a match: redact any that holds a listed name (W9.7 review).
+  for (let i = 0; i < failures.length; i++) failures[i] = redactSourceNames(failures[i], sourceNames);
 
   const largest = publicEntries.reduce<ArtifactFileEntry | null>((a, b) => (!a || b.bytes > a.bytes ? b : a), null);
-  return { failures, leaks, stats: { publicFiles: publicEntries.length, privateFiles: privateEntries.length, htmlPages: htmlFiles.length, largestPublicFile: largest ? { path: largest.path, bytes: largest.bytes } : null, sourceNameScan: sourceNames?.length ? "ran" : "not_run" } };
+  // Callers print stats and may print leaks: the same redaction applies there.
+  const shownLeaks = leaks.map((l) => ({ ...l, file: redactSourceNames(l.file, sourceNames), match: redactSourceNames(l.match, sourceNames) }));
+  const largestPublicFile = largest ? { path: redactSourceNames(largest.path, sourceNames), bytes: largest.bytes } : null;
+  return { failures, leaks: shownLeaks, stats: { publicFiles: publicEntries.length, privateFiles: privateEntries.length, htmlPages: htmlFiles.length, largestPublicFile, sourceNameScan: sourceNames?.length ? "ran" : "not_run" } };
 }

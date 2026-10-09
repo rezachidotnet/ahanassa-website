@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { priceGateInput, scanPrices } from "./price-gate.ts";
 import { scanPublicFile } from "./leak-scan.ts";
-import { loadSourceNames, nameVariants, scanSourceNames, SOURCE_NAMES_ENV } from "./source-name-scan.ts";
+import { loadSourceNames, nameVariants, REDACTED_PATH, redactSourceNames, scanSourceNames, SOURCE_NAMES_ENV } from "./source-name-scan.ts";
 import { buildRedirectsFile, unpublishedPricePageRedirects } from "./static-rules.ts";
 import { isDailyPriceEligible, PER_TON_CLASSIFICATION_CODES } from "../pricing/daily-price-eligibility.ts";
 import { PRICE_RFQ_COPY, priceRfqHref } from "../pricing/price-rfq.ts";
@@ -203,7 +203,20 @@ test("source-name scan: names come from a private file outside the repo; any spe
     { path: "products/rebar.html", content: "<script>self.__next_f.push([1,\"examplemarket\"])</script>" },
     { path: "en/index.html", content: "Sample Steel" },
   ];
-  assert.deepEqual(scanSourceNames(files, names).map((f) => `${f.file}:${f.name}`), ["ar/prices.html:example-market.test", "products/rebar.html:example-market.test", "en/index.html:samplesteel.example"]);
+  // A finding is the file + the name's 1-based index in the private list — never the name.
+  assert.deepEqual(scanSourceNames(files, names), [{ file: "ar/prices.html", index: 1 }, { file: "products/rebar.html", index: 1 }, { file: "en/index.html", index: 2 }]);
+  // W9.7 review: a PATH that contains a name is never printed (it would leak into public CI logs).
+  assert.deepEqual(scanSourceNames([{ path: "images/ExampleMarket-logo.png", content: "" }, { path: "x/sample-steel/a.html", content: "example-market.test" }], names), [
+    { file: REDACTED_PATH, index: 1 },
+    { file: REDACTED_PATH, index: 2 },
+    { file: REDACTED_PATH, index: 1 },
+  ]);
+  assert.equal(REDACTED_PATH, "<path redacted: it contains a listed name>", "same text as main's v11-source-names.mjs");
+  // Any other gate line holding a name (path or matched text) is replaced; only the indexes remain.
+  assert.equal(redactSourceNames("leak contact in partners/example-market.html: x@y.z", names), "<gate finding redacted: it contains listed name(s) #1>");
+  assert.equal(redactSourceNames("price price_on_en_page in en/a.html: Sample Steel", names), "<gate finding redacted: it contains listed name(s) #2>");
+  assert.equal(redactSourceNames("leak contact in en/a.html: x@y.z", names), "leak contact in en/a.html: x@y.z", "lines without a name are unchanged");
+  assert.equal(redactSourceNames("partners/example-market.html", null), "partners/example-market.html", "no list: unchanged (the gate reports not_run)");
   assert.deepEqual(nameVariants("https://www.example-market.test/prices"), ["example-market.test", "example-market", "examplemarkettest", "examplemarket"]);
   const tmp = fs.mkdtempSync(path.join(process.env.TMPDIR ?? "/tmp", "names-"));
   const file = path.join(tmp, "names.txt");
