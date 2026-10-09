@@ -1564,6 +1564,19 @@ Policy: `RELEASE_POLICY.md` §11 (contract item) and new §11.1. Tests: `lib/ci/
 4. In one row-only commit on `feat/v11-static-site`, append the `d4f57f6` history row (`SUPERSEDED`) and the tip's `STABLE_100` row (§20.3). Rows are prepared in `docs/release/V11_RELEASE_PATH_W9_1_REPORT.md`.
 5. Still open, not covered by D-DAR-063: a release path for the RFQ Worker `ahanassa-v11-rfq-production` (§20.6).
 
+
+### DAR-064 — Two `01-sources/` files name price-source sites in this public repository (2026-10-09)
+
+**Severity:** HIGH (public repository).
+**Status:** RESOLVED, 2026-10-09 (W9.7; owner decision D-W97-5, `docs/OWNER_DECISIONS.md`).
+- **Finding:** `01-sources/SEO_KEYWORD_MAP.md` and `01-sources/all_in_one.md` (the consolidated corpus, which repeats the same paragraph) named price-source sites as "representative ranking pages". The repository is public, and it must never name a price source (W9.6 rule). The W9.6 artifact gate keeps such names out of the build output only, not out of tracked files.
+- **Owner override:** the `01-sources/` immutability rule (`CLAUDE.md` §2) is set aside for this one controlled cleanup.
+- **Done:**
+  - Byte-identical copies of both files are kept in the private repository `rezachidotnet/ahanassa-content` under `research/website-01-sources/` (PR #2 there).
+  - Here, the one affected paragraph in each file names "a price-listing site (name removed, W9.7)" instead. No other line changed.
+  - A tracked-tree scan in `CI` now blocks a reintroduction (`RELEASE_POLICY.md` §20.9).
+- **Not done (owner decision):** git history is not rewritten. The names were introduced in `d108f01` (2026-08-26, "chore: initialize Ahan Asa website") and are present in that commit and every later commit of both files on 42 remote branches. The W9.7 report lists them.
+
 ---
 
 **End of `DOCUMENT_AUDIT_REPORT.md`**
