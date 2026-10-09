@@ -1,0 +1,328 @@
+# W9.7 (owner decision 2026-10-09; RELEASE_POLICY.md §20.1, §20.8) — the 24 h after a v11 code release reaches
+# www.ahanassa.com, without the owner at a terminal.
+#
+# Hourly (and on demand) job `watch` resolves the release that made the live code live (production publish state,
+# .github/scripts/v11-live-release.mjs) and reads every ops-health production job since it went live:
+#   - 24 h covered, no ALERT  -> job `ledger` opens a bot PR appending its STABLE_100 row on feat/v11-static-site.
+#                                The owner's merge of that PR is the §12 attestation.
+#   - ALERT, risk LOW         -> job `rollback`: previous static Worker version + publication pointer back to the
+#                                previous snapshot (environment production-v11-content, no reviewer), then `ledger`
+#                                opens the ROLLED_BACK row PR, and `notify` fails the run so GitHub e-mails the owner.
+#   - ALERT, risk HIGH        -> nothing automatic (§20.2: the owner decides between a rollback and a fix). One tap:
+#                                Actions → v11 release watch → Run workflow → operation = rollback.
+#   - uncovered gap           -> the owner decides; reported in the summary.
+# A rollback is never rolled back; the watch never writes the ledger branch directly (bot PRs only).
+#
+# Lives on `main` (scheduled/dispatchable only from the default branch); it checks out feat/v11-static-site for the
+# ledger, the strict ledger resolver and, for a rollback, wrangler + the Worker configs of the code it returns to.
+name: v11 release watch
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "watch = observe (default). rollback = roll the current release back now (www returns to the previous Worker version + snapshot)"
+        type: choice
+        required: false
+        default: watch
+        options: [watch, rollback]
+  schedule:
+    # Hourly, after the :49 ops-health run.
+    - cron: "52 * * * *"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: v11-release-watch
+  cancel-in-progress: false
+
+env:
+  LEDGER_REF: feat/v11-static-site
+
+jobs:
+  watch:
+    name: watch (observation of the live release)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      action: ${{ steps.watch.outputs.action }}
+      reason: ${{ steps.watch.outputs.reason }}
+      risk: ${{ steps.watch.outputs.risk }}
+      code_sha: ${{ steps.watch.outputs.code_sha }}
+      rollback_code: ${{ steps.watch.outputs.rollback_code }}
+      notify: ${{ steps.watch.outputs.notify }}
+    steps:
+      - name: Checkout the ledger branch (full history)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.LEDGER_REF }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout the release scripts (this workflow's own commit on main)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          path: .ci-selector
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Move the release scripts outside the checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv .ci-selector "$RUNNER_TEMP/ci-selector"
+          echo "CI_SCRIPTS=$RUNNER_TEMP/ci-selector/.github/scripts" >> "$GITHUB_ENV"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Observe the live release
+        id: watch
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OPERATION: ${{ github.event_name == 'workflow_dispatch' && inputs.operation || 'watch' }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/watch"
+          node "$CI_SCRIPTS/v11-live-release.mjs" watch --app . --ledger-ref "origin/$LEDGER_REF" --operation "$OPERATION" --out "$RUNNER_TEMP/watch/watch.json" > /dev/null
+          # Runs of the window that predate the W9.7 ops-health lookback fix (their own window may have been shorter).
+          fixed_at="$(git log --reverse --format=%cI -S'opsHealthJobName' "origin/$LEDGER_REF" -- scripts/ops/health/config.ts | head -1)"
+          if [ -n "$fixed_at" ]; then fixed_at="$(date -u -d "$fixed_at" +%Y-%m-%dT%H:%M:%SZ)"; fi
+          jq --arg fixed "$fixed_at" '.prefix_runs = (if .observation and ($fixed != "") then ([.observation.runs[] | select(.started_at < $fixed)] | length) elif .observation then (.observation.runs | length) else 0 end)' \
+            "$RUNNER_TEMP/watch/watch.json" > "$RUNNER_TEMP/watch/w.json" && mv "$RUNNER_TEMP/watch/w.json" "$RUNNER_TEMP/watch/watch.json"
+          echo "rollback_code=$(jq -r '.event.previous_code_sha // ""' "$RUNNER_TEMP/watch/watch.json")" >> "$GITHUB_OUTPUT"
+          {
+            echo "## v11 release watch: **$(jq -r .action "$RUNNER_TEMP/watch/watch.json")**"
+            jq -r '"- \(.reason)"' "$RUNNER_TEMP/watch/watch.json"
+            jq -r '"- live: www serves `\(.live.snapshot)` from `\(.live.sha // "unresolved")`"' "$RUNNER_TEMP/watch/watch.json"
+            jq -r 'if .event then "- release: `\(.event.code_sha)` (\(.event.kind), risk \(.event.risk // "-"), content-publish run \(.event.run_id), live since \(.event.live_since))" else empty end' "$RUNNER_TEMP/watch/watch.json"
+            jq -r 'if .observation then "- observation \(.observation.observation_started_at) → \(.observation.observation_ends_at): \(.observation.state), \(.observation.runs | length) ops-health production runs, \(.observation.alerts | length) ALERT, \(.observation.gaps | length) gap(s) over 30 min" else empty end' "$RUNNER_TEMP/watch/watch.json"
+            jq -r 'if .prefix_runs > 0 then "- ⚠️ \(.prefix_runs) run(s) predate the ops-health lookback fix" else empty end' "$RUNNER_TEMP/watch/watch.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+          case "$(jq -r .action "$RUNNER_TEMP/watch/watch.json")" in
+            alert) echo "::warning title=v11 release: ALERT in the observation::$(jq -r .reason "$RUNNER_TEMP/watch/watch.json") — to roll back: Run workflow, operation = rollback" ;;
+            gap) echo "::warning title=v11 release: monitoring gap::$(jq -r .reason "$RUNNER_TEMP/watch/watch.json")" ;;
+            unknown) echo "::warning title=v11 release: live release not identified::$(jq -r .reason "$RUNNER_TEMP/watch/watch.json")" ;;
+          esac
+
+      - name: Keep the decision (30 days)
+        uses: actions/upload-artifact@v6
+        with:
+          name: v11-watch-${{ github.run_id }}
+          path: ${{ runner.temp }}/watch/watch.json
+          retention-days: 30
+
+  rollback:
+    name: rollback (previous Worker version + publication pointer)
+    needs: watch
+    if: ${{ needs.watch.outputs.action == 'rollback' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    # The production content environment: no reviewer (an automatic rollback cannot wait), branch main only, a deploy
+    # token for the static Worker + DB_PUBLIC. A rollback returns www to the state it served before the release.
+    environment: production-v11-content
+    concurrency:
+      group: v11-rollback
+      cancel-in-progress: false
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.V11_PRODUCTION_CONTENT_CLOUDFLARE_DEPLOY_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.V11_PRODUCTION_CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Checkout the code www returns to (wrangler + Worker configs)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.watch.outputs.rollback_code }}
+          persist-credentials: false
+
+      - name: Checkout the release scripts (this workflow's own commit on main)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          path: .ci-selector
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Move the release scripts outside the checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv .ci-selector "$RUNNER_TEMP/ci-selector"
+          echo "CI_SCRIPTS=$RUNNER_TEMP/ci-selector/.github/scripts" >> "$GITHUB_ENV"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies (immutable)
+        run: npm ci
+
+      - name: Download the decision
+        uses: actions/download-artifact@v7
+        with:
+          name: v11-watch-${{ github.run_id }}
+          path: ${{ runner.temp }}/watch
+
+      - name: Wait until no content-publish production job is running
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # A job WAITING for approval is not running; when it is approved later, its own guard sees the rollback.
+          for i in $(seq 1 50); do
+            busy=0
+            for run in $(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/content-publish.yml/runs?per_page=20" --jq '.workflow_runs[].id'); do
+              n=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/jobs?per_page=20" --jq '[.jobs[] | select((.name | startswith("publish-production")) and (.status == "in_progress" or .status == "queued"))] | length')
+              busy=$((busy + n))
+            done
+            if [ "$busy" = "0" ]; then exit 0; fi
+            echo "a content-publish production job is running; waiting ($i/50)"
+            sleep 30
+          done
+          echo "::error title=ALERT: rollback not started::a content-publish production job kept running for 25 min"
+          exit 1
+
+      - name: Roll back
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/live-record"
+          node "$CI_SCRIPTS/v11-rollback.mjs" run --app . --watch "$RUNNER_TEMP/watch/watch.json" --run-id "$GITHUB_RUN_ID" \
+            --out "$RUNNER_TEMP/live-record/live-release.json"
+          jq -r '"### Rolled back\n- www serves `\(.snapshot_version)` again from Worker version `\(.deployed_worker_version_id)` (code `\(.code_sha)`)\n- rolled back: `\(.rolled_back.code_sha)` (content-publish run \(.rolled_back.run_id))"' \
+            "$RUNNER_TEMP/live-record/live-release.json" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the production publish state (90 days)
+        uses: actions/upload-artifact@v6
+        with:
+          name: v11-live-release
+          path: ${{ runner.temp }}/live-record/live-release.json
+          retention-days: 90
+          if-no-files-found: error
+
+  ledger:
+    name: ledger (bot PR on feat/v11-static-site)
+    needs: [watch, rollback]
+    if: >-
+      ${{ always() && (needs.watch.outputs.action == 'stable' || needs.watch.outputs.action == 'rolled-back' ||
+      (needs.watch.outputs.action == 'rollback' && needs.rollback.result == 'success')) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
+    steps:
+      - name: Checkout the ledger branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.LEDGER_REF }}
+
+      - name: Checkout the release scripts (this workflow's own commit on main)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          path: .ci-selector
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Move the release scripts outside the checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv .ci-selector "$RUNNER_TEMP/ci-selector"
+          echo "CI_SCRIPTS=$RUNNER_TEMP/ci-selector/.github/scripts" >> "$GITHUB_ENV"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Download the decision
+        uses: actions/download-artifact@v7
+        with:
+          name: v11-watch-${{ github.run_id }}
+          path: ${{ runner.temp }}/watch
+
+      - name: Download the rollback record
+        if: ${{ needs.watch.outputs.action == 'rollback' }}
+        uses: actions/download-artifact@v7
+        with:
+          name: v11-live-release
+          path: ${{ runner.temp }}/rollback
+
+      - name: Append the row, push a branch, open the PR
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTION: ${{ needs.watch.outputs.action }}
+        run: |
+          set -euo pipefail
+          if [ "$ACTION" = "stable" ]; then
+            state=STABLE_100; sha="$(jq -r .event.code_sha "$RUNNER_TEMP/watch/watch.json")"; extra=()
+          else
+            state=ROLLED_BACK
+            if [ "$ACTION" = "rollback" ]; then rb="$RUNNER_TEMP/rollback/live-release.json"; else rb="$RUNNER_TEMP/rollback-event.json"; jq .event "$RUNNER_TEMP/watch/watch.json" > "$rb"; fi
+            sha="$(jq -r .rolled_back.code_sha "$rb")"; extra=(--rollback "$rb")
+          fi
+          branch="bot/v11-ledger-$(echo "$state" | tr 'A-Z_' 'a-z-')-${sha:0:12}"
+          if git ls-remote --exit-code origin "refs/heads/$branch" > /dev/null; then
+            echo "- ledger: branch \`$branch\` already exists (its PR is open or merged); nothing to do" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          status=0
+          node "$CI_SCRIPTS/v11-ledger-append.mjs" append --manifest docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md \
+            --resolver lib/ci/release-ledger.ts --watch "$RUNNER_TEMP/watch/watch.json" --state "$state" \
+            --watch-run-id "$GITHUB_RUN_ID" --body "$RUNNER_TEMP/pr-body.md" "${extra[@]}" || status=$?
+          if [ "$status" = "3" ]; then echo "- ledger: the $state row for \`$sha\` is already on $LEDGER_REF" >> "$GITHUB_STEP_SUMMARY"; exit 0; fi
+          if [ "$status" != "0" ]; then exit 1; fi
+          test "$(git diff --name-only)" = "docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git commit -q -am "docs(release): $state ledger row for ${sha:0:12} (v11-release-watch run $GITHUB_RUN_ID)"
+          git push -q origin "$branch"
+          title="Ledger: $state for ${sha:0:7} (automatic, RELEASE_POLICY.md §20.8)"
+          if url="$(gh pr create --base "$LEDGER_REF" --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/pr-body.md" 2>&1)"; then
+            echo "- ledger PR: $url — **merge it** (that is the owner attestation)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            compare="https://github.com/$GITHUB_REPOSITORY/compare/$LEDGER_REF...$branch?expand=1"
+            echo "::warning title=ledger PR not opened::GitHub Actions may not open PRs in this repository (Settings → Actions → General → Allow GitHub Actions to create and approve pull requests). Open it with one tap: $compare"
+            echo "- ledger: branch \`$branch\` pushed; open the PR with one tap: $compare" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  # GitHub e-mails the owner for a failed run: an automatic rollback (done or failed) must reach the owner, and so must a
+  # HIGH ALERT (once per new failed ops-health run), a gap or an unidentified release (once a day).
+  notify:
+    name: notify (owner e-mail on a rollback)
+    needs: [watch, rollback, ledger]
+    if: ${{ always() && (needs.watch.outputs.action == 'rollback' || needs.watch.outputs.notify == 'true' || needs.watch.result == 'failure') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Report
+        shell: bash
+        env:
+          ROLLBACK: ${{ needs.rollback.result }}
+          REASON: ${{ needs.watch.outputs.reason }}
+          WATCH: ${{ needs.watch.result }}
+          ACTION: ${{ needs.watch.outputs.action }}
+        run: |
+          if [ "$ACTION" = "alert" ] || [ "$ACTION" = "gap" ] || [ "$ACTION" = "unknown" ]; then
+            echo "::error title=ALERT: v11 release needs the owner ($ACTION)::$REASON — to roll back: Actions → v11 release watch → Run workflow → operation = rollback"
+          elif [ "$WATCH" = "failure" ]; then
+            echo "::error title=ALERT: v11 release watch could not run::see the watch job"
+          elif [ "$ROLLBACK" = "success" ]; then
+            echo "::error title=ALERT: v11 release rolled back::$REASON — www.ahanassa.com is back on the previous release; the ROLLED_BACK ledger PR is open (merge it). A fix is a new release."
+          else
+            echo "::error title=ALERT: v11 rollback FAILED::$REASON — rollback job result: $ROLLBACK. Check www.ahanassa.com and the rollback job now."
+          fi
+          exit 1

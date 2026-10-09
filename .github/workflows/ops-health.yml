@@ -46,7 +46,7 @@ permissions:
 jobs:
   health:
     name: health (staging)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: staging
     concurrency:
@@ -54,13 +54,13 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout scripts/ops (application branch)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: feat/v11-static-site
           sparse-checkout: scripts/ops
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "24"
 
@@ -101,7 +101,7 @@ jobs:
 
   health-production:
     name: health (production-prep)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: production-v11-monitor
     concurrency:
@@ -109,13 +109,13 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout scripts/ops (application branch)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: feat/v11-static-site
           sparse-checkout: scripts/ops
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "24"
 
