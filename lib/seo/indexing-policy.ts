@@ -10,7 +10,8 @@ import { getAppEnv } from "../env.ts";
  * Public pages (index,follow in production, fa/en/ar, canonical + reciprocal
  * hreflang): home, /products, every /products/category/<segment>, every
  * published product detail page, /services, /about, /industries, /markets,
- * /contact, and articles once they exist.
+ * /contact, /tools/weight-calculator (W10.1, its published locales), and
+ * articles once they exist.
  *
  * Never indexable, for technical reasons (NON_INDEXABLE below):
  */

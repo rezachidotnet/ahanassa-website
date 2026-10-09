@@ -5,6 +5,7 @@ import type { Locale } from "@/config/locales";
 import { EnquiryForm } from "@/components/contact/enquiry-form";
 import { findCatalogItemByXid, type PublicRfqCatalogItem } from "@/lib/rfq/catalog-selector";
 import { publicRfqCatalogPath, PUBLIC_MANIFEST_PATH } from "@/lib/contracts/public-paths";
+import { parseRfqRowPrefill } from "@/lib/rfq/rfq-prefill";
 
 interface LoadedCatalog {
   items: PublicRfqCatalogItem[];
@@ -19,6 +20,11 @@ interface LoadedCatalog {
  * list — an unknown/unpublished value shows the same "no longer available"
  * notice, never a fabricated selection. The RFQ endpoint re-validates every
  * submitted variant server-side.
+ *
+ * `?qty=&unit=&length=` (the weight calculator's «استعلام برای همین مقدار»,
+ * W10.1) pre-fills that preselected row only, each value checked against the
+ * resolved Variant's group policy (lib/rfq/rfq-prefill.ts); an invalid value
+ * is dropped and the row starts empty, as with a plain `?variant=`.
  */
 export function StaticEnquiryForm({ locale, turnstileSiteKey, rfqEndpoint }: { locale: Locale; turnstileSiteKey?: string; rfqEndpoint?: string }) {
   const [catalog, setCatalog] = useState<LoadedCatalog | null>(null);
@@ -26,9 +32,12 @@ export function StaticEnquiryForm({ locale, turnstileSiteKey, rfqEndpoint }: { l
   // Worker validates variants against the snapshot the visitor actually saw (architecture §6.1 step 1).
   const [snapshotVersion, setSnapshotVersion] = useState<string | null>(null);
   const [variantXid, setVariantXid] = useState<string | null>(null);
+  const [query, setQuery] = useState<URLSearchParams | null>(null);
 
   useEffect(() => {
-    setVariantXid(new URLSearchParams(window.location.search).get("variant"));
+    const params = new URLSearchParams(window.location.search);
+    setQuery(params);
+    setVariantXid(params.get("variant"));
     let cancelled = false;
     fetch(publicRfqCatalogPath(locale))
       .then((response) => (response.ok ? (response.json() as Promise<LoadedCatalog>) : null))
@@ -53,6 +62,7 @@ export function StaticEnquiryForm({ locale, turnstileSiteKey, rfqEndpoint }: { l
 
   const items = catalog?.items ?? [];
   const preselection = variantXid ? findCatalogItemByXid(items, variantXid) : null;
+  const prefill = preselection && query ? parseRfqRowPrefill(query, preselection.groupCode) : undefined;
 
   return (
     <EnquiryForm
@@ -62,6 +72,7 @@ export function StaticEnquiryForm({ locale, turnstileSiteKey, rfqEndpoint }: { l
       turnstileSiteKey={turnstileSiteKey}
       catalogPreselection={preselection}
       catalogPreselectionInvalid={Boolean(catalog && variantXid && !preselection)}
+      catalogPreselectionPrefill={prefill}
       catalogItems={items}
       catalogSnapshotVersion={snapshotVersion}
       rfqEndpoint={rfqEndpoint}

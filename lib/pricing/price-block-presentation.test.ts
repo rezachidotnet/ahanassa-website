@@ -81,10 +81,11 @@ test("the component: no JSON-LD offers, no source field, the fixed 'ask for toda
   assert.deepEqual(users, [], "D-W10-4: built now, rendered on no page until the pricing data task");
 });
 
-test("D-W10-5: the calculator CTA block exists, links to /tools/weight-calculator, carries no price, and is not rendered yet", () => {
+test("D-W10-5: the calculator CTA block links to /tools/weight-calculator, carries no price, and (W10.1) renders directly after the Hero", () => {
   const source = readFileSync(path.join(REPO_ROOT, "components/home/calculator-cta.tsx"), "utf8");
   assert.match(source, /export const WEIGHT_CALCULATOR_PATH = "\/tools\/weight-calculator";/);
   assert.ok(!/تومان|Toman|price/i.test(source.replace(/\/\*[\s\S]*?\*\//g, "")), "a procurement tool, not a cart: no price in the block");
   const page = readFileSync(path.join(REPO_ROOT, "app/[locale]/page.tsx"), "utf8");
-  assert.ok(!/CalculatorCta|calculator-cta/.test(page), "rendered only once the calculator ships");
+  const render = page.slice(page.indexOf("return (", page.indexOf("export default async function HomePage")));
+  assert.match(render, /<Hero locale=\{locale\} \/>\n\s*\{isWeightCalculatorPublished\(locale\) && <CalculatorCta locale=\{locale\} \/>\}\n\s*<PriceStrip /, "Hero -> Calculator CTA -> Price Strip, and only where the calculator is published");
 });
