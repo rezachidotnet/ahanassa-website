@@ -16,7 +16,7 @@ import {
   unavailable,
   windowStart,
 } from "./checks.ts";
-import { publishedAt } from "./sources.ts";
+import { previousJobStart, publishedAt } from "./sources.ts";
 
 const NOW = new Date("2026-10-04T10:00:00Z");
 const minsAgo = (m: number) => new Date(NOW.getTime() - m * 60_000).toISOString();
@@ -251,4 +251,60 @@ test("price age: the production check exists behind a config flag that is OFF; s
   const run = readPriceFile(new URL("./run.ts", import.meta.url), "utf8");
   assert.match(run, /if \(target\.priceStaleCheck\) \{/);
   assert.ok(!/from "\.\.\/\.\.\/\.\.\/lib\//.test(readPriceFile(new URL("./sources.ts", import.meta.url), "utf8")), "ops health stays dependency-free (no npm ci)");
+});
+
+// W9.7: the lookback reads THIS target's job, page by page, and never collapses to the 15-minute minimum.
+function fakeGitHub(runs: { id: number; status: string; conclusion: string | null; run_started_at: string }[], jobs: Record<number, { name: string; status: string; conclusion: string | null; started_at: string | null }[]>) {
+  const calls: string[] = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const url = new URL(String(input));
+    calls.push(url.pathname + url.search);
+    const m = /\/actions\/runs\/(\d+)\/jobs/.exec(url.pathname);
+    if (m) return new Response(JSON.stringify({ jobs: jobs[Number(m[1])] ?? [] }));
+    const page = Number(url.searchParams.get("page") ?? "1");
+    return new Response(JSON.stringify({ workflow_runs: runs.slice((page - 1) * 100, page * 100) }));
+  }) as typeof fetch;
+  return { calls, restore: () => (globalThis.fetch = original) };
+}
+const AUTH = { token: "t", repo: "o/r" };
+
+test("lookback: 10+ cancelled runs no longer collapse the window; the job of a cancelled run counts", async () => {
+  const runs = [
+    { id: 100, status: "in_progress", conclusion: null, run_started_at: minsAgo(1) }, // the current run
+    ...Array.from({ length: 12 }, (_, i) => ({ id: 99 - i, status: "completed", conclusion: "cancelled", run_started_at: minsAgo(15 * (i + 1)) })),
+  ];
+  const jobs: Record<number, { name: string; status: string; conclusion: string | null; started_at: string | null }[]> = {};
+  for (const r of runs.slice(1, 12)) jobs[r.id] = [{ name: "health (staging)", status: "completed", conclusion: "cancelled", started_at: null }, { name: "health (production-prep)", status: "completed", conclusion: "cancelled", started_at: null }];
+  jobs[88] = [{ name: "health (staging)", status: "waiting", conclusion: null, started_at: null }, { name: "health (production-prep)", status: "completed", conclusion: "failure", started_at: minsAgo(180) }];
+  const gh = fakeGitHub(runs, jobs);
+  try {
+    assert.equal(await previousJobStart(AUTH, "ops-health.yml", "health (production-prep)", "100", new Date(Date.parse(minsAgo(24 * 60)))), minsAgo(180), "the 12th run back: its production job completed");
+    assert.equal(await previousJobStart(AUTH, "ops-health.yml", "health (staging)", "100", new Date(Date.parse(minsAgo(24 * 60)))), null, "no staging job completed in 24 h");
+  } finally {
+    gh.restore();
+  }
+});
+
+test("lookback: a successful run counts without reading its jobs; nothing in 24 h = null (caller uses the full window)", async () => {
+  const gh = fakeGitHub(
+    [
+      { id: 7, status: "completed", conclusion: "success", run_started_at: minsAgo(16) },
+      { id: 6, status: "completed", conclusion: "success", run_started_at: minsAgo(31) },
+    ],
+    {},
+  );
+  try {
+    assert.equal(await previousJobStart(AUTH, "ops-health.yml", "health (production-prep)", "8", new Date(Date.parse(minsAgo(24 * 60)))), minsAgo(16));
+    assert.ok(!gh.calls.some((c) => c.includes("/jobs")), "no job lookup for a successful run");
+    assert.equal(await previousJobStart(AUTH, "ops-health.yml", "health (production-prep)", "8", new Date(Date.parse(minsAgo(10)))), null, "older than notBefore");
+  } finally {
+    gh.restore();
+  }
+  assert.equal(windowStart(NOW, minsAgo(24 * 60), WINDOW).toISOString(), minsAgo(24 * 60), "the caller's fallback is the full 24 h window");
+});
+
+test("job names: one per target, as named in ops-health.yml on main (v11-release-watch.yml reads the production one)", () => {
+  assert.equal(OPS_TARGETS.staging.opsHealthJobName, "health (staging)");
+  assert.equal(OPS_TARGETS.production.opsHealthJobName, "health (production-prep)");
 });

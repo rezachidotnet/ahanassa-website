@@ -31,7 +31,7 @@ import {
   windowStart,
   type CheckResult,
 } from "./checks.ts";
-import { d1Select, httpByHost, lastRunStart, lastScheduledRun, lastSuccessfulPublish, newestPublishedPrice, previousRunStart, probeOdoo, workerCpu, type CloudflareAuth, type GitHubAuth } from "./sources.ts";
+import { d1Select, httpByHost, lastRunStart, lastScheduledRun, lastSuccessfulPublish, newestPublishedPrice, previousJobStart, probeOdoo, workerCpu, type CloudflareAuth, type GitHubAuth } from "./sources.ts";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -56,13 +56,15 @@ async function main(): Promise<number> {
   const gh: GitHubAuth = { token: required("GITHUB_TOKEN"), repo: required("GITHUB_REPOSITORY") };
   const now = new Date();
 
+  const earliest = new Date(now.getTime() - WINDOW.maxMinutes * 60_000);
   let previous: string | null = null;
   try {
-    previous = await previousRunStart(gh, target.opsHealthWorkflow, process.env.GITHUB_RUN_ID);
+    previous = await previousJobStart(gh, target.opsHealthWorkflow, target.opsHealthJobName, process.env.GITHUB_RUN_ID, earliest);
   } catch {
-    previous = null; // first run, or the workflow is not registered yet: the minimum window applies
+    previous = null; // the lookup failed: check the full maximum window rather than guess a short one
   }
-  const from = windowStart(now, previous, WINDOW);
+  // W9.7: no previous completed run of this job within WINDOW.maxMinutes -> the whole maximum window, never the minimum.
+  const from = windowStart(now, previous ?? earliest.toISOString(), WINDOW);
   const cronFrom = new Date(now.getTime() - WINDOW.cronLookbackHours * 3_600_000);
 
   const results: CheckResult[] = [];

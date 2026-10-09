@@ -32,8 +32,13 @@ export interface OpsTarget {
   contentPublishJobPrefix: string;
   contentPublishProofStep: string;
   reconcilerWorkflow: string;
-  /** This check's own workflow (the window starts where its previous run started). */
+  /** This check's own workflow and its job for this target: the window starts where that job last ran (W9.7). */
   opsHealthWorkflow: string;
+  /**
+   * The ops-health.yml job name of this target. The window starts at the start of this job's previous completed
+   * (success or failure) run, looked up job by job, so a run whose OTHER job is stuck or cancelled still counts.
+   */
+  opsHealthJobName: string;
   /** false = a stale content publish is reported (INFO), not alerted. */
   contentStaleAlert: boolean;
   /**
@@ -66,6 +71,7 @@ export const OPS_TARGETS: Record<OpsEnv, OpsTarget> = {
     contentPublishProofStep: "12. Finalize",
     reconcilerWorkflow: "rfq-ci-reconciler.yml",
     opsHealthWorkflow: "ops-health.yml",
+    opsHealthJobName: "health (staging)",
     contentStaleAlert: true,
     contentStaleAlertFlag: null,
     // Staging builds read the same production Odoo; the price-age check belongs to production only.
@@ -74,7 +80,7 @@ export const OPS_TARGETS: Record<OpsEnv, OpsTarget> = {
   // Production (live since the W8.1 cutover, 2026-10-05; workers/rfq/wrangler.jsonc env.production). Read with
   // its own read-only monitor token (GitHub environment production-v11-monitor). The stale-content alert is on in
   // config but gated by OPS_PRODUCTION_CONTENT_STALE_ALERT (W9.1): the owner sets that variable to "on" after the
-  // first unattended CONTENT_REBUILD AUTO publish (07:00 UTC, RELEASE_POLICY.md §20.5). Only runs whose publish
+  // first unattended CONTENT_REBUILD AUTO publish (08:00 UTC = 11:30 Tehran, D-SCHEDULE; RELEASE_POLICY.md §20.5). Only runs whose publish
   // job actually finalized count (contentPublishProofStep).
   production: {
     env: "production",
@@ -87,11 +93,13 @@ export const OPS_TARGETS: Record<OpsEnv, OpsTarget> = {
     dbOpsId: "72b8fb96-43c5-45bd-8f1e-b0f2a3a2fa9a",
     dbPublicId: "6e74ff59-9961-40f2-b8e5-8a9619f45776",
     contentPublishWorkflow: "content-publish.yml",
-    // publish-production (dispatch, production-prep) and publish-production-content (07:00 UTC schedule).
+    // publish-production (dispatch / merge run, production-prep) and publish-production-content (08:00 UTC schedule).
     contentPublishJobPrefix: "publish-production",
     contentPublishProofStep: "12. Finalize",
     reconcilerWorkflow: "rfq-ci-reconciler.yml",
     opsHealthWorkflow: "ops-health.yml",
+    // The job name v11-release-watch.yml reads too (.github/scripts/v11-live-release.mjs HEALTH_PRODUCTION_JOB).
+    opsHealthJobName: "health (production-prep)",
     contentStaleAlert: true,
     contentStaleAlertFlag: "OPS_PRODUCTION_CONTENT_STALE_ALERT",
     // W9.4: OFF. The owner turns it on (a code change) once Odoo publishes prices daily.
@@ -150,6 +158,8 @@ export const THRESHOLDS: Thresholds = {
 /**
  * Analytics window: from the previous ops-health run's start minus an overlap (ingestion lag), so no
  * gap opens when GitHub delays or drops scheduled runs; clamped. Cron liveness looks back cronLookback.
+ * W9.7: with no previous completed run of the job within maxMinutes (or the lookup failing) the window is the
+ * full maxMinutes — never the 15-minute minimum, which silently skipped hours of analytics (W9.1c finding).
  */
 export const WINDOW = { minMinutes: 15, maxMinutes: 24 * 60, overlapMinutes: 5, cronLookbackHours: 24 };
 
