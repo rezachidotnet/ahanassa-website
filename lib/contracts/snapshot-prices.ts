@@ -63,3 +63,41 @@ export const PUBLISHED_PRICES_BUILD_DDL = `CREATE TABLE IF NOT EXISTS published_
 export function irrToToman(irr: number): number {
   return Math.round(irr / 10);
 }
+
+/**
+ * snapshot.v1 extension — `published_price_history` (W9.6, owner-approved 2026-10-09): the daily price
+ * points the product page's 30-day sparkline draws. From Odoo `GET /api/v1/pricing/history?days=30` in the
+ * same CI fetch as `/current` (lib/content-pipeline/pricing-history.ts is the allow-list). One row per
+ * (priced variant, Tehran calendar day): the price in effect at the END of that day — the day's last
+ * published point. Only variants with a `published_prices` row have history, and a variant's newest
+ * point is always its current price. Nothing else is stored (no factory, no location, no source).
+ *
+ *   canonical_variant_id   the catalog variant (`CVAR-…`)
+ *   day                    the Tehran calendar day, YYYY-MM-DD (Gregorian)
+ *   price_irr_per_kg       integer IRR per kg, > 0
+ *   published_at           the publication time of that day's last point (ISO 8601 UTC)
+ *
+ * BUILD-ONLY, like published_prices: never a DB_PUBLIC table, never mirrored or loaded into D1.
+ */
+export const PUBLISHED_PRICE_HISTORY_TABLE = "published_price_history" as const;
+
+export const publishedPriceHistoryRow = z
+  .object({
+    canonical_variant_id: z.string().regex(/^CVAR-[A-Za-z0-9-]+$/),
+    day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    price_irr_per_kg: positiveIrr,
+    published_at: isoUtc,
+  })
+  .strict();
+
+export type PublishedPriceHistoryRow = z.infer<typeof publishedPriceHistoryRow>;
+
+export const PUBLISHED_PRICE_HISTORY_COLUMNS = ["canonical_variant_id", "day", "price_irr_per_kg", "published_at"] as const;
+
+export const PUBLISHED_PRICE_HISTORY_BUILD_DDL = `CREATE TABLE IF NOT EXISTS published_price_history (
+  canonical_variant_id TEXT NOT NULL,
+  day TEXT NOT NULL,
+  price_irr_per_kg INTEGER NOT NULL CHECK (price_irr_per_kg > 0),
+  published_at TEXT NOT NULL,
+  PRIMARY KEY (canonical_variant_id, day)
+);`;

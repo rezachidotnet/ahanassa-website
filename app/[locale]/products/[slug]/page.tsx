@@ -15,8 +15,11 @@ import { breadcrumbListSchema, jsonLdGraph, productSchema } from "@/lib/seo/sche
 import { siteConfig } from "@/lib/metadata/site";
 import { primaryCta } from "@/lib/content/nav";
 import { PriceBlock } from "@/components/products/price-block";
-import { listProductPagePrices } from "@/lib/pricing/product-page-price-repository";
-import { firstPricedVariant, isPriceLocale, PRICE_BLOCK_ATTRIBUTE, PRICE_BLOCK_ON_REQUEST } from "@/lib/pricing/product-page-price";
+import { listDailyPriceHistory, listProductPagePrices } from "@/lib/pricing/product-page-price-repository";
+import { firstPricedVariant, isPriceLocale, PRICE_BLOCK_ATTRIBUTE, PRICE_BLOCK_ON_REQUEST, PRICE_DISCLAIMER } from "@/lib/pricing/product-page-price";
+import { sparklineSeries, tehranDay } from "@/lib/pricing/price-history";
+import { PRICE_RFQ_COPY, priceRfqHref } from "@/lib/pricing/price-rfq";
+import { PriceSparkline } from "@/components/products/price-sparkline";
 import { sortVariantsBySize } from "@/lib/catalog/specification-presenter";
 import type { ProductVariant } from "@/lib/catalog/types";
 
@@ -86,12 +89,26 @@ async function ProductSpecs({ locale, variants, title }: { locale: Locale; varia
   const prices = isPriceLocale(locale) ? await listProductPagePrices(variants.map((v) => v.xid)) : null;
   const main = prices && locale === "fa" ? firstPricedVariant(sortVariantsBySize(variants), prices) : null;
   const mainSize = main ? (main.commercialSize ?? main.sectionSize ?? main.sku) : null;
+  const mainPrice = main ? prices?.get(main.xid) : undefined;
+  // W9.6: the 30-day chart of the main variant — only with ≥ 7 daily points (sparklineSeries), else nothing.
+  const currentDay = mainPrice ? tehranDay(mainPrice.pricedAt) : null;
+  const series = main && currentDay ? sparklineSeries(await listDailyPriceHistory(main.xid), currentDay) : null;
   const contact = localizedPath(locale, "/contact");
   return (
     <>
       {prices && locale === "fa" && (
-        <div {...{ [PRICE_BLOCK_ATTRIBUTE]: main?.xid ?? PRICE_BLOCK_ON_REQUEST }} className="mt-6 max-w-md">
-          <PriceBlock locale={locale} price={main ? prices.get(main.xid) : null} rfqHref={main ? `${contact}?variant=${encodeURIComponent(main.xid)}` : contact} productName={mainSize ? `${title} ${mainSize}` : title} />
+        <div className="mt-6 max-w-md">
+          <div {...{ [PRICE_BLOCK_ATTRIBUTE]: main?.xid ?? PRICE_BLOCK_ON_REQUEST }}>
+            <PriceBlock
+              locale={locale}
+              price={mainPrice ?? null}
+              rfqHref={main && mainPrice ? priceRfqHref("fa", main.xid, mainPrice.factoryName) : contact}
+              priceCtaLabel={PRICE_RFQ_COPY.fa}
+              productName={mainSize ? `${title} ${mainSize}` : title}
+              trend={series && currentDay ? <PriceSparkline series={series} currentDay={currentDay} /> : undefined}
+            />
+          </div>
+          {mainPrice && <p className="text-muted-foreground mt-3 text-xs leading-relaxed">{PRICE_DISCLAIMER.fa}</p>}
         </div>
       )}
       <div className="mt-6">

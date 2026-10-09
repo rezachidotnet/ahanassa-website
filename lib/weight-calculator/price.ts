@@ -11,6 +11,9 @@ import { roundToThousand } from "./format.ts";
  * `<time datetime>`. Never the factory, the location or any source (the
  * publication gate checks every entry against the snapshot).
  *
+ * W9.6: on fa, also `factory` (the price's Persian factory name): the «استعلام قیمت نهایی» link next to
+ * the estimate prefills it in the RFQ form (lib/pricing/price-rfq.ts). Never on ar.
+ *
  * The date label is formatted here, on the server (build), and travels as a
  * string: `Intl` date output differs between the build runtime and the
  * browser, which would break hydration of the client calculator.
@@ -21,6 +24,8 @@ export interface CalculatorPrice {
   datetime?: string;
   /** fa «۱۵ مهر ۱۴۰۵» (Persian calendar, Tehran); ar «٨ أكتوبر ٢٠٢٦». */
   dateLabel: string;
+  /** W9.6, fa only: the factory, for the RFQ prefill of «استعلام قیمت نهایی». */
+  factory?: string;
 }
 
 /** Variant xid → price, already validated. */
@@ -31,7 +36,7 @@ export function toCalculatorPrice(data: PriceBlockData | null | undefined, local
   const view = presentPriceBlock("fa", data);
   if (!data || !view || view.kind !== "price") return null;
   const dateLabel = priceDateLabel(locale, view.datetime);
-  return locale === "fa" ? { tomanPerKg: data.tomanPerKg, datetime: view.datetime, dateLabel } : { tomanPerKg: data.tomanPerKg, dateLabel };
+  return locale === "fa" ? { tomanPerKg: data.tomanPerKg, datetime: view.datetime, dateLabel, factory: view.factoryName } : { tomanPerKg: data.tomanPerKg, dateLabel };
 }
 
 /** Prices for the calculator from the build data; anything invalid is dropped. fa and ar only — en gets none. */

@@ -62,7 +62,7 @@ export function StaticEnquiryForm({ locale, turnstileSiteKey, rfqEndpoint }: { l
 
   const items = catalog?.items ?? [];
   const preselection = variantXid ? findCatalogItemByXid(items, variantXid) : null;
-  const prefill = preselection && query ? parseRfqRowPrefill(query, preselection.groupCode) : undefined;
+  const prefill = preselection && query ? parseRfqRowPrefill(query, preselection.groupCode, locale) : undefined;
 
   return (
     <EnquiryForm

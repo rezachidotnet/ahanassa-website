@@ -18,20 +18,32 @@ import { isValidLengthMmValue } from "./item-row-validation.ts";
  * a length only for a group that offers the length input
  * (lib/rfq/length-policy.ts). Anything else is dropped silently — the row
  * then starts exactly as a plain `?variant=` preselection does.
+ *
+ * W9.6 («استعلام قیمت نهایی», lib/pricing/price-rfq.ts): `&factory=<name>` on
+ * a fa page fills the row's existing notes with «کارخانه: <name>» — plain,
+ * editable text the visitor sees and may change before sending; the RFQ
+ * Worker is unchanged. Ignored on en/ar and when the value is not a short
+ * plain name (letters, digits, spaces, a little punctuation, ≤ 80 chars).
  */
 
-export const RFQ_PREFILL_PARAMS = { quantity: "qty", unit: "unit", lengthMm: "length" } as const;
+export const RFQ_PREFILL_PARAMS = { quantity: "qty", unit: "unit", lengthMm: "length", factory: "factory" } as const;
+
+/** The notes line the fa factory pre-fill writes (W9.6). */
+export const RFQ_FACTORY_NOTE_FA = (factory: string) => `کارخانه: ${factory}`;
+const FACTORY_NAME = /^[\p{L}\p{M}\p{N}][\p{L}\p{M}\p{N} \u200c\-.,()،]{0,79}$/u;
 
 export interface RfqRowPrefill {
   quantityValue?: string;
   unit?: RfqUomCode;
   lengthMm?: string;
+  /** W9.6: the row's notes (fa factory pre-fill only). */
+  notes?: string;
 }
 
 const isUomCode = (value: string): value is RfqUomCode => (RFQ_UOM_CODES as readonly string[]).includes(value);
 
 /** Reads and validates the pre-fill for a row of `groupCode` from a URL query. */
-export function parseRfqRowPrefill(params: URLSearchParams, groupCode: string | null | undefined): RfqRowPrefill {
+export function parseRfqRowPrefill(params: URLSearchParams, groupCode: string | null | undefined, locale?: string): RfqRowPrefill {
   const prefill: RfqRowPrefill = {};
   const unit = params.get(RFQ_PREFILL_PARAMS.unit);
   const quantity = params.get(RFQ_PREFILL_PARAMS.quantity)?.trim();
@@ -41,6 +53,8 @@ export function parseRfqRowPrefill(params: URLSearchParams, groupCode: string | 
   }
   const length = params.get(RFQ_PREFILL_PARAMS.lengthMm)?.trim();
   if (length && isLengthMmSupportedForGroup(groupCode) && /^\d+$/.test(length) && isValidLengthMmValue(length)) prefill.lengthMm = length;
+  const factory = params.get(RFQ_PREFILL_PARAMS.factory)?.trim().replace(/\s+/g, " ");
+  if (locale === "fa" && factory && FACTORY_NAME.test(factory)) prefill.notes = RFQ_FACTORY_NOTE_FA(factory);
   return prefill;
 }
 
