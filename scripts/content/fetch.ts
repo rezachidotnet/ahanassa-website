@@ -8,11 +8,16 @@
  *
  * Writes <work>/source/{odoo.json,d1.json,fetch-report.json}.
  */
-import { fetchOdooSource } from "../../lib/content-pipeline/odoo-source.ts";
+import { fetchOdooSource, type OdooSource } from "../../lib/content-pipeline/odoo-source.ts";
 import { readD1Source } from "../../lib/content-pipeline/d1-source.ts";
 import { log as logger, parseArgs, paths, publicDb, runStep, summary, workDir, writeJson } from "./common.ts";
 
 const args = parseArgs();
+const pricingRows = (odoo: OdooSource) => {
+  const body = odoo.prices?.body as { data?: unknown } | null | undefined;
+  return Array.isArray(body?.data) ? body.data.length : 0;
+};
+const pricingLabel = (odoo: OdooSource) => (odoo.prices?.status === "ok" ? `${pricingRows(odoo)} rows (ETag ${odoo.prices.etag ?? "none"})` : `not deployed yet (HTTP ${odoo.prices?.http_status ?? "—"}): empty price set`);
 const log = logger("fetch");
 
 await runStep("fetch", async () => {
@@ -22,7 +27,7 @@ await runStep("fetch", async () => {
   const odoo = await fetchOdooSource();
   const odooMs = Math.round(performance.now() - started);
   writeJson(p.odoo, odoo);
-  log(`Odoo: ${odoo.requests.length} GET requests in ${odooMs} ms; ${odoo.products.length} products, categories fa/en/ar ${odoo.categories.fa.length}/${odoo.categories.en.length}/${odoo.categories.ar.length}, processing groups ${odoo.processing_groups.fa.length}/${odoo.processing_groups.en.length}/${odoo.processing_groups.ar.length}`);
+  log(`Odoo: ${odoo.requests.length} GET requests in ${odooMs} ms; ${odoo.products.length} products, categories fa/en/ar ${odoo.categories.fa.length}/${odoo.categories.en.length}/${odoo.categories.ar.length}, processing groups ${odoo.processing_groups.fa.length}/${odoo.processing_groups.en.length}/${odoo.processing_groups.ar.length}, pricing ${pricingLabel(odoo)}`);
 
   const d1Started = performance.now();
   const d1 = await readD1Source(publicDb(args));
@@ -54,6 +59,8 @@ await runStep("fetch", async () => {
         meta_grades: odoo.meta.grades.length,
         meta_standards: odoo.meta.standards.length,
       },
+      // W9.4: status + row count only (the prices themselves are validated in the next step).
+      pricing: { status: odoo.prices?.status ?? "not_fetched", http_status: odoo.prices?.http_status ?? null, etag: odoo.prices?.etag ?? null, rows: pricingRows(odoo) },
     },
     d1: { duration_ms: d1Ms, active_version: d1.publication.active_version, versions: d1.publication.versions.map((v) => `${v.version}:${v.status}`) },
   };
@@ -63,6 +70,7 @@ await runStep("fetch", async () => {
       "### Content fetch",
       `- Odoo \`${odoo.base_url}\`: **${report.odoo.requests} GET** requests, ${odooMs} ms (statuses ${JSON.stringify(report.odoo.statuses)})`,
       `- Products ${report.odoo.counts.products} (reported ${odoo.products_reported_total}), templates ${report.odoo.counts.templates}, categories ${report.odoo.counts.categories_fa}/${report.odoo.counts.categories_en}/${report.odoo.counts.categories_ar}, processing groups ${report.odoo.counts.processing_groups_fa}/${report.odoo.counts.processing_groups_en}/${report.odoo.counts.processing_groups_ar}`,
+      `- Pricing \`/api/v1/pricing/current\`: ${pricingLabel(odoo)}`,
       `- DB_PUBLIC (read-only): active \`${d1.publication.active_version}\`, retained ${report.d1.versions.join(", ") || "none"}`,
     ].join("\n"),
   );

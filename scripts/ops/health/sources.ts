@@ -4,10 +4,10 @@
  *   - Cloudflare GraphQL Analytics (token: Account › Account Analytics › Read)
  *   - D1 REST `query` with a single SELECT (token: Account › D1 › Read)
  *   - GitHub REST (GITHUB_TOKEN, `actions: read`)
- *   - Odoo GET /api/v1/catalog/meta (no credentials)
+ *   - Odoo GET /api/v1/catalog/meta and (W9.4, when enabled) GET /api/v1/pricing/current (no credentials)
  * Errors carry API messages only — never a token or a response body with data.
  */
-import type { HttpGroup, InvocationGroup, OdooProbe, ScheduledRun } from "./checks.ts";
+import { newestPublishedPriceAt, type HttpGroup, type InvocationGroup, type OdooProbe, type ScheduledRun } from "./checks.ts";
 
 const CF_API = "https://api.cloudflare.com/client/v4";
 
@@ -193,4 +193,14 @@ export async function probeOdoo(url: string, timeoutMs: number): Promise<OdooPro
     const name = error instanceof Error ? error.name : "Error";
     return { httpStatus: null, latencyMs: performance.now() - started, error: name === "TimeoutError" ? `timeout ${timeoutMs} ms` : name };
   }
+}
+
+/** W9.4: newest published_at_utc of the current published prices (GET only; any non-200 is an error). */
+export async function newestPublishedPrice(url: string, timeoutMs: number): Promise<string | null> {
+  const res = await fetch(url, { method: "GET", headers: { Accept: "application/json", "User-Agent": "ahanassa-ops-health/1" }, signal: AbortSignal.timeout(timeoutMs) });
+  if (res.status !== 200) {
+    await res.arrayBuffer().catch(() => undefined);
+    throw new Error(`GET /api/v1/pricing/current returned HTTP ${res.status}`);
+  }
+  return newestPublishedPriceAt(await res.json());
 }

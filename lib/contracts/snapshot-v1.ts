@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { SNAPSHOT_VERSION_PATTERN } from "./snapshot-version.ts";
+import { PUBLISHED_PRICES_TABLE, publishedPriceRow } from "./snapshot-prices.ts";
 
 /**
  * snapshot.v1 — the build-time public data snapshot (docs/contracts/SNAPSHOT_V1.md,
@@ -165,7 +166,14 @@ export const SNAPSHOT_TABLES = {
   route_redirects: routeRedirectRow,
   homepage_product_rank: homepageProductRankRow,
   catalog_group_labels: catalogGroupLabelRow,
+  // W9.4: build-only (no DB_PUBLIC table; lib/contracts/snapshot-prices.ts).
+  [PUBLISHED_PRICES_TABLE]: publishedPriceRow,
 } as const;
+/**
+ * Snapshot tables that exist only in the static build's in-memory database, never in the remote
+ * DB_PUBLIC (no migrations_public file; never loaded or mirrored into D1). W9.4: the published prices.
+ */
+export const BUILD_ONLY_SNAPSHOT_TABLES: ReadonlySet<string> = new Set([PUBLISHED_PRICES_TABLE]);
 export type SnapshotTableName = keyof typeof SNAPSHOT_TABLES;
 export const REQUIRED_SNAPSHOT_TABLES: SnapshotTableName[] = ["catalog_public_categories", "catalog_products", "product_variants", "product_seo_contents", "public_processing_groups"];
 
@@ -197,6 +205,7 @@ export const snapshotV1 = z
         route_redirects: z.array(routeRedirectRow).default([]),
         homepage_product_rank: z.array(homepageProductRankRow).default([]),
         catalog_group_labels: z.array(catalogGroupLabelRow).default([]),
+        published_prices: z.array(publishedPriceRow).default([]),
       })
       .strict(),
   })
@@ -209,6 +218,14 @@ export const snapshotV1 = z
     });
     s.tables.product_seo_contents.forEach((r, i) => {
       if (r.entity_type === "product" && !productIds.has(r.entity_id)) ctx.addIssue({ code: "custom", path: ["tables", "product_seo_contents", i, "entity_id"], message: "unknown product entity_id" });
+    });
+    // W9.4: a price belongs to a known catalog variant, at most one per variant.
+    const variantXids = new Set(s.tables.product_variants.map((v) => v.xid));
+    const priced = new Set<string>();
+    s.tables.published_prices.forEach((r, i) => {
+      if (!variantXids.has(r.canonical_variant_id)) ctx.addIssue({ code: "custom", path: ["tables", "published_prices", i, "canonical_variant_id"], message: "unknown variant" });
+      if (priced.has(r.canonical_variant_id)) ctx.addIssue({ code: "custom", path: ["tables", "published_prices", i, "canonical_variant_id"], message: "duplicate price for one variant" });
+      priced.add(r.canonical_variant_id);
     });
   });
 

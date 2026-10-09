@@ -20,9 +20,10 @@ export const PIPELINE_CONFIG = {
     locales: ["fa", "en", "ar"] as const,
     /**
      * The only URL paths the fetch may request (owner decision 2026-10-03: the catalog API plus the
-     * processing-groups endpoint, which §7.1 step 1 needs and which has no /api/v1/catalog/* twin).
+     * processing-groups endpoint, which §7.1 step 1 needs and which has no /api/v1/catalog/* twin;
+     * W9.4: the public pricing API, of which only /api/v1/pricing/current is requested).
      */
-    allowedPathPrefixes: ["/api/v1/catalog/", "/api/v1/processing/groups"],
+    allowedPathPrefixes: ["/api/v1/catalog/", "/api/v1/processing/groups", "/api/v1/pricing/"],
   },
   d1: {
     /** Rows per `wrangler d1 execute --file` batch; each file runs as one transaction. */

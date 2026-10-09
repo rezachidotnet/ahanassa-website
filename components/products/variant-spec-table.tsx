@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import { normalizeVariantDimensions, normalizeVariantNominalWeight, normalizeVariantSpecifications, sortVariantsBySize, NOMINAL_WEIGHT_DISCLAIMER } from "@/lib/catalog/specification-presenter";
 import type { ProductVariant } from "@/lib/catalog/types";
+import type { PriceBlockData } from "@/lib/pricing/price-block-presentation";
+import { presentPriceCell, PRICE_CELL_ATTRIBUTE, PRICE_COLUMN_COPY } from "@/lib/pricing/product-page-price";
 
 const chrome: Record<
   Locale,
@@ -66,8 +68,14 @@ export function variantRowAnchorId(sku: string): string {
  * link (`/products/<slug>?variant=<xid>`) is highlighted in the browser by
  * `VariantHighlightFromQuery` — the page is static and takes no searchParams
  * (architecture V1.1 §4.2) — without ever creating a Variant SEO page.
+ *
+ * W9.4: with `prices` (Persian pages, static build only) a «قیمت روز» column
+ * shows each variant's published price — amount in Toman/kg + compact
+ * factory/location + date — or «استعلام قیمت». en/ar never get the column
+ * (`presentPriceCell` presents nothing for them). Each cell carries
+ * `data-aa-price-cell` for the publication gate's allow-list check.
  */
-export function VariantSpecTable({ locale, variants: unsorted }: { locale: Locale; variants: ProductVariant[] }) {
+export function VariantSpecTable({ locale, variants: unsorted, prices }: { locale: Locale; variants: ProductVariant[]; prices?: ReadonlyMap<string, PriceBlockData> | null }) {
   if (unsorted.length === 0) return null;
   // Natural size order (IPE 80 before IPE 600) — the presenter owns it, W10.0 P0-1.
   const variants = sortVariantsBySize(unsorted);
@@ -93,6 +101,7 @@ export function VariantSpecTable({ locale, variants: unsorted }: { locale: Local
     }
   }
 
+  const showPrices = locale === "fa" && Boolean(prices);
   const commonUnits = variants.every((v) => v.allowedCommercialUnits === variants[0].allowedCommercialUnits) ? variants[0].allowedCommercialUnits : null;
 
   return (
@@ -126,6 +135,12 @@ export function VariantSpecTable({ locale, variants: unsorted }: { locale: Local
                   {c.label}
                 </th>
               ))}
+              {showPrices && (
+                <th scope="col" className={HEAD}>
+                  {PRICE_COLUMN_COPY.header}
+                  <span className="text-tertiary block text-[11px] font-semibold">{PRICE_COLUMN_COPY.unit}</span>
+                </th>
+              )}
               <th scope="col" className={HEAD}>
                 {t.sku}
               </th>
@@ -159,6 +174,7 @@ export function VariantSpecTable({ locale, variants: unsorted }: { locale: Local
                       <span dir="ltr">{weightByKey.get(c.key) ?? "—"}</span>
                     </td>
                   ))}
+                  {showPrices && <PriceCell locale={locale} xid={variant.xid} price={prices?.get(variant.xid)} />}
                   <td className={cn(CELL, "text-muted-foreground group-hover:bg-surface")}>
                     <span dir="ltr">{variant.sku}</span>
                   </td>
@@ -179,9 +195,30 @@ export function VariantSpecTable({ locale, variants: unsorted }: { locale: Local
         </table>
       </div>
 
+      {showPrices && <p className="text-muted-foreground mt-3 text-xs leading-relaxed">{PRICE_COLUMN_COPY.note}</p>}
       {weightColumns.length > 0 && <p className="text-muted-foreground mt-3 text-xs leading-relaxed">{NOMINAL_WEIGHT_DISCLAIMER[locale]}</p>}
       {commonUnits && <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{t.units(commonUnits)}</p>}
     </div>
+  );
+}
+
+function PriceCell({ locale, xid, price }: { locale: Locale; xid: string; price: PriceBlockData | undefined }) {
+  const view = presentPriceCell(locale, price);
+  if (!view) return null;
+  return (
+    <td {...{ [PRICE_CELL_ATTRIBUTE]: xid }} className={cn(CELL, "group-hover:bg-surface")}>
+      {view.kind === "missing" ? (
+        <span className="text-muted-foreground">{view.label}</span>
+      ) : (
+        <>
+          <span className="text-navy font-bold">{view.amount}</span>
+          <span className="text-tertiary block text-xs">{view.place}</span>
+          <time dateTime={view.datetime} className="text-tertiary block text-xs">
+            {view.dateLabel}
+          </time>
+        </>
+      )}
+    </td>
   );
 }
 

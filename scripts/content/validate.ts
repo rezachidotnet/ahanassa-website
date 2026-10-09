@@ -23,8 +23,8 @@ await runStep("validate", async () => {
   const odoo = readJson<OdooSource>(p.odoo);
   const d1 = readJson<D1Source>(p.d1);
   const tables = assembleSnapshotTables(odoo, d1, odoo.fetched_at);
-  const result = validateSource(odoo, tables);
   const previous = activeCounts(d1);
+  const result = validateSource(odoo, tables, previous);
   const decrease = decreaseFindings(result.counts, previous);
   const blockedByDecrease = decrease.length > 0 && !allowDecrease;
   const ok = result.errors.length === 0 && !blockedByDecrease;

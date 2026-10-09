@@ -13,9 +13,13 @@ import { snapshotV1, SNAPSHOT_TABLES, SNAPSHOT_SCHEMA_VERSION, type SnapshotV1, 
  * - Pipeline (W4): `snapshot_version` is assigned and monotonic
  *   (lib/content-pipeline/version.ts) and `content_sha256` carries the hash.
  */
+const OMIT_WHEN_EMPTY: ReadonlySet<string> = new Set(["published_prices"]);
+
 export function canonicalTablesJson(tables: SnapshotV1["tables"]): string {
   const ordered: Record<string, unknown[]> = {};
   for (const name of Object.keys(SNAPSHOT_TABLES) as SnapshotTableName[]) {
+    // W9.4: an empty optional table is left out, so every snapshot made before it existed keeps its hash/version.
+    if (OMIT_WHEN_EMPTY.has(name) && !(tables[name] ?? []).length) continue;
     const rows = (tables[name] ?? []).map((r) => {
       const keys = Object.keys(r).sort();
       return JSON.stringify(Object.fromEntries(keys.map((k) => [k, (r as Record<string, unknown>)[k]])));

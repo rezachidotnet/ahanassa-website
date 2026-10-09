@@ -25,7 +25,8 @@ export interface PublicationVersionRow {
 export interface D1Source {
   schema: typeof D1_SOURCE_SCHEMA;
   read_at: string;
-  tables: SnapshotV1["tables"];
+  /** DB_PUBLIC has no `published_prices` (W9.4: build-only snapshot table, fetched from Odoo every run). */
+  tables: Omit<SnapshotV1["tables"], "published_prices">;
   publication: { active_version: string | null; versions: PublicationVersionRow[] };
 }
 
@@ -50,7 +51,7 @@ export async function readD1Source(db: D1Database): Promise<D1Source> {
   return {
     schema: D1_SOURCE_SCHEMA,
     read_at: new Date().toISOString(),
-    tables: tables as SnapshotV1["tables"],
+    tables: tables as D1Source["tables"],
     publication: {
       active_version: pointer?.active_version ?? null,
       versions: versions.map((v) => ({ ...v, source_counts: parseCounts(v.source_counts) })),

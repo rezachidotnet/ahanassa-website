@@ -14,6 +14,11 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { breadcrumbListSchema, jsonLdGraph, productSchema } from "@/lib/seo/schema";
 import { siteConfig } from "@/lib/metadata/site";
 import { primaryCta } from "@/lib/content/nav";
+import { PriceBlock } from "@/components/products/price-block";
+import { listProductPagePrices } from "@/lib/pricing/product-page-price-repository";
+import { firstPricedVariant, PRICE_BLOCK_ATTRIBUTE, PRICE_BLOCK_ON_REQUEST } from "@/lib/pricing/product-page-price";
+import { sortVariantsBySize } from "@/lib/catalog/specification-presenter";
+import type { ProductVariant } from "@/lib/catalog/types";
 
 interface PageProps {
   params: Promise<{ locale: string; slug: string }>;
@@ -60,6 +65,38 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     indexable: publicPageIndexable(entry.seo.indexStatus === "index"),
     languageAlternates,
   });
+}
+
+/**
+ * W9.4 — the daily price (Persian pages only; owner decisions D-PRICE-DISPLAY / D-PRICE-AGE / D-W10-4):
+ * the W10.2 PriceBlock for the page's first priced variant (table order), or its missing-price variant,
+ * and the «قیمت روز» column of the variant table. Prices come from the snapshot at build time; en/ar get
+ * neither, and JSON-LD stays Product without offers (architecture V1.1 §12).
+ *
+ * r4 isolation (same technique as TargetEnquiryForm in contact/page.tsx and NotFoundContent in
+ * not-found.tsx): this async boundary always suspends once, so React emits the price block and the
+ * table in their own Flight row. The page row carries the target-specific robots value; the size of
+ * the price markup can then never move the point where React splits that row, which would make the
+ * staging and production artifacts differ outside the allowlist (lib/static/target-diff-gate.ts).
+ */
+async function ProductSpecs({ locale, variants, title }: { locale: Locale; variants: ProductVariant[]; title: string }) {
+  await Promise.resolve();
+  const prices = locale === "fa" ? await listProductPagePrices(variants.map((v) => v.xid)) : null;
+  const main = prices ? firstPricedVariant(sortVariantsBySize(variants), prices) : null;
+  const mainSize = main ? (main.commercialSize ?? main.sectionSize ?? main.sku) : null;
+  const contact = localizedPath(locale, "/contact");
+  return (
+    <>
+      {prices && (
+        <div {...{ [PRICE_BLOCK_ATTRIBUTE]: main?.xid ?? PRICE_BLOCK_ON_REQUEST }} className="mt-6 max-w-md">
+          <PriceBlock locale={locale} price={main ? prices.get(main.xid) : null} rfqHref={main ? `${contact}?variant=${encodeURIComponent(main.xid)}` : contact} productName={mainSize ? `${title} ${mainSize}` : title} />
+        </div>
+      )}
+      <div className="mt-6">
+        <VariantSpecTable locale={locale} variants={variants} prices={prices} />
+      </div>
+    </>
+  );
 }
 
 /**
@@ -131,9 +168,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       <section className="border-border bg-background border-b py-16 lg:py-20">
         <div className="container-x">
           <h2 className="text-navy text-lg font-bold">{t.specs}</h2>
-          <div className="mt-6">
-            <VariantSpecTable locale={locale} variants={variants} />
-          </div>
+          <ProductSpecs locale={locale} variants={variants} title={seo.h1 ?? product.commercialTemplateName} />
           <VariantHighlightFromQuery rows={variantRowIds} selectedLabel={variantSelectedLabel(locale)} />
 
           <ButtonLink href={localizedPath(locale, "/contact")} variant="primary" size="md" className="mt-10 h-auto min-h-12 py-3">

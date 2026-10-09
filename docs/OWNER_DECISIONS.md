@@ -40,10 +40,10 @@ D-DAR-063 and D-SCHEDULE are implemented now (W9.1). D-PRICE and D-ARTICLES are 
 |---|---|---|
 | **D-SCHEDULE** (2026-10-07) | All daily production publishes at **11:30 Tehran (08:00 UTC)**. | D-SCHEDULE above and `RELEASE_POLICY.md` §20.5 updated; `content-publish.yml` on `main` schedules `0 8 * * *`. |
 | **D-PRICE-SOURCE** (2026-10-07/08) | Prices come from external market sources via a private collector (sources are documented only in the private repos; never name them in this public repo). | Recorded now. Supersedes D-PRICE (2026-10-06) where they differ. |
-| **D-PRICE-DISPLAY** (2026-10-07/08) | The website shows the lowest comparable market price with its factory and delivery location, VAT included, on Persian pages only; never the source. | Recorded now. |
+| **D-PRICE-DISPLAY** (2026-10-07/08) | The website shows the lowest comparable market price with its factory and delivery location, VAT included, on Persian pages only; never the source. | **Implemented W9.4** (code release): the pipeline reads Odoo `GET /api/v1/pricing/current` and keeps only the rendered fields (`docs/contracts/SNAPSHOT_V1.md` §published_prices); Persian product pages show the W10.2 PriceBlock for the first priced variant and a «قیمت روز» column (Toman/kg, factory + location, date), «استعلام قیمت» for the rest; en/ar show no price; no JSON-LD offers. The price gate (`lib/static/price-gate.ts`) and the leak scan enforce it on every artifact. |
 | **D-PRICE-VAT** (2026-10-07/08) | VAT rate 10%; basis order: stated → per-source default → inferred → assumed included. | Recorded now. |
 | **D-PRICE-OUTLIERS** (2026-10-07/08) | Outliers more than 15% from the median are flagged and excluded. | Recorded now. |
-| **D-PRICE-AGE** (2026-10-07/08) | Prices never expire; date and age are shown; internal stale alert after 5 days. | Recorded now. |
+| **D-PRICE-AGE** (2026-10-07/08) | Prices never expire; date and age are shown; internal stale alert after 5 days. | **Implemented W9.4:** no expiry anywhere; the date is rendered at build time and the age in the browser; the ops-health check "published prices stale" (> 5 days) is built for production and **off** until the owner enables it (`docs/OPS_ALERTS.md`). |
 
 ## Decisions of 2026-10-08 (W10 design system)
 

@@ -206,6 +206,32 @@ export function evaluateOdoo(p: OdooProbe, t: Thresholds): CheckResult {
   return { ...base, value: `HTTP ${p.httpStatus} in ${Math.round(p.latencyMs)} ms`, threshold, status: ok ? "OK" : "ALERT" };
 }
 
+// 9. Price age (W9.4, D-PRICE-AGE) ----------------------------------------------------------------
+
+/**
+ * Newest `published_at_utc` among the numeric prices of a GET /api/v1/pricing/current body; null when
+ * nothing is priced. Only that one field is read — never a price, factory or location.
+ */
+export function newestPublishedPriceAt(body: unknown): string | null {
+  const data = (body as { data?: unknown } | null)?.data;
+  if (!Array.isArray(data)) throw new Error("pricing response is not {data: [...]}");
+  let newest: string | null = null;
+  for (const r of data as { price_on_request?: unknown; published_at_utc?: unknown }[]) {
+    if (r?.price_on_request !== false || typeof r.published_at_utc !== "string" || Number.isNaN(Date.parse(r.published_at_utc))) continue;
+    if (newest === null || r.published_at_utc > newest) newest = r.published_at_utc;
+  }
+  return newest;
+}
+
+/** Internal stale-price alert: the newest published price is older than priceStaleMaxDays. The website keeps showing it. */
+export function evaluatePriceStale(newestPublishedAt: string | null, now: Date, t: Thresholds): CheckResult {
+  const threshold = `newest published price ≤ ${t.priceStaleMaxDays} days old`;
+  const base = { id: "pricing:stale", title: "published prices stale" };
+  if (!newestPublishedAt) return { ...base, value: "no published price (every product is price on request)", threshold, status: "INFO" };
+  const days = minutesBetween(newestPublishedAt, now) / 1440;
+  return { ...base, value: `${days.toFixed(1)} days (newest ${newestPublishedAt})`, threshold, status: days > t.priceStaleMaxDays ? "ALERT" : "OK" };
+}
+
 // Info: CI reconciler ----------------------------------------------------------------------------
 
 export function evaluateReconciler(lastRunAt: string | null, now: Date, t: Thresholds): CheckResult {

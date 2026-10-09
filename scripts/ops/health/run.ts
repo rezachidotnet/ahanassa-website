@@ -13,7 +13,7 @@
  * and timestamps — no RFQ, reference, contact or other personal data.
  */
 import fs from "node:fs";
-import { ODOO_META_URL, OPS_TARGETS, WINDOW, contentStaleAlertEffective, thresholdsFor, type OpsEnv } from "./config.ts";
+import { ODOO_META_URL, ODOO_PRICING_CURRENT_URL, OPS_TARGETS, WINDOW, contentStaleAlertEffective, thresholdsFor, type OpsEnv } from "./config.ts";
 import {
   annotations,
   evaluateContentPublish,
@@ -21,6 +21,7 @@ import {
   evaluateCronLiveness,
   evaluateIntake,
   evaluateOdoo,
+  evaluatePriceStale,
   evaluateReconciler,
   evaluateRfqs,
   RFQ_COUNTS_SQL,
@@ -30,7 +31,7 @@ import {
   windowStart,
   type CheckResult,
 } from "./checks.ts";
-import { d1Select, httpByHost, lastRunStart, lastScheduledRun, lastSuccessfulPublish, previousRunStart, probeOdoo, workerCpu, type CloudflareAuth, type GitHubAuth } from "./sources.ts";
+import { d1Select, httpByHost, lastRunStart, lastScheduledRun, lastSuccessfulPublish, newestPublishedPrice, previousRunStart, probeOdoo, workerCpu, type CloudflareAuth, type GitHubAuth } from "./sources.ts";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -112,6 +113,12 @@ async function main(): Promise<number> {
   });
   // 8. Odoo reachability (GET only)
   results.push(evaluateOdoo(await probeOdoo(ODOO_META_URL, t.odooTimeoutMs), t));
+  // 9. price age (W9.4; off unless the target enables it)
+  if (target.priceStaleCheck) {
+    await guard("pricing:stale", "published prices stale", `newest published price ≤ ${t.priceStaleMaxDays} days old`, async () =>
+      evaluatePriceStale(await newestPublishedPrice(ODOO_PRICING_CURRENT_URL, t.odooTimeoutMs), now, t),
+    );
+  }
   // info: CI reconciler
   await guard("info:reconciler", "CI reconciler last run", "info", async () => evaluateReconciler(await lastRunStart(gh, target.reconcilerWorkflow), now, t));
 

@@ -1,6 +1,7 @@
 import { fetchCatalogCategories, fetchCatalogMeta, fetchCatalogProductsPage, type CatalogApiCategory, type CatalogApiProduct, type CatalogLocale, type CatalogMetaPayload } from "../catalog/odoo-api-client.ts";
 import { fetchProcessingGroups, type ProcessingGroupApiItem } from "../processing/odoo-api-client.ts";
 import { PIPELINE_CONFIG } from "./config.ts";
+import { PRICING_CURRENT_PATH, type PricingSource } from "./pricing.ts";
 
 /**
  * Architecture V1.1 §7.1 step 1 — the FULL fetch from Odoo (no delta, so
@@ -36,6 +37,11 @@ export interface OdooSource {
   products: CatalogApiProduct[];
   products_reported_total: number;
   processing_groups: Record<CatalogLocale, ProcessingGroupApiItem[]>;
+  /**
+   * W9.4: `GET /api/v1/pricing/current`, unvalidated (lib/content-pipeline/pricing.ts allow-lists and
+   * validates it; only the allow-listed fields reach the snapshot). Absent in sources fetched before W9.4.
+   */
+  prices?: PricingSource;
 }
 
 export class OdooFetchError extends Error {}
@@ -131,6 +137,8 @@ export async function fetchOdooSource(options: { baseUrl?: string; fetchImpl?: t
     processingGroups[locale] = r.items!;
   }
 
+  const prices = await fetchPricingCurrent(baseUrl, guarded);
+
   return {
     schema: ODOO_SOURCE_SCHEMA,
     base_url: baseUrl,
@@ -143,5 +151,32 @@ export async function fetchOdooSource(options: { baseUrl?: string; fetchImpl?: t
     products,
     products_reported_total: reportedTotal,
     processing_groups: processingGroups,
+    prices,
   };
+}
+
+/**
+ * W9.4: the current published prices. HTTP 404 = the API is not deployed yet (the site builds with an
+ * empty price set; validation refuses that once a publication already shows prices). Any other non-200
+ * status, a timeout or a non-JSON body fails the fetch, like the catalog endpoints.
+ */
+export async function fetchPricingCurrent(baseUrl: string, guarded: typeof fetch, timeoutMs: number = PIPELINE_CONFIG.odoo.timeoutMs): Promise<PricingSource> {
+  let response: Response;
+  try {
+    response = await guarded(new URL(PRICING_CURRENT_PATH, baseUrl).href, { method: "GET", headers: { Accept: "application/json" }, signal: AbortSignal.timeout(timeoutMs) });
+  } catch (error) {
+    throw new OdooFetchError(`Odoo fetch failed: GET ${PRICING_CURRENT_PATH} (${error instanceof Error ? error.name : "network error"})`);
+  }
+  if (response.status === 404) {
+    await response.arrayBuffer().catch(() => undefined);
+    return { status: "not_deployed", http_status: 404, etag: null, body: null };
+  }
+  if (response.status !== 200) throw new OdooFetchError(`Odoo fetch failed: GET ${PRICING_CURRENT_PATH} (HTTP ${response.status})`);
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    throw new OdooFetchError(`Odoo fetch failed: GET ${PRICING_CURRENT_PATH} (body is not JSON)`);
+  }
+  return { status: "ok", http_status: 200, etag: response.headers.get("etag"), body };
 }
