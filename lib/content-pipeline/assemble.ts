@@ -3,6 +3,7 @@ import { normalizeCatalogTimestamp, slugifyFromSku, slugifyTemplateXid } from ".
 import type { SnapshotV1 } from "../contracts/snapshot-v1.ts";
 import type { D1Source } from "./d1-source.ts";
 import type { OdooSource } from "./odoo-source.ts";
+import { validatePricing } from "./pricing.ts";
 
 /**
  * Builds the snapshot.v1 tables from one full Odoo fetch plus the
@@ -233,5 +234,8 @@ export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivat
     route_redirects: [...d1.tables.route_redirects].sort(byKey((r) => r.id)),
     homepage_product_rank: [...d1.tables.homepage_product_rank].sort(byKey((r) => r.id)),
     catalog_group_labels: [...d1.tables.catalog_group_labels].sort(byKey((r) => `${r.group_code}|${r.locale}`)),
+    // W9.4: Odoo-owned, build-only; only the allow-listed fields (empty when the pricing source has any error,
+    // which validateSource reports and which stops the run).
+    published_prices: validatePricing(odoo.prices, odoo.products, odoo.fetched_at).rows,
   };
 }

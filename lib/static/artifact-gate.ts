@@ -4,6 +4,7 @@ import path from "node:path";
 import { artifactManifest, publicManifest, publicRfqCatalog, PRIVATE_DIR, PUBLIC_DIR, type ArtifactFileEntry } from "../contracts/artifact-v1.ts";
 import { scanPublicFile, type LeakFinding } from "./leak-scan.ts";
 import { internalIdsFromSnapshot, scanPublication } from "./publication-gate.ts";
+import { priceGateInput, scanPrices } from "./price-gate.ts";
 import { STATIC_TARGETS, TURNSTILE_ORIGIN } from "./targets.ts";
 import { checkIndexingPolicy, PRODUCTION_ORIGIN } from "./indexing-gate.ts";
 
@@ -161,6 +162,8 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
   }
   const textFiles = publicEntries.filter((e) => /\.(html|json|txt|xml|js|css)$/.test(e.path)).map((e) => ({ path: e.path, content: readPublic(e.path) }));
   for (const f of scanPublication(textFiles, internalIdsFromSnapshot(snapshotDoc))) failures.push(`publication ${f.kind} in ${f.file}: ${f.match}`);
+  // 7. Price gate (W9.4): rendered price text = the snapshot row's allow-listed fields, Persian pages only.
+  for (const f of scanPrices(textFiles, priceGateInput(snapshotDoc))) failures.push(`price ${f.kind} in ${f.file}: ${f.match}`);
 
   const largest = publicEntries.reduce<ArtifactFileEntry | null>((a, b) => (!a || b.bytes > a.bytes ? b : a), null);
   return { failures, leaks, stats: { publicFiles: publicEntries.length, privateFiles: privateEntries.length, htmlPages: htmlFiles.length, largestPublicFile: largest ? { path: largest.path, bytes: largest.bytes } : null } };

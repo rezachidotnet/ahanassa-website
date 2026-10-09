@@ -218,3 +218,37 @@ test("content check: report-only targets never ALERT on a stale or missing publi
   assert.equal(evaluateContentPublish("2026-10-04T11:00:00Z", "snap-x", now, THRESHOLDS, false).status, "OK");
   assert.equal(evaluateContentPublish(null, null, now, THRESHOLDS).status, "ALERT");
 });
+
+// W9.4 — internal stale-price alert (D-PRICE-AGE). Synthetic bodies only.
+import { evaluatePriceStale, newestPublishedPriceAt } from "./checks.ts";
+import { readFileSync as readPriceFile } from "node:fs";
+
+test("price age: newest numeric published_at_utc only; on-request rows and invalid times ignored", () => {
+  const body = {
+    data: [
+      { price_on_request: false, published_at_utc: "2026-10-03T07:20:00Z" },
+      { price_on_request: false, published_at_utc: "2026-10-05T07:20:00Z" },
+      { price_on_request: true, published_at_utc: null },
+      { price_on_request: false, published_at_utc: "not a time" },
+    ],
+  };
+  assert.equal(newestPublishedPriceAt(body), "2026-10-05T07:20:00Z");
+  assert.equal(newestPublishedPriceAt({ data: [] }), null);
+  assert.throws(() => newestPublishedPriceAt({ error: {} }));
+});
+
+test("price age: ALERT only when the newest published price is older than 5 days; nothing priced is INFO", () => {
+  const now = new Date("2026-10-10T08:00:00Z");
+  assert.equal(THRESHOLDS.priceStaleMaxDays, 5);
+  assert.equal(evaluatePriceStale("2026-10-05T09:00:00Z", now, THRESHOLDS).status, "OK");
+  assert.equal(evaluatePriceStale("2026-10-05T07:00:00Z", now, THRESHOLDS).status, "ALERT");
+  assert.equal(evaluatePriceStale(null, now, THRESHOLDS).status, "INFO");
+});
+
+test("price age: the production check exists behind a config flag that is OFF; staging never runs it", () => {
+  assert.equal(OPS_TARGETS.production.priceStaleCheck, false);
+  assert.equal(OPS_TARGETS.staging.priceStaleCheck, false);
+  const run = readPriceFile(new URL("./run.ts", import.meta.url), "utf8");
+  assert.match(run, /if \(target\.priceStaleCheck\) \{/);
+  assert.ok(!/from "\.\.\/\.\.\/\.\.\/lib\//.test(readPriceFile(new URL("./sources.ts", import.meta.url), "utf8")), "ops health stays dependency-free (no npm ci)");
+});

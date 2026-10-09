@@ -1,6 +1,7 @@
 import { fetchCatalogCategories, fetchCatalogMeta, fetchCatalogProductsPage, type CatalogApiCategory, type CatalogApiProduct, type CatalogLocale, type CatalogMetaPayload } from "../catalog/odoo-api-client.ts";
 import { fetchProcessingGroups, type ProcessingGroupApiItem } from "../processing/odoo-api-client.ts";
 import { PIPELINE_CONFIG } from "./config.ts";
+import { PRICING_CURRENT_PATH, type PricingSource } from "./pricing.ts";
 
 /**
  * Architecture V1.1 §7.1 step 1 — the FULL fetch from Odoo (no delta, so
@@ -36,6 +37,11 @@ export interface OdooSource {
   products: CatalogApiProduct[];
   products_reported_total: number;
   processing_groups: Record<CatalogLocale, ProcessingGroupApiItem[]>;
+  /**
+   * W9.4: `GET /api/v1/pricing/current`, unvalidated (lib/content-pipeline/pricing.ts allow-lists and
+   * validates it; only the allow-listed fields reach the snapshot). Absent in sources fetched before W9.4.
+   */
+  prices?: PricingSource;
 }
 
 export class OdooFetchError extends Error {}
@@ -131,6 +137,8 @@ export async function fetchOdooSource(options: { baseUrl?: string; fetchImpl?: t
     processingGroups[locale] = r.items!;
   }
 
+  const prices = await fetchPricingCurrent(baseUrl, guarded);
+
   return {
     schema: ODOO_SOURCE_SCHEMA,
     base_url: baseUrl,
@@ -143,5 +151,30 @@ export async function fetchOdooSource(options: { baseUrl?: string; fetchImpl?: t
     products,
     products_reported_total: reportedTotal,
     processing_groups: processingGroups,
+    prices,
   };
+}
+
+/**
+ * W9.4: the current published prices. Never throws (owner decision 2026-10-09): HTTP 404 is
+ * "not_deployed"; any other non-200 status, a timeout, a network error or a non-JSON body is
+ * "failed". lib/content-pipeline/pricing.ts decides: the run fails only when the live site already
+ * shows prices; otherwise it builds with an empty price set and says so in the summary.
+ */
+export async function fetchPricingCurrent(baseUrl: string, guarded: typeof fetch, timeoutMs: number = PIPELINE_CONFIG.odoo.timeoutMs): Promise<PricingSource> {
+  let response: Response;
+  try {
+    response = await guarded(new URL(PRICING_CURRENT_PATH, baseUrl).href, { method: "GET", headers: { Accept: "application/json" }, signal: AbortSignal.timeout(timeoutMs) });
+  } catch (error) {
+    return { status: "failed", http_status: null, etag: null, body: null, error: error instanceof Error ? (error.name === "TimeoutError" ? `timeout ${timeoutMs} ms` : error.name) : "network error" };
+  }
+  if (response.status !== 200) {
+    await response.arrayBuffer().catch(() => undefined);
+    return response.status === 404 ? { status: "not_deployed", http_status: 404, etag: null, body: null } : { status: "failed", http_status: response.status, etag: null, body: null, error: `HTTP ${response.status}` };
+  }
+  try {
+    return { status: "ok", http_status: 200, etag: response.headers.get("etag"), body: await response.json() };
+  } catch {
+    return { status: "failed", http_status: 200, etag: null, body: null, error: "body is not JSON" };
+  }
 }

@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import { normalizeVariantDimensions, normalizeVariantNominalWeight, normalizeVariantSpecifications, sortVariantsBySize, NOMINAL_WEIGHT_DISCLAIMER } from "@/lib/catalog/specification-presenter";
 import type { ProductVariant } from "@/lib/catalog/types";
+import type { PriceBlockData } from "@/lib/pricing/price-block-presentation";
+import { isPriceLocale, presentPriceCell, PRICE_CELL_ATTRIBUTE, PRICE_COLUMN_COPY } from "@/lib/pricing/product-page-price";
 import { FORM_SHAPES, resolveVariantBasis } from "@/lib/weight-calculator/model";
 import { isWeightCalculatorPublished, WEIGHT_CALCULATOR_ROUTE } from "@/lib/weight-calculator/publication";
 
@@ -74,8 +76,16 @@ export function variantRowAnchorId(sku: string): string {
  * link (`/products/<slug>?variant=<xid>`) is highlighted in the browser by
  * `VariantHighlightFromQuery` — the page is static and takes no searchParams
  * (architecture V1.1 §4.2) — without ever creating a Variant SEO page.
+ *
+ * W9.4: with `prices` (static build only) a price column right after the size
+ * column — fa «قیمت روز»: amount in Toman/kg + compact factory/location +
+ * date, or «استعلام قیمت»; ar «سعر اليوم»: amount + date only (never the
+ * factory or location), or «السعر عند الطلب» (owner decision change
+ * 2026-10-09). Hidden when none of the page's variants has a price. en never
+ * gets it (`presentPriceCell` presents nothing for en). Each cell carries
+ * `data-aa-price-cell` for the publication gate's allow-list check.
  */
-export function VariantSpecTable({ locale, variants: unsorted }: { locale: Locale; variants: ProductVariant[] }) {
+export function VariantSpecTable({ locale, variants: unsorted, prices }: { locale: Locale; variants: ProductVariant[]; prices?: ReadonlyMap<string, PriceBlockData> | null }) {
   if (unsorted.length === 0) return null;
   // Natural size order (IPE 80 before IPE 600) — the presenter owns it, W10.0 P0-1.
   const variants = sortVariantsBySize(unsorted);
@@ -100,6 +110,9 @@ export function VariantSpecTable({ locale, variants: unsorted }: { locale: Local
       }
     }
   }
+
+  const priceCopy = isPriceLocale(locale) ? PRICE_COLUMN_COPY[locale] : null;
+  const showPrices = priceCopy !== null && Boolean(prices) && variants.some((v) => prices!.has(v.xid));
 
   // «محاسبه وزن» only where the calculator is published and offers this exact size (same rule it builds its list with).
   const calculable = (variant: ProductVariant) => {
@@ -130,6 +143,12 @@ export function VariantSpecTable({ locale, variants: unsorted }: { locale: Local
               <th scope="col" className={cn(HEAD, "bg-surface sticky start-0 z-[2]")}>
                 {t.size}
               </th>
+              {showPrices && (
+                <th scope="col" className={HEAD}>
+                  {priceCopy?.header}
+                  <span className="text-tertiary block text-[11px] font-semibold">{priceCopy?.unit}</span>
+                </th>
+              )}
               {dimensionColumns.map((c) => (
                 <th key={c.key} scope="col" className={HEAD}>
                   {c.label}
@@ -163,6 +182,7 @@ export function VariantSpecTable({ locale, variants: unsorted }: { locale: Local
                   <th scope="row" className={cn(CELL, "text-navy bg-background group-hover:bg-surface sticky start-0 z-[1] text-start font-bold")}>
                     <span dir="ltr">{variant.commercialSize ?? variant.sectionSize ?? "—"}</span>
                   </th>
+                  {showPrices && <PriceCell locale={locale} xid={variant.xid} price={prices?.get(variant.xid)} />}
                   {dimensionColumns.map((c) => (
                     <td key={c.key} className={cn(CELL, "text-muted-foreground group-hover:bg-surface")}>
                       <span dir="ltr">{dimByKey.get(c.key) ?? "—"}</span>
@@ -205,9 +225,35 @@ export function VariantSpecTable({ locale, variants: unsorted }: { locale: Local
         </table>
       </div>
 
+      {showPrices && <p className="text-muted-foreground mt-3 text-xs leading-relaxed">{priceCopy?.note}</p>}
       {weightColumns.length > 0 && <p className="text-muted-foreground mt-3 text-xs leading-relaxed">{NOMINAL_WEIGHT_DISCLAIMER[locale]}</p>}
       {commonUnits && <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{t.units(commonUnits)}</p>}
     </div>
+  );
+}
+
+function PriceCell({ locale, xid, price }: { locale: Locale; xid: string; price: PriceBlockData | undefined }) {
+  const view = presentPriceCell(locale, price);
+  if (!view) return null;
+  return (
+    <td {...{ [PRICE_CELL_ATTRIBUTE]: xid }} className={cn(CELL, "group-hover:bg-surface")}>
+      {view.kind === "missing" ? (
+        <span className="text-muted-foreground">{view.label}</span>
+      ) : (
+        <>
+          <span className="text-navy font-bold">{view.amount}</span>
+          {view.place && <span className="text-tertiary block text-xs">{view.place}</span>}
+          {/* ar carries no timestamp (owner 2026-10-09: ar payload = variant id, amount, date label). */}
+          {view.datetime ? (
+            <time dateTime={view.datetime} className="text-tertiary block text-xs">
+              {view.dateLabel}
+            </time>
+          ) : (
+            <span className="text-tertiary block text-xs">{view.dateLabel}</span>
+          )}
+        </>
+      )}
+    </td>
   );
 }
 

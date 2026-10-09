@@ -1,6 +1,7 @@
 import { snapshotV1, type SnapshotV1 } from "../contracts/snapshot-v1.ts";
 import { GATED_COUNTS, PIPELINE_CONFIG } from "./config.ts";
 import type { OdooSource } from "./odoo-source.ts";
+import { validatePricing, type PricingOutcome } from "./pricing.ts";
 
 /**
  * Architecture V1.1 §7.1 step 2: schema, relations and counts of one full
@@ -17,6 +18,8 @@ export interface ValidationResult {
   errors: string[];
   warnings: string[];
   counts: Record<string, number>;
+  /** W9.4: what happened to prices this run (one line for the summary). */
+  pricing?: { outcome: PricingOutcome; summary: string; ignored: string[] };
 }
 
 function isPublished(seo: Tables["product_seo_contents"][number]): boolean {
@@ -38,7 +41,8 @@ export function sourceCounts(tables: Tables): Record<string, number> {
   return counts;
 }
 
-export function validateSource(odoo: OdooSource, tables: Tables): ValidationResult {
+/** `previousCounts` = the active publication's source counts (the pricing check needs its `prices_published`). */
+export function validateSource(odoo: OdooSource, tables: Tables, previousCounts: Record<string, number> | null = null): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -136,8 +140,13 @@ export function validateSource(odoo: OdooSource, tables: Tables): ValidationResu
   }
   if (odoo.processing_groups.fa.length === 0) errors.push("processing groups: Odoo returned none");
 
+  // W9.4 prices: allow-listed fields only, known variants, positive integers, fa factory/location, sane times.
+  const pricing = validatePricing(odoo.prices, odoo.products, odoo.fetched_at, previousCounts?.prices_published ?? null);
+  errors.push(...pricing.errors);
+  warnings.push(...pricing.warnings);
+
   // Editorial integrity: every published template is active and has active public variants.
-  const counts = sourceCounts(tables);
+  const counts = { ...sourceCounts(tables), ...pricing.counts };
   const activeVariantsByProduct = new Map<string, number>();
   for (const v of tables.product_variants) if (v.is_active === 1 && v.is_public === 1) activeVariantsByProduct.set(v.product_id, (activeVariantsByProduct.get(v.product_id) ?? 0) + 1);
   const productById = new Map(tables.catalog_products.map((p) => [p.id, p]));
@@ -148,7 +157,7 @@ export function validateSource(odoo: OdooSource, tables: Tables): ValidationResu
     if (p.is_active !== 1) warnings.push(`editorial: ${s.locale}/${s.slug} is published but its template ${p.template_xid} is no longer in Odoo (page will not be built)`);
     else if (!activeVariantsByProduct.get(p.id)) warnings.push(`editorial: ${s.locale}/${s.slug} is published but has no active public variant`);
   }
-  return { errors, warnings, counts };
+  return { errors, warnings, counts, pricing: { outcome: pricing.outcome, summary: pricing.summary, ignored: pricing.ignored } };
 }
 
 export interface DecreaseFinding {

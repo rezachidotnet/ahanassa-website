@@ -41,6 +41,12 @@ export interface OpsTarget {
    * the owner sets, passed by ops-health.yml. Unset or any other value = report only (INFO). W9.1: production.
    */
   contentStaleAlertFlag: string | null;
+  /**
+   * W9.4 (D-PRICE-AGE): check the newest published_at_utc of Odoo's GET /api/v1/pricing/current and ALERT
+   * when it is older than THRESHOLDS.priceStaleMaxDays. Internal only — the website never hides or expires a
+   * price. false = the check does not run (no request). Production: off until the owner turns it on.
+   */
+  priceStaleCheck: boolean;
 }
 
 export const OPS_TARGETS: Record<OpsEnv, OpsTarget> = {
@@ -62,6 +68,8 @@ export const OPS_TARGETS: Record<OpsEnv, OpsTarget> = {
     opsHealthWorkflow: "ops-health.yml",
     contentStaleAlert: true,
     contentStaleAlertFlag: null,
+    // Staging builds read the same production Odoo; the price-age check belongs to production only.
+    priceStaleCheck: false,
   },
   // Production (live since the W8.1 cutover, 2026-10-05; workers/rfq/wrangler.jsonc env.production). Read with
   // its own read-only monitor token (GitHub environment production-v11-monitor). The stale-content alert is on in
@@ -86,6 +94,8 @@ export const OPS_TARGETS: Record<OpsEnv, OpsTarget> = {
     opsHealthWorkflow: "ops-health.yml",
     contentStaleAlert: true,
     contentStaleAlertFlag: "OPS_PRODUCTION_CONTENT_STALE_ALERT",
+    // W9.4: OFF. The owner turns it on (a code change) once Odoo publishes prices daily.
+    priceStaleCheck: false,
   },
 };
 
@@ -118,6 +128,8 @@ export interface Thresholds {
   odooMaxLatencyMs: number;
   /** INFO only: reported, never fails the job (GitHub does not guarantee schedule times). */
   reconcilerInfoMaxAgeHours: number;
+  /** W9.4 (D-PRICE-AGE): newest published price older than this → ALERT (internal stale-price alert). */
+  priceStaleMaxDays: number;
 }
 
 export const THRESHOLDS: Thresholds = {
@@ -132,6 +144,7 @@ export const THRESHOLDS: Thresholds = {
   odooTimeoutMs: 10_000,
   odooMaxLatencyMs: 10_000,
   reconcilerInfoMaxAgeHours: 3,
+  priceStaleMaxDays: 5,
 };
 
 /**
@@ -141,6 +154,8 @@ export const THRESHOLDS: Thresholds = {
 export const WINDOW = { minMinutes: 15, maxMinutes: 24 * 60, overlapMinutes: 5, cronLookbackHours: 24 };
 
 export const ODOO_META_URL = "https://odoo.ahanassa.com/api/v1/catalog/meta";
+/** W9.4: Odoo public pricing API v1, current published prices (GET only, no credentials). */
+export const ODOO_PRICING_CURRENT_URL = "https://odoo.ahanassa.com/api/v1/pricing/current";
 
 /**
  * STAGING TEST ONLY (Part C alert test): a workflow_dispatch input picks one check and these

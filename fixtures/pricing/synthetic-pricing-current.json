@@ -1,0 +1,108 @@
+{
+ "synthetic": true,
+ "note": "SYNTHETIC TEST DATA (W9.4). Not real prices, not real factories. Shaped like Odoo's GET /api/v1/pricing/current; variant ids are those of fixtures/snapshot/staging-2026-10-01.snapshot.json. Read only by scripts/static/synthetic-price-snapshot.ts and the tests.",
+ "fetched_at": "2026-10-08T08:00:00Z",
+ "response": {
+  "data": [
+   {
+    "id": null,
+    "canonical_id": "CVAR-000031",
+    "canonical_template_id": "CTMPL-000001",
+    "sku": "AA-RB-AJ400-D10-L12",
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "price_irr_per_kg": 489470,
+    "price_on_request": false,
+    "published_at_utc": "2026-10-08T07:20:00Z",
+    "factory": {"code": "FAC-9001", "name": {"fa": "کارخانه آزمایشی الف", "en": "Test Mill A", "ar": null}},
+    "location": {"fa": "درب کارخانه", "en": "Factory gate", "ar": null},
+    "previous": {
+     "price_irr_per_kg": 495610,
+     "price_on_request": false,
+     "published_at_utc": "2026-10-05T07:20:00Z",
+     "factory": {"code": "FAC-9001", "name": {"fa": "کارخانه آزمایشی الف", "en": "Test Mill A", "ar": null}},
+     "location": {"fa": "درب کارخانه", "en": "Factory gate", "ar": null}
+    },
+    "basis_note": {"fa": "یادداشت آزمایشی", "en": null, "ar": null}
+   },
+   {
+    "id": null,
+    "canonical_id": "CVAR-000032",
+    "canonical_template_id": "CTMPL-000001",
+    "sku": "AA-RB-AJ400-D12-L12",
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "price_irr_per_kg": 478200,
+    "price_on_request": false,
+    "published_at_utc": "2026-10-08T07:20:00Z",
+    "factory": {"code": "FAC-9002", "name": {"fa": "کارخانه آزمایشی ب", "en": null, "ar": null}},
+    "location": {"fa": "انبار تهران", "en": "Tehran warehouse", "ar": null},
+    "previous": null,
+    "basis_note": {"fa": null, "en": null, "ar": null}
+   },
+   {
+    "id": null,
+    "canonical_id": "CVAR-000033",
+    "canonical_template_id": "CTMPL-000001",
+    "sku": "AA-RB-AJ400-D14-L12",
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "price_irr_per_kg": null,
+    "price_on_request": true,
+    "published_at_utc": null,
+    "factory": null,
+    "location": null,
+    "previous": null,
+    "basis_note": {"fa": null, "en": null, "ar": null}
+   },
+   {
+    "id": null,
+    "canonical_id": "CVAR-000053",
+    "canonical_template_id": "CTMPL-000002",
+    "sku": "AA-BM-IPE-S120-L12",
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "price_irr_per_kg": 552000,
+    "price_on_request": false,
+    "published_at_utc": "2026-10-07T07:15:00Z",
+    "factory": {"code": "FAC-9003", "name": {"fa": "کارخانه آزمایشی ج", "en": null, "ar": null}},
+    "location": {"fa": "انبار تهران", "en": null, "ar": null},
+    "previous": {
+     "price_irr_per_kg": 540000,
+     "price_on_request": false,
+     "published_at_utc": "2026-10-01T07:15:00Z",
+     "factory": {"code": "FAC-9003", "name": {"fa": "کارخانه آزمایشی ج", "en": null, "ar": null}},
+     "location": {"fa": "انبار تهران", "en": null, "ar": null}
+    },
+    "basis_note": {"fa": null, "en": null, "ar": null}
+   },
+   {
+    "id": null,
+    "canonical_id": "CVAR-000054",
+    "canonical_template_id": "CTMPL-000002",
+    "sku": "AA-BM-IPE-S140-L12",
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "price_irr_per_kg": 552000,
+    "price_on_request": false,
+    "published_at_utc": "2026-10-07T07:15:00Z",
+    "factory": {"code": "FAC-9003", "name": {"fa": "کارخانه آزمایشی ج", "en": null, "ar": null}},
+    "location": {"fa": "درب کارخانه", "en": null, "ar": null},
+    "previous": {
+     "price_irr_per_kg": null,
+     "price_on_request": true,
+     "published_at_utc": "2026-10-02T07:15:00Z",
+     "factory": null,
+     "location": null
+    },
+    "basis_note": {"fa": null, "en": null, "ar": null}
+   }
+  ],
+  "meta": {"total": 5, "updated_at_utc": "2026-10-08T07:20:00Z", "unit": "kg", "currency": "IRR", "vat_included": true}
+ }
+}

@@ -101,6 +101,7 @@ All thresholds live in `scripts/ops/health/config.ts`.
 | intake 400/422 | same, `POST /api/rfqs` | **> 10** in the window |
 | content publish stale | GitHub API: newest run whose `publish` job succeeded (dry runs do not count) + `DB_PUBLIC` `active_version` | > **30 h** |
 | Odoo unreachable | `GET https://odoo.ahanassa.com/api/v1/catalog/meta` | not 200 within **10 s** |
+| published prices stale (W9.4, **off**: `priceStaleCheck` in config, production only) | `GET https://odoo.ahanassa.com/api/v1/pricing/current` (`published_at_utc` only) | newest published price > **5 days** old (no price at all = INFO) |
 | CI reconciler last run | GitHub API | INFO only |
 
 - **Window:** previous ops-health run start − 5 min → now, clamped to 15 min … 24 h.
@@ -199,6 +200,18 @@ Local commands assume a checkout of `feat/v11-static-site` with `npx wrangler lo
   1. Check `curl -sS -o /dev/null -w '%{http_code} %{time_total}\n' https://odoo.ahanassa.com/api/v1/catalog/meta` from another network.
   2. Check the Odoo server and its reverse proxy.
   3. Note: reachability from outside Iran is a known risk (§16).
+
+### published prices stale (> 5 days, W9.4)
+
+**Meaning:** no new price has been published in Odoo for more than 5 days (D-PRICE-AGE). Internal only:
+the website never hides or expires a price; it keeps showing the last one with its date and age.
+
+- **Enable:** set `priceStaleCheck: true` on the production target in `scripts/ops/health/config.ts` (a code
+  change) once Odoo publishes prices daily. Off by default.
+- **What to do:**
+  1. In Odoo, check the Daily Prices list and whether the daily approval happened.
+  2. Check that the next 11:30 Tehran content publish ran (it carries the newest prices to the site).
+  3. If prices are intentionally paused, publish "price on request" for the affected items in Odoo.
 
 ### ops health could not run / check could not run
 

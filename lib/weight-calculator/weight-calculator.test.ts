@@ -216,11 +216,11 @@ test("price: valid data gives Toman/kg + a Tehran-date label prepared on the ser
   assert.equal(toCalculatorPrice(null), null);
 });
 
-test("price: Persian page only; no prices (before W9.4) → undefined, so the row is not rendered", () => {
+test("price: fa and ar (W9.4, owner decision change 2026-10-09); no prices → undefined, so the row is not rendered; en never", () => {
   assert.equal(toCalculatorPrices("fa", null), undefined);
   assert.equal(toCalculatorPrices("fa", {}), undefined);
   assert.equal(toCalculatorPrices("en", { "CVAR-1": SAMPLE_PRICE }), undefined);
-  assert.equal(toCalculatorPrices("ar", { "CVAR-1": SAMPLE_PRICE }), undefined);
+  assert.deepEqual(Object.keys(toCalculatorPrices("ar", { "CVAR-1": SAMPLE_PRICE })!["CVAR-1"]).sort(), ["dateLabel", "tomanPerKg"], "ar: price only, no timestamp");
   assert.deepEqual(Object.keys(toCalculatorPrices("fa", { "CVAR-1": SAMPLE_PRICE, "CVAR-2": { ...SAMPLE_PRICE, factoryName: " " } })!), ["CVAR-1"]);
   assert.equal(estimateCostToman(4512, toCalculatorPrice(SAMPLE_PRICE)!), 190_858_000, "4,512 kg × 42,300 = 190,857,600 → nearest 1,000");
 });
@@ -273,17 +273,17 @@ test("page: static params, hreflang and sitemap all come from the published-loca
   assert.match(sitemap, /if \(WEIGHT_CALCULATOR_LOCALES\.includes\(locale\)\) entries\.push\(\{ url: url\(locale, WEIGHT_CALCULATOR_ROUTE\)/);
 });
 
-test("page: the calculator data is the product pages' published read; no live Odoo, no fetch; the cost row stays off until W9.4", () => {
+test("page: the calculator data is the product pages' published read; no live Odoo, no fetch; W9.4 wires the build-time price map", () => {
   const page = code("app/[locale]/tools/weight-calculator/page.tsx");
   assert.match(page, /listPublishedCatalogTemplates\(locale\)/);
   assert.match(page, /getPublishedCatalogTemplateBySlug\(locale, template\.seo\.slug\)/);
-  assert.match(page, /toCalculatorPrices\(locale, null\)/);
+  assert.match(page, /prices = toCalculatorPrices\(locale, map \? Object\.fromEntries\(map\) : null\);/);
   const component = code("components/tools/weight-calculator.tsx");
   assert.ok(!/fetch\(|XMLHttpRequest|odoo/i.test(component), "client-side only, no request");
   assert.match(component, /^"use client";/);
 });
 
-test("component: labelled controls, one polite atomic live region, catalog badge, RFQ hand-off, Persian-only price row", () => {
+test("component: labelled controls, one polite atomic live region, catalog badge, RFQ hand-off, fa/ar-only price row", () => {
   const component = code("components/tools/weight-calculator.tsx");
   for (const field of ["product", "size", "length", "quantity", "mode"]) {
     assert.match(component, new RegExp(`htmlFor=\\{label\\("${field}"\\)\\}`), `${field} label`);
@@ -293,8 +293,8 @@ test("component: labelled controls, one polite atomic live region, catalog badge
   assert.match(component, /aria-live="polite" aria-atomic="true"/);
   assert.match(component, /t\.source\[source\]/);
   assert.match(component, /rfqHandoffHref\(locale, \{ variantXid: variant\.xid/);
-  assert.match(component, /const price = locale === "fa" && variant && result \? prices\?\.\[variant\.xid\] : undefined;/);
-  assert.match(component, /<time dateTime=\{price\.datetime\}>\{price\.dateLabel\}<\/time>/);
+  assert.match(component, /const price = \(locale === "fa" \|\| locale === "ar"\) && variant && result \? prices\?\.\[variant\.xid\] : undefined;/);
+  assert.match(component, /\{price\.datetime \? <time dateTime=\{price\.datetime\}>\{price\.dateLabel\}<\/time> : price\.dateLabel\}/);
   assert.match(component, /formatNumber\(locale/);
   assert.ok(!/Intl\./.test(component), "no ICU-dependent text in the prerendered HTML (hydration)");
   assert.match(component, /new URLSearchParams\(window\.location\.search\)\.get\("variant"\)/, "?variant= is read after hydration");

@@ -68,7 +68,7 @@ test("age is relative to the browser clock; future/invalid timestamps give no ag
   assert.equal(formatPriceAge("x", now), null);
 });
 
-test("the component: no JSON-LD offers, no source field, the fixed 'ask for today's price' line, and it is not rendered on any page yet", () => {
+test("the component: no JSON-LD offers, no source field, the fixed 'ask for today's price' line, and only the product page renders it (W9.4)", () => {
   const component = readFileSync(path.join(REPO_ROOT, "components/products/price-block.tsx"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
   assert.ok(!/ld\+json|offers|JsonLd/i.test(component));
   assert.match(component, /\{t\.askToday\}/);
@@ -78,7 +78,8 @@ test("the component: no JSON-LD offers, no source field, the fixed 'ask for toda
   assert.ok(!/source|url|site|provider/i.test(dataType.replace(/\/\*\*[\s\S]*?\*\//g, "")), "the data type must not carry a price source");
   const walk = (dir: string): string[] => readdirSync(dir).flatMap((f) => (statSync(path.join(dir, f)).isDirectory() ? walk(path.join(dir, f)) : [path.join(dir, f)]));
   const users = walk(path.join(REPO_ROOT, "app")).filter((f) => /\.tsx?$/.test(f) && /PriceBlock|price-block"/.test(readFileSync(f, "utf8")));
-  assert.deepEqual(users, [], "D-W10-4: built now, rendered on no page until the pricing data task");
+  // W9.4 wired it: the Persian product page is the ONLY page that renders a price (D-PRICE: product page only).
+  assert.deepEqual(users.map((f) => path.relative(REPO_ROOT, f)), ["app/[locale]/products/[slug]/page.tsx"], "product page only");
 });
 
 test("D-W10-5: the calculator CTA block links to /tools/weight-calculator, carries no price, and (W10.1) renders directly after the Hero", () => {

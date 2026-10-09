@@ -12,6 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { artifactManifest } from "../../lib/contracts/artifact-v1.ts";
 import { parseSnapshot } from "../../lib/static/snapshot-io.ts";
+import { BUILD_ONLY_SNAPSHOT_TABLES } from "../../lib/contracts/snapshot-v1.ts";
 import { sqlLiteral } from "../../lib/rfq-worker/wrangler-d1.ts";
 
 const [artifactDir, outFile] = process.argv.slice(2);
@@ -24,6 +25,8 @@ if (snapshot.snapshot_version !== manifest.snapshot_version) throw new Error("sn
 
 const lines: string[] = [];
 for (const [table, rows] of Object.entries(snapshot.tables)) {
+  // Build-only tables (W9.4 published_prices) have no DB_PUBLIC table and are never loaded into D1.
+  if (BUILD_ONLY_SNAPSHOT_TABLES.has(table)) continue;
   for (const row of rows as Record<string, unknown>[]) {
     const cols = Object.keys(row);
     lines.push(`INSERT OR REPLACE INTO "${table}" (${cols.map((c) => `"${c}"`).join(", ")}) VALUES (${cols.map((c) => sqlLiteral(row[c] as never)).join(", ")});`);

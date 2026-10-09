@@ -6,6 +6,10 @@
  *    purchase price, …) as JSON keys anywhere in public files, plus the
  *    server-only `categoryLabel` in public JSON.
  * 2. E-mail addresses / phone numbers other than the company's own.
+ * 2b. W9.4 pricing: no pricing-API or price-snapshot field name as a JSON
+ *    key (plain or escaped inside the RSC payload) and no factory code
+ *    (`FAC-…`) in any public file — prices reach the public files only as
+ *    rendered Persian text (lib/static/price-gate.ts checks that text).
  * 3. Persian text on en/ar pages and in en/ar public JSON, after removing
  *    the explicit allowlist below. On en, any Arabic-script text is
  *    Persian-or-Arabic leakage unless allowlisted; on ar, Arabic is the page
@@ -31,6 +35,28 @@ export const PERSIAN_ALLOWLIST: ReadonlyArray<{ text: string; reason: string; so
 export const ALLOWED_CONTACTS = ["you@company.com"] as const;
 
 const FORBIDDEN_KEYS = /"(standard_price|cost_price|purchase_price|buy_price|landed_cost|supplier|supplier_id|supplier_name|supplierinfo|seller_ids|vendor_id|margin|internal_margin[a-z_]*|margin_percent|qty_available|virtual_available|free_qty|stock|stock_quant|stock_level|on_hand)"\s*:/gi;
+/**
+ * W9.4: every field name of Odoo's pricing API v1 that is not also a generic word, the snapshot's
+ * published_prices columns and the server-side PriceBlockData props. Matched as a JSON key, also in the
+ * escaped form (\"key\":) the RSC payload uses inside HTML.
+ */
+export const PRICING_FIELD_KEYS = [
+  "price_irr_per_kg", "price_on_request", "published_at_utc", "updated_at_utc", "basis_note", "vat_included", "price_at_window_start",
+  "factory_name_fa", "location_fa", "previous_price_irr_per_kg", "previous_published_at",
+  "tomanPerKg", "previousTomanPerKg", "pricedAt", "previousPricedAt", "factoryName", "deliveryLocation",
+  // Source-like keys: the pricing API never serves a source; a key like these in a public file is a leak.
+  "source_code", "source_name", "source_url", "source_id", "market_source", "observations",
+] as const;
+/**
+ * The ONE exception (owner decision change 2026-10-09): the fa and ar weight-calculator pages carry the
+ * calculator's client price map, whose entries hold `tomanPerKg` (+ the date label, + the ISO time on fa).
+ * Only `tomanPerKg` is exempt, only in these files; lib/static/price-gate.ts checks every entry against
+ * the snapshot. en never: its calculator page (if published) and every other file still refuse it.
+ */
+export const CALCULATOR_PRICE_PAGES: readonly string[] = ["tools/weight-calculator.html", "ar/tools/weight-calculator.html"];
+const PRICING_KEYS = new RegExp(`\\\\?"(${PRICING_FIELD_KEYS.join("|")})\\\\?"\\s*:`, "g");
+/** Odoo factory codes (pricing API `factory.code`): read by the pipeline, never stored or rendered. */
+const FACTORY_CODE = /\bFAC-\d{2,}\b/g;
 const SERVER_ONLY_PUBLIC_JSON_KEYS = /"(categoryLabel|selection_json|family_name)"\s*:/g;
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 const PHONE = /(?:\+98|0098)[\s-]?9\d{2}[\s-]?\d{3}[\s-]?\d{4}|\b09\d{9}\b/g;
@@ -40,7 +66,7 @@ const ARABIC_SCRIPT = /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]/;
 
 export interface LeakFinding {
   file: string;
-  kind: "forbidden_field" | "server_only_field" | "contact" | "persian_on_en" | "persian_on_ar";
+  kind: "forbidden_field" | "server_only_field" | "pricing_field" | "contact" | "persian_on_en" | "persian_on_ar";
   match: string;
 }
 
@@ -67,6 +93,8 @@ export function scanPublicFile(path: string, content: string, companyPhones: rea
   const findings: LeakFinding[] = [];
   const isVendorJs = path.includes("/_next/") || path.startsWith("_next/");
   for (const m of content.matchAll(FORBIDDEN_KEYS)) findings.push({ file: path, kind: "forbidden_field", match: m[1] });
+  for (const m of content.matchAll(PRICING_KEYS)) if (!(m[1] === "tomanPerKg" && CALCULATOR_PRICE_PAGES.includes(path))) findings.push({ file: path, kind: "pricing_field", match: m[1] });
+  for (const m of content.matchAll(FACTORY_CODE)) findings.push({ file: path, kind: "pricing_field", match: m[0] });
   if (path.endsWith(".json")) for (const m of content.matchAll(SERVER_ONLY_PUBLIC_JSON_KEYS)) findings.push({ file: path, kind: "server_only_field", match: m[1] });
   if (!isVendorJs) {
     for (const m of content.matchAll(EMAIL)) if (!ALLOWED_CONTACTS.includes(m[0] as (typeof ALLOWED_CONTACTS)[number])) findings.push({ file: path, kind: "contact", match: m[0] });
