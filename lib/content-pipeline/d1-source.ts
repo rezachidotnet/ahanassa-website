@@ -1,4 +1,4 @@
-import { SNAPSHOT_TABLES, type SnapshotV1 } from "../contracts/snapshot-v1.ts";
+import { BUILD_ONLY_SNAPSHOT_TABLES, SNAPSHOT_TABLES, type SnapshotV1 } from "../contracts/snapshot-v1.ts";
 
 /**
  * The DB_PUBLIC side of a publish, read READ-ONLY before the build:
@@ -30,8 +30,12 @@ export interface D1Source {
   publication: { active_version: string | null; versions: PublicationVersionRow[] };
 }
 
-/** Tables read from DB_PUBLIC (every snapshot table; categories are re-fetched from Odoo but read for completeness). */
-export const D1_SOURCE_TABLES = Object.keys(SNAPSHOT_TABLES) as (keyof typeof SNAPSHOT_TABLES)[];
+/**
+ * Tables read from DB_PUBLIC: every snapshot table that EXISTS in DB_PUBLIC (categories are re-fetched from
+ * Odoo but read for completeness). Build-only snapshot tables (W9.4 `published_prices`) have no DB_PUBLIC
+ * table — they come from Odoo on every run — and are never read here (run 37937272256: "no such table").
+ */
+export const D1_SOURCE_TABLES = (Object.keys(SNAPSHOT_TABLES) as (keyof typeof SNAPSHOT_TABLES)[]).filter((t) => !BUILD_ONLY_SNAPSHOT_TABLES.has(t));
 
 export function selectTableSql(table: keyof typeof SNAPSHOT_TABLES): string {
   const columns = Object.keys((SNAPSHOT_TABLES[table] as unknown as { shape: Record<string, unknown> }).shape);

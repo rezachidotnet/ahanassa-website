@@ -7,7 +7,7 @@
  */
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
-import { SNAPSHOT_TABLES, type SnapshotV1 } from "../../lib/contracts/snapshot-v1.ts";
+import { BUILD_ONLY_SNAPSHOT_TABLES, SNAPSHOT_TABLES, type SnapshotV1 } from "../../lib/contracts/snapshot-v1.ts";
 import { buildSnapshot } from "../../lib/static/snapshot-io.ts";
 
 const [sqlPath, outPath, description] = process.argv.slice(2);
@@ -16,6 +16,8 @@ const db = new DatabaseSync(":memory:");
 db.exec(fs.readFileSync(sqlPath, "utf8"));
 const tables: Record<string, unknown[]> = {};
 for (const name of Object.keys(SNAPSHOT_TABLES)) {
+  // Build-only tables (W9.4 published_prices) are not in a D1 export; the snapshot defaults them to [].
+  if (BUILD_ONLY_SNAPSHOT_TABLES.has(name)) continue;
   const columns = Object.keys((SNAPSHOT_TABLES as Record<string, { shape: Record<string, unknown> }>)[name].shape);
   tables[name] = db.prepare(`SELECT ${columns.map((c) => `"${c}"`).join(", ")} FROM "${name}" ORDER BY rowid`).all().map((r) => ({ ...r }));
 }
