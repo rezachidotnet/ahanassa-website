@@ -6,10 +6,12 @@ import { normalizeVariantDimensions, normalizeVariantNominalWeight, normalizeVar
 import type { ProductVariant } from "@/lib/catalog/types";
 import type { PriceBlockData } from "@/lib/pricing/price-block-presentation";
 import { presentPriceCell, PRICE_CELL_ATTRIBUTE, PRICE_COLUMN_COPY } from "@/lib/pricing/product-page-price";
+import { FORM_SHAPES, resolveVariantBasis } from "@/lib/weight-calculator/model";
+import { isWeightCalculatorPublished, WEIGHT_CALCULATOR_ROUTE } from "@/lib/weight-calculator/publication";
 
 const chrome: Record<
   Locale,
-  { caption: string; size: string; sku: string; units: (u: string) => string; request: string; requestAria: (size: string) => string; selected: string; swipe: string }
+  { caption: string; size: string; sku: string; units: (u: string) => string; request: string; requestAria: (size: string) => string; calculate: string; calculateAria: (size: string) => string; selected: string; swipe: string }
 > = {
   fa: {
     caption: "جدول مشخصات فنی و اندازه‌های موجود",
@@ -18,6 +20,8 @@ const chrome: Record<
     units: (u) => `واحدهای بازرگانی قابل سفارش: ${u}`,
     request: "درخواست این قلم",
     requestAria: (size) => `درخواست این قلم — سایز ${size}`,
+    calculate: "محاسبه وزن",
+    calculateAria: (size) => `محاسبه وزن — سایز ${size}`,
     selected: "قلم انتخاب‌شده",
     swipe: "جدول را افقی بکشید",
   },
@@ -28,6 +32,8 @@ const chrome: Record<
     units: (u) => `Orderable commercial units: ${u}`,
     request: "Request this item",
     requestAria: (size) => `Request this item — size ${size}`,
+    calculate: "Calculate weight",
+    calculateAria: (size) => `Calculate weight — size ${size}`,
     selected: "Selected item",
     swipe: "Swipe the table sideways",
   },
@@ -38,6 +44,8 @@ const chrome: Record<
     units: (u) => `وحدات الطلب التجارية: ${u}`,
     request: "طلب هذا الصنف",
     requestAria: (size) => `طلب هذا الصنف — مقاس ${size}`,
+    calculate: "حساب الوزن",
+    calculateAria: (size) => `حساب الوزن — مقاس ${size}`,
     selected: "الصنف المحدد",
     swipe: "اسحب الجدول أفقيًا",
   },
@@ -104,6 +112,13 @@ export function VariantSpecTable({ locale, variants: unsorted, prices }: { local
   }
 
   const showPrices = locale === "fa" && Boolean(prices) && variants.some((v) => prices!.has(v.xid));
+
+  // «محاسبه وزن» only where the calculator is published and offers this exact size (same rule it builds its list with).
+  const calculable = (variant: ProductVariant) => {
+    const shape = FORM_SHAPES[variant.form.code ?? ""];
+    return isWeightCalculatorPublished(locale) && shape !== undefined && resolveVariantBasis(shape, variant) !== null;
+  };
+
   const commonUnits = variants.every((v) => v.allowedCommercialUnits === variants[0].allowedCommercialUnits) ? variants[0].allowedCommercialUnits : null;
 
   return (
@@ -181,14 +196,26 @@ export function VariantSpecTable({ locale, variants: unsorted, prices }: { local
                     <span dir="ltr">{variant.sku}</span>
                   </td>
                   <td className={cn(CELL, "group-hover:bg-surface py-0")}>
-                    {/* Plain <a> (components/ui/link.tsx): no prefetch of any kind, so 38 per-variant links cost nothing until clicked. */}
-                    <Link
-                      href={`${localizedPath(locale, "/contact")}?variant=${encodeURIComponent(variant.xid)}`}
-                      aria-label={t.requestAria(variant.commercialSize ?? variant.sectionSize ?? variant.sku)}
-                      className={buttonVariants({ variant: "link", className: "font-semibold whitespace-nowrap" })}
-                    >
-                      {t.request}
-                    </Link>
+                    <div className="flex items-center gap-5">
+                      {/* Plain <a> (components/ui/link.tsx): no prefetch of any kind, so 38 per-variant links cost nothing until clicked. */}
+                      <Link
+                        href={`${localizedPath(locale, "/contact")}?variant=${encodeURIComponent(variant.xid)}`}
+                        aria-label={t.requestAria(variant.commercialSize ?? variant.sectionSize ?? variant.sku)}
+                        className={buttonVariants({ variant: "link", className: "font-semibold whitespace-nowrap" })}
+                      >
+                        {t.request}
+                      </Link>
+                      {calculable(variant) && (
+                        // W10.1: opens the weight calculator with this size preselected (?variant= is read in the browser).
+                        <Link
+                          href={`${localizedPath(locale, WEIGHT_CALCULATOR_ROUTE)}?variant=${encodeURIComponent(variant.xid)}`}
+                          aria-label={t.calculateAria(variant.commercialSize ?? variant.sectionSize ?? variant.sku)}
+                          className={buttonVariants({ variant: "link", className: "whitespace-nowrap" })}
+                        >
+                          {t.calculate}
+                        </Link>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );

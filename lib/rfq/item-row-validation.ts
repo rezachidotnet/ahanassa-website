@@ -1,6 +1,7 @@
 import type { Locale } from "../../config/locales.ts";
 import { composeQuantityText, DEFAULT_RFQ_UOM, isValidQuantityValue, type RfqUomCode } from "./uom.ts";
 import type { RfqItemInput } from "./types.ts";
+import type { RfqRowPrefill } from "./rfq-prefill.ts";
 
 /**
  * Moved here from lib/rfq/validation.ts so `"use client"` components can
@@ -83,11 +84,24 @@ export function createEmptyCustomRow(): RfqRow {
   return { id: nextRfqRowId(), fields: { mode: "custom", productTitle: "", sizeSpec: "", quantityValue: "", unit: DEFAULT_RFQ_UOM, notes: "" } };
 }
 
-/** Builds a Catalog row already carrying a resolved identity — used to seed the first row from a `?variant=` preselection. */
-export function createCatalogRowFromSelection(selection: { categoryCode: string | null; templateXid: string; variantXid: string }): RfqRow {
+/**
+ * Builds a Catalog row already carrying a resolved identity — used to seed the first row from a `?variant=` preselection.
+ * `prefill` (already validated by lib/rfq/rfq-prefill.ts#parseRfqRowPrefill — W10.1, the weight calculator's
+ * hand-off) fills the same quantity/unit/length fields a visitor would type; without it the row starts empty as before.
+ */
+export function createCatalogRowFromSelection(selection: { categoryCode: string | null; templateXid: string; variantXid: string }, prefill: RfqRowPrefill = {}): RfqRow {
   return {
     id: nextRfqRowId(),
-    fields: { mode: "catalog", categoryCode: selection.categoryCode, templateXid: selection.templateXid, variantXid: selection.variantXid, quantityValue: "", unit: DEFAULT_RFQ_UOM, notes: "", lengthMm: "" },
+    fields: {
+      mode: "catalog",
+      categoryCode: selection.categoryCode,
+      templateXid: selection.templateXid,
+      variantXid: selection.variantXid,
+      quantityValue: prefill.quantityValue ?? "",
+      unit: prefill.unit ?? DEFAULT_RFQ_UOM,
+      notes: "",
+      lengthMm: prefill.lengthMm ?? "",
+    },
   };
 }
 

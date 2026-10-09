@@ -8,6 +8,7 @@ import { controlClass, labelClass, textareaClass } from "@/components/ui/form-co
 import type { Locale } from "@/config/locales";
 import type { RfqItemInput } from "@/lib/rfq/types";
 import type { RfqCatalogSelection } from "@/lib/catalog/editorial-repository";
+import type { RfqRowPrefill } from "@/lib/rfq/rfq-prefill";
 import { createIdempotencyKeyLifecycle } from "@/lib/rfq/idempotency-key-lifecycle";
 import { TURNSTILE_RFQ_ACTION } from "@/lib/security/turnstile-action";
 import { findCatalogItemByXid, groupCatalogItemsForSelector, type PublicRfqCatalogItem } from "@/lib/rfq/catalog-selector";
@@ -243,6 +244,7 @@ export function EnquiryForm({
   turnstileSiteKey,
   catalogPreselection = null,
   catalogPreselectionInvalid = false,
+  catalogPreselectionPrefill,
   catalogItems = [],
   catalogSnapshotVersion = null,
   rfqEndpoint = "/api/rfqs",
@@ -253,6 +255,8 @@ export function EnquiryForm({
   catalogPreselection?: Pick<RfqCatalogSelection, "variantXid" | "templateXid"> | null;
   /** True when a `?variant=` was present in the URL but did not resolve to a real, currently RFQ-eligible Variant. */
   catalogPreselectionInvalid?: boolean;
+  /** Quantity/unit/length for the preselected row (`?qty=&unit=&length=`, the weight calculator hand-off), already validated by lib/rfq/rfq-prefill.ts against the Variant's group policy — the same row fields a visitor types; nothing new is submitted. */
+  catalogPreselectionPrefill?: RfqRowPrefill;
   /** Every RFQ-selectable Catalog Variant for this locale (`/data/rfq-catalog.<locale>.json`), loaded once and shared across every Catalog row's selects — never re-fetched per row (docs/RFQ_MULTI_ITEM_FORM.md "Performance"). */
   catalogItems?: PublicRfqCatalogItem[];
   /** snapshot.v1 version of the deployed static catalog (manifest.public.json); null on the legacy SSR runtime. */
@@ -274,7 +278,7 @@ export function EnquiryForm({
           categoryCode: findCatalogItemByXid(catalogItems, catalogPreselection.variantXid)?.publicCategoryCode ?? null,
           templateXid: catalogPreselection.templateXid,
           variantXid: catalogPreselection.variantXid,
-        })
+        }, catalogPreselectionPrefill)
       : createEmptyCatalogRow(),
   ]);
   const [rowErrors, setRowErrors] = useState<Record<string, RfqRowFieldKey[]>>({});

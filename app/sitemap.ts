@@ -5,6 +5,7 @@ import { buildLanguageAlternates, buildLanguageAlternatesFromEntries } from "@/l
 import { isIndexableTarget } from "@/lib/seo/indexing-policy";
 import { categoryListingPath } from "@/lib/catalog/public-categories";
 import { listIndexableCatalogTemplateSlugs, listPublicCatalogCategories, listPublishedCatalogTemplates, listPublishedLocalesForProduct } from "@/lib/catalog/editorial-repository";
+import { WEIGHT_CALCULATOR_LOCALES, WEIGHT_CALCULATOR_ROUTE } from "@/lib/weight-calculator/publication";
 
 /** The public, non-catalog pages of every locale (D6, lib/seo/indexing-policy.ts). Articles join this list once they exist. */
 export const STATIC_PUBLIC_PATHS = ["/", "/products", "/services", "/about", "/industries", "/markets", "/contact"] as const;
@@ -52,6 +53,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = [];
   for (const locale of locales) {
     for (const path of STATIC_PUBLIC_PATHS) entries.push({ url: url(locale, path), lastModified, alternates: { languages: canonicalLanguages(buildLanguageAlternates(path)) } });
+    // The weight calculator (W10.1): only its published locales, with alternates between those locales only.
+    if (WEIGHT_CALCULATOR_LOCALES.includes(locale)) entries.push({ url: url(locale, WEIGHT_CALCULATOR_ROUTE), lastModified, alternates: { languages: canonicalLanguages(buildLanguageAlternatesFromEntries(WEIGHT_CALCULATOR_LOCALES.map((l) => ({ locale: l, path: WEIGHT_CALCULATOR_ROUTE })))) } });
     for (const [path, present] of categoryLocales) {
       if (!present.includes(locale)) continue;
       entries.push({ url: url(locale, path), lastModified, alternates: { languages: canonicalLanguages(buildLanguageAlternatesFromEntries(present.map((l) => ({ locale: l, path })))) } });
