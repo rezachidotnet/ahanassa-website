@@ -28,11 +28,11 @@ export function isPricePagePublished(locale: Locale): locale is PriceLocale {
 }
 
 /**
- * Header/footer label of the page (fa «قیمت روز» — owner wording; ar PROPOSED «أسعار اليوم», pending approval).
+ * Header/footer label of the page (fa «قیمت روز» — owner wording; ar «أسعار اليوم»; both approved on PR #35, 2026-10-09).
  */
 export const PRICE_NAV_LABEL: Record<PriceLocale, string> = { fa: "قیمت روز", ar: "أسعار اليوم" };
 
-/** Page copy. ar is PROPOSED, pending the owner's approval; Arabic letters only (ي ك). */
+/** Page copy (ar approved on PR #35, 2026-10-09). Arabic letters only on ar (ي ك). */
 export const PRICE_PAGE_COPY: Record<
   PriceLocale,
   {

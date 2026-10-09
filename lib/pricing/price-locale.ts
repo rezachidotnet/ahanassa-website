@@ -25,7 +25,7 @@ export function priceDateLabel(locale: PriceLocale, iso: string): string {
 
 /**
  * W9.6 — the disclaimer line under every price table and price block, and under the calculator estimate
- * (fa/ar; en never). PROPOSED text, pending the owner's approval (2026-10-09). Arabic letters only on ar
+ * (fa/ar; en never). Owner-approved text (PR #35, 2026-10-09); once on a product page (under the variant table). Arabic letters only on ar
  * (ي ك; ١٠ in Arabic-Indic digits).
  */
 export const PRICE_DISCLAIMER: Record<PriceLocale, string> = {

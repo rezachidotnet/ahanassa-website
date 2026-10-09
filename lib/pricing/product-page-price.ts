@@ -48,13 +48,22 @@ export const PRICE_COLUMN_COPY: Record<PriceLocale, { header: string; unit: stri
 };
 
 /**
- * W9.6 — locales that show ▲/▼ + % next to a price. fa only: ar shows price + date + VAT-included ONLY
- * (owner rule); adding "ar" here (plus its copy) is the one switch if the owner extends it.
+ * W9.6 — locales that show ▲/▼ + % next to a price: fa and ar (owner decision on PR #35, 2026-10-09).
+ * The 30-day chart stays fa only; ar still never shows the factory, location or a timestamp.
  */
-export const PRICE_CHANGE_LOCALES: readonly PriceLocale[] = ["fa"];
+export const PRICE_CHANGE_LOCALES: readonly PriceLocale[] = ["fa", "ar"];
 
-/** The compact change next to a price (fa): glyph + percent, and the words a screen reader hears instead of the glyph. */
-export const PRICE_CHANGE_COPY = { up: "▲", down: "▼", upWord: "افزایش", downWord: "کاهش", unchanged: PRICE_BLOCK_COPY.unchanged } as const;
+/**
+ * The compact change next to a price: glyph + percent, and the words a screen reader hears instead of the
+ * glyph. ar words in Arabic letters only (ي ك).
+ */
+export const PRICE_CHANGE_GLYPHS = { up: "▲", down: "▼" } as const;
+export const PRICE_CHANGE_WORDS: Record<PriceLocale, { up: string; down: string; unchanged: string }> = {
+  fa: { up: "افزایش", down: "کاهش", unchanged: PRICE_BLOCK_COPY.unchanged },
+  ar: { up: "ارتفاع", down: "انخفاض", unchanged: "دون تغيير" },
+};
+/** The glyphs + the fa words (the fa allow-list and the gate use this shape). */
+export const PRICE_CHANGE_COPY = { ...PRICE_CHANGE_GLYPHS, upWord: PRICE_CHANGE_WORDS.fa.up, downWord: PRICE_CHANGE_WORDS.fa.down, unchanged: PRICE_CHANGE_WORDS.fa.unchanged } as const;
 
 export interface CompactPriceChange {
   direction: "up" | "down" | "none";
@@ -68,12 +77,14 @@ export interface CompactPriceChange {
 
 /** ▲/▼ + % vs the previous-day price already in `data` (priceBlockDataFromRow applies the earlier-day rule); null = render nothing. */
 export function presentCompactChange(locale: Locale, data: PriceBlockData | null | undefined): CompactPriceChange | null {
-  if (!data || !(PRICE_CHANGE_LOCALES as readonly string[]).includes(locale)) return null;
+  if (!data || !isPriceLocale(locale) || !PRICE_CHANGE_LOCALES.includes(locale)) return null;
   const change = priceChange(data.tomanPerKg, data.previousTomanPerKg);
   if (!change || !data.previousPricedAt) return null;
-  if (change.direction === "none") return { direction: "none", glyph: null, label: PRICE_CHANGE_COPY.unchanged, word: "" };
-  const percent = `${new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 1, minimumFractionDigits: 0 }).format(change.percent)}٪`;
-  return change.direction === "up" ? { direction: "up", glyph: PRICE_CHANGE_COPY.up, label: percent, word: PRICE_CHANGE_COPY.upWord } : { direction: "down", glyph: PRICE_CHANGE_COPY.down, label: percent, word: PRICE_CHANGE_COPY.downWord };
+  const words = PRICE_CHANGE_WORDS[locale];
+  if (change.direction === "none") return { direction: "none", glyph: null, label: words.unchanged, word: "" };
+  // fa «۱٫۲٪»; ar «١٫٢٪» (Arabic-Indic digits, the same digit set as the ar amounts).
+  const percent = `${locale === "fa" ? new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 1, minimumFractionDigits: 0 }).format(change.percent) : formatNumber("ar", change.percent, 1)}٪`;
+  return change.direction === "up" ? { direction: "up", glyph: PRICE_CHANGE_GLYPHS.up, label: percent, word: words.up } : { direction: "down", glyph: PRICE_CHANGE_GLYPHS.down, label: percent, word: words.down };
 }
 
 /** The Toman/kg amount as the page shows it (fa: «۴۸٬۹۴۷»; ar: «٤٨٬٩٤٧»). */
@@ -121,7 +132,7 @@ export function presentPriceCell(locale: Locale, data: PriceBlockData | null | u
   if (!view) return null;
   if (view.kind === "missing" || !data) return { kind: "missing", label: PRICE_COLUMN_COPY[locale].missing };
   const rfq = variantXid ? { href: priceRfqHref(locale, variantXid, locale === "fa" ? view.factoryName : null), label: PRICE_RFQ_COPY[locale] } : null;
-  if (locale === "ar") return { kind: "price", amount: formatTomanAmount("ar", data.tomanPerKg), place: null, datetime: null, dateLabel: formatArabicDate(new Date(view.datetime)), change: null, rfq };
+  if (locale === "ar") return { kind: "price", amount: formatTomanAmount("ar", data.tomanPerKg), place: null, datetime: null, dateLabel: formatArabicDate(new Date(view.datetime)), change: presentCompactChange("ar", data), rfq };
   return { kind: "price", amount: view.amount, place: `${view.factoryName}، ${view.deliveryLocation}`, datetime: view.datetime, dateLabel: formatPersianDate(new Date(view.datetime)), change: presentCompactChange("fa", data), rfq };
 }
 
@@ -133,8 +144,12 @@ export function firstPricedVariant<T extends { xid: string }>(orderedVariants: r
 /** Every string the price markup of one variant may show on a page of `locale` (the gate's allow-list). */
 export function allowedPriceTexts(row: PublishedPriceRow | null, locale: PriceLocale = "fa", productName?: string): string[] {
   if (locale === "ar") {
-    const out: string[] = [...Object.values(AR_PRICE_COPY), PRICE_RFQ_COPY.ar];
-    if (row) out.push(renderedAmount(row, "ar"), formatArabicDate(new Date(row.published_at)));
+    const out: string[] = [...Object.values(AR_PRICE_COPY), PRICE_RFQ_COPY.ar, ...Object.values(PRICE_CHANGE_GLYPHS), ...Object.values(PRICE_CHANGE_WORDS.ar)];
+    if (row) {
+      out.push(renderedAmount(row, "ar"), formatArabicDate(new Date(row.published_at)));
+      const compact = presentCompactChange("ar", priceBlockDataFromRow(row));
+      if (compact) out.push(compact.label);
+    }
     return out;
   }
   const fixed = [PRICE_BLOCK_COPY.title, PRICE_BLOCK_COPY.unit, PRICE_BLOCK_COPY.vat, PRICE_BLOCK_COPY.factory, PRICE_BLOCK_COPY.delivery, PRICE_BLOCK_COPY.updated, PRICE_BLOCK_COPY.askToday, PRICE_BLOCK_COPY.missing, PRICE_BLOCK_COPY.cta, PRICE_BLOCK_COPY.unchanged, PRICE_RFQ_COPY.fa, PRICE_TREND_COPY.fa, PRICE_CHANGE_COPY.up, PRICE_CHANGE_COPY.down, PRICE_CHANGE_COPY.upWord, PRICE_CHANGE_COPY.downWord];

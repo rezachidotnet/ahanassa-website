@@ -43,7 +43,7 @@ test("priceChange: direction and percent rounded to 0.1; unchanged; invalid inpu
   assert.equal(priceChange(0, 100), null);
 });
 
-test("▲/▼ next to a price: shown only when a previous-day price exists; fa only", () => {
+test("▲/▼ next to a price: shown only when a previous-day price exists; fa and ar, never en", () => {
   const cell = presentCompactChange("fa", priceBlockDataFromRow(ROW));
   assert.deepEqual(cell, { direction: "down", glyph: "▼", label: "۱٫۲٪", word: "کاهش" });
   const up = presentCompactChange("fa", priceBlockDataFromRow({ ...ROW, previous_price_irr_per_kg: 480000 }));
@@ -58,12 +58,16 @@ test("▲/▼ next to a price: shown only when a previous-day price exists; fa o
   assert.equal(sameDay.previousTomanPerKg, null);
   assert.equal(presentCompactChange("fa", sameDay), null);
   assert.equal((presentPriceBlock("fa", sameDay) as { change: unknown }).change, null);
-  // ar shows price + date + VAT only (owner rule), en nothing.
-  assert.deepEqual(PRICE_CHANGE_LOCALES, ["fa"]);
-  assert.equal(presentCompactChange("ar", priceBlockDataFromRow(ROW)), null);
+  // ar too (owner decision on PR #35): Arabic-Indic digits, Arabic words; en nothing.
+  assert.deepEqual(PRICE_CHANGE_LOCALES, ["fa", "ar"]);
+  assert.deepEqual(presentCompactChange("ar", priceBlockDataFromRow(ROW)), { direction: "down", glyph: "▼", label: "١٫٢٪", word: "انخفاض" });
+  assert.deepEqual(presentCompactChange("ar", priceBlockDataFromRow({ ...ROW, previous_price_irr_per_kg: 480000 })), { direction: "up", glyph: "▲", label: "٢٪", word: "ارتفاع" });
+  assert.deepEqual(presentCompactChange("ar", priceBlockDataFromRow({ ...ROW, previous_price_irr_per_kg: 489470 })), { direction: "none", glyph: null, label: "دون تغيير", word: "" });
+  assert.equal(presentCompactChange("ar", sameDay), null, "same-day rule on ar too");
+  assert.equal(presentCompactChange("ar", first), null);
   assert.equal(presentCompactChange("en", priceBlockDataFromRow(ROW)), null);
   const ar = presentPriceCell("ar", priceBlockDataFromRow(ROW), "CVAR-000031");
-  assert.ok(ar?.kind === "price" && ar.change === null);
+  assert.ok(ar?.kind === "price" && ar.change?.label === "١٫٢٪" && ar.place === null && ar.datetime === null, "ar: change, still no factory/location/timestamp");
 });
 
 const days = (n: number, last = "2026-10-08"): DailyPoint[] =>

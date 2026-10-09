@@ -57,7 +57,8 @@ function faCell(row = ROW): string {
 function arCell(row = ROW): string {
   const v = presentPriceCell("ar", priceBlockDataFromRow(row), row.canonical_variant_id);
   assert.ok(v?.kind === "price");
-  return `<td data-aa-price-cell="${row.canonical_variant_id}"><span>${v.amount}</span><span>${v.dateLabel}</span><a href="${v.rfq!.href}">${v.rfq!.label}</a></td>`;
+  const change = v.change ? `<span><span aria-hidden="true">${v.change.glyph}</span><span class="sr-only">${v.change.word} </span>${v.change.label}</span>` : "";
+  return `<td data-aa-price-cell="${row.canonical_variant_id}"><span>${v.amount}</span>${change}<span>${v.dateLabel}</span><a href="${v.rfq!.href}">${v.rfq!.label}</a></td>`;
 }
 function chart(points: number): string {
   const series = sparklineSeries(HISTORY.map((h) => ({ day: h.day, price: Math.round(h.price_irr_per_kg / 10) })), "2026-10-08")!;
@@ -82,11 +83,13 @@ test("fa chart: allowed only inside a priced block, with ≥ 7 snapshot points, 
   assert.ok(kinds([{ path: "prices.html", content: page(`<table><tr>${faCell().replace("</td>", `${chart(7)}</td>`)}</tr></table>`) }]).some((k) => k.startsWith("price_sparkline_not_allowed")), "never in a table cell");
 });
 
-test("ar: price + date + VAT + «طلب السعر النهائي» only — never ▲/▼, a chart, the factory (also not in the RFQ link) or fa copy", () => {
+test("ar: price + ▲/▼ + date + VAT + «طلب السعر النهائي» — never a chart, the factory (also not in the RFQ link) or fa copy", () => {
   const ar = (body: string) => `<html><body><h1>حديد</h1>${body}<p>${PRICE_DISCLAIMER.ar}</p></body></html>`;
   assert.deepEqual(kinds([{ path: "ar/prices.html", content: ar(`<table><tr data-aa-family="REBAR">${arCell()}</tr></table>`) }]), []);
   assert.ok(!arCell().includes("factory="), "the ar RFQ link carries no factory");
-  for (const leak of ["▼", "data-aa-price-sparkline=\"7\"", "&amp;factory=x", PRICE_DISCLAIMER.fa, PRICE_RFQ_COPY.fa, PRICE_TREND_COPY.fa, ROW.factory_name_fa]) {
+  assert.match(arCell(), /▼.*انخفاض.*١٫٢٪/, "ar shows the change (owner decision on PR #35)");
+  assert.deepEqual(kinds([{ path: "ar/prices.html", content: ar(`<table><tr>${arCell().replace("١٫٢٪", "١٫٣٪")}</tr></table>`) }]).map((k) => k.split(":")[0]), ["price_text_not_allowed"], "a wrong percent fails");
+  for (const leak of ["data-aa-price-sparkline=\"7\"", "&amp;factory=x", PRICE_DISCLAIMER.fa, PRICE_RFQ_COPY.fa, PRICE_TREND_COPY.fa, ROW.factory_name_fa]) {
     assert.ok(kinds([{ path: "ar/prices.html", content: ar(`<table><tr>${arCell()}</tr></table><p>${leak}</p>`) }]).some((k) => k.startsWith("price_fa_field_on_ar_page")), leak);
   }
   // The ar copy uses Arabic letters only (the leak scan flags Persian-only letters on ar).
@@ -97,7 +100,7 @@ test("ar: price + date + VAT + «طلب السعر النهائي» only — nev
 test("en: ANY W9.6 price data on an en page fails the gate (HTML or Flight payload)", () => {
   const en = (x: string) => `<html><body><h1>Rebar</h1>${x}<script>self.__next_f.push([1,"{}"])</script></body></html>`;
   assert.deepEqual(kinds([{ path: "en/products/rebar.html", content: en("<p>Steel</p>") }]), []);
-  const leaks = [faCell(), arCell(), chart(7), "▲ 1.2%", PRICE_DISCLAIMER.fa, PRICE_DISCLAIMER.ar, PRICE_RFQ_COPY.fa, PRICE_RFQ_COPY.ar, PRICE_TREND_COPY.fa, "/contact?variant=CVAR-000031&factory=x", '\\"tomanPerKg\\":48947', "۴۸٬۹۴۷", "٤٨٬٩٤٧", ROW.factory_name_fa, ROW.location_fa];
+  const leaks = [faCell(), arCell(), chart(7), "▲ 1.2%", "انخفاض", PRICE_DISCLAIMER.fa, PRICE_DISCLAIMER.ar, PRICE_RFQ_COPY.fa, PRICE_RFQ_COPY.ar, PRICE_TREND_COPY.fa, "/contact?variant=CVAR-000031&factory=x", '\\"tomanPerKg\\":48947', "۴۸٬۹۴۷", "٤٨٬٩٤٧", ROW.factory_name_fa, ROW.location_fa];
   for (const leak of leaks) assert.ok(kinds([{ path: "en/products/rebar.html", content: en(leak) }]).some((k) => k.startsWith("price_on_en_page")), leak.slice(0, 60));
   for (const leak of leaks.slice(0, 3)) assert.ok(kinds([{ path: "en/prices.html", content: en(leak) }]).some((k) => k.startsWith("price_on_en_page")));
 });
@@ -173,11 +176,11 @@ test("price page rows: every priced variant once, grouped by family in catalog o
   assert.deepEqual(buildPriceTableRows("fa", templates, new Map(), family), []);
 });
 
-test("disclaimer: the proposed fa/ar lines, under every price table and block (product page, price page, calculator)", () => {
+test("disclaimer: the approved fa/ar lines — ONCE on a product page (under the variant table), under the price page table and the calculator estimate", () => {
   assert.equal(PRICE_DISCLAIMER.fa, "قیمت‌ها به تومان برای هر کیلوگرم و شامل ۱۰٪ ارزش افزوده است. قیمت نهایی بر اساس تناژ، زمان سفارش و محل تحویل اعلام می‌شود.");
   assert.equal(PRICE_DISCLAIMER.ar, "الأسعار بالتومان لكل كيلوغرام وتشمل ضريبة القيمة المضافة ١٠٪. يُحدَّد السعر النهائي حسب الكمية ووقت الطلب ومكان التسليم.");
   const src = (f: string) => fs.readFileSync(path.join(REPO, f), "utf8");
-  assert.match(src("app/[locale]/products/[slug]/page.tsx"), /\{PRICE_DISCLAIMER\.fa\}/);
+  assert.ok(!src("app/[locale]/products/[slug]/page.tsx").includes("PRICE_DISCLAIMER"), "not under the price block (owner decision on PR #35)");
   assert.match(src("components/products/variant-spec-table.tsx"), /\{priceCopy\?\.note\}/);
   assert.match(src("app/[locale]/prices/page.tsx"), /\{PRICE_DISCLAIMER\[locale\]\}/);
   assert.match(src("components/tools/weight-calculator.tsx"), /\{PRICE_DISCLAIMER\[locale as PriceLocale\]\}/);

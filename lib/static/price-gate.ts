@@ -1,6 +1,6 @@
 import { irrToToman, PUBLISHED_PRICE_COLUMNS, PUBLISHED_PRICE_HISTORY_COLUMNS, type PublishedPriceRow } from "../contracts/snapshot-prices.ts";
 import { PRICE_BLOCK_COPY } from "../pricing/price-block-presentation.ts";
-import { allowedPriceTexts, AR_PRICE_COPY, PRICE_BLOCK_ATTRIBUTE, PRICE_BLOCK_ON_REQUEST, PRICE_CELL_ATTRIBUTE, PRICE_CHANGE_COPY, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, PRICE_SPARKLINE_ATTRIBUTE, PRICE_TREND_COPY, priceDateLabel, renderedAmount, type PriceLocale } from "../pricing/product-page-price.ts";
+import { allowedPriceTexts, AR_PRICE_COPY, PRICE_BLOCK_ATTRIBUTE, PRICE_BLOCK_ON_REQUEST, PRICE_CELL_ATTRIBUTE, PRICE_CHANGE_COPY, PRICE_CHANGE_WORDS, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, PRICE_SPARKLINE_ATTRIBUTE, PRICE_TREND_COPY, priceDateLabel, renderedAmount, type PriceLocale } from "../pricing/product-page-price.ts";
 import { PRICE_RFQ_COPY, RFQ_FACTORY_PARAM } from "../pricing/price-rfq.ts";
 import { isDailyPriceEligible } from "../pricing/daily-price-eligibility.ts";
 import { sparklineSeries, tehranDay, type DailyPoint } from "../pricing/price-history.ts";
@@ -28,8 +28,8 @@ import { CALCULATOR_PRICE_PAGES, fileLocale } from "./leak-scan.ts";
  *
  * 6. W9.6: `published_price_history` rows carry exactly PUBLISHED_PRICE_HISTORY_COLUMNS; a 30-day chart
  *    (`data-aa-price-sparkline="<n>"`) sits only inside a fa price block whose variant has ≥ 7 daily points in
- *    the snapshot, and draws exactly that many; ar/en never carry a chart, ▲/▼, the RFQ copy of the other
- *    locale or a `factory=` RFQ prefill. A per-ton raw/semi-finished material never has a price element or
+ *    the snapshot, and draws exactly that many; ar/en never carry a chart, the RFQ copy of the other
+ *    locale or a `factory=` RFQ prefill; en never ▲/▼ (fa and ar show it, owner decision on PR #35). A per-ton raw/semi-finished material never has a price element or
  *    calculator entry (lib/pricing/daily-price-eligibility.ts).
  *
  * The pricing-API field names, source-like keys and factory codes are refused in every public file by the
@@ -137,8 +137,9 @@ const PAGE_H1 = /<h1\b[^>]*>([\s\S]*?)<\/h1>/i;
 
 /** Persian copy that only a fa price element shows; never on ar or en. */
 const FA_PRICE_COPY = [PRICE_BLOCK_COPY.unit, PRICE_BLOCK_COPY.vat, PRICE_BLOCK_COPY.askToday, PRICE_BLOCK_COPY.missing, PRICE_COLUMN_COPY.fa.note, `${PRICE_BLOCK_COPY.title} `, PRICE_DISCLAIMER.fa, PRICE_RFQ_COPY.fa, PRICE_TREND_COPY.fa];
-/** W9.6: fa-only price markers — the chart, ▲/▼ and the factory RFQ prefill; never on ar or en. */
-const FA_ONLY_MARKERS = [PRICE_SPARKLINE_ATTRIBUTE, PRICE_CHANGE_COPY.up, PRICE_CHANGE_COPY.down, `&amp;${RFQ_FACTORY_PARAM}=`, `&${RFQ_FACTORY_PARAM}=`, `?${RFQ_FACTORY_PARAM}=`];
+/** W9.6: fa-only price markers — the chart and the factory RFQ prefill; never on ar or en. (▲/▼ is fa + ar, never en.) */
+const FA_ONLY_MARKERS = [PRICE_SPARKLINE_ATTRIBUTE, PRICE_TREND_COPY.fa, `&amp;${RFQ_FACTORY_PARAM}=`, `&${RFQ_FACTORY_PARAM}=`, `?${RFQ_FACTORY_PARAM}=`];
+const CHANGE_MARKERS = [PRICE_CHANGE_COPY.up, PRICE_CHANGE_COPY.down, ...Object.values(PRICE_CHANGE_WORDS.ar)];
 /** Arabic copy of the ar price cells; never on en. */
 const AR_COPY = [...Object.values(AR_PRICE_COPY), PRICE_DISCLAIMER.ar, PRICE_RFQ_COPY.ar];
 
@@ -193,7 +194,7 @@ export function scanPrices(files: ReadonlyArray<{ path: string; content: string 
     const locale = fileLocale(path);
     if (locale === "en") {
       // 4. No price on en — in the HTML, the RSC payload and any locale JSON.
-      const forbidden = ["data-aa-price", "tomanPerKg", ...FA_PRICE_COPY, ...FA_ONLY_MARKERS, ...AR_COPY, ...amounts.fa, ...amounts.ar, ...names];
+      const forbidden = ["data-aa-price", "tomanPerKg", ...FA_PRICE_COPY, ...FA_ONLY_MARKERS, ...CHANGE_MARKERS, ...AR_COPY, ...amounts.fa, ...amounts.ar, ...names];
       for (const s of forbidden) if (content.includes(s)) findings.push({ file: path, kind: "price_on_en_page", match: s.trim() });
       continue;
     }

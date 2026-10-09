@@ -42,7 +42,7 @@ test("cell: fa shows amount + compact factory/location + date; ar shows amount +
   assert.equal(presentPriceCell("en", priceBlockDataFromRow(ROW)), null);
   assert.equal(presentPriceCell("en", undefined), null);
   // ar (owner decision change 2026-10-09): price only — no factory, no location, no timestamp.
-  assert.deepEqual(presentPriceCell("ar", priceBlockDataFromRow(ROW)), { kind: "price", amount: "٤٨٬٩٤٧", place: null, datetime: null, dateLabel: "٨ أكتوبر ٢٠٢٦", change: null, rfq: null });
+  assert.deepEqual(presentPriceCell("ar", priceBlockDataFromRow(ROW)), { kind: "price", amount: "٤٨٬٩٤٧", place: null, datetime: null, dateLabel: "٨ أكتوبر ٢٠٢٦", change: { direction: "down", glyph: "▼", label: "١٫٢٪", word: "انخفاض" }, rfq: null });
   assert.deepEqual(presentPriceCell("ar", undefined), { kind: "missing", label: "السعر عند الطلب" });
   assert.equal(PRICE_COLUMN_COPY.fa.header, "قیمت روز");
   assert.deepEqual(AR_PRICE_COPY, { header: "سعر اليوم", unit: "تومان/كغ", vat: "شامل ضريبة القيمة المضافة", missing: "السعر عند الطلب" });

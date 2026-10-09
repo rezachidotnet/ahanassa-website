@@ -16,7 +16,7 @@ import { siteConfig } from "@/lib/metadata/site";
 import { primaryCta } from "@/lib/content/nav";
 import { PriceBlock } from "@/components/products/price-block";
 import { listDailyPriceHistory, listProductPagePrices } from "@/lib/pricing/product-page-price-repository";
-import { firstPricedVariant, isPriceLocale, PRICE_BLOCK_ATTRIBUTE, PRICE_BLOCK_ON_REQUEST, PRICE_DISCLAIMER } from "@/lib/pricing/product-page-price";
+import { firstPricedVariant, isPriceLocale, PRICE_BLOCK_ATTRIBUTE, PRICE_BLOCK_ON_REQUEST } from "@/lib/pricing/product-page-price";
 import { sparklineSeries, tehranDay } from "@/lib/pricing/price-history";
 import { PRICE_RFQ_COPY, priceRfqHref } from "@/lib/pricing/price-rfq";
 import { PriceSparkline } from "@/components/products/price-sparkline";
@@ -108,7 +108,6 @@ async function ProductSpecs({ locale, variants, title }: { locale: Locale; varia
               trend={series && currentDay ? <PriceSparkline series={series} currentDay={currentDay} /> : undefined}
             />
           </div>
-          {mainPrice && <p className="text-muted-foreground mt-3 text-xs leading-relaxed">{PRICE_DISCLAIMER.fa}</p>}
         </div>
       )}
       <div className="mt-6">
