@@ -156,27 +156,25 @@ export async function fetchOdooSource(options: { baseUrl?: string; fetchImpl?: t
 }
 
 /**
- * W9.4: the current published prices. HTTP 404 = the API is not deployed yet (the site builds with an
- * empty price set; validation refuses that once a publication already shows prices). Any other non-200
- * status, a timeout or a non-JSON body fails the fetch, like the catalog endpoints.
+ * W9.4: the current published prices. Never throws (owner decision 2026-10-09): HTTP 404 is
+ * "not_deployed"; any other non-200 status, a timeout, a network error or a non-JSON body is
+ * "failed". lib/content-pipeline/pricing.ts decides: the run fails only when the live site already
+ * shows prices; otherwise it builds with an empty price set and says so in the summary.
  */
 export async function fetchPricingCurrent(baseUrl: string, guarded: typeof fetch, timeoutMs: number = PIPELINE_CONFIG.odoo.timeoutMs): Promise<PricingSource> {
   let response: Response;
   try {
     response = await guarded(new URL(PRICING_CURRENT_PATH, baseUrl).href, { method: "GET", headers: { Accept: "application/json" }, signal: AbortSignal.timeout(timeoutMs) });
   } catch (error) {
-    throw new OdooFetchError(`Odoo fetch failed: GET ${PRICING_CURRENT_PATH} (${error instanceof Error ? error.name : "network error"})`);
+    return { status: "failed", http_status: null, etag: null, body: null, error: error instanceof Error ? (error.name === "TimeoutError" ? `timeout ${timeoutMs} ms` : error.name) : "network error" };
   }
-  if (response.status === 404) {
+  if (response.status !== 200) {
     await response.arrayBuffer().catch(() => undefined);
-    return { status: "not_deployed", http_status: 404, etag: null, body: null };
+    return response.status === 404 ? { status: "not_deployed", http_status: 404, etag: null, body: null } : { status: "failed", http_status: response.status, etag: null, body: null, error: `HTTP ${response.status}` };
   }
-  if (response.status !== 200) throw new OdooFetchError(`Odoo fetch failed: GET ${PRICING_CURRENT_PATH} (HTTP ${response.status})`);
-  let body: unknown;
   try {
-    body = await response.json();
+    return { status: "ok", http_status: 200, etag: response.headers.get("etag"), body: await response.json() };
   } catch {
-    throw new OdooFetchError(`Odoo fetch failed: GET ${PRICING_CURRENT_PATH} (body is not JSON)`);
+    return { status: "failed", http_status: 200, etag: null, body: null, error: "body is not JSON" };
   }
-  return { status: "ok", http_status: 200, etag: response.headers.get("etag"), body };
 }

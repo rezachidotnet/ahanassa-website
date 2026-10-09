@@ -6,10 +6,18 @@ import { publishedPriceRow, type PublishedPriceRow } from "../contracts/snapshot
  * contract docs/contracts/SNAPSHOT_V1.md §published_prices.
  *
  * The website ALLOW-LISTS the response: every key the documented v1 contract has is listed below,
- * either as RENDERED (it reaches the snapshot) or READ (only checked here, then dropped). Any other
- * key anywhere in the response is an ERROR — the publication stops instead of carrying an unknown
- * field forward (the pricing API never exposes where a price came from; a new field is a website
- * code change first). Pure: no I/O, no clock (the caller passes the fetch time).
+ * either as RENDERED (it reaches the snapshot) or READ (only checked here, then dropped).
+ *
+ * Owner decisions on W9.4 (2026-10-09, docs/OWNER_DECISIONS.md):
+ * - Any OTHER key, anywhere in the response, is IGNORED: never stored, never rendered, reported as a
+ *   warning in the run summary. It never stops a publish.
+ * - A missing or invalid KNOWN field makes the price set invalid.
+ * - An invalid set, or a failed fetch, fails the run ONLY when the live site already shows prices
+ *   (the active publication's `prices_published` > 0). Otherwise the run builds with an EMPTY price set
+ *   and says so clearly in the summary — a pricing problem never blocks a catalog update, and never
+ *   silently wipes prices the site shows.
+ *
+ * Pure: no I/O, no clock (the caller passes the fetch time).
  */
 
 /** Row keys of `data[]`. `basis_note`, `unit`, `currency`, `id`, `sku`, `canonical_template_id` are read, never stored. */
@@ -50,22 +58,32 @@ const API_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 
 /**
  * What the fetch step keeps (lib/content-pipeline/odoo-source.ts): the raw JSON body is checked
- * by `validatePricing`; `status` says whether the endpoint exists yet.
+ * by `validatePricing`. The fetch never throws for pricing; `status` records what happened.
  * - "ok": HTTP 200 with a JSON body.
- * - "not_deployed": HTTP 404 — the API is not live yet (build with an empty price set, W9.4).
+ * - "not_deployed": HTTP 404 — the API is not live.
+ * - "failed": any other status, a timeout, a network error or a non-JSON body (`error` says which).
  */
 export interface PricingSource {
-  status: "ok" | "not_deployed";
-  http_status: number;
+  status: "ok" | "not_deployed" | "failed";
+  http_status: number | null;
   etag: string | null;
   body: unknown;
+  error?: string;
 }
+
+/** What the run summary says about prices (one line). */
+export type PricingOutcome = "published" | "empty_not_deployed" | "empty_fetch_failed" | "empty_invalid" | "blocked";
 
 export interface PricingValidation {
   errors: string[];
   warnings: string[];
-  /** Snapshot rows (only when there are no errors; otherwise empty). */
+  /** Snapshot rows (only when the set is valid; otherwise empty). */
   rows: PublishedPriceRow[];
+  /** Ignored unknown fields, as generic paths (e.g. `row.source`, `factory.url`). */
+  ignored: string[];
+  outcome: PricingOutcome;
+  /** One clear line for the run summary. */
+  summary: string;
   counts: { prices_published: number; prices_on_request: number };
 }
 
@@ -78,29 +96,31 @@ interface CatalogIdentity {
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const nonBlank = (v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
 
-function unknownKeys(where: string, value: Record<string, unknown>, allowed: ReadonlySet<string>, errors: string[]): void {
-  for (const k of Object.keys(value)) if (!allowed.has(k)) errors.push(`pricing: ${where}: field "${k}" is not on the website allow-list`);
+/** Unknown keys are collected (deduplicated by their generic path) and ignored — never an error (owner 2026-10-09). */
+function unknownKeys(where: string, value: Record<string, unknown>, allowed: ReadonlySet<string>, ignored: Set<string>): void {
+  const generic = where.replace(/^(CVAR-[^.]*|data\[\d+\])/, "row");
+  for (const k of Object.keys(value)) if (!allowed.has(k)) ignored.add(`${generic}.${k}`);
 }
 
-function checkI18n(where: string, value: unknown, errors: string[]): Record<string, unknown> | null {
+function checkI18n(where: string, value: unknown, errors: string[], ignored: Set<string>): Record<string, unknown> | null {
   if (value === null) return null;
   if (!isObject(value)) {
     errors.push(`pricing: ${where}: not an object`);
     return null;
   }
-  unknownKeys(where, value, PRICING_I18N_KEYS, errors);
+  unknownKeys(where, value, PRICING_I18N_KEYS, ignored);
   for (const [k, v] of Object.entries(value)) if (v !== null && typeof v !== "string") errors.push(`pricing: ${where}.${k}: not a string or null`);
   return value;
 }
 
-function checkFactory(where: string, value: unknown, errors: string[]): Record<string, unknown> | null {
+function checkFactory(where: string, value: unknown, errors: string[], ignored: Set<string>): Record<string, unknown> | null {
   if (value === null) return null;
   if (!isObject(value)) {
     errors.push(`pricing: ${where}: not an object`);
     return null;
   }
-  unknownKeys(where, value, PRICING_FACTORY_KEYS, errors);
-  return checkI18n(`${where}.name`, value.name ?? null, errors);
+  unknownKeys(where, value, PRICING_FACTORY_KEYS, ignored);
+  return checkI18n(`${where}.name`, value.name ?? null, errors, ignored);
 }
 
 function checkTime(where: string, value: unknown, fetchedAt: string, errors: string[]): string | null {
@@ -131,26 +151,32 @@ function checkPrice(where: string, value: unknown, errors: string[]): number | n
  * the active publication's `prices_published` count (null when unknown).
  */
 export function validatePricing(source: PricingSource | undefined, catalog: readonly CatalogIdentity[], fetchedAt: string, previousPricesPublished: number | null = null): PricingValidation {
-  const errors: string[] = [];
-  const warnings: string[] = [];
-  const empty = (): PricingValidation => ({ errors, warnings, rows: [], counts: { prices_published: 0, prices_on_request: 0 } });
+  const problems: string[] = [];
+  const ignored = new Set<string>();
+  const live = previousPricesPublished !== null && previousPricesPublished > 0;
+  /**
+   * The set cannot be used: fail the run only when the live site shows prices; otherwise build with
+   * an empty price set and report it as a warning (owner decision 2026-10-09).
+   */
+  const unusable = (outcome: "empty_not_deployed" | "empty_fetch_failed" | "empty_invalid", why: string, details: string[] = []): PricingValidation => {
+    const ignoredList = [...ignored].sort();
+    if (live) {
+      const summary = `BLOCKED: ${why}, and the live site shows ${previousPricesPublished} price(s); refusing to publish without them`;
+      return { errors: [`pricing: ${summary}`, ...details], warnings: [], rows: [], ignored: ignoredList, counts: { prices_published: 0, prices_on_request: 0 }, outcome: "blocked", summary };
+    }
+    const summary = `EMPTY PRICE SET: ${why}; no price is shown (the live site shows none either), the catalog publishes normally`;
+    return { errors: [], warnings: [`pricing: ${summary}`, ...details, ...ignoredWarnings(ignoredList)], rows: [], ignored: ignoredList, counts: { prices_published: 0, prices_on_request: 0 }, outcome, summary };
+  };
 
-  if (!source || source.status === "not_deployed") {
-    // W9.4: until Odoo serves the API the site builds with an empty price set — but never silently
-    // drop prices the live site already shows (an endpoint that disappears is an error, not "no prices").
-    if (previousPricesPublished && previousPricesPublished > 0) errors.push(`pricing: ${PRICING_CURRENT_PATH} is not available (HTTP ${source?.http_status ?? "not fetched"}) but the active publication shows ${previousPricesPublished} price(s); refusing to publish without them`);
-    else warnings.push(`pricing: ${PRICING_CURRENT_PATH} is not available yet (HTTP ${source?.http_status ?? "not fetched"}); building with an empty price set`);
-    return empty();
-  }
+  if (!source || source.status === "not_deployed") return unusable("empty_not_deployed", `${PRICING_CURRENT_PATH} is not deployed (HTTP ${source?.http_status ?? "not fetched"})`);
+  if (source.status === "failed") return unusable("empty_fetch_failed", `GET ${PRICING_CURRENT_PATH} failed (${source.error ?? `HTTP ${source.http_status ?? "?"}`})`);
 
+  const errors = problems;
   const body = source.body;
-  if (!isObject(body) || !Array.isArray(body.data) || !isObject(body.meta)) {
-    errors.push("pricing: response is not {data: [...], meta: {...}}");
-    return empty();
-  }
-  unknownKeys("response", body, PRICING_ENVELOPE_KEYS, errors);
+  if (!isObject(body) || !Array.isArray(body.data) || !isObject(body.meta)) return unusable("empty_invalid", "the pricing response is not {data: [...], meta: {...}}");
+  unknownKeys("response", body, PRICING_ENVELOPE_KEYS, ignored);
   const meta = body.meta;
-  unknownKeys("meta", meta, PRICING_META_KEYS, errors);
+  unknownKeys("meta", meta, PRICING_META_KEYS, ignored);
   if (meta.unit !== "kg" || meta.currency !== "IRR" || meta.vat_included !== true) errors.push(`pricing: meta: unit/currency/vat_included must be kg/IRR/true (got ${JSON.stringify([meta.unit, meta.currency, meta.vat_included])})`);
   if (meta.total !== body.data.length) errors.push(`pricing: meta.total ${JSON.stringify(meta.total)} differs from ${body.data.length} rows`);
   const metaUpdated = meta.updated_at_utc === null ? null : checkTime("meta.updated_at_utc", meta.updated_at_utc, fetchedAt, errors);
@@ -169,7 +195,7 @@ export function validatePricing(source: PricingSource | undefined, catalog: read
     }
     const id = typeof raw.canonical_id === "string" ? raw.canonical_id : `data[${i}]`;
     const where = `${id}`;
-    unknownKeys(where, raw, PRICING_ROW_KEYS, errors);
+    unknownKeys(where, raw, PRICING_ROW_KEYS, ignored);
     const variant = byId.get(id);
     if (!variant) errors.push(`pricing: ${where}: not an active variant of the catalog fetched in this run`);
     else {
@@ -179,9 +205,9 @@ export function validatePricing(source: PricingSource | undefined, catalog: read
     if (seen.has(id)) errors.push(`pricing: ${where}: duplicate row`);
     seen.add(id);
     if (raw.unit !== "kg" || raw.currency !== "IRR" || raw.vat_included !== true) errors.push(`pricing: ${where}: unit/currency/vat_included must be kg/IRR/true`);
-    checkI18n(`${where}.basis_note`, raw.basis_note ?? null, errors);
-    const factory = checkFactory(`${where}.factory`, raw.factory ?? null, errors);
-    const location = checkI18n(`${where}.location`, raw.location ?? null, errors);
+    checkI18n(`${where}.basis_note`, raw.basis_note ?? null, errors, ignored);
+    const factory = checkFactory(`${where}.factory`, raw.factory ?? null, errors, ignored);
+    const location = checkI18n(`${where}.location`, raw.location ?? null, errors, ignored);
 
     if (raw.price_on_request === true) {
       onRequest++;
@@ -205,9 +231,9 @@ export function validatePricing(source: PricingSource | undefined, catalog: read
       const p = raw.previous;
       if (!isObject(p)) errors.push(`pricing: ${where}.previous: not an object`);
       else {
-        unknownKeys(`${where}.previous`, p, PRICING_POINT_KEYS, errors);
-        checkFactory(`${where}.previous.factory`, p.factory ?? null, errors);
-        checkI18n(`${where}.previous.location`, p.location ?? null, errors);
+        unknownKeys(`${where}.previous`, p, PRICING_POINT_KEYS, ignored);
+        checkFactory(`${where}.previous.factory`, p.factory ?? null, errors, ignored);
+        checkI18n(`${where}.previous.location`, p.location ?? null, errors, ignored);
         // "If either side is on request, there is no % change" (API v1): an on-request previous is not stored.
         if (p.price_on_request === false) {
           previousPrice = checkPrice(`${where}.previous.price_irr_per_kg`, p.price_irr_per_kg, errors);
@@ -233,8 +259,14 @@ export function validatePricing(source: PricingSource | undefined, catalog: read
   });
 
   if (newest && metaUpdated && metaUpdated < newest) errors.push(`pricing: meta.updated_at_utc ${metaUpdated} is older than the newest published_at_utc ${newest}`);
-  if (errors.length) return empty();
+  if (errors.length) return unusable("empty_invalid", `the pricing response is invalid (${errors.length} problem(s), first: ${errors[0].replace(/^pricing: /, "")})`, errors.slice(0, 20));
   rows.sort((a, b) => (a.canonical_variant_id < b.canonical_variant_id ? -1 : 1));
-  return { errors, warnings, rows, counts: { prices_published: rows.length, prices_on_request: onRequest } };
+  const ignoredList = [...ignored].sort();
+  const summary = `${rows.length} price(s) published, ${onRequest} on request${ignoredList.length ? `; ${ignoredList.length} unknown field(s) ignored` : ""}`;
+  return { errors: [], warnings: ignoredWarnings(ignoredList), rows, ignored: ignoredList, counts: { prices_published: rows.length, prices_on_request: onRequest }, outcome: "published", summary };
+}
+
+function ignoredWarnings(ignored: readonly string[]): string[] {
+  return ignored.length ? [`pricing: ignored ${ignored.length} field(s) the website does not know (never stored or rendered): ${ignored.join(", ")}`] : [];
 }
 

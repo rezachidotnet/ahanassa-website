@@ -1,7 +1,7 @@
 import { snapshotV1, type SnapshotV1 } from "../contracts/snapshot-v1.ts";
 import { GATED_COUNTS, PIPELINE_CONFIG } from "./config.ts";
 import type { OdooSource } from "./odoo-source.ts";
-import { validatePricing } from "./pricing.ts";
+import { validatePricing, type PricingOutcome } from "./pricing.ts";
 
 /**
  * Architecture V1.1 §7.1 step 2: schema, relations and counts of one full
@@ -18,6 +18,8 @@ export interface ValidationResult {
   errors: string[];
   warnings: string[];
   counts: Record<string, number>;
+  /** W9.4: what happened to prices this run (one line for the summary). */
+  pricing?: { outcome: PricingOutcome; summary: string; ignored: string[] };
 }
 
 function isPublished(seo: Tables["product_seo_contents"][number]): boolean {
@@ -155,7 +157,7 @@ export function validateSource(odoo: OdooSource, tables: Tables, previousCounts:
     if (p.is_active !== 1) warnings.push(`editorial: ${s.locale}/${s.slug} is published but its template ${p.template_xid} is no longer in Odoo (page will not be built)`);
     else if (!activeVariantsByProduct.get(p.id)) warnings.push(`editorial: ${s.locale}/${s.slug} is published but has no active public variant`);
   }
-  return { errors, warnings, counts };
+  return { errors, warnings, counts, pricing: { outcome: pricing.outcome, summary: pricing.summary, ignored: pricing.ignored } };
 }
 
 export interface DecreaseFinding {

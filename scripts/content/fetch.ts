@@ -17,7 +17,12 @@ const pricingRows = (odoo: OdooSource) => {
   const body = odoo.prices?.body as { data?: unknown } | null | undefined;
   return Array.isArray(body?.data) ? body.data.length : 0;
 };
-const pricingLabel = (odoo: OdooSource) => (odoo.prices?.status === "ok" ? `${pricingRows(odoo)} rows (ETag ${odoo.prices.etag ?? "none"})` : `not deployed yet (HTTP ${odoo.prices?.http_status ?? "—"}): empty price set`);
+const pricingLabel = (odoo: OdooSource) =>
+  odoo.prices?.status === "ok"
+    ? `${pricingRows(odoo)} rows (ETag ${odoo.prices.etag ?? "none"})`
+    : odoo.prices?.status === "failed"
+      ? `⚠️ FETCH FAILED (${odoo.prices.error ?? "unknown"}) — the validate step decides (empty price set, or blocked when the live site shows prices)`
+      : `not deployed (HTTP ${odoo.prices?.http_status ?? "—"})`;
 const log = logger("fetch");
 
 await runStep("fetch", async () => {
@@ -60,7 +65,7 @@ await runStep("fetch", async () => {
         meta_standards: odoo.meta.standards.length,
       },
       // W9.4: status + row count only (the prices themselves are validated in the next step).
-      pricing: { status: odoo.prices?.status ?? "not_fetched", http_status: odoo.prices?.http_status ?? null, etag: odoo.prices?.etag ?? null, rows: pricingRows(odoo) },
+      pricing: { status: odoo.prices?.status ?? "not_fetched", http_status: odoo.prices?.http_status ?? null, error: odoo.prices?.error ?? null, etag: odoo.prices?.etag ?? null, rows: pricingRows(odoo) },
     },
     d1: { duration_ms: d1Ms, active_version: d1.publication.active_version, versions: d1.publication.versions.map((v) => `${v.version}:${v.status}`) },
   };

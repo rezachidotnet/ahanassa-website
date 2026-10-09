@@ -99,7 +99,12 @@ test("page wiring: fa-only price block + column inside an always-suspending asyn
   assert.match(page, /const prices = locale === "fa" \? await listProductPagePrices\(/);
   assert.ok(!/offers|priceCurrency/.test(page.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "")), "no JSON-LD offers");
   const table = code("components/products/variant-spec-table.tsx");
-  assert.match(table, /const showPrices = locale === "fa" && Boolean\(prices\);/);
+  // Owner 2026-10-09: the column is hidden unless at least one variant has a price, and it follows the size column.
+  assert.match(table, /const showPrices = locale === "fa" && Boolean\(prices\) && variants\.some\(\(v\) => prices!\.has\(v\.xid\)\);/);
+  const head = table.slice(table.indexOf("<thead>"), table.indexOf("</thead>"));
+  assert.ok(head.indexOf("{t.size}") < head.indexOf("PRICE_COLUMN_COPY.header") && head.indexOf("PRICE_COLUMN_COPY.header") < head.indexOf("dimensionColumns.map"), "price header right after the size header");
+  const body = table.slice(table.indexOf("<tbody>"), table.indexOf("</tbody>"));
+  assert.ok(body.indexOf("</th>") < body.indexOf("<PriceCell") && body.indexOf("<PriceCell") < body.indexOf("dimensionColumns.map"), "price cell right after the size cell");
   const repo = code("lib/pricing/product-page-price-repository.ts");
   assert.match(repo, /if \(!isStaticExportBuild\(\)\) return null;/, "prices exist only in the static build");
 });

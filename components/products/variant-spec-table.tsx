@@ -69,11 +69,13 @@ export function variantRowAnchorId(sku: string): string {
  * `VariantHighlightFromQuery` — the page is static and takes no searchParams
  * (architecture V1.1 §4.2) — without ever creating a Variant SEO page.
  *
- * W9.4: with `prices` (Persian pages, static build only) a «قیمت روز» column
- * shows each variant's published price — amount in Toman/kg + compact
- * factory/location + date — or «استعلام قیمت». en/ar never get the column
- * (`presentPriceCell` presents nothing for them). Each cell carries
- * `data-aa-price-cell` for the publication gate's allow-list check.
+ * W9.4: with `prices` (Persian pages, static build only) a «قیمت روز» column,
+ * right after the size column, shows each variant's published price — amount
+ * in Toman/kg + compact factory/location + date — or «استعلام قیمت». The
+ * column is hidden when none of the page's variants has a price (owner
+ * decision 2026-10-09; the page's PriceBlock still says «استعلام قیمت»).
+ * en/ar never get it (`presentPriceCell` presents nothing for them). Each
+ * cell carries `data-aa-price-cell` for the publication gate's allow-list check.
  */
 export function VariantSpecTable({ locale, variants: unsorted, prices }: { locale: Locale; variants: ProductVariant[]; prices?: ReadonlyMap<string, PriceBlockData> | null }) {
   if (unsorted.length === 0) return null;
@@ -101,7 +103,7 @@ export function VariantSpecTable({ locale, variants: unsorted, prices }: { local
     }
   }
 
-  const showPrices = locale === "fa" && Boolean(prices);
+  const showPrices = locale === "fa" && Boolean(prices) && variants.some((v) => prices!.has(v.xid));
   const commonUnits = variants.every((v) => v.allowedCommercialUnits === variants[0].allowedCommercialUnits) ? variants[0].allowedCommercialUnits : null;
 
   return (
@@ -125,6 +127,12 @@ export function VariantSpecTable({ locale, variants: unsorted, prices }: { local
               <th scope="col" className={cn(HEAD, "bg-surface sticky start-0 z-[2]")}>
                 {t.size}
               </th>
+              {showPrices && (
+                <th scope="col" className={HEAD}>
+                  {PRICE_COLUMN_COPY.header}
+                  <span className="text-tertiary block text-[11px] font-semibold">{PRICE_COLUMN_COPY.unit}</span>
+                </th>
+              )}
               {dimensionColumns.map((c) => (
                 <th key={c.key} scope="col" className={HEAD}>
                   {c.label}
@@ -135,12 +143,6 @@ export function VariantSpecTable({ locale, variants: unsorted, prices }: { local
                   {c.label}
                 </th>
               ))}
-              {showPrices && (
-                <th scope="col" className={HEAD}>
-                  {PRICE_COLUMN_COPY.header}
-                  <span className="text-tertiary block text-[11px] font-semibold">{PRICE_COLUMN_COPY.unit}</span>
-                </th>
-              )}
               <th scope="col" className={HEAD}>
                 {t.sku}
               </th>
@@ -164,6 +166,7 @@ export function VariantSpecTable({ locale, variants: unsorted, prices }: { local
                   <th scope="row" className={cn(CELL, "text-navy bg-background group-hover:bg-surface sticky start-0 z-[1] text-start font-bold")}>
                     <span dir="ltr">{variant.commercialSize ?? variant.sectionSize ?? "—"}</span>
                   </th>
+                  {showPrices && <PriceCell locale={locale} xid={variant.xid} price={prices?.get(variant.xid)} />}
                   {dimensionColumns.map((c) => (
                     <td key={c.key} className={cn(CELL, "text-muted-foreground group-hover:bg-surface")}>
                       <span dir="ltr">{dimByKey.get(c.key) ?? "—"}</span>
@@ -174,7 +177,6 @@ export function VariantSpecTable({ locale, variants: unsorted, prices }: { local
                       <span dir="ltr">{weightByKey.get(c.key) ?? "—"}</span>
                     </td>
                   ))}
-                  {showPrices && <PriceCell locale={locale} xid={variant.xid} price={prices?.get(variant.xid)} />}
                   <td className={cn(CELL, "text-muted-foreground group-hover:bg-surface")}>
                     <span dir="ltr">{variant.sku}</span>
                   </td>

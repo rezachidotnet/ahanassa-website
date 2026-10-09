@@ -45,6 +45,14 @@ D-DAR-063 and D-SCHEDULE are implemented now (W9.1). D-PRICE and D-ARTICLES are 
 | **D-PRICE-OUTLIERS** (2026-10-07/08) | Outliers more than 15% from the median are flagged and excluded. | Recorded now. |
 | **D-PRICE-AGE** (2026-10-07/08) | Prices never expire; date and age are shown; internal stale alert after 5 days. | **Implemented W9.4:** no expiry anywhere; the date is rendered at build time and the age in the browser; the ops-health check "published prices stale" (> 5 days) is built for production and **off** until the owner enables it (`docs/OPS_ALERTS.md`). |
 
+## Decisions of 2026-10-09 (W9.4 review)
+
+| # | Decision (as given) | Effect |
+|---|---|---|
+| **D-W94-1** | Unknown fields in the Odoo pricing response are **ignored** (warning in the build summary), never rendered, and never stop the publish. Missing or invalid **known** fields still fail the price validation. Rendering stays allow-list only; the leak scan is unchanged. If the pricing fetch fails or is invalid, the run fails **only when the live site already shows prices**; otherwise it builds with an empty price set. A pricing problem is always reported clearly in the run summary. | `lib/content-pipeline/pricing.ts` (`validatePricing`: ignored fields, outcomes `published` / `empty_*` / `blocked`), `odoo-source.ts` (the pricing fetch never throws), `scripts/content/validate.ts` (**Prices:** summary line + annotations). `docs/contracts/SNAPSHOT_V1.md` §published_prices. |
+| **D-W94-2** | Hide the «قیمت روز» column on a product page when none of its variants has a price; the PriceBlock keeps showing «استعلام قیمت» + the RFQ CTA. | `components/products/variant-spec-table.tsx` (`showPrices` requires a priced variant). |
+| **D-W94-3** | The «قیمت روز» column comes right after the size column. | Same component; a test checks the column order. |
+
 ## Decisions of 2026-10-08 (W10 design system)
 
 Answers to the five owner decisions of the W10.0 design review. Implemented in W10.2 (branch `w10-2/design-system`).

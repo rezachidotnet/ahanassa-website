@@ -12,7 +12,7 @@ import { PIPELINE_CONFIG } from "../../lib/content-pipeline/config.ts";
 import { activeCounts, type D1Source } from "../../lib/content-pipeline/d1-source.ts";
 import type { OdooSource } from "../../lib/content-pipeline/odoo-source.ts";
 import { decreaseFindings, describeDecrease, validateSource } from "../../lib/content-pipeline/validate.ts";
-import { log as logger, parseArgs, paths, readJson, runStep, summary, workDir, writeJson } from "./common.ts";
+import { annotate, log as logger, parseArgs, paths, readJson, runStep, summary, workDir, writeJson } from "./common.ts";
 
 const args = parseArgs();
 const log = logger("validate");
@@ -38,11 +38,18 @@ await runStep("validate", async () => {
     decrease_threshold: PIPELINE_CONFIG.decreaseThreshold,
     decrease,
     allow_decrease: allowDecrease,
+    pricing: result.pricing ?? null,
   });
+  // W9.4 (owner 2026-10-09): a pricing problem never blocks a catalog-only update silently — always one clear line,
+  // and a run annotation whenever the run builds without the prices Odoo should have served.
+  const pricing = result.pricing;
+  if (pricing && pricing.outcome !== "published" && pricing.outcome !== "blocked") annotate("warning", "pricing: empty price set", pricing.summary);
+  if (pricing?.ignored.length) annotate("warning", "pricing: unknown fields ignored", pricing.ignored.join(", "));
   for (const w of result.warnings) log(`warning: ${w}`);
   summary(
     [
       `### Content validate: ${ok ? "PASS" : "BLOCKED"}`,
+      `- **Prices:** ${pricing ? `${pricing.outcome === "published" ? "✅" : pricing.outcome === "blocked" ? "❌" : "⚠️"} ${pricing.summary}` : "not checked"}`,
       `- counts: \`${JSON.stringify(result.counts)}\``,
       `- previous active \`${d1.publication.active_version}\`: \`${JSON.stringify(previous)}\``,
       ...result.warnings.map((w) => `- ⚠️ ${w}`),

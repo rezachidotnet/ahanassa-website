@@ -69,23 +69,30 @@ Owner decisions D-PRICE-DISPLAY / D-PRICE-AGE (`docs/OWNER_DECISIONS.md`, 2026-1
   on the page renders a trend.
 - **Allow-list:** a row holds **only the fields the Persian product page renders** — one row per variant
   with a numeric price. Every other documented API field (factory code, en/ar names, `basis_note`,
-  `unit`, `currency`, `sku`, …) is read for validation and dropped; **any undocumented field anywhere in
-  the response fails validation** (and so the publication). The pricing API never exposes where a price
-  came from, and the snapshot has no field that could hold it.
-- **Validation (fails the run):** positive integer IRR/kg within sanity bounds (10 000 – 100 000 000
+  `unit`, `currency`, `sku`, …) is read for validation and dropped. **Any undocumented field anywhere in
+  the response is ignored** (owner decision 2026-10-09): never stored, never rendered, listed as a warning
+  in the run summary; it never stops a publish. The pricing API never exposes where a price came from,
+  and the snapshot has no field that could hold it.
+- **Validation of the known fields:** positive integer IRR/kg within sanity bounds (10 000 – 100 000 000
   [parameter]); the variant is an active catalog variant of the same fetch, with matching template id and
   SKU; no duplicates; `factory.name.fa` and `location.fa` present; `vat_included` true, kg, IRR;
   `published_at_utc` ISO UTC, not before 2026 and not in the future (10 min skew); a previous price is
   older than the current one; `meta.total` and `meta.updated_at_utc` consistent. Price-on-request rows
   are counted (`prices_on_request`), not stored.
-- **API not deployed (HTTP 404):** empty price set with a warning — **unless** the active publication's
-  `prices_published` count is > 0, then the run fails (prices never silently vanish).
+- **When the set cannot be used** (any known field missing or invalid, HTTP 404, any other fetch failure,
+  a non-JSON body): the run **fails only when the live site already shows prices** (the active
+  publication's `prices_published` > 0), so prices never silently vanish. Otherwise it builds with an
+  **empty price set** and the catalog publishes normally. Either way the validate step writes one
+  **Prices:** line in the run summary (`published` / `EMPTY PRICE SET: <why>` / `BLOCKED: <why>`) and a
+  run annotation for an empty set or ignored fields (owner decision 2026-10-09).
 - **Build-only:** loaded into the static build's in-memory DB_PUBLIC only. It is **not** a
   `migrations_public` table, the pipeline never mirrors it, and `scripts/static/snapshot-load-sql.ts`
   skips it. Prices are rendered into the static HTML at build time; no `/data` file carries them.
 - **Hash compatibility:** an empty `published_prices` is left out of the canonical tables JSON, so
   every snapshot made before W9.4 keeps its content hash and version.
-- **Rendering and gates:** Persian product pages only (`app/[locale]/products/[slug]/page.tsx`); the
+- **Rendering and gates:** Persian product pages only (`app/[locale]/products/[slug]/page.tsx`): the
+  «قیمت روز» column follows the size column and is hidden when none of the page's variants has a price
+  (the PriceBlock then shows «استعلام قیمت» + the RFQ CTA); the
   artifact gate's price gate (`lib/static/price-gate.ts`) checks that the rendered price text is exactly
   these fields and that en/ar files carry no price; the leak scan refuses pricing-API field names and
   factory codes in every public file. No JSON-LD `offers`.
