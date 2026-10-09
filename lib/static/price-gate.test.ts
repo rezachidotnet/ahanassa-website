@@ -111,7 +111,7 @@ test("ar: price only — amount + date + VAT note pass; factory, location, times
 
 test("calculator price map: only on the fa/ar calculator pages, exactly the allowed keys per locale, values = the snapshot", () => {
   const flight = (entry: string) => `<html><body><script>self.__next_f.push([1,"[\\"$\\",\\"$L1\\",null,{\\"prices\\":{${entry}}}]"])</script></body></html>`;
-  const fa = '\\"CVAR-000053\\":{\\"tomanPerKg\\":55200,\\"datetime\\":\\"2026-10-07T07:15:00.000Z\\",\\"dateLabel\\":\\"۱۵ مهر ۱۴۰۵\\"}';
+  const fa = '\\"CVAR-000053\\":{\\"tomanPerKg\\":55200,\\"datetime\\":\\"2026-10-07T07:15:00.000Z\\",\\"dateLabel\\":\\"۱۵ مهر ۱۴۰۵\\",\\"factory\\":\\"کارخانه آزمایشی ج\\"}';
   const ar = '\\"CVAR-000053\\":{\\"tomanPerKg\\":55200,\\"dateLabel\\":\\"٧ أكتوبر ٢٠٢٦\\"}';
   assert.deepEqual(kinds([{ path: "tools/weight-calculator.html", content: flight(fa) }]), []);
   assert.deepEqual(kinds([{ path: "ar/tools/weight-calculator.html", content: flight(ar) }]), []);
@@ -122,6 +122,8 @@ test("calculator price map: only on the fa/ar calculator pages, exactly the allo
   assert.ok(bad("ar/tools/weight-calculator.html", fa), "ar carries no timestamp");
   assert.ok(bad("ar/tools/weight-calculator.html", ar.replace("}", ',\\"factoryName\\":\\"x\\"}')), "no factory");
   assert.ok(bad("tools/weight-calculator.html", fa.replace("55200", "55300")), "value must match the snapshot");
+  assert.ok(bad("tools/weight-calculator.html", fa.replace("آزمایشی ج", "آزمایشی الف")), "W9.6: the factory must be the snapshot row's");
+  assert.ok(bad("tools/weight-calculator.html", fa.replace(',\\"factory\\":\\"کارخانه آزمایشی ج\\"', "")), "W9.6: fa carries exactly its keys");
   assert.ok(bad("tools/weight-calculator.html", fa.replace("CVAR-000053", "CVAR-000052")), "unpriced variant");
   assert.ok(bad("tools/weight-calculator.html", `${fa},\\"x\\":[{\\"tomanPerKg\\":1}]`), "tomanPerKg outside the {variant: price} shape");
 });

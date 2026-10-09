@@ -2,6 +2,7 @@ import { fetchCatalogCategories, fetchCatalogMeta, fetchCatalogProductsPage, typ
 import { fetchProcessingGroups, type ProcessingGroupApiItem } from "../processing/odoo-api-client.ts";
 import { PIPELINE_CONFIG } from "./config.ts";
 import { PRICING_CURRENT_PATH, type PricingSource } from "./pricing.ts";
+import { PRICING_HISTORY_PATH } from "./pricing-history.ts";
 
 /**
  * Architecture V1.1 §7.1 step 1 — the FULL fetch from Odoo (no delta, so
@@ -42,6 +43,11 @@ export interface OdooSource {
    * validates it; only the allow-listed fields reach the snapshot). Absent in sources fetched before W9.4.
    */
   prices?: PricingSource;
+  /**
+   * W9.6: `GET /api/v1/pricing/history?days=30`, unvalidated (lib/content-pipeline/pricing-history.ts).
+   * Absent in sources fetched before W9.6 (= no 30-day chart).
+   */
+  price_history?: PricingSource;
 }
 
 export class OdooFetchError extends Error {}
@@ -138,6 +144,7 @@ export async function fetchOdooSource(options: { baseUrl?: string; fetchImpl?: t
   }
 
   const prices = await fetchPricingCurrent(baseUrl, guarded);
+  const priceHistory = await fetchPricingPath(PRICING_HISTORY_PATH, baseUrl, guarded);
 
   return {
     schema: ODOO_SOURCE_SCHEMA,
@@ -152,6 +159,7 @@ export async function fetchOdooSource(options: { baseUrl?: string; fetchImpl?: t
     products_reported_total: reportedTotal,
     processing_groups: processingGroups,
     prices,
+    price_history: priceHistory,
   };
 }
 
@@ -162,9 +170,14 @@ export async function fetchOdooSource(options: { baseUrl?: string; fetchImpl?: t
  * shows prices; otherwise it builds with an empty price set and says so in the summary.
  */
 export async function fetchPricingCurrent(baseUrl: string, guarded: typeof fetch, timeoutMs: number = PIPELINE_CONFIG.odoo.timeoutMs): Promise<PricingSource> {
+  return fetchPricingPath(PRICING_CURRENT_PATH, baseUrl, guarded, timeoutMs);
+}
+
+/** One pricing API GET (W9.6: also /history), with the never-throw semantics above. */
+export async function fetchPricingPath(pathAndQuery: string, baseUrl: string, guarded: typeof fetch, timeoutMs: number = PIPELINE_CONFIG.odoo.timeoutMs): Promise<PricingSource> {
   let response: Response;
   try {
-    response = await guarded(new URL(PRICING_CURRENT_PATH, baseUrl).href, { method: "GET", headers: { Accept: "application/json" }, signal: AbortSignal.timeout(timeoutMs) });
+    response = await guarded(new URL(pathAndQuery, baseUrl).href, { method: "GET", headers: { Accept: "application/json" }, signal: AbortSignal.timeout(timeoutMs) });
   } catch (error) {
     return { status: "failed", http_status: null, etag: null, body: null, error: error instanceof Error ? (error.name === "TimeoutError" ? `timeout ${timeoutMs} ms` : error.name) : "network error" };
   }

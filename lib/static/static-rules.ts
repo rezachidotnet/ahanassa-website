@@ -2,6 +2,7 @@ import { buildSecurityHeaders } from "../security/headers.ts";
 import { PRODUCTION_NOINDEX_HEADER_PATHS } from "../seo/indexing-policy.ts";
 import { locales, localizedPath } from "../../config/locales.ts";
 import { WEIGHT_CALCULATOR_LOCALES, WEIGHT_CALCULATOR_ROUTE } from "../weight-calculator/publication.ts";
+import { PRICE_PAGE_LOCALES, PRICE_PAGE_ROUTE } from "../pricing/price-page.ts";
 
 /**
  * Static replacements for what `proxy.ts` and the metadata routes did on the
@@ -39,9 +40,18 @@ export function unpublishedCalculatorRedirects(): string[] {
   return locales.filter((l) => !WEIGHT_CALCULATOR_LOCALES.includes(l)).map((l) => `${localizedPath(l, WEIGHT_CALCULATOR_ROUTE)} ${localizedPath(l, "/")} 302`);
 }
 
+/**
+ * W9.6: the price page exists in fa and ar only (en has no price data); /en/prices sends the same
+ * temporary 302 to the en home, for the same reason (the language selector links every page across
+ * locales). Derived from PRICE_PAGE_LOCALES.
+ */
+export function unpublishedPricePageRedirects(): string[] {
+  return locales.filter((l) => !(PRICE_PAGE_LOCALES as readonly string[]).includes(l)).map((l) => `${localizedPath(l, PRICE_PAGE_ROUTE)} ${localizedPath(l, "/")} 302`);
+}
+
 /** `_redirects`: fa has no visible prefix; /request is the frozen Header CTA path whose form lives at /contact. */
 export function buildRedirectsFile(): string {
-  return ["/fa / 308", "/fa/* /:splat 308", "/request /contact 308", "/en/request /en/contact 308", "/ar/request /ar/contact 308", ...unpublishedCalculatorRedirects(), ""].join("\n");
+  return ["/fa / 308", "/fa/* /:splat 308", "/request /contact 308", "/en/request /en/contact 308", "/ar/request /ar/contact 308", ...unpublishedCalculatorRedirects(), ...unpublishedPricePageRedirects(), ""].join("\n");
 }
 
 /** `.assetsignore`: defence in depth — these must never be uploaded even if present (the artifact gate also rejects them). */

@@ -217,6 +217,23 @@ test("artifact gate: leak findings fail the gate", () => {
   assert.ok(failures.some((f) => f.includes("does not match rfq-catalog.v1")));
 });
 
+test("artifact gate (W9.7 review): a price-source name in a path or content fails, and no gate output ever shows the name", () => {
+  // SYNTHETIC names only — the real list never lives in this public repository.
+  const names = ["example-market.test", "samplesteel.example"];
+  const a = buildArtifact();
+  write(a.pub, "images/examplemarket-logo.png", "x".repeat(4_000_000)); // also the largest file, so it would be in stats
+  write(a.pub, "partners/sample-steel.html", '<html><head><meta name="robots" content="noindex, follow"/></head><body>you@example-market.test</body></html>');
+  write(a.pub, "en/partners.html", "<p>Example Market</p>");
+  a.seal();
+  const result = runArtifactGate(a.dir, { sourceNames: names });
+  assert.equal(result.stats.sourceNameScan, "ran");
+  assert.ok(result.failures.some((f) => f.startsWith("price source name in <path redacted: it contains a listed name> (name #1 of the private list)")), result.failures.join("\n"));
+  assert.ok(result.failures.some((f) => f === "price source name in en/partners.html (name #1 of the private list)"));
+  const printed = JSON.stringify(result).toLowerCase().replace(/[\s.\-_]+/g, "");
+  for (const spelling of ["examplemarket", "samplesteel"]) assert.ok(!printed.includes(spelling), `${spelling} leaked into the gate output`);
+  assert.equal(runArtifactGate(a.dir, { sourceNames: null }).stats.sourceNameScan, "not_run");
+});
+
 // --- A1 / A2 / A7 / V2 invariants --------------------------------------------------------
 
 test("A1: no app/ or components/ source imports next/link; the project Link is a plain <a>", () => {

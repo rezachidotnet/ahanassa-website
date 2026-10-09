@@ -22,3 +22,13 @@ export function formatArabicDate(date: Date): string {
 export function priceDateLabel(locale: PriceLocale, iso: string): string {
   return locale === "fa" ? formatPersianDate(new Date(iso)) : formatArabicDate(new Date(iso));
 }
+
+/**
+ * W9.6 — the disclaimer line under every price table and price block, and under the calculator estimate
+ * (fa/ar; en never). Owner-approved text (PR #35, 2026-10-09); once on a product page (under the variant table). Arabic letters only on ar
+ * (ي ك; ١٠ in Arabic-Indic digits).
+ */
+export const PRICE_DISCLAIMER: Record<PriceLocale, string> = {
+  fa: "قیمت‌ها به تومان برای هر کیلوگرم و شامل ۱۰٪ ارزش افزوده است. قیمت نهایی بر اساس تناژ، زمان سفارش و محل تحویل اعلام می‌شود.",
+  ar: "الأسعار بالتومان لكل كيلوغرام وتشمل ضريبة القيمة المضافة ١٠٪. يُحدَّد السعر النهائي حسب الكمية ووقت الطلب ومكان التسليم.",
+};

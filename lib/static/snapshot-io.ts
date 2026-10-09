@@ -13,7 +13,7 @@ import { snapshotV1, SNAPSHOT_TABLES, SNAPSHOT_SCHEMA_VERSION, type SnapshotV1, 
  * - Pipeline (W4): `snapshot_version` is assigned and monotonic
  *   (lib/content-pipeline/version.ts) and `content_sha256` carries the hash.
  */
-const OMIT_WHEN_EMPTY: ReadonlySet<string> = new Set(["published_prices"]);
+const OMIT_WHEN_EMPTY: ReadonlySet<string> = new Set(["published_prices", "published_price_history"]);
 
 export function canonicalTablesJson(tables: SnapshotV1["tables"]): string {
   const ordered: Record<string, unknown[]> = {};
