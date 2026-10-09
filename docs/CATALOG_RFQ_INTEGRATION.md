@@ -59,6 +59,8 @@ The client sends **only** `catalogVariantXid` (`product_variant_xid`) for a cata
 
 `/{locale}/contact?variant=<product_variant_xid>` — reusing the site's actual existing RFQ route (`/contact`; there is no separate `/request` route in this repository) and its existing query-string convention. The URL carries only the stable identity, never a serialized product object. `app/[locale]/contact/page.tsx` resolves it server-side via `lib/catalog/editorial-repository.ts#resolveRfqCatalogVariant` before the page ever renders, and passes the **resolved result** (or `null`) to `EnquiryForm` — the client component never sees the raw query string.
 
+**Quantity pre-fill (W10.1, 2026-10-09).** The weight calculator (`/tools/weight-calculator`) links to `/{locale}/contact?variant=<xid>&qty=<number>&unit=<code>[&length=<mm>]`. On the static site `StaticEnquiryForm` resolves `?variant=` in the browser as before, then `lib/rfq/rfq-prefill.ts#parseRfqRowPrefill` fills that row's existing `quantityValue` / `unit` / `lengthMm` fields — only a unit allowed for the Variant's group (`lib/rfq/uom-policy.ts`), only a positive ASCII number, and a length only for ANGLE/CHANNEL (`lib/rfq/length-policy.ts`). Anything else is dropped and the row starts empty. The submitted wire shape and the RFQ API are unchanged; the server re-validates everything.
+
 ---
 
 ## 5. Variant eligibility for RFQ selection

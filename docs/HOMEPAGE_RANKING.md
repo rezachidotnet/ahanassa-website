@@ -84,3 +84,9 @@ It reads the full accepted-RFQ history each run rather than incrementally, by de
 ## 8. Sync Health observability
 
 Not part of ranking directly, but built in the same pass (this task's §3 "one acceptable gap"): `lib/catalog/sync-health.ts#evaluateCatalogSyncHealth` (pure, unit-tested) + `lib/catalog/sync-state-repository.ts#getCatalogSyncHealth` (D1-backed) surface `lastSuccessAt`/`ageSinceSuccessMs`/`consecutiveFailureCount`/`isHealthy` from the existing `catalog_sync_state` table — no new table, no external alerting vendor integration. A read primitive for whatever surface (internal CLI, log line, future admin view) chooses to consume it.
+
+---
+
+## 9. Section order note — Calculator CTA (W10.1, 2026-10-09)
+
+This document ranks products *inside* the Product Showcase; it does not change the section order. Recorded here as owner decision D-W10-5 requires (`docs/OWNER_DECISIONS.md`, 2026-10-08): when the weight calculator shipped, `components/home/calculator-cta.tsx` was placed **directly after the Hero**, so the Homepage order is now Header → Hero → **Calculator CTA** → Price Strip [conditional] → Product Showcase → Buyer Value → Verified Evidence [conditional] → Industries [conditional] → Final CTA → Footer (`app/[locale]/page.tsx`). The block links only to `/tools/weight-calculator`, carries no price and no ranking input, and renders only in a locale the calculator is published in (`lib/weight-calculator/publication.ts`).

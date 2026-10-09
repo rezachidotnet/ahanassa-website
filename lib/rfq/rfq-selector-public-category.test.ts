@@ -243,13 +243,16 @@ test("every per-variant /contact?variant= RFQ link is a plain anchor that cannot
     const src = read(f);
     assert.match(src, /import Link from "@\/components\/ui\/link";/, `${f}: must use the project Link (plain <a>)`);
     assert.ok(!src.includes('"next/link"'), `${f}: must not use next/link`);
-    for (const tag of linkTags(src).filter((t) => t.includes("?variant="))) {
+    // W10.1 added a second per-variant link («محاسبه وزن» → the weight calculator); only /contact links are RFQ links.
+    for (const tag of linkTags(src).filter((t) => t.includes("?variant=") && t.includes('"/contact"'))) {
       found += 1;
       assert.match(tag, /localizedPath\(locale, "\/contact"\)\}\?variant=\$\{encodeURIComponent\(variant\.xid\)\}/, "destination unchanged");
       assert.match(tag, /aria-label=\{t\.requestAria\(/, "accessible name unchanged");
     }
   }
   assert.equal(found, 1, "the spec table is the only per-variant RFQ link");
+  const calculatorLinks = linkTags(read("components/products/variant-spec-table.tsx")).filter((t) => t.includes("WEIGHT_CALCULATOR_ROUTE"));
+  assert.equal(calculatorLinks.length, 1, "the per-variant weight-calculator link is the same plain project Link");
 });
 
 test("no component passes a prefetch prop any more (plain anchors have none)", () => {
