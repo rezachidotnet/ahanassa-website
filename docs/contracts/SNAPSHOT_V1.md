@@ -90,12 +90,17 @@ Owner decisions D-PRICE-DISPLAY / D-PRICE-AGE (`docs/OWNER_DECISIONS.md`, 2026-1
   skips it. Prices are rendered into the static HTML at build time; no `/data` file carries them.
 - **Hash compatibility:** an empty `published_prices` is left out of the canonical tables JSON, so
   every snapshot made before W9.4 keeps its content hash and version.
-- **Rendering and gates:** Persian product pages only (`app/[locale]/products/[slug]/page.tsx`): the
-  «قیمت روز» column follows the size column and is hidden when none of the page's variants has a price
-  (the PriceBlock then shows «استعلام قیمت» + the RFQ CTA); the
+- **Rendering and gates** (owner decision change 2026-10-09, D-W94-4): **fa** — PriceBlock + «قیمت روز»
+  column (amount, factory, location, date); **ar** — price only: «سعر اليوم» column (amount + date label +
+  VAT note), no factory/location/timestamp; **en** — nothing. The column follows the size column and is
+  hidden when none of the page's variants has a price (the fa PriceBlock then shows «استعلام قیمت» + the
+  RFQ CTA). The weight calculator gets a build-time price map (fa `{tomanPerKg, datetime, dateLabel}`, ar
+  `{tomanPerKg, dateLabel}`, en none) for its cost estimate. The
   artifact gate's price gate (`lib/static/price-gate.ts`) checks that the rendered price text is exactly
-  these fields and that en/ar files carry no price; the leak scan refuses pricing-API field names and
-  factory codes in every public file. No JSON-LD `offers`.
+  these fields per locale, that ar files carry none of the fa-only fields, that en files carry no price, and
+  that every calculator price-map entry equals the snapshot; the leak scan refuses pricing-API field names,
+  source-like keys and factory codes in every public file (`tomanPerKg` is allowed only on the fa/ar
+  calculator page). No JSON-LD `offers`.
 
 ## `rfq_variant_index` row (architecture §5.1, A8)
 
