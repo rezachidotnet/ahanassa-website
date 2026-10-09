@@ -9,7 +9,7 @@ import { rfqHandoffHref } from "./handoff.ts";
 import { estimateCostToman, toCalculatorPrice, toCalculatorPrices } from "./price.ts";
 import { BASIS_LINES, WEIGHT_CALCULATOR_COPY } from "./copy.ts";
 import { STANDARDS } from "./standards.ts";
-import { WEIGHT_CALCULATOR_LOCALES, WEIGHT_CALCULATOR_ROUTE } from "./publication.ts";
+import { isWeightCalculatorPublished, WEIGHT_CALCULATOR_LOCALES, WEIGHT_CALCULATOR_ROUTE } from "./publication.ts";
 import { parseRfqRowPrefill } from "../rfq/rfq-prefill.ts";
 import { locales } from "../../config/locales.ts";
 
@@ -254,9 +254,11 @@ test("«مبنای محاسبه»: every shape has a basis line that names its s
 
 // --- page, publication, SEO ------------------------------------------------------------------
 
-test("publication: one route, all three locales, and the CTA's constant points at the same route", () => {
+test("publication: one route, fa only (owner 2026-10-09: en/ar copy stays an unpublished draft), and the CTA's constant points at the same route", () => {
   assert.equal(WEIGHT_CALCULATOR_ROUTE, "/tools/weight-calculator");
-  assert.deepEqual([...WEIGHT_CALCULATOR_LOCALES], ["fa", "en", "ar"]);
+  assert.deepEqual([...WEIGHT_CALCULATOR_LOCALES], ["fa"]);
+  assert.equal(isWeightCalculatorPublished("en"), false);
+  assert.equal(isWeightCalculatorPublished("ar"), false);
   assert.match(read("components/home/calculator-cta.tsx"), new RegExp(`WEIGHT_CALCULATOR_PATH = "${WEIGHT_CALCULATOR_ROUTE}"`));
 });
 

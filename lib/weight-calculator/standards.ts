@@ -41,6 +41,7 @@ export const STANDARDS: Readonly<Record<Exclude<StandardId, "catalog">, Standard
   EN10365: { id: "EN10365", title: "EN 10365 — Hot rolled steel channels, I and H sections; dimensions and masses" },
 };
 
+// TODO(owner, 2026-10-09): accepted as transcribed — check both EN 10365 tables against a licensed copy of the standard.
 /**
  * EN 10365, IPE series: mass per metre (kg/m), keyed by nominal height h (mm).
  * IPE 80 … IPE 600 is the whole IPE range of the standard's I-section table.

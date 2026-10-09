@@ -85,6 +85,9 @@ test("_headers is generated from lib/security/headers.ts (single source); stagin
 test("_redirects keeps fa unprefixed and /request on /contact; .assetsignore excludes private/unpublished files", () => {
   const r = buildRedirectsFile();
   for (const rule of ["/fa / 308", "/fa/* /:splat 308", "/request /contact 308", "/en/request /en/contact 308", "/ar/request /ar/contact 308"]) assert.ok(r.includes(rule), rule);
+  // W10.1, fa-only calculator (owner 2026-10-09): the language selector's en/ar links go to that locale's home, temporarily.
+  for (const rule of ["/en/tools/weight-calculator /en 302", "/ar/tools/weight-calculator /ar 302"]) assert.ok(r.split("\n").includes(rule), rule);
+  assert.ok(!r.includes("/tools/weight-calculator / "), "fa is published: no rule for it");
   const ignore = buildAssetsIgnoreFile();
   for (const p of [".vite/", "*.rsc", "*.sql", "private-snapshot/", "manifest.json"]) assert.ok(ignore.split("\n").includes(p), p);
 });

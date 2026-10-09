@@ -1,5 +1,7 @@
 import { buildSecurityHeaders } from "../security/headers.ts";
 import { PRODUCTION_NOINDEX_HEADER_PATHS } from "../seo/indexing-policy.ts";
+import { locales, localizedPath } from "../../config/locales.ts";
+import { WEIGHT_CALCULATOR_LOCALES, WEIGHT_CALCULATOR_ROUTE } from "../weight-calculator/publication.ts";
 
 /**
  * Static replacements for what `proxy.ts` and the metadata routes did on the
@@ -27,9 +29,19 @@ export function buildHeadersFile(env: StaticEnvironment, rfqApiOrigin: string): 
   return lines.join("\n");
 }
 
+/**
+ * The weight calculator in a locale it is not published in (W10.1, owner decision 2026-10-09: fa only)
+ * sends a temporary 302 to that locale's home. The frozen Header's language selector links every page to
+ * the same path in each locale, so without this the fa calculator's "English"/"العربية" links would 404.
+ * Derived from WEIGHT_CALCULATOR_LOCALES: publishing a locale removes its rule.
+ */
+export function unpublishedCalculatorRedirects(): string[] {
+  return locales.filter((l) => !WEIGHT_CALCULATOR_LOCALES.includes(l)).map((l) => `${localizedPath(l, WEIGHT_CALCULATOR_ROUTE)} ${localizedPath(l, "/")} 302`);
+}
+
 /** `_redirects`: fa has no visible prefix; /request is the frozen Header CTA path whose form lives at /contact. */
 export function buildRedirectsFile(): string {
-  return ["/fa / 308", "/fa/* /:splat 308", "/request /contact 308", "/en/request /en/contact 308", "/ar/request /ar/contact 308", ""].join("\n");
+  return ["/fa / 308", "/fa/* /:splat 308", "/request /contact 308", "/en/request /en/contact 308", "/ar/request /ar/contact 308", ...unpublishedCalculatorRedirects(), ""].join("\n");
 }
 
 /** `.assetsignore`: defence in depth — these must never be uploaded even if present (the artifact gate also rejects them). */
