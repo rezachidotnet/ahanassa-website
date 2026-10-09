@@ -59,7 +59,7 @@ function odooSource(products: CatalogApiProduct[]): OdooSource {
 }
 
 function emptyTables(): SnapshotV1["tables"] {
-  return { catalog_public_categories: [], catalog_products: [], product_variants: [], product_seo_contents: [], public_processing_groups: [], route_redirects: [], homepage_product_rank: [], catalog_group_labels: [], published_prices: [], published_price_history: [] };
+  return { catalog_public_categories: [], catalog_products: [], product_variants: [], product_seo_contents: [], public_processing_groups: [], route_redirects: [], homepage_product_rank: [], catalog_group_labels: [], published_prices: [], published_price_history: [], published_articles: [] };
 }
 
 function d1Source(tables: SnapshotV1["tables"], active: string | null = null, counts: Record<string, number> = {}): D1Source {

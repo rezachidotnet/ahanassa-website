@@ -3,7 +3,7 @@ import Link from "@/components/ui/link";
 import { cn } from "@/lib/utils";
 import { localizedPath, type Locale } from "@/config/locales";
 import { siteConfig } from "@/lib/metadata/site";
-import { navLinks, headerPhoneLabel } from "@/lib/content/nav";
+import { visibleNavLinks, headerPhoneLabel } from "@/lib/content/nav";
 import { CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 
 /**
@@ -71,9 +71,9 @@ const FOOTER_LINK = "text-on-inverse-muted inline-flex min-h-11 items-center tra
 
 const incotermCodes = ["FOB", "CFR", "CIF", "FCA", "DAP", "EXW"];
 
-export function SiteFooter({ locale }: { locale: Locale }) {
+export function SiteFooter({ locale, hasArticles = false }: { locale: Locale; hasArticles?: boolean }) {
   const t = copy[locale];
-  const links = navLinks[locale];
+  const links = visibleNavLinks(locale, hasArticles);
 
   return (
     <footer aria-labelledby="site-footer-title" className="bg-navy on-inverse text-white">

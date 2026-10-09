@@ -28,6 +28,23 @@ export interface PageMetadataInput {
    * falls back to the uniform-path behavior of `buildLanguageAlternates`.
    */
   languageAlternates?: Record<string, string>;
+  /** W11.1: an absolute og:image/twitter:image (an article cover PNG on the production origin). */
+  image?: { url: string; width: number; height: number; alt: string };
+  /** W11.1: an article's dates (og:type article). */
+  article?: { publishedTime: string; modifiedTime: string };
+  /**
+   * W11.1: the page renders its own robots <meta> (`robotsMetaContent`) as the LAST element of an isolated
+   * async boundary instead of in the metadata. Needed where the metadata is long (articles: og image,
+   * dates, hreflang): React Flight outlines an element once its row passes 3200 serialized bytes, and the
+   * robots value is the one byte-length difference between the staging and production builds — placed
+   * before the page slot it can tip that decision and break the r4 allowlisted-diff gate.
+   */
+  robotsInPage?: boolean;
+}
+
+/** The robots <meta> content of a page: the same value the metadata would carry. */
+export function robotsMetaContent(indexable: boolean | undefined): string {
+  return indexable === false ? "noindex, follow" : "index, follow";
 }
 
 /** Reciprocal hreflang map, including x-default pointing at the default locale. Only valid when the same path exists in every locale. */
@@ -72,17 +89,23 @@ export function buildPageMetadata(input: PageMetadataInput): Metadata {
       canonical,
       languages: input.languageAlternates ?? buildLanguageAlternates(input.path),
     },
-    robots:
-      input.indexable === false
-        ? { index: false, follow: true }
-        : { index: true, follow: true },
+    ...(input.robotsInPage
+      ? {}
+      : {
+          robots:
+            input.indexable === false
+              ? { index: false, follow: true }
+              : { index: true, follow: true },
+        }),
     openGraph: {
       title: input.title,
       description: input.description,
       url: canonical,
       siteName: siteConfig.name,
       locale: localeConfig[input.locale].languageTag,
-      type: "website",
+      ...(input.article ? { type: "article" as const, publishedTime: input.article.publishedTime, modifiedTime: input.article.modifiedTime } : { type: "website" as const }),
+      ...(input.image ? { images: [input.image] } : {}),
     },
+    ...(input.image ? { twitter: { card: "summary_large_image" as const, title: input.title, description: input.description, images: [input.image.url] } } : {}),
   };
 }

@@ -6,6 +6,7 @@ import { scanPublicFile, type LeakFinding } from "./leak-scan.ts";
 import { internalIdsFromSnapshot, scanPublication } from "./publication-gate.ts";
 import { priceGateInput, scanPrices } from "./price-gate.ts";
 import { loadSourceNames, scanSourceNames } from "./source-name-scan.ts";
+import { scanArticlePages } from "./article-gate.ts";
 import { STATIC_TARGETS, TURNSTILE_ORIGIN } from "./targets.ts";
 import { checkIndexingPolicy, PRODUCTION_ORIGIN } from "./indexing-gate.ts";
 
@@ -169,6 +170,8 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
   for (const f of scanPublication(textFiles, internalIdsFromSnapshot(snapshotDoc))) failures.push(`publication ${f.kind} in ${f.file}: ${f.match}`);
   // 7. Price gate (W9.4): rendered price text = the snapshot row's allow-listed fields, Persian pages only.
   for (const f of scanPrices(textFiles, priceGateInput(snapshotDoc))) failures.push(`price ${f.kind} in ${f.file}: ${f.match}`);
+  // 8b. Article pages (W11.1): en no price data, ar no factory/location, no external image, no JSON-LD.
+  for (const f of scanArticlePages(textFiles, priceGateInput(snapshotDoc).rows)) failures.push(`article ${f.kind} in ${f.file}: ${f.match}`);
   // 8. Price-source names (W9.6): never in any public file. The names never live in this public repository.
   const sourceNames = options.sourceNames === undefined ? loadSourceNames() : options.sourceNames;
   // The finding names the file only: the name itself must not reach a public CI log either.

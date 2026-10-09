@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 import { PUBLISHED_PRICE_HISTORY_BUILD_DDL, PUBLISHED_PRICES_BUILD_DDL } from "../../contracts/snapshot-prices.ts";
+import { PUBLISHED_ARTICLES_BUILD_DDL } from "../../contracts/snapshot-articles.ts";
 
 /**
  * Build-time DB_PUBLIC for the static export (architecture V1.1 §7.1 step 4).
@@ -23,6 +24,8 @@ export function openSnapshotDatabase(snapshotFile: string, migrationsDir: string
   // W9.4: build-only snapshot table (never a DB_PUBLIC migration; lib/contracts/snapshot-prices.ts).
   db.exec(PUBLISHED_PRICES_BUILD_DDL);
   db.exec(PUBLISHED_PRICE_HISTORY_BUILD_DDL);
+  // W11.1: build-only articles (lib/contracts/snapshot-articles.ts).
+  db.exec(PUBLISHED_ARTICLES_BUILD_DDL);
   const snapshot = JSON.parse(fs.readFileSync(snapshotFile, "utf8")) as { tables: Record<string, Row[]> };
   db.exec("BEGIN");
   for (const [table, rows] of Object.entries(snapshot.tables)) {

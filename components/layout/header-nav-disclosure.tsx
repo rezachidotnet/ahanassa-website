@@ -110,13 +110,13 @@ export function HeaderNavDisclosure({
       <Link
         href={href}
         aria-current={isCurrentPage ? "page" : undefined}
-        className={cn("group relative px-3.5 py-2 text-sm font-medium transition-colors", isActiveSection ? "text-navy" : "text-muted-foreground hover:text-navy", className)}
+        className={cn("group relative px-2 py-2 text-sm font-medium whitespace-nowrap transition-colors xl:px-3.5", isActiveSection ? "text-navy" : "text-muted-foreground hover:text-navy", className)}
       >
         {label}
         <span
           aria-hidden="true"
           className={cn(
-            "bg-copper pointer-events-none absolute inset-x-3.5 -bottom-px h-0.5 opacity-0 transition-opacity motion-reduce:transition-none",
+            "bg-copper pointer-events-none absolute inset-x-2 xl:inset-x-3.5 -bottom-px h-0.5 opacity-0 transition-opacity motion-reduce:transition-none",
             isActiveSection ? "opacity-100" : "group-hover:opacity-100 group-focus-visible:opacity-100",
           )}
         />
@@ -130,7 +130,7 @@ export function HeaderNavDisclosure({
         <Link
           href={href}
           aria-current={isCurrentPage ? "page" : undefined}
-          className={cn("group relative py-2 ps-3.5 text-sm font-medium transition-colors", isActiveSection ? "text-navy" : "text-muted-foreground hover:text-navy")}
+          className={cn("group relative py-2 ps-2 text-sm font-medium whitespace-nowrap transition-colors xl:ps-3.5", isActiveSection ? "text-navy" : "text-muted-foreground hover:text-navy")}
         >
           {label}
           {/* Same reserved-space indicator as SiteHeader.tsx's plain nav
@@ -140,7 +140,7 @@ export function HeaderNavDisclosure({
           <span
             aria-hidden="true"
             className={cn(
-              "bg-copper pointer-events-none absolute inset-x-3.5 -bottom-px h-0.5 opacity-0 transition-opacity motion-reduce:transition-none",
+              "bg-copper pointer-events-none absolute inset-x-2 xl:inset-x-3.5 -bottom-px h-0.5 opacity-0 transition-opacity motion-reduce:transition-none",
               isActiveSection ? "opacity-100" : "group-hover:opacity-100 group-focus-visible:opacity-100",
             )}
           />
