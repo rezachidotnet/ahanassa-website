@@ -321,3 +321,19 @@ test("first publication of an empty DB_PUBLIC: switch creates the pointer; a rol
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM publication_pointer").get()!.n, 0);
   assert.equal(db.prepare("SELECT status FROM publication_state WHERE version = ?").get(v)!.status, "failed");
 });
+
+// --- W9.4 fix (run 37937272256): the D1 read never touches a build-only table -------------------------
+test("readD1Source runs against the REAL DB_PUBLIC schema (migrations_public) and never reads published_prices", async () => {
+  const { SqliteD1, PUBLIC_MIGRATIONS } = await import("../testing/sqlite-d1.ts");
+  const { readD1Source, D1_SOURCE_TABLES } = await import("./d1-source.ts");
+  const { BUILD_ONLY_SNAPSHOT_TABLES } = await import("../contracts/snapshot-v1.ts");
+  assert.ok(!(D1_SOURCE_TABLES as readonly string[]).includes("published_prices"));
+  for (const t of BUILD_ONLY_SNAPSHOT_TABLES) assert.ok(!(D1_SOURCE_TABLES as readonly string[]).includes(t), t);
+  // The remote databases have exactly the migrations_public schema — no published_prices table.
+  const db = new SqliteD1([PUBLIC_MIGRATIONS]);
+  assert.throws(() => db.sqlite.prepare("SELECT 1 FROM published_prices").all(), /no such table/);
+  const source = await readD1Source(db as unknown as D1Database);
+  assert.equal(source.schema, "d1-source.v1");
+  assert.ok(!("published_prices" in source.tables));
+  assert.equal(source.publication.active_version, null);
+});
