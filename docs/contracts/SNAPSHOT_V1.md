@@ -57,6 +57,7 @@ Row types (abridged; full in code):
 | `product_variants` | `id`, `product_id`, `xid` (CVAR), `sku`, sizes, family/group/form/grade/standard codes and names, `dimensions_json`, `nominal_weight_json`, `allowed_commercial_units`, flags, … |
 | `product_seo_contents` | `entity_type`, `entity_id`, `locale`, `slug`, `h1`, `intro`, `seo_title`, `seo_description`, `index_status`, `content_quality_status`, `published_at`, … |
 | `public_processing_groups` | `code`, `locale`, `name`, `sequence`, `is_active`, … |
+| `published_articles` (W11.1) | exactly: `locale`, `slug`, `title`, `description`, `date`, `updated`, `category`, `tags_json`, `related_products_json`, `faq_json`, `sources_json`, `author`, `translations_json`, `body_md`, `cover_svg` — see below |
 | `published_price_history` (W9.6) | exactly: `canonical_variant_id`, `day`, `price_irr_per_kg`, `published_at` — see below |
 | `published_prices` (W9.4) | exactly: `canonical_variant_id`, `price_irr_per_kg`, `vat_included`, `factory_name_fa`, `location_fa`, `published_at`, `previous_price_irr_per_kg`, `previous_published_at` — see below |
 
@@ -119,6 +120,25 @@ Owner-approved 2026-10-09 (W9.6: price page, ▲/▼, 30-day chart). Code: `lib/
   current price's day; the publication gate re-counts them (`lib/static/price-gate.ts`). ▲/▼ uses
   `published_prices.previous_*` only when it is from an earlier Tehran day.
 - **Build-only**, exactly like `published_prices`: no `migrations_public` table, never mirrored or loaded into D1.
+
+## `published_articles` (W11.1, extension)
+
+Owner-approved 2026-10-09 (W11.1: articles section). Code: `lib/contracts/snapshot-articles.ts` (row),
+`lib/content-pipeline/articles-source.ts` (fetch), `lib/articles/validate.ts` + `lib/content-pipeline/articles.ts`
+(checks, fail-safe). Full description: `docs/ARTICLES.md`.
+
+- **Source:** the PRIVATE content repository's `main` (`articles/**.md`, `assets/articles/**.svg` only; sparse,
+  blob-filtered clone — no other file of that repository is ever downloaded).
+- **Rows:** one per (locale, slug) article that passed the website's checks. Only rendered fields; the
+  content repository's `topic_reason` and `reviewed_by` are dropped. `category` is the code
+  (`buying-guide`, `standards`, `market-analysis`, `application`, `construction-technology`), not the Persian
+  label the source stores. `translations_json` keeps only pairs that both publish and point at each other
+  (the snapshot schema re-checks that).
+- **Fail-safe:** an unconfigured or failed fetch builds without articles (warning) unless the active
+  publication shows articles (`articles_fa/ar/en` counts) — then the run is blocked. A refused article is
+  left out (warning); the article decrease gate (threshold 0) blocks if that removes a live article.
+- **Build-only**, exactly like `published_prices`: no `migrations_public` table, never mirrored or loaded into
+  D1. `cover_svg` is rasterized to PNG/WebP at build time; the SVG itself is never published.
 
 ## `rfq_variant_index` row (architecture §5.1, A8)
 
