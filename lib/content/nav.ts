@@ -1,5 +1,6 @@
 import type { Locale } from "@/config/locales";
 import { PRICE_NAV_LABEL, PRICE_PAGE_ROUTE } from "../pricing/price-page.ts";
+import { ARTICLES_ROUTE } from "../articles/routes.ts";
 
 /**
  * Primary Header navigation — docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md §58.1.
@@ -17,6 +18,12 @@ import { PRICE_NAV_LABEL, PRICE_PAGE_ROUTE } from "../pricing/price-page.ts";
  * «قیمت روز» → /prices after Products, fa and ar only (ar label approved
  * «أسعار اليوم»); en has no price page and no such item. A plain direct link,
  * no dropdown. The footer's company list repeats this list.
+ *
+ * W11.1 (owner instruction 2026-10-09, listed in the PR for veto):
+ * «مقالات» / «المقالات» / "Articles" → /articles, between Industries and
+ * About, in all three locales — but only in a locale whose build actually
+ * publishes articles (`visibleNavLinks`; a locale without articles has no
+ * /articles page, so the item would be a broken link). A plain direct link.
  */
 export interface NavLink {
   path: string;
@@ -30,6 +37,7 @@ export const navLinks: Record<Locale, NavLink[]> = {
     { path: PRICE_PAGE_ROUTE, label: PRICE_NAV_LABEL.fa },
     { path: "/services", label: "خدمات", hasDropdown: true },
     { path: "/industries", label: "صنایع" },
+    { path: ARTICLES_ROUTE, label: "مقالات" },
     { path: "/about", label: "درباره ما" },
     { path: "/contact", label: "تماس با ما" },
   ],
@@ -37,6 +45,7 @@ export const navLinks: Record<Locale, NavLink[]> = {
     { path: "/products", label: "Products", hasDropdown: true },
     { path: "/services", label: "Services", hasDropdown: true },
     { path: "/industries", label: "Industries" },
+    { path: ARTICLES_ROUTE, label: "Articles" },
     { path: "/about", label: "About" },
     { path: "/contact", label: "Contact" },
   ],
@@ -45,10 +54,16 @@ export const navLinks: Record<Locale, NavLink[]> = {
     { path: PRICE_PAGE_ROUTE, label: PRICE_NAV_LABEL.ar },
     { path: "/services", label: "الخدمات", hasDropdown: true },
     { path: "/industries", label: "الصناعات" },
+    { path: ARTICLES_ROUTE, label: "المقالات" },
     { path: "/about", label: "من نحن" },
     { path: "/contact", label: "تواصل معنا" },
   ],
 };
+
+/** The header/footer list of a locale: the «مقالات» item only when the locale publishes articles (W11.1). */
+export function visibleNavLinks(locale: Locale, hasArticles: boolean): NavLink[] {
+  return navLinks[locale].filter((l) => l.path !== ARTICLES_ROUTE || hasArticles);
+}
 
 /**
  * "مشاهده همه…" — the dropdown's own low-weight footer link (§52.11), not

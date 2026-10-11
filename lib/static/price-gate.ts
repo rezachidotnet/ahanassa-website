@@ -5,6 +5,10 @@ import { PRICE_RFQ_COPY, RFQ_FACTORY_PARAM } from "../pricing/price-rfq.ts";
 import { isDailyPriceEligible } from "../pricing/daily-price-eligibility.ts";
 import { sparklineSeries, tehranDay, type DailyPoint } from "../pricing/price-history.ts";
 import { CALCULATOR_PRICE_PAGES, fileLocale } from "./leak-scan.ts";
+import { ARTICLE_TEXT_ATTRIBUTE } from "../articles/routes.ts";
+
+/** fa/ar article pages and listings (W11.1): `articles/…`, `ar/articles/…` (and the `articles.html` listing). */
+const ARTICLE_PAGE = /^(ar\/)?articles(\.html$|\/)/;
 
 /**
  * W9.4 price gate — the price half of the publication gate, run by the artifact gate on every
@@ -31,6 +35,11 @@ import { CALCULATOR_PRICE_PAGES, fileLocale } from "./leak-scan.ts";
  *    the snapshot, and draws exactly that many; ar/en never carry a chart, the RFQ copy of the other
  *    locale or a `factory=` RFQ prefill; en never ▲/▼ (fa and ar show it, owner decision on PR #35). A per-ton raw/semi-finished material never has a price element or
  *    calculator entry (lib/pricing/daily-price-eligibility.ts).
+ *
+ * W11.1: on fa/ar ARTICLE pages only, the article's own text (elements marked ARTICLE_TEXT_ATTRIBUTE: title,
+ * description, body, FAQ) may quote a rendered amount — editorial text governed by the content repository's
+ * rules and the owner's merge — so rule 2's "no amount outside a price element" skips those regions there.
+ * Rules 3 and 4 still apply to the whole file (ar never names a factory/location, en never has a price).
  *
  * The pricing-API field names, source-like keys and factory codes are refused in every public file by the
  * leak scan (lib/static/leak-scan.ts, kind `pricing_field`); JSON-LD offers/price by the publication gate.
@@ -105,8 +114,13 @@ export interface PriceElement {
 
 /** Every price element (outer HTML, nesting-aware) of a page. */
 export function priceElements(html: string): PriceElement[] {
+  return elementsWithAttribute(html, [PRICE_CELL_ATTRIBUTE, PRICE_BLOCK_ATTRIBUTE]);
+}
+
+/** Every element carrying one of `attributes` (outer HTML, nesting-aware). */
+export function elementsWithAttribute(html: string, attributes: readonly string[]): PriceElement[] {
   const out: PriceElement[] = [];
-  const opener = new RegExp(`<([a-z][a-z0-9]*)\\b[^>]*\\s(${PRICE_CELL_ATTRIBUTE}|${PRICE_BLOCK_ATTRIBUTE})="([^"]*)"[^>]*>`, "gi");
+  const opener = new RegExp(`<([a-z][a-z0-9]*)\\b[^>]*\\s(${attributes.join("|")})="([^"]*)"[^>]*>`, "gi");
   for (const m of html.matchAll(opener)) {
     const tag = m[1].toLowerCase();
     const start = m.index ?? 0;
@@ -124,6 +138,17 @@ export function priceElements(html: string): PriceElement[] {
     out.push({ attribute: m[2], value: m[3], start, end, html: html.slice(start, end) });
   }
   return out;
+}
+
+/** `html` without the given elements (overlapping or nested ones merged). */
+export function withoutElements(html: string, elements: readonly { start: number; end: number }[]): string {
+  let out = "";
+  let cursor = 0;
+  for (const el of [...elements].sort((a, b) => a.start - b.start)) {
+    if (el.start >= cursor) out += html.slice(cursor, el.start);
+    cursor = Math.max(cursor, el.end);
+  }
+  return out + html.slice(cursor);
 }
 
 /** What is left of `text` after removing every allowed string (longest first). */
@@ -231,6 +256,10 @@ export function scanPrices(files: ReadonlyArray<{ path: string; content: string 
       if (left) findings.push({ file: path, kind: "price_text_not_allowed", match: `${el.attribute}="${el.value}": ${left.slice(0, 120)}` });
     }
     outside += content.slice(cursor);
+    // W11.1: on a fa/ar article page, the article's own text (title, description, body, FAQ — ARTICLE_TEXT_ATTRIBUTE)
+    // may quote a price: editorial text under the content repository's rules and the owner's review. Only there,
+    // only on fa/ar; en article pages stay fully covered by rule 4 above.
+    if (ARTICLE_PAGE.test(path)) outside = withoutElements(outside, elementsWithAttribute(outside, [ARTICLE_TEXT_ATTRIBUTE]));
     const outsideText = visibleText(outside);
     for (const a of amounts[locale]) if (outsideText.includes(a)) findings.push({ file: path, kind: "price_outside_markup", match: a });
   }

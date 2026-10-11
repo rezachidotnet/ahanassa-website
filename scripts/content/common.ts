@@ -43,6 +43,10 @@ export const paths = (work: string) => ({
   odoo: path.join(work, "source/odoo.json"),
   d1: path.join(work, "source/d1.json"),
   fetchReport: path.join(work, "source/fetch-report.json"),
+  /** W11.1: the raw article files of the content repository (articles/ + assets/articles/ only). */
+  articlesSource: path.join(work, "source/articles.json"),
+  /** W11.1: the article rows the validate step accepted (the snapshot step reads them). */
+  articles: path.join(work, "articles.json"),
   validation: path.join(work, "validation.json"),
   snapshot: path.join(work, "snapshot.json"),
   artifact: path.join(work, "artifact"),
