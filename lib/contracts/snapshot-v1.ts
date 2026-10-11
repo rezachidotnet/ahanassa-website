@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { SNAPSHOT_VERSION_PATTERN } from "./snapshot-version.ts";
 import { PUBLISHED_PRICE_HISTORY_TABLE, PUBLISHED_PRICES_TABLE, publishedPriceHistoryRow, publishedPriceRow } from "./snapshot-prices.ts";
+import { PUBLISHED_ARTICLES_TABLE, publishedArticleRow } from "./snapshot-articles.ts";
 
 /**
  * snapshot.v1 — the build-time public data snapshot (docs/contracts/SNAPSHOT_V1.md,
@@ -170,13 +171,15 @@ export const SNAPSHOT_TABLES = {
   [PUBLISHED_PRICES_TABLE]: publishedPriceRow,
   // W9.6: build-only daily price points (the sparkline).
   [PUBLISHED_PRICE_HISTORY_TABLE]: publishedPriceHistoryRow,
+  // W11.1: build-only articles from the private content repository (lib/contracts/snapshot-articles.ts).
+  [PUBLISHED_ARTICLES_TABLE]: publishedArticleRow,
 } as const;
 /**
  * Snapshot tables that exist only in the static build's in-memory database, never in the remote
  * DB_PUBLIC (no migrations_public file; never loaded or mirrored into D1). W9.4: the published prices;
- * W9.6: their daily history.
+ * W9.6: their daily history; W11.1: the articles.
  */
-export const BUILD_ONLY_SNAPSHOT_TABLES: ReadonlySet<string> = new Set([PUBLISHED_PRICES_TABLE, PUBLISHED_PRICE_HISTORY_TABLE]);
+export const BUILD_ONLY_SNAPSHOT_TABLES: ReadonlySet<string> = new Set([PUBLISHED_PRICES_TABLE, PUBLISHED_PRICE_HISTORY_TABLE, PUBLISHED_ARTICLES_TABLE]);
 export type SnapshotTableName = keyof typeof SNAPSHOT_TABLES;
 export const REQUIRED_SNAPSHOT_TABLES: SnapshotTableName[] = ["catalog_public_categories", "catalog_products", "product_variants", "product_seo_contents", "public_processing_groups"];
 
@@ -210,6 +213,7 @@ export const snapshotV1 = z
         catalog_group_labels: z.array(catalogGroupLabelRow).default([]),
         published_prices: z.array(publishedPriceRow).default([]),
         published_price_history: z.array(publishedPriceHistoryRow).default([]),
+        published_articles: z.array(publishedArticleRow).default([]),
       })
       .strict(),
   })
@@ -248,6 +252,19 @@ export const snapshotV1 = z
       const c = current.get(xid);
       if (c && (c.price_irr_per_kg !== n.price || c.published_at !== n.at)) ctx.addIssue({ code: "custom", path: ["tables", "published_price_history"], message: `${xid}: the newest history point is not the current published price` });
     }
+    // W11.1: one article per (locale, slug); a translation names an article of that locale that names it back.
+    const articles = new Map(s.tables.published_articles.map((a) => [`${a.locale}:${a.slug}`, a]));
+    if (articles.size !== s.tables.published_articles.length) ctx.addIssue({ code: "custom", path: ["tables", "published_articles"], message: "duplicate (locale, slug)" });
+    const translationsOf = (a: { translations_json: string }) => JSON.parse(a.translations_json) as Record<string, string | null>;
+    s.tables.published_articles.forEach((a, i) => {
+      const tr = translationsOf(a);
+      if (tr[a.locale] !== a.slug) ctx.addIssue({ code: "custom", path: ["tables", "published_articles", i, "translations_json"], message: "translations must name the article itself" });
+      for (const [locale, slug] of Object.entries(tr)) {
+        if (!slug || locale === a.locale) continue;
+        const other = articles.get(`${locale}:${slug}`);
+        if (!other || translationsOf(other)[a.locale] !== a.slug) ctx.addIssue({ code: "custom", path: ["tables", "published_articles", i, "translations_json"], message: `translation ${locale}:${slug} is missing or does not point back` });
+      }
+    });
   });
 
 export type SnapshotV1 = z.infer<typeof snapshotV1>;

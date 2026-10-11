@@ -1,6 +1,7 @@
 import type { CatalogApiProduct } from "../catalog/odoo-api-client.ts";
 import { normalizeCatalogTimestamp, slugifyFromSku, slugifyTemplateXid } from "../catalog/sync.ts";
 import type { SnapshotV1 } from "../contracts/snapshot-v1.ts";
+import type { PublishedArticleRow } from "../contracts/snapshot-articles.ts";
 import type { D1Source } from "./d1-source.ts";
 import type { OdooSource } from "./odoo-source.ts";
 import { validatePricing } from "./pricing.ts";
@@ -23,6 +24,8 @@ import { validatePricingHistory } from "./pricing-history.ts";
  *   Odoo introduces gets the same defaults the sync used (not public).
  * - A row DB_PUBLIC has but the full fetch no longer returns stays in the
  *   snapshot with `is_active = 0` (soft deactivation; editorial rows survive).
+ * - W11.1: `articles` are the rows the validate step accepted from the content
+ *   repository (lib/content-pipeline/articles.ts); build-only, never from D1.
  */
 
 type Tables = SnapshotV1["tables"];
@@ -79,7 +82,7 @@ function sameColumns(a: Record<string, unknown>, b: Record<string, unknown>, key
 
 const byKey = <T>(key: (row: T) => string) => (a: T, b: T) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0);
 
-export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivatedAt: string): Tables {
+export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivatedAt: string, articles: readonly PublishedArticleRow[] = []): Tables {
   // --- templates + variants ---------------------------------------------------
   const existingProducts = d1.tables.catalog_products;
   const productByTemplate = new Map(existingProducts.map((p) => [p.template_xid, p]));
@@ -243,5 +246,7 @@ export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivat
     published_prices: prices,
     // W9.6: the daily points of the 30-day chart (empty, never an error, when the history is unusable).
     published_price_history: validatePricingHistory(odoo.price_history, prices, odoo.fetched_at).rows,
+    // W11.1: build-only articles, already sorted by (locale, slug).
+    published_articles: [...articles],
   };
 }

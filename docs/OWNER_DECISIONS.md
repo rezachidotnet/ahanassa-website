@@ -63,6 +63,14 @@ D-DAR-063 and D-SCHEDULE are implemented now (W9.1). D-PRICE and D-ARTICLES are 
 | **D-W103-3** | **All form controls the same border width, height and radius** on the contact page and the RFQ form, fa/en/ar, mobile and desktop. | `components/ui/form-control.ts`: inputs and selects are a fixed 48px (`h-12`, was `min-h-12`, which let the desktop phone input stretch to 56.5px), 1px border, 8px radius; the textarea keeps the same border and radius and stays multi-line. The form has no file input (attachments go via WhatsApp, decision 2026-10-04). |
 | **D-W103-4** | **RFQ success state: only the tracking-number panel.** After «ارسال برای بررسی» succeeds, hide every other part of the request page and show only the tracking number (prominent), a copy button, one short next-step line and one link back home. All three locales; error path unchanged; no RFQ Worker/API change. | `components/contact/rfq-success-panel.ts` (+ test); `enquiry-form.tsx` sets `data-rfq-submitted` on `<html>`, the contact page marks its hero, form heading, next steps, office and FAQ with `data-rfq-hide-on-success` (`styles/theme-extensions.css`). The confirmation's WhatsApp-drawings link and «ثبت درخواست جدید» button are no longer shown. **fa/en/ar panel copy, removing the WhatsApp link and «ثبت درخواست جدید» from the panel, and the sheet/plate image ("sheet and plate.jpg", overriding the 2026-09-28 rejection): approved 2026-10-09.** |
 
+## Decisions of 2026-10-09 (W11.1 articles, PR #39 review)
+
+| # | Decision (as given) | Effect |
+|---|---|---|
+| **D-W111-1** | **Approved: the «مقالات» nav item** («المقالات» / "Articles") in the header and footer of fa/ar/en, between Industries and About, shown only in a locale whose build has articles. | `lib/content/nav.ts` (`navLinks`, `visibleNavLinks`), `app/[locale]/layout.tsx` (`hasArticles`), header/footer invariant tests. |
+| **D-W111-2** | **Approved: tighter header spacing below 1280 px** so the extra item fits at 1024–1279 px: nav items 8 px side padding and no gap between them, labels never wrap, 12 px gaps between the header's groups. From 1280 px unchanged. | `components/layout/SiteHeader.tsx`, `header-nav-disclosure.tsx`. Pre-existing and left as is: in ar at 1024–~1047 px the phone icon and the language chevron are squeezed out; a CSS-only fix would need spacing tighter than this decision in every locale (PR #39 report). |
+| **D-W111-3** | **Approved: fa/ar price quotes inside an article's own text** (title, description, body, FAQ) on fa/ar article pages. **en still no price data at all; ar still never names a factory or delivery location.** | `lib/static/price-gate.ts` (rule 2 skips `data-aa-article-text` regions on fa/ar article pages only), `lib/static/article-gate.ts`, `lib/articles/validate.ts`; `docs/ARTICLES.md`. |
+
 ## Decisions of 2026-10-08 (W10 design system)
 
 Answers to the five owner decisions of the W10.0 design review. Implemented in W10.2 (branch `w10-2/design-system`).

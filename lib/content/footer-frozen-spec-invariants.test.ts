@@ -92,7 +92,8 @@ test("The phone anchor is LTR/bidi-isolated for FA/AR (FOOTER_SPEC.md §9.5)", (
 });
 
 test("Phone action reuses the existing headerPhoneLabel dictionary, not a duplicated one", () => {
-  assert.match(FOOTER_SOURCE, /import\s*\{\s*navLinks,\s*headerPhoneLabel\s*\}\s*from\s*"@\/lib\/content\/nav"/);
+  // W11.1: the footer lists `visibleNavLinks` (the header list, «مقالات» only where the build has articles).
+  assert.match(FOOTER_SOURCE, /import\s*\{\s*visibleNavLinks,\s*headerPhoneLabel\s*\}\s*from\s*"@\/lib\/content\/nav"/);
   assert.match(FOOTER_SOURCE, /aria-label=\{headerPhoneLabel\[locale\]\.srLabel\}/);
 });
 

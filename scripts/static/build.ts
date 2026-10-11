@@ -27,6 +27,8 @@ import { moveDefaultLocaleToRoot, placeLocale404s, removeUnpublishedOutputs } fr
 import { describeFiles, runArtifactGate } from "../../lib/static/artifact-gate.ts";
 import { getAllowedUomsForCatalogGroup } from "../../lib/rfq/uom-policy.ts";
 import { STATIC_TARGETS } from "../../lib/static/targets.ts";
+import { rasterizeCover } from "../../lib/articles/cover-raster.ts";
+import { articleCoverPath } from "../../lib/articles/routes.ts";
 
 const repo = path.resolve(import.meta.dirname, "../..");
 const args = new Map<string, string>();
@@ -149,6 +151,18 @@ const sitemapEntries = await sitemap();
 fs.writeFileSync(path.join(publicDir, "sitemap.xml"), renderSitemapXml(sitemapEntries));
 counts.sitemap_urls = sitemapEntries.length;
 await vite.close();
+
+// W11.1: article covers, SVG (snapshot) → PNG (og:image) + WebP (cards); the SVG is never published.
+for (const a of snapshot.tables.published_articles) {
+  const { png, webp } = await rasterizeCover(a.cover_svg);
+  for (const [format, bytes] of [["png", png], ["webp", webp]] as const) {
+    const file = path.join(publicDir, articleCoverPath(a.locale, a.slug, format).slice(1));
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, bytes);
+  }
+}
+counts.article_covers = snapshot.tables.published_articles.length;
+if (snapshot.tables.published_articles.length) log(`rasterized ${snapshot.tables.published_articles.length} article cover(s) to PNG + WebP`);
 
 fs.writeFileSync(path.join(publicDir, "_headers"), buildHeadersFile(environment, target.rfqApiOrigin));
 fs.writeFileSync(path.join(publicDir, "_redirects"), buildRedirectsFile());

@@ -9,6 +9,7 @@ import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { listHeaderProductFamilyShortcuts, type HeaderProductFamilyShortcut } from "@/lib/catalog/editorial-repository";
 import { listPublicProcessingGroups, type PublicProcessingGroup } from "@/lib/processing/public-repository";
+import { hasArticles } from "@/lib/articles/repository";
 
 export function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
@@ -79,13 +80,16 @@ export default async function LocaleLayout({
     console.error("HEADER_SERVICE_GROUPS_READ_ERROR", JSON.stringify({ message: error instanceof Error ? error.message : String(error) }));
   }
 
+  // W11.1: the «مقالات» item only in a locale whose build publishes articles (lib/content/nav.ts).
+  const articlesPublished = await hasArticles(locale);
+
   return (
     <html lang={locale} dir={direction} className={estedad.variable}>
       <body>
         <SkipLink label={skipLinkLabel[locale]} />
-        <SiteHeader locale={locale} productFamilies={productFamilies} serviceGroups={serviceGroups} />
+        <SiteHeader locale={locale} productFamilies={productFamilies} serviceGroups={serviceGroups} hasArticles={articlesPublished} />
         <main id="main-content">{children}</main>
-        <SiteFooter locale={locale} />
+        <SiteFooter locale={locale} hasArticles={articlesPublished} />
       </body>
     </html>
   );

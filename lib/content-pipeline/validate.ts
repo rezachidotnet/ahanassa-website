@@ -176,20 +176,20 @@ export interface DecreaseFinding {
 export function decreaseFindings(current: Record<string, number>, previous: Record<string, number> | null, threshold: number = PIPELINE_CONFIG.decreaseThreshold): DecreaseFinding[] {
   if (!previous) return [];
   const findings: DecreaseFinding[] = [];
-  for (const { key, legacy } of GATED_COUNTS) {
+  for (const { key, legacy, threshold: keyThreshold } of GATED_COUNTS) {
     if (!(key in current)) continue;
     const previousKey = key in previous ? key : legacy && legacy in previous ? legacy : null;
     if (!previousKey) continue;
     const prev = previous[previousKey];
     const cur = current[key];
-    if (prev > 0 && cur < prev && (prev - cur) / prev > threshold) findings.push({ key, previousKey, previous: prev, current: cur, drop: Number(((prev - cur) / prev).toFixed(4)) });
+    if (prev > 0 && cur < prev && (prev - cur) / prev > (keyThreshold ?? threshold)) findings.push({ key, previousKey, previous: prev, current: cur, drop: Number(((prev - cur) / prev).toFixed(4)) });
   }
   return findings;
 }
 
 export function describeDecrease(findings: DecreaseFinding[], threshold: number = PIPELINE_CONFIG.decreaseThreshold): string {
   return [
-    `DECREASE GATE: ${findings.length} count(s) fell by more than ${threshold * 100}% against the active publication:`,
+    `DECREASE GATE: ${findings.length} count(s) fell by more than ${threshold * 100}% (articles: by any amount) against the active publication:`,
     ...findings.map((f) => `  - ${f.key}: ${f.previous} -> ${f.current} (-${(f.drop * 100).toFixed(1)}%${f.previousKey !== f.key ? `, previous recorded as ${f.previousKey}` : ""})`),
     "Publication stopped; the active version is untouched. If this drop is intended, re-run the workflow with allow_decrease=true (recorded in the manifest).",
   ].join("\n");

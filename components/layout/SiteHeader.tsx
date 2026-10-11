@@ -8,7 +8,7 @@ import { Menu, Phone } from "lucide-react";
 import { localizedPath, type Locale } from "@/config/locales";
 import { categoryListingPath } from "@/lib/catalog/public-categories";
 import { siteConfig } from "@/lib/metadata/site";
-import { navLinks, primaryCta, headerPhoneLabel, dropdownViewAllLabel, dropdownDisclosureAccessibleName } from "@/lib/content/nav";
+import { visibleNavLinks, primaryCta, headerPhoneLabel, dropdownViewAllLabel, dropdownDisclosureAccessibleName } from "@/lib/content/nav";
 import { CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 import { HeaderNavDisclosure } from "@/components/layout/header-nav-disclosure";
 import { HeaderLanguageSelector } from "@/components/layout/header-language-selector";
@@ -57,17 +57,20 @@ export function SiteHeader({
   locale,
   productFamilies,
   serviceGroups,
+  hasArticles = false,
 }: {
   locale: Locale;
   productFamilies: HeaderProductFamilyShortcut[];
   serviceGroups: PublicProcessingGroup[];
+  /** W11.1: whether this locale's build publishes articles (the «مقالات» item). */
+  hasArticles?: boolean;
 }) {
   const pathname = usePublicPathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const t = menuLabel[locale];
-  const links = navLinks[locale];
+  const links = visibleNavLinks(locale, hasArticles);
   const viewAllLabels = dropdownViewAllLabel[locale];
   const disclosureNames = dropdownDisclosureAccessibleName[locale];
 
@@ -138,7 +141,7 @@ export function SiteHeader({
         )}
       >
         {/* Header shell height: 80px default / ~68px compact scrolled (desktop, §46.1/§46.3/§58.5); 72px fixed on mobile (§46.2, below `lg`). */}
-        <div className={cn("container-x flex items-center justify-between gap-4 transition-[height] duration-[180ms] motion-reduce:transition-none", "h-[72px] lg:h-20", scrolled && "lg:h-[68px]")}>
+        <div className={cn("container-x flex items-center justify-between gap-3 xl:gap-4 transition-[height] duration-[180ms] motion-reduce:transition-none", "h-[72px] lg:h-20", scrolled && "lg:h-[68px]")}>
           <Link href={localizedPath(locale, "/")} aria-label={siteConfig.name} className="relative flex shrink-0 items-center gap-2.5 after:absolute after:-inset-0.5 after:content-['']">
             {/* No official horizontal lockup asset exists in this repository yet
                 (verified: only a square mark, public/brand/ahan-asa-mark.jpg —
@@ -162,7 +165,9 @@ export function SiteHeader({
             <span className="text-navy hidden text-[15px] font-extrabold tracking-[0.06em] sm:inline">{siteConfig.name}</span>
           </Link>
 
-          <nav aria-label={t.nav} className="hidden items-center gap-1 lg:flex">
+          {/* W11.1: with the «مقالات» item, 1024–1279 px is tight — items keep 14 px side padding and 4 px gaps from xl,
+              8 px and none below it, and never wrap a label onto two lines. */}
+          <nav aria-label={t.nav} className="hidden items-center gap-0 lg:flex xl:gap-1">
             {links.map((link) => {
               const href = localizedPath(locale, link.path);
               // Addendum §8: `aria-current="page"` is reserved for the
@@ -195,7 +200,7 @@ export function SiteHeader({
                   key={link.path}
                   href={href}
                   aria-current={isCurrentPage ? "page" : undefined}
-                  className={cn("group relative px-3.5 py-2 text-sm font-medium transition-colors", isActiveSection ? "text-navy" : "text-muted-foreground hover:text-navy")}
+                  className={cn("group relative px-2 py-2 text-sm font-medium whitespace-nowrap transition-colors xl:px-3.5", isActiveSection ? "text-navy" : "text-muted-foreground hover:text-navy")}
                 >
                   {link.label}
                   {/* Hover/focus underline reuses the same reserved-space
@@ -206,7 +211,7 @@ export function SiteHeader({
                   <span
                     aria-hidden="true"
                     className={cn(
-                      "bg-copper pointer-events-none absolute inset-x-3.5 -bottom-px h-0.5 opacity-0 transition-opacity duration-[180ms] motion-reduce:transition-none",
+                      "bg-copper pointer-events-none absolute inset-x-2 xl:inset-x-3.5 -bottom-px h-0.5 opacity-0 transition-opacity duration-[180ms] motion-reduce:transition-none",
                       isActiveSection ? "opacity-100" : "group-hover:opacity-100 group-focus-visible:opacity-100",
                     )}
                   />
@@ -215,7 +220,7 @@ export function SiteHeader({
             })}
           </nav>
 
-          <div className="flex items-center gap-3 lg:gap-4">
+          <div className="flex items-center gap-3 xl:gap-4">
             {/* Verified phone utility (§37.3-37.4/§46.13/§58.21) — one
                 source (lib/content/contact-channels.ts), uniform across
                 fa/en/ar; low-weight, never a second CTA. WhatsApp is
