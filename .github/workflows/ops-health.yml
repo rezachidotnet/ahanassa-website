@@ -40,18 +40,19 @@ permissions:
   contents: read
   actions: read
 
-# W9.1c: concurrency is per job, not per workflow. A staging job that GitHub never moves out of "waiting" on
-# environment `staging` (F3 2026-10-06, again 2026-10-07: no protection rule held it) then blocks only staging
-# runs; health-production keeps running every 15 min in its own group.
+# W11.3: no concurrency group at all (W9.1c had one per job). GitHub sometimes never moves a job out of "waiting" on an
+# environment that has no reviewer or wait timer (F3: staging 2026-10-06 and 10-07; production-v11-monitor run
+# 38093742621, 2026-10-10 23:04 UTC). With a group, that one stuck job held the group: every later production job
+# queued "pending" behind it and was cancelled 15 min later by the next run (one pending job per group), so production
+# monitoring and its dead-man's ping stopped for 15 h. Without a group a stuck job only loses its own run. Overlap is
+# harmless: the checks are read-only, each job has a 10 min timeout, and a run's window starts at the previous
+# COMPLETED run (scripts/ops/health), so a stuck run is never taken as the start of a window.
 jobs:
   health:
     name: health (staging)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: staging
-    concurrency:
-      group: ops-health-staging
-      cancel-in-progress: false
     steps:
       - name: Checkout scripts/ops (application branch)
         uses: actions/checkout@v6
@@ -104,9 +105,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: production-v11-monitor
-    concurrency:
-      group: ops-health-production
-      cancel-in-progress: false
     steps:
       - name: Checkout scripts/ops (application branch)
         uses: actions/checkout@v6
