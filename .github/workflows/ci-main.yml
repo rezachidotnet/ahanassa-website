@@ -1,0 +1,61 @@
+# W9.7: tests of the release scripts that live on `main` with the workflows (.github/scripts/*.test.mjs) and a lint of
+# every workflow file. main holds no application code; feat/v11-static-site has its own CI (ci.yml there).
+name: CI (main)
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-main-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scripts:
+    name: release scripts (node --test) + actionlint + source-name scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      # The tests read the strict ledger resolver from the application branch (RESOLVER_SOURCE_REF).
+      - name: Fetch the application branch
+        run: git fetch --no-tags --depth=1 origin +refs/heads/feat/v11-static-site:refs/remotes/origin/feat/v11-static-site
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Release script tests
+        run: node --test ".github/scripts/*.test.mjs"
+
+      - name: actionlint
+        run: |
+          set -euo pipefail
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+          # The v11 workflows. The legacy Worker workflows (deploy-*/verify-/promote-production) are frozen copies kept
+          # byte-identical with feat/header-hero-integrated and are not linted here.
+          ./actionlint -color .github/workflows/content-publish.yml .github/workflows/v11-release-watch.yml \
+            .github/workflows/ops-health.yml .github/workflows/rfq-ci-reconciler.yml .github/workflows/ci-main.yml
+
+      - name: "Price-source names: none in the tracked tree"
+        env:
+          NAMES: ${{ secrets.AHANASSA_PRICE_SOURCE_NAMES }}
+        run: |
+          set -euo pipefail
+          if [ -n "$NAMES" ]; then
+            umask 077; mkdir -p "$RUNNER_TEMP/private"
+            printf '%s\n' "$NAMES" > "$RUNNER_TEMP/private/source-names.txt"
+            export AHANASSA_PRICE_SOURCE_NAMES_FILE="$RUNNER_TEMP/private/source-names.txt"
+          fi
+          node .github/scripts/v11-source-names.mjs scan-tree --app .
