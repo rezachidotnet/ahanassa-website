@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "@/components/ui/link";
 import { usePublicPathname } from "@/components/layout/use-public-pathname";
 import { useEffect, useRef, useState } from "react";
@@ -13,6 +12,7 @@ import { CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 import { HeaderNavDisclosure } from "@/components/layout/header-nav-disclosure";
 import { HeaderLanguageSelector } from "@/components/layout/header-language-selector";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
+import { BrandMark } from "@/components/layout/brand-mark";
 import { ButtonLink } from "@/components/ui/button";
 import type { HeaderProductFamilyShortcut } from "@/lib/catalog/editorial-repository";
 import type { PublicProcessingGroup } from "@/lib/processing/public-repository";
@@ -139,7 +139,7 @@ export function SiteHeader({
       >
         {/* Header shell height: 80px default / ~68px compact scrolled (desktop, §46.1/§46.3/§58.5); 72px fixed on mobile (§46.2, below `lg`). */}
         <div className={cn("container-x flex items-center justify-between gap-4 transition-[height] duration-[180ms] motion-reduce:transition-none", "h-[72px] lg:h-20", scrolled && "lg:h-[68px]")}>
-          <Link href={localizedPath(locale, "/")} aria-label={siteConfig.name} className="relative flex shrink-0 items-center gap-2.5 after:absolute after:-inset-0.5 after:content-['']">
+          <Link href={localizedPath(locale, "/")} aria-label={siteConfig.name} className="relative flex shrink-0 items-center gap-2 after:absolute after:-inset-0.5 after:content-[''] lg:gap-1.5 xl:gap-2.5">
             {/* No official horizontal lockup asset exists in this repository yet
                 (verified: only a square mark, public/brand/ahan-asa-mark.jpg —
                 identical files under logo/ confirm no separate wordmark
@@ -148,18 +148,22 @@ export function SiteHeader({
                 met as specified; this is a documented, reported gap (see
                 the implementation report), not a silent substitution. The
                 existing mark+name combination (already live in production)
-                is preserved at a size appropriate to the frozen 80px/68px
-                header height, in place of the unavailable asset. */}
-            <Image
-              src="/brand/ahan-asa-mark.jpg"
-              alt=""
-              aria-hidden="true"
-              width={40}
-              height={40}
-              priority
-              className={cn("rounded-[var(--aa-radius-xs)] transition-[width,height] duration-[180ms] motion-reduce:transition-none", scrolled ? "lg:size-9" : "lg:size-10")}
+                is preserved, in place of the unavailable asset.
+                W10.4 (owner, 2026-10-11): mark and name clearly larger inside
+                the unchanged 72/80/68px bar — the mark is the tightly cropped
+                inline SVG (BrandMark), the name shows on mobile too. Three
+                tiers, each the largest that keeps fa/en/ar on one line with
+                no overflow: < lg 42px mark / 19px name; lg (1024–1279, where
+                the full nav leaves no spare width) 36px / 17px, never wider than the
+                former 40px-JPEG + 15px name; xl 48px / 21px. Compact (scrolled):
+                33px / 44px. */}
+            <BrandMark
+              className={cn(
+                "aspect-[9/7] h-auto w-[42px] transition-[width] duration-[180ms] motion-reduce:transition-none",
+                scrolled ? "lg:w-[33px] xl:w-11" : "lg:w-9 xl:w-12",
+              )}
             />
-            <span className="text-navy hidden text-[15px] font-extrabold tracking-[0.06em] sm:inline">{siteConfig.name}</span>
+            <span className="text-navy text-[19px] leading-none font-extrabold tracking-[0.06em] lg:text-[17px] xl:text-[21px]">{siteConfig.name}</span>
           </Link>
 
           <nav aria-label={t.nav} className="hidden items-center gap-1 lg:flex">
