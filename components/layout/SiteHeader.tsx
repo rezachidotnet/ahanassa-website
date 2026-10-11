@@ -283,8 +283,15 @@ export function SiteHeader({
             </button>
           </div>
         </div>
-        {/* W10.5 RFQ basket (≥ lg): a tab under the header's end edge, outside the bar's flex row so it takes no bar width. */}
-        <div className="pointer-events-none absolute inset-x-0 top-full hidden lg:block">
+        {/* W10.5 RFQ basket (≥ lg): a tab under the header's end edge, outside the bar's flex row so it takes no bar width.
+            Shown only at the top of the page: once scrolled it would cover content under the sticky header (owner, 2026-10-11),
+            so it fades out — `invisible` also takes it out of the tab order and the accessibility tree. */}
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-x-0 top-full hidden transition-[opacity,visibility] duration-[180ms] motion-reduce:transition-none lg:block",
+            scrolled && "invisible opacity-0",
+          )}
+        >
           <div className="container-x flex justify-end">
             <RfqBasketBadge locale={locale} variant="tab" className="pointer-events-auto" />
           </div>

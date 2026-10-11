@@ -220,10 +220,10 @@ test("form: success clears the basket inside the ok branch; storage is written o
   assert.match(wrapper, /key=\{ready \? "ready" : "loading"\}/);
 });
 
-test("header: the badge is one inline pill below lg and one hanging tab at lg+, outside the bar's flex row; empty basket renders nothing", () => {
+test("header: the badge is one inline pill below lg and one hanging tab at lg+ (hidden once scrolled), outside the bar's flex row; empty basket renders nothing", () => {
   const header = read("components/layout/SiteHeader.tsx");
   assert.match(header, /<RfqBasketBadge locale=\{locale\} variant="bar" className="lg:hidden" \/>/);
-  assert.match(header, /<div className="pointer-events-none absolute inset-x-0 top-full hidden lg:block">\n\s*<div className="container-x flex justify-end">\n\s*<RfqBasketBadge locale=\{locale\} variant="tab"/);
+  assert.match(header, /"pointer-events-none absolute inset-x-0 top-full hidden [^"]*lg:block",\n\s*scrolled && "invisible opacity-0",\n\s*\)\}\n\s*>\n\s*<div className="container-x flex justify-end">\n\s*<RfqBasketBadge locale=\{locale\} variant="tab"/, "the desktop tab hides once the page is scrolled");
   const badge = read("components/layout/rfq-basket-badge.tsx");
   assert.match(badge, /if \(count === 0\) return null;/);
   assert.match(badge, /setCount\(onForm \? 0 : countRfqBasketItems/, "hidden on the form page itself");
