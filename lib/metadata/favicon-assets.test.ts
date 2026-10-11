@@ -11,7 +11,8 @@ import path from "node:path";
  * format allows — the long side fills the whole canvas (no padding); the
  * apple-touch icon on white at 92% (inside iOS's rounded-corner mask); a
  * maskable 512 on white at 62% (every vertex inside the 40%-radius safe
- * circle). Served through vinext's file-based
+ * circle); in a dark colour scheme the SVG (only) draws the arch white.
+ * Served through vinext's file-based
  * metadata (hashed `?<hash>` links); the manifest's own icon URLs carry a
  * `?v=` content hash that must match the files.
  */
@@ -38,6 +39,11 @@ test("favicon.svg: the two mark polygons only — original navy and copper, no t
   assert.match(svg, /fill="#081A4A"/);
   assert.match(svg, /fill="#C0572A"/);
   assert.ok(!/<text|<rect|<image/.test(svg), "mark only: no wordmark, no background, no embedded raster");
+  // W10.4 (owner, 2026-10-11): in a dark colour scheme the navy arch turns white — this SVG only, copper unchanged.
+  assert.equal((svg.match(/<style>/g) ?? []).length, 1);
+  assert.match(svg, /<style>@media \(prefers-color-scheme: dark\)\{\.arch\{fill:#FFFFFF\}\}<\/style>/);
+  assert.match(svg, /<polygon class="arch" fill="#081A4A"/);
+  assert.match(svg, /<polygon fill="#C0572A"/);
   // Fills the canvas: the mark's long side spans the full width, centred vertically.
   const pts = [...svg.matchAll(/(-?[\d.]+),(-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
   assert.equal(Math.min(...pts.map((p) => p[0])), 0);
