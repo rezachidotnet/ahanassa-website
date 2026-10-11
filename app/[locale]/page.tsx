@@ -11,8 +11,6 @@ import { ProductShowcase } from "@/components/home/product-showcase";
 import { BuyerValue } from "@/components/home/buyer-value";
 import { Industries } from "@/components/home/industries";
 import { FinalCta } from "@/components/home/final-cta";
-import { CalculatorCta } from "@/components/home/calculator-cta";
-import { isWeightCalculatorPublished } from "@/lib/weight-calculator/publication";
 import type { PublicPriceStripItem } from "@/lib/pricing/types";
 import type { PublicCatalogCategory } from "@/lib/catalog/types";
 
@@ -22,16 +20,15 @@ export { generateLocaleStaticParams as generateStaticParams } from "@/lib/static
  * HOMEPAGE COMPOSITION — frozen by
  * docs/homepage/AHANASSA_HOMEPAGE_COMPOSITION_AND_CUSTOMER_JOURNEY_FREEZE_V1.0.md §4:
  *
- *   Header -> Hero -> Calculator CTA -> Price Strip [conditional] ->
+ *   Header -> Hero -> Price Strip [conditional] ->
  *   Product Showcase -> Buyer Value -> Verified Evidence [conditional] ->
  *   Industries / Use Cases [conditional] -> Final CTA -> Footer
  *
- * Calculator CTA: inserted directly after the Hero by owner decision D-W10-5
- * (2026-10-08, docs/OWNER_DECISIONS.md) when the calculator shipped (W10.1);
- * the freeze document above predates it (docs/HOMEPAGE_RANKING.md §section
- * order). It answers "how much does my order weigh?" and links only to
- * /tools/weight-calculator — no price, no RFQ form — so it restates no other
- * section's job. Rendered only in a locale the calculator is published in.
+ * Weight calculator: no section of its own. The W10.1 Calculator CTA block
+ * after the Hero (D-W10-5) was removed by the owner on 2026-10-09 (W10.3);
+ * the Product Showcase now ends with one «محاسبه وزن آهن‌آلات» button under
+ * its category grid, in a locale the calculator is published in (fa only).
+ * The order above is the frozen one again (docs/HOMEPAGE_RANKING.md §9).
  *
  * Header and Footer are the global shell, rendered by app/[locale]/layout.tsx;
  * everything between them is rendered by `HomePage` below. Each section owns
@@ -186,7 +183,6 @@ export default async function HomePage({ params }: PageProps) {
   return (
     <>
       <Hero locale={locale} />
-      {isWeightCalculatorPublished(locale) && <CalculatorCta locale={locale} />}
       <PriceStrip locale={locale} items={priceStripItems} />
       <ProductShowcase locale={locale} items={homepageCategories} />
       <BuyerValue locale={locale} />

@@ -26,7 +26,7 @@ import { RfqItemRow } from "@/components/contact/rfq-item-row";
 import { getDefaultPhoneCountry, getCountryLabel, PHONE_COUNTRIES } from "@/lib/rfq/phone-country-registry";
 import { normalizeDigits } from "@/lib/rfq/quantity";
 import { submitRfqWithRetry } from "@/lib/rfq/submit-with-retry";
-import { WhatsAppDrawingsLink } from "@/components/contact/whatsapp-drawings-link";
+import { RfqSuccessPanel, RFQ_SUBMITTED_ATTR } from "@/components/contact/rfq-success-panel";
 
 /**
  * Multi-item RFQ / purchase-list form (docs/RFQ_MULTI_ITEM_FORM.md).
@@ -88,7 +88,6 @@ const copy: Record<
     errorProductCatalog: string; errorProductCustom: string; errorQuantity: string; errorLength: string;
     assurance: string;
     submit: string; submitting: string; clearForm: string;
-    successTitle: string; successBody: (reference: string) => string; again: string;
     validationError: string; networkError: string; rateLimited: string;
     verificationError: string; serviceUnavailable: string;
     catalogPreselectionInvalid: string;
@@ -118,9 +117,6 @@ const copy: Record<
     errorLength: "طول درخواستی را به‌صورت عدد صحیح و مثبت وارد کنید",
     assurance: "اطلاعات شما صرفاً برای بررسی این درخواست استفاده می‌شود.",
     submit: "ارسال برای بررسی", submitting: "در حال ارسال…", clearForm: "پاک‌کردن فرم",
-    successTitle: "درخواست شما دریافت شد.",
-    successBody: (reference) => `شماره پیگیری شما: ${reference}. این شماره را برای پیگیری‌های بعدی نزد خود نگه دارید.`,
-    again: "ثبت درخواست جدید",
     validationError: "لطفاً اطلاعات فرم را بررسی کنید و دوباره تلاش کنید.",
     networkError: "ارسال درخواست ناموفق بود. لطفاً دوباره تلاش کنید.",
     rateLimited: "درخواست‌های زیادی ارسال شده است. کمی بعد دوباره تلاش کنید.",
@@ -155,9 +151,6 @@ const copy: Record<
     errorLength: "Enter a positive whole number for the requested length",
     assurance: "Your information is used only to review this request.",
     submit: "Send for review", submitting: "Sending…", clearForm: "Clear form",
-    successTitle: "Your request has been received.",
-    successBody: (reference) => `Your reference number: ${reference}. Keep this for any follow-up.`,
-    again: "Submit another request",
     validationError: "Please check the form fields and try again.",
     networkError: "Sending your request failed. Please try again.",
     rateLimited: "Too many requests. Please try again shortly.",
@@ -192,9 +185,6 @@ const copy: Record<
     errorLength: "أدخل رقمًا صحيحًا موجبًا للطول المطلوب",
     assurance: "تُستخدم معلوماتك فقط لمراجعة هذا الطلب.",
     submit: "إرسال للمراجعة", submitting: "جارٍ الإرسال…", clearForm: "مسح النموذج",
-    successTitle: "تم استلام طلبك.",
-    successBody: (reference) => `رقم المتابعة الخاص بك: ${reference}. يرجى الاحتفاظ به لأي متابعة لاحقة.`,
-    again: "إرسال طلب جديد",
     validationError: "يرجى مراجعة حقول النموذج والمحاولة مرة أخرى.",
     networkError: "فشل إرسال طلبك. يرجى المحاولة مرة أخرى.",
     rateLimited: "عدد كبير جدًا من الطلبات. يرجى المحاولة لاحقًا.",
@@ -290,6 +280,31 @@ export function EnquiryForm({
   const t = copy[locale];
   const [phoneCountry, setPhoneCountry] = useState<string>(() => getDefaultPhoneCountry(locale)?.iso2 ?? "");
   const [phoneLocal, setPhoneLocal] = useState("");
+  const [referenceCopied, setReferenceCopied] = useState(false);
+  const successHeadingRef = useRef<HTMLHeadingElement>(null);
+  const succeeded = status === "success" && reference !== null;
+
+  // Success state (W10.3): hide the rest of the request page (styles/theme-extensions.css,
+  // [data-rfq-submitted] [data-rfq-hide-on-success]) and move the visitor to the panel.
+  // Undone on unmount, so a client-side navigation away leaves no trace.
+  useEffect(() => {
+    if (!succeeded) return;
+    const root = document.documentElement;
+    root.setAttribute(RFQ_SUBMITTED_ATTR, "");
+    window.scrollTo({ top: 0 });
+    successHeadingRef.current?.focus({ preventScroll: true });
+    return () => {
+      root.removeAttribute(RFQ_SUBMITTED_ATTR);
+    };
+  }, [succeeded]);
+
+  const copyReference = useCallback(() => {
+    if (!reference) return;
+    navigator.clipboard?.writeText(reference).then(
+      () => setReferenceCopied(true),
+      () => setReferenceCopied(false),
+    );
+  }, [reference]);
 
   const catalogGroups = useMemo(() => groupCatalogItemsForSelector(catalogItems, locale), [catalogItems, locale]);
 
@@ -523,20 +538,12 @@ export function EnquiryForm({
     setRowErrors({});
     setPhoneCountry(getDefaultPhoneCountry(locale)?.iso2 ?? "");
     setPhoneLocal("");
+    setReferenceCopied(false);
     resetTurnstile();
   }
 
   if (status === "success" && reference) {
-    return (
-      <div className="border-border bg-surface rounded-[var(--aa-radius-panel)] border p-6 sm:p-10">
-        <h3 className="text-navy text-xl font-bold">{t.successTitle}</h3>
-        <p className="text-muted-foreground mt-4 max-w-md text-sm leading-relaxed">{t.successBody(reference)}</p>
-        <WhatsAppDrawingsLink locale={locale} reference={reference} className="mt-4 max-w-md" />
-        <Button variant="secondary" className="mt-8" onClick={startNewRequest}>
-          {t.again}
-        </Button>
-      </div>
-    );
+    return <RfqSuccessPanel locale={locale} reference={reference} copied={referenceCopied} onCopy={copyReference} headingRef={successHeadingRef} />;
   }
 
   const submitting = status === "submitting";
@@ -592,9 +599,12 @@ export function EnquiryForm({
               validation message — neither control is announced in
               isolation. border-0/p-0/m-0 resets the browser's default
               fieldset box so it renders identically to the sibling
-              <label>-based fields around it. */}
+              <label>-based fields around it. A legend sits outside the
+              fieldset grid, so `gap-2` does not space it: `mb-2` gives it the
+              same 8px gap as the labels (W10.3; without it the phone row sat
+              8px above the email field next to it). */}
           <fieldset className="grid gap-2 border-0 p-0 m-0">
-            <legend className={label}>
+            <legend className={`${label} mb-2`}>
               {t.phone}
               <RequiredMark srLabel={t.requiredMark} />
             </legend>

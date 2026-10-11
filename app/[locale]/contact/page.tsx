@@ -101,7 +101,10 @@ export default async function ContactPage({ params }: PageProps) {
 
   return (
     <>
-      <PageHero locale={locale} eyebrow={t.eyebrow} title={t.title} body={t.body} breadcrumb={[{ path: "/contact", label: t.eyebrow }]} />
+      {/* data-rfq-hide-on-success: everything on this page except the form is hidden once an RFQ succeeds, leaving only the tracking-number panel (W10.3; components/contact/rfq-success-panel.ts). */}
+      <div data-rfq-hide-on-success="">
+        <PageHero locale={locale} eyebrow={t.eyebrow} title={t.title} body={t.body} breadcrumb={[{ path: "/contact", label: t.eyebrow }]} />
+      </div>
 
       {/*
         Vertical component order (owner instruction): 1) Purchase Request /
@@ -115,17 +118,17 @@ export default async function ContactPage({ params }: PageProps) {
       */}
       <section className="border-border bg-background border-b section-y">
         <div className="container-x">
-          <SectionHeading eyebrow={t.formEyebrow} title={t.formTitle} body={t.formBody} />
-          {/* Drawings/files channel = WhatsApp (owner decision 2026-10-04); a plain link, rendered only when a number is configured. */}
-          <WhatsAppDrawingsLink locale={locale} className="mt-6 max-w-2xl" />
-          <div className="mt-12">
-            <TargetEnquiryForm locale={locale} />
+          <div data-rfq-hide-on-success="" className="mb-12">
+            <SectionHeading eyebrow={t.formEyebrow} title={t.formTitle} body={t.formBody} />
+            {/* Drawings/files channel = WhatsApp (owner decision 2026-10-04); a plain link, rendered only when a number is configured. */}
+            <WhatsAppDrawingsLink locale={locale} className="mt-6 max-w-2xl" />
           </div>
+          <TargetEnquiryForm locale={locale} />
         </div>
       </section>
 
       {/* Next steps, then head office: each its own section (owner-approved order), now as 16px panels (W10.2, D-W10-1). */}
-      <section className="border-border bg-background border-b py-12 lg:py-16">
+      <section className="border-border bg-background border-b py-12 lg:py-16" data-rfq-hide-on-success="">
         <div className="container-x">
           <div className={cardVariants({ variant: "panel", tone: "subtle", className: "max-w-2xl" })}>
             <h2 className="eyebrow text-navy">{t.nextTitle}</h2>
@@ -144,7 +147,7 @@ export default async function ContactPage({ params }: PageProps) {
         </div>
       </section>
 
-      <section className="border-border bg-background border-b py-12 lg:py-16">
+      <section className="border-border bg-background border-b py-12 lg:py-16" data-rfq-hide-on-success="">
         <div className="container-x">
           <div className={cardVariants({ variant: "panel", tone: "subtle", className: "max-w-md" })}>
             <h2 className="eyebrow text-navy">{t.officeTitle}</h2>
@@ -158,7 +161,9 @@ export default async function ContactPage({ params }: PageProps) {
         </div>
       </section>
 
-      <FaqSection locale={locale} />
+      <div data-rfq-hide-on-success="">
+        <FaqSection locale={locale} />
+      </div>
     </>
   );
 }

@@ -66,11 +66,13 @@ test("the leak scan accepts the rendered link on every locale (no Persian on en/
   }
 });
 
-test("wired on /contact (server-rendered, works without JS) and in the in-page confirmation", () => {
+test("wired on /contact (server-rendered, works without JS); not in the RFQ success panel (owner, W10.3)", () => {
   const page = fs.readFileSync(path.join(ROOT, "app/[locale]/contact/page.tsx"), "utf8");
   assert.match(page, /<WhatsAppDrawingsLink locale=\{locale\} className="mt-6 max-w-2xl" \/>/);
   const form = fs.readFileSync(path.join(ROOT, "components/contact/enquiry-form.tsx"), "utf8");
-  assert.match(form, /<WhatsAppDrawingsLink locale=\{locale\} reference=\{reference\}/);
+  // W10.3 (owner 2026-10-09): the success panel shows only the number, copy, one next-step line and a home link.
+  assert.doesNotMatch(form, /WhatsAppDrawingsLink/);
+  assert.doesNotMatch(fs.readFileSync(path.join(ROOT, "components/contact/rfq-success-panel.ts"), "utf8"), /WhatsApp/);
   // One source for the number; the same value on both build targets (r4 diff gate unchanged).
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, "lib/static/targets.ts"), "utf8"), /whatsapp/i);
 });

@@ -4,8 +4,8 @@ import { WHATSAPP_BUSINESS_NUMBER, WHATSAPP_REL, whatsappCopy, whatsappDrawingsH
 
 /**
  * "Send drawings via WhatsApp" (owner decision 2026-10-04, §19 item 5) — a
- * plain link, so it works without JavaScript on /contact; also shown in the
- * in-page RFQ confirmation with the tracking number in the prefilled text.
+ * plain link, so it works without JavaScript on /contact. (The RFQ success
+ * panel no longer shows it — owner, W10.3; `reference` stays supported.)
  * Renders nothing while no valid WHATSAPP_BUSINESS_NUMBER is configured.
  * Written without JSX so the node test runner can render it.
  */

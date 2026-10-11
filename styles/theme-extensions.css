@@ -331,3 +331,16 @@
     }
   }
 }
+
+/**
+ * RFQ success state (W10.3, owner 2026-10-09). While the success panel is
+ * mounted, EnquiryForm sets `data-rfq-submitted` on <html>; every other part
+ * of the request page carries `data-rfq-hide-on-success` and is removed from
+ * view, so only the tracking-number panel remains between the site header
+ * and footer. Names: components/contact/rfq-success-panel.ts.
+ */
+@layer utilities {
+  [data-rfq-submitted] [data-rfq-hide-on-success] {
+    display: none;
+  }
+}

@@ -7,7 +7,7 @@ export const WEIGHT_CALCULATOR_ROUTE = "/tools/weight-calculator";
  * Locales the calculator page is published in. The one source for its
  * generateStaticParams, its hreflang alternates and its sitemap entries, so a
  * locale dropped here disappears from all three together — and from the
- * home-page CTA and the product-page «محاسبه وزن» links.
+ * home Product Showcase button (W10.3) and the product-page «محاسبه وزن» links.
  *
  * fa only — owner decision 2026-10-09 (W10.1): the en/ar copy in copy.ts
  * stays in the code as an unpublished draft until the owner approves it;

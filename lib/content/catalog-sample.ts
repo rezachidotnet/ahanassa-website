@@ -141,7 +141,7 @@ export const sampleProducts: SampleProduct[] = [
     name: "ورق و پلیت",
     category: "flat",
     code: "FP-02",
-    image: "/images/products/sheet-plate.png",
+    image: "/images/products/sheet-plate.jpg",
     summary: "ورق و پلیت ضخیم برای کارهای سازه‌ای.",
     description: "ورق و پلیت ضخیم گرم‌نورد به‌صورت خام یا نرمالایز.",
     specs: [{ label: "ضخامت", value: "2 – 100 mm" }],
