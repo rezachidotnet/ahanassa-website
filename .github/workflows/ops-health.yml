@@ -21,13 +21,14 @@
 # not production-v11, whose reviewer gate would hold every 15-min run. Until that environment has the
 # monitor token it skips with a notice. It never exposes `test_force_alert` (staging-only).
 #
-# W11.2: a third job, `daily-content watchdog (production)`: at/after 09:00 UTC (12:30 Tehran), when today's (Tehran
-# date) production content publish has not succeeded, it dispatches daily-content.yml once (source=watchdog) and
-# ALERTs on every run until the publish succeeds (.github/scripts/v11-daily-content.mjs). It is its own job, not a
-# step of health-production: v11-release-watch.yml reads health-production's outcome as the release observation (a
-# missed content publish must not roll a LOW release back), and it needs no environment (no reviewer or environment
-# wait can hold it). ALERT = failed job (GitHub e-mail) + healthchecks.io: HC_PING_DAILY_CONTENT (its own check; also a
-# dead-man's switch for the watchdog) when set, otherwise a /fail ping to HC_PING_OPS_HEALTH_PRODUCTION.
+# W11.2: a third job, `content watchdog (production)`: from 09:00 UTC (12:30 Tehran) of the Tehran day, when Odoo has
+# approved prices that are not live on www 45 min after they were published, it dispatches daily-content.yml once for
+# those prices (source=watchdog) and ALERTs on every run until they are live (.github/scripts/v11-daily-content.mjs).
+# It is its own job, not a step of health-production: v11-release-watch.yml reads health-production's outcome as the
+# release observation (unpublished prices must not roll a LOW release back), and it needs no environment (no
+# environment wait can hold it). ALERT = failed job (GitHub e-mail) + healthchecks.io: HC_PING_DAILY_CONTENT (its own
+# check; also a dead-man's switch for the watchdog) when set, otherwise a /fail ping to HC_PING_OPS_HEALTH_PRODUCTION.
+
 name: Ops health
 
 on:
@@ -167,7 +168,7 @@ jobs:
           fi
 
   daily-content-watchdog:
-    name: daily-content watchdog (production)
+    name: content watchdog (production)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -189,7 +190,7 @@ jobs:
         with:
           node-version: "24"
 
-      - name: "Today's content publish by 09:00 UTC (fails only on ALERT; dispatches daily-content once)"
+      - name: "Newer Odoo prices live on www? (from 09:00 UTC; fails only on ALERT; dispatches daily-content once per price update)"
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}

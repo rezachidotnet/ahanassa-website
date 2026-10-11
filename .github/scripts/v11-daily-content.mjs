@@ -1,78 +1,86 @@
-// W11.2 (owner requirement 2026-10-11) — the daily production content publish is never silently skipped.
+// W11.2 (owner requirements 2026-10-11) — the production content publish is never silently skipped, and it runs
+// whenever Odoo has approved prices newer than the ones live on www.ahanassa.com (a no-op otherwise).
 //
 // GitHub `schedule` is best-effort and on this repository drops most events (2026-10-11: the 08:00 UTC content
-// publish never fired; ops-health fired 2 of 36 scheduled slots between 00:00 and 09:00 UTC). So the daily publish
-// has three independent ways in, all behind one guard — "today's (Tehran date) content publish already succeeded":
-//   - daily-content.yml schedules 08:00, 08:20, 08:40 UTC (backups of each other);
-//   - daily-content.yml dispatched by Odoo right after the owner publishes prices (workflow_dispatch, source=odoo);
-//   - the watchdog job of ops-health.yml: at/after 09:00 UTC with no publish today it dispatches daily-content.yml
-//     once (source=watchdog) and ALERTs.
+// publish never fired; ops-health fired 2 of 36 scheduled slots between 00:00 and 09:00 UTC). So the publish has
+// several independent ways in, all behind one guard:
+//   - the Odoo-server timer ahanassa-ops-dispatch (primary): dispatches daily-content.yml at 08:00, 08:20 and 08:40 UTC;
+//   - Odoo, right after the owner publishes prices: dispatches daily-content.yml (source=odoo);
+//   - daily-content.yml's own GitHub schedules at the same times (backup only);
+//   - the watchdog job of ops-health.yml: from 09:00 UTC, newer prices still not live 45 min after they were published
+//     → it dispatches daily-content.yml once for those prices (source=watchdog) and ALERTs.
 // daily-content.yml never builds anything itself: when needed it dispatches content-publish.yml target=daily-content,
-// which builds the code LIVE on www and publishes only on CONTENT_REBUILD AUTO (no approval). A no-op therefore never
+// which builds the code LIVE on www and publishes on CONTENT_REBUILD AUTO only (no approval). A no-op therefore never
 // takes content-publish's concurrency slot (a newer pending run would cancel a pending merge run).
 //
-// "Today's content publish succeeded" = a trusted `v11-live-release` record of kind `content` (a finalized production
-// publish of the live code: the AUTO job, or a production-prep of the same code) whose live_since is today, Tehran
-// date. That also caps AUTO publishes at one per Tehran day.
+// The guard ("newer approved prices exist"):
+//   Odoo:  the newest published_at_utc among the numeric prices of GET https://odoo.ahanassa.com/api/v1/pricing/current
+//          (public; the endpoint the content pipeline itself reads).
+//   live:  when the Odoo fetch of the snapshot www serves began — the content_fetched_at of the production publish
+//          record of that snapshot (v11-live-release, W11.2); for an older record, the start of its run's
+//          "5. Fetch" step (earlier still, so it errs towards publishing).
+//   needed = Odoo's newest price was published after that fetch began. A price the pipeline drops cannot make it
+//   publish forever (the next fetch starts after it); a price published during a fetch costs at most one extra publish.
+//   Live state unknown → needed (fail towards fresh prices; visible in the summary). Odoo unreachable → exit 2.
 //
-//   node v11-daily-content.mjs status                 published=true|false (+ run_id) to $GITHUB_OUTPUT
+//   node v11-daily-content.mjs status                 needed=true|false (+ odoo_newest, live_fetched_at) to $GITHUB_OUTPUT
 //   node v11-daily-content.mjs entry --source <name>  dispatch content-publish.yml target=daily-content when needed
-//   node v11-daily-content.mjs watchdog               exit 1 = ALERT (dispatches daily-content.yml at most once a day)
+//   node v11-daily-content.mjs watchdog               exit 1 = ALERT
 // Exit 2 = could not run (fail closed: nothing is dispatched, the job fails visibly).
 // Needs GITHUB_TOKEN (actions: read; actions: write for entry/watchdog) and GITHUB_REPOSITORY.
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-import { RECORD_ARTIFACT, RECORD_FILE, githubClient, recordProblems, trustedRun, unzipEntry } from "./v11-live-release.mjs";
+import { collectRecords, githubClient, recordForSnapshot, wwwSnapshot } from "./v11-live-release.mjs";
 
 export const TEHRAN = "Asia/Tehran";
 export const CONTENT_WORKFLOW = "content-publish.yml";
 export const ENTRY_WORKFLOW = "daily-content.yml";
+export const ODOO_PRICING_URL = "https://odoo.ahanassa.com/api/v1/pricing/current";
 /** The watchdog's deadline: 09:00 UTC (12:30 Tehran) of the Tehran day. */
 export const WATCHDOG_DEADLINE_UTC = "09:00";
+/** A publish takes ~15 min: newer prices younger than this are not late yet. */
+export const WATCHDOG_GRACE_MS = 45 * 60_000;
 /** Environments production-v11-content / staging allow `main` only. */
 export const DISPATCH_REF = "main";
 /** run-name of a content-publish.yml run with target=daily-content (keep in sync with content-publish.yml). */
 export const DAILY_TITLE = /^daily-content \(/;
 export const SOURCE = /^[a-z][a-z0-9-]{0,19}$/;
+const FETCH_STEP = "5. Fetch";
 
 // Dates -----------------------------------------------------------------------------------------------------------
 
 const tehranDay = new Intl.DateTimeFormat("en-CA", { timeZone: TEHRAN, year: "numeric", month: "2-digit", day: "2-digit" });
-const tehranOffset = new Intl.DateTimeFormat("en-US", { timeZone: TEHRAN, timeZoneName: "longOffset" });
 
 /** YYYY-MM-DD in Tehran. */
 export function tehranDate(d) {
   return tehranDay.format(new Date(d));
 }
 
-/** Minutes east of UTC in Tehran at instant d (+210 since Iran dropped DST in 2022). */
-function offsetMinutes(d) {
-  const v = tehranOffset.formatToParts(new Date(d)).find((p) => p.type === "timeZoneName")?.value ?? "GMT";
-  const m = /GMT([+-])(\d{2}):(\d{2})/.exec(v);
-  return m ? (m[1] === "-" ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) : 0;
-}
-
-/** The UTC instant (ms) at which Tehran date `date` begins. */
-export function tehranDayStart(date) {
-  const noon = Date.parse(`${date}T12:00:00Z`);
-  return Date.parse(`${date}T00:00:00Z`) - offsetMinutes(noon) * 60_000;
-}
-
-/** The watchdog deadline (ms) of the Tehran day `now` falls in. Late evening UTC is already the next Tehran day. */
+/** The watchdog deadline (ms) of the Tehran day `now` falls in. After 20:30 UTC it is already the next Tehran day. */
 export function watchdogDeadline(now) {
   return Date.parse(`${tehranDate(now)}T${WATCHDOG_DEADLINE_UTC}:00Z`);
 }
 
 // Decisions (pure) ------------------------------------------------------------------------------------------------
 
-/** The newest content record that went live today (Tehran date of `now`), else null. */
-export function todaysContentPublish(records, now) {
-  const today = tehranDate(now);
-  return (
-    records
-      .filter((r) => r.kind === "content" && tehranDate(r.live_since) === today)
-      .sort((a, b) => (a.live_since < b.live_since ? 1 : -1))[0] ?? null
-  );
+/** Newest published_at_utc among the numeric prices of a pricing/current body (same rule as ops-health W9.4). */
+export function newestPublishedPriceAt(body) {
+  const data = body?.data;
+  if (!Array.isArray(data)) throw new Error("pricing response is not {data: [...]}");
+  let newest = null;
+  for (const r of data) {
+    if (r?.price_on_request !== false || typeof r.published_at_utc !== "string" || Number.isNaN(Date.parse(r.published_at_utc))) continue;
+    if (newest === null || Date.parse(r.published_at_utc) > Date.parse(newest)) newest = r.published_at_utc;
+  }
+  return newest;
+}
+
+/** Whether a publish is needed: Odoo has a price published after the live snapshot's fetch began. */
+export function decideNeeded({ odooNewest, liveFetchedAt }) {
+  if (!odooNewest) return { needed: false, reason: "Odoo has no published numeric price" };
+  if (!liveFetchedAt) return { needed: true, reason: `the live snapshot's fetch time is unknown; Odoo's newest price ${odooNewest} — publishing` };
+  if (Date.parse(odooNewest) > Date.parse(liveFetchedAt)) return { needed: true, reason: `Odoo has a price published ${odooNewest}, after the live snapshot's fetch began (${liveFetchedAt})` };
+  return { needed: false, reason: `www already has Odoo's newest prices (newest ${odooNewest}; live snapshot fetched from ${liveFetchedAt})` };
 }
 
 const open = (r) => r.status !== "completed";
@@ -84,70 +92,74 @@ export function dailyInFlight(contentRuns) {
 
 /**
  * What a daily-content entry run does.
- *   none      published today already, or a daily-content publish is already under way
+ *   none      not needed, or a daily-content publish is already under way
  *   blocked   another content-publish run is pending: a new run would cancel it (one pending run per concurrency
- *             group), so nothing is dispatched; the next backup schedule or the watchdog tries again
+ *             group), so nothing is dispatched; the next trigger or the watchdog tries again
  *   dispatch  dispatch content-publish.yml target=daily-content
  */
-export function decideEntry({ published, contentRuns, now }) {
-  const date = tehranDate(now);
-  if (published) return { action: "none", reason: `today's (${date} Tehran) content publish already succeeded: run ${published.run_id}, live since ${published.live_since}` };
+export function decideEntry({ need, contentRuns }) {
+  if (!need.needed) return { action: "none", reason: need.reason };
   const inFlight = dailyInFlight(contentRuns);
-  if (inFlight) return { action: "none", reason: `a daily-content publish is already under way: run ${inFlight.id} (${inFlight.status})`, run_id: String(inFlight.id) };
+  if (inFlight) return { action: "none", reason: `${need.reason}; a daily-content publish is already under way: run ${inFlight.id} (${inFlight.status})`, run_id: String(inFlight.id) };
   const pending = contentRuns.find((r) => r.status === "pending");
   if (pending) {
-    return { action: "blocked", reason: `content-publish run ${pending.id} ("${pending.display_title}") is pending; dispatching now would cancel it — not dispatched (the next backup or the 09:00 UTC watchdog tries again)` };
+    return { action: "blocked", reason: `${need.reason}; but content-publish run ${pending.id} ("${pending.display_title}") is pending and dispatching now would cancel it — not dispatched (the next trigger or the watchdog tries again)` };
   }
-  return { action: "dispatch", reason: `no content publish has succeeded today (${date} Tehran)` };
+  return { action: "dispatch", reason: need.reason };
 }
 
 /**
- * What the watchdog does. Before the deadline: nothing (and no API call is needed). After it, with no content publish
- * today: ALERT on every run until one succeeds, and dispatch daily-content.yml once — not when the watchdog already
- * dispatched it today, nor while a daily-content entry or publish is still running.
+ * What the watchdog does. Before 09:00 UTC of the Tehran day: nothing (no API call). After it: ALERT while newer
+ * prices have been waiting more than WATCHDOG_GRACE_MS, and dispatch daily-content.yml once for those prices — not
+ * when the watchdog already dispatched it after they were published, nor while a daily-content entry or publish runs.
  */
-export function decideWatchdog({ published, contentRuns = [], entryRuns = [], now }) {
+export function decideWatchdog({ need, odooNewest, contentRuns = [], entryRuns = [], now }) {
   const deadline = watchdogDeadline(now);
-  const date = tehranDate(now);
-  if (new Date(now).getTime() < deadline) return { state: "before-deadline", alert: false, dispatch: false, reason: `before ${new Date(deadline).toISOString()} (${date} Tehran)` };
-  if (published) return { state: "published", alert: false, dispatch: false, reason: `today's (${date} Tehran) content publish succeeded: run ${published.run_id}, live since ${published.live_since}` };
-  const dispatched = entryRuns.find((r) => /\(watchdog\)/.test(r.display_title ?? "") && Date.parse(r.created_at) >= deadline);
+  const t = new Date(now).getTime();
+  if (t < deadline) return { state: "before-deadline", alert: false, dispatch: false, reason: `before ${new Date(deadline).toISOString()} (${tehranDate(now)} Tehran)` };
+  if (!need.needed) return { state: "live", alert: false, dispatch: false, reason: need.reason };
+  const since = odooNewest ? Date.parse(odooNewest) : null;
+  if (since !== null && t - since < WATCHDOG_GRACE_MS) return { state: "due", alert: false, dispatch: false, reason: `${need.reason}; within the ${WATCHDOG_GRACE_MS / 60_000} min grace` };
+  const dispatched = entryRuns.find((r) => /\(watchdog\)/.test(r.display_title ?? "") && (since === null ? Date.parse(r.created_at) >= deadline : Date.parse(r.created_at) >= since));
   const inFlight = dailyInFlight(contentRuns) ?? entryRuns.find(open) ?? null;
-  const missing = `no content publish has succeeded today (${date} Tehran) by ${WATCHDOG_DEADLINE_UTC} UTC`;
-  if (dispatched) return { state: "missing", alert: true, dispatch: false, reason: `${missing}; the watchdog already dispatched daily-content today (run ${dispatched.id}, ${dispatched.status}${dispatched.conclusion ? `/${dispatched.conclusion}` : ""})` };
-  if (inFlight) return { state: "missing", alert: true, dispatch: false, reason: `${missing}; a daily-content run is still under way (run ${inFlight.id}, ${inFlight.status})` };
-  return { state: "missing", alert: true, dispatch: true, reason: `${missing}; dispatching daily-content (source=watchdog)` };
+  const late = `newer prices are not live on www: ${need.reason}`;
+  if (dispatched) return { state: "late", alert: true, dispatch: false, reason: `${late}; the watchdog already dispatched daily-content for them (run ${dispatched.id}, ${dispatched.status}${dispatched.conclusion ? `/${dispatched.conclusion}` : ""})` };
+  if (inFlight) return { state: "late", alert: true, dispatch: false, reason: `${late}; a daily-content run is under way (run ${inFlight.id}, ${inFlight.status})` };
+  return { state: "late", alert: true, dispatch: true, reason: `${late}; dispatching daily-content (source=watchdog)` };
+}
+
+// Live state ------------------------------------------------------------------------------------------------------
+
+export async function odooNewestPrice(fetchImpl = fetch, url = ODOO_PRICING_URL) {
+  const res = await fetchImpl(url, { headers: { Accept: "application/json", "User-Agent": "ahanassa-daily-content/1" }, signal: AbortSignal.timeout(30_000) });
+  if (res.status !== 200) throw new Error(`${url} returned HTTP ${res.status}`);
+  return newestPublishedPriceAt(await res.json());
+}
+
+/**
+ * When the Odoo fetch of the snapshot www serves began: content_fetched_at of the publish record that put that
+ * snapshot live (rollback records re-serve an older snapshot and are skipped), else that run's fetch step start.
+ */
+export async function liveFetchedAt(gh, snapshot) {
+  const publishing = (rs) => rs.filter((r) => r.kind !== "rollback");
+  const records = await collectRecords(gh, { enough: (rs) => Boolean(recordForSnapshot(publishing(rs), snapshot)) });
+  const record = recordForSnapshot(publishing(records), snapshot);
+  if (!record) return { at: null, source: `no production publish record names the live snapshot ${snapshot}` };
+  if (record.content_fetched_at) return { at: record.content_fetched_at, source: `record of run ${record.run_id}` };
+  const { jobs } = await gh.json(`/actions/runs/${record.run_id}/jobs?per_page=50`);
+  const step = jobs.filter((j) => j.name.startsWith("build")).flatMap((j) => j.steps ?? []).find((s) => s.name.startsWith(FETCH_STEP) && s.started_at);
+  if (step) return { at: step.started_at.replace(/\.\d+Z$/, "Z"), source: `fetch step of run ${record.run_id}` };
+  return { at: null, source: `run ${record.run_id} has no fetch step` };
+}
+
+export async function currentNeed(gh, { fetchImpl = fetch, snapshot = null } = {}) {
+  const odooNewest = await odooNewestPrice(fetchImpl);
+  const snap = snapshot ?? (await wwwSnapshot(fetchImpl));
+  const live = await liveFetchedAt(gh, snap);
+  return { odooNewest, snapshot: snap, live, need: decideNeeded({ odooNewest, liveFetchedAt: live.at }) };
 }
 
 // GitHub ----------------------------------------------------------------------------------------------------------
-
-/** Trusted content records whose artifact was created on or after `since` (ms). */
-export async function recordsSince(gh, since) {
-  const out = [];
-  const cache = new Map();
-  for (let page = 1; page <= 3; page++) {
-    const { artifacts } = await gh.json(`/actions/artifacts?name=${RECORD_ARTIFACT}&per_page=100&page=${page}`);
-    for (const a of artifacts) {
-      if (a.expired || a.name !== RECORD_ARTIFACT || Date.parse(a.created_at) < since) continue;
-      const runId = String(a.workflow_run?.id ?? "");
-      if (!(await trustedRun(gh, runId, cache))) continue;
-      const text = unzipEntry(await gh.download(a.id), RECORD_FILE);
-      if (!text) continue;
-      const r = JSON.parse(text);
-      if (recordProblems(r).length || r.run_id !== runId) continue;
-      out.push(r);
-    }
-    // Newest first: stop once a page reaches back before `since`.
-    if (artifacts.length < 100 || artifacts.some((a) => Date.parse(a.created_at) < since)) break;
-  }
-  return out;
-}
-
-export async function todaysPublish(gh, now) {
-  // An artifact is uploaded after its record's live_since, so none of today's records is older than the day start
-  // (an hour of margin); the date filter itself is on live_since.
-  return todaysContentPublish(await recordsSince(gh, tehranDayStart(tehranDate(now)) - 3_600_000), now);
-}
 
 export async function workflowRuns(gh, workflow, { since = null, perPage = 30 } = {}) {
   const created = since === null ? "" : `&created=%3E%3D${new Date(since).toISOString().replace(/\.\d+Z$/, "Z")}`;
@@ -173,7 +185,7 @@ export function githubDispatcher({ token = process.env.GITHUB_TOKEN, repo = proc
 /** The dispatch API returns before the run exists: wait (up to ~60 s) until it is listed, so the next caller sees it. */
 async function waitForRun(gh, workflow, title, after, { tries = 12, delayMs = 5_000 } = {}) {
   for (let i = 0; i < tries; i++) {
-    const run = (await workflowRuns(gh, workflow, { since: after - 60_000 })).find((r) => title.test(r.display_title ?? ""));
+    const run = (await workflowRuns(gh, workflow, { since: after - 60_000 })).find((r) => open(r) && title.test(r.display_title ?? ""));
     if (run) return run;
     await new Promise((r) => setTimeout(r, delayMs));
   }
@@ -193,26 +205,26 @@ function summary(lines) {
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.map((l) => `${l}\n`).join(""));
 }
 
-export async function main(argv, { gh = null, dispatch = null, now = new Date(), waitOptions } = {}) {
+export async function main(argv, { gh = null, dispatch = null, fetchImpl = fetch, now = new Date(), waitOptions } = {}) {
   const mode = argv[0];
   if (!["status", "entry", "watchdog"].includes(mode)) throw new Error(`unknown mode ${JSON.stringify(mode)} (status | entry | watchdog)`);
-  const date = tehranDate(now);
 
   if (mode === "watchdog" && now.getTime() < watchdogDeadline(now)) {
-    const d = decideWatchdog({ published: null, now });
+    const d = decideWatchdog({ need: { needed: false }, now });
     console.log(JSON.stringify(d));
     output({ alert: false, state: d.state });
-    summary([`- daily-content watchdog: ${d.reason} — nothing to check yet`]);
+    summary([`- content watchdog: ${d.reason} — nothing to check yet`]);
     return 0;
   }
 
   const api = gh ?? githubClient();
-  const published = await todaysPublish(api, now);
+  const cur = await currentNeed(api, { fetchImpl });
+  const facts = `Odoo newest price \`${cur.odooNewest ?? "none"}\`; www \`${cur.snapshot}\` fetched from \`${cur.live.at ?? "unknown"}\` (${cur.live.source})`;
 
   if (mode === "status") {
-    console.log(JSON.stringify({ date, published }));
-    output({ published: Boolean(published), run_id: published?.run_id ?? "" });
-    summary([published ? `- daily content: today's (${date} Tehran) publish already succeeded (run ${published.run_id}, live since ${published.live_since}) — **no-op**` : `- daily content: no content publish yet today (${date} Tehran)`]);
+    console.log(JSON.stringify(cur));
+    output({ needed: cur.need.needed, odoo_newest: cur.odooNewest ?? "", live_fetched_at: cur.live.at ?? "" });
+    summary([`- daily content: **${cur.need.needed ? "newer prices — publish" : "no-op"}** — ${cur.need.reason}`, `  - ${facts}`]);
     return 0;
   }
 
@@ -222,7 +234,7 @@ export async function main(argv, { gh = null, dispatch = null, now = new Date(),
   if (mode === "entry") {
     const source = arg(argv, "source") || "manual";
     if (!SOURCE.test(source)) throw new Error(`invalid --source ${JSON.stringify(source)}`);
-    const d = decideEntry({ published, contentRuns, now });
+    const d = decideEntry({ need: cur.need, contentRuns });
     let run = null;
     if (d.action === "dispatch") {
       const at = Date.now();
@@ -231,20 +243,21 @@ export async function main(argv, { gh = null, dispatch = null, now = new Date(),
       if (!run) console.log(`::warning title=daily-content run not listed yet::dispatched ${CONTENT_WORKFLOW}, but the run did not appear within the wait`);
     }
     if (d.action === "blocked") console.log(`::warning title=daily content not dispatched::${d.reason}`);
-    console.log(JSON.stringify({ ...d, source, run_id: run?.id ?? d.run_id ?? null }));
+    console.log(JSON.stringify({ ...d, source, run_id: run?.id ?? d.run_id ?? null, odoo_newest: cur.odooNewest, live: cur.live }));
     output({ action: d.action, run_id: run?.id ?? d.run_id ?? "" });
-    summary([`- daily-content (${source}): **${d.action}** — ${d.reason}${run ? ` → content-publish run ${run.id}` : ""}`]);
+    summary([`- daily-content (${source}): **${d.action}** — ${d.reason}${run ? ` → content-publish run ${run.id}` : ""}`, `  - ${facts}`]);
     return 0;
   }
 
-  const entryRuns = await workflowRuns(api, ENTRY_WORKFLOW, { since: tehranDayStart(date) });
-  const d = decideWatchdog({ published, contentRuns, entryRuns, now });
+  const since = cur.odooNewest ? Math.min(Date.parse(cur.odooNewest), watchdogDeadline(now)) : watchdogDeadline(now);
+  const entryRuns = await workflowRuns(api, ENTRY_WORKFLOW, { since: since - 60_000 });
+  const d = decideWatchdog({ need: cur.need, odooNewest: cur.odooNewest, contentRuns, entryRuns, now });
   if (d.dispatch) await send(ENTRY_WORKFLOW, { source: "watchdog" });
   console.log(JSON.stringify(d));
   output({ alert: d.alert, state: d.state });
-  summary([`- daily-content watchdog: **${d.alert ? "ALERT" : "OK"}** — ${d.reason}`]);
+  summary([`- content watchdog: **${d.alert ? "ALERT" : "OK"}** (${d.state}) — ${d.reason}`, `  - ${facts}`]);
   if (d.alert) {
-    console.log(`::error title=ALERT: daily content publish missing::${d.reason}`);
+    console.log(`::error title=ALERT: newer prices not published::${d.reason}`);
     return 1;
   }
   return 0;

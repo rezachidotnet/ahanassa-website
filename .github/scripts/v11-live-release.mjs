@@ -20,8 +20,9 @@
 //   node v11-live-release.mjs content-check --artifact <dir> --live-sha <sha> [--decision-file <out>]
 //     CONTENT_REBUILD (§19) against the LIVE code: exit 0 AUTO, 3 APPROVAL_REQUIRED, 1 REFUSED, 2 could not run.
 //   node v11-live-release.mjs record --out <file> --kind release|content --code-sha <sha> --publish-state <file>
-//       --previous-code-sha <sha|""> --risk LOW|HIGH|NONE --run-id <id> --switched-at <iso>
-//     Writes live-release.json for a production job that finalized.
+//       --previous-code-sha <sha|""> --risk LOW|HIGH|NONE --run-id <id> --switched-at <iso> [--content-fetched-at <iso>]
+//     Writes live-release.json for a production job that finalized. content_fetched_at (W11.2) = the artifact's
+//     pipeline.fetched_at: when the snapshot's Odoo fetch began (v11-daily-content.mjs compares Odoo's prices with it).
 //   node v11-live-release.mjs watch --app <checkout> --ledger-ref <ref> [--operation watch|rollback] [--out <file>]
 //     The observation decision for the current release (see observe()); writes action=… to $GITHUB_OUTPUT.
 //
@@ -55,7 +56,7 @@ const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 // Records ---------------------------------------------------------------------------------------------------------
 
 /** Pure: live-release.json for a production job that finalized (publish-state.production.json + the job's facts). */
-export function makeRecord({ kind, codeSha, publishState, previousCodeSha, risk, runId, switchedAt, rolledBack = null }) {
+export function makeRecord({ kind, codeSha, publishState, previousCodeSha, risk, runId, switchedAt, rolledBack = null, contentFetchedAt = null }) {
   if (!["release", "content", "rollback"].includes(kind)) throw new Error(`kind ${JSON.stringify(kind)}`);
   if (!FULL_SHA.test(codeSha ?? "")) throw new Error(`code sha ${JSON.stringify(codeSha)}`);
   if (kind !== "rollback" && !publishState?.steps?.includes("finalized")) throw new Error("the publish state is not finalized: nothing went live");
@@ -72,6 +73,7 @@ export function makeRecord({ kind, codeSha, publishState, previousCodeSha, risk,
     run_id: String(runId),
     live_since: switchedAt,
     rolled_back: rolledBack,
+    ...(contentFetchedAt ? { content_fetched_at: contentFetchedAt } : {}),
   };
   const problems = recordProblems(r);
   if (problems.length) throw new Error(`invalid record: ${problems.join("; ")}`);
@@ -90,6 +92,7 @@ export function recordProblems(r) {
   if (r?.previous_code_sha !== null && !FULL_SHA.test(r?.previous_code_sha ?? "")) p.push("previous_code_sha");
   if (!/^\d+$/.test(r?.run_id ?? "")) p.push("run_id");
   if (!ISO.test(r?.live_since ?? "")) p.push("live_since");
+  if (r?.content_fetched_at !== undefined && !ISO.test(r.content_fetched_at ?? "")) p.push("content_fetched_at");
   return p;
 }
 
@@ -522,6 +525,7 @@ async function main(argv) {
       risk: arg(argv, "risk"),
       runId: arg(argv, "run-id"),
       switchedAt: arg(argv, "switched-at"),
+      contentFetchedAt: arg(argv, "content-fetched-at") || null,
     });
     writeFileSync(arg(argv, "out"), JSON.stringify(r, null, 1) + "\n");
     console.log(JSON.stringify(r));

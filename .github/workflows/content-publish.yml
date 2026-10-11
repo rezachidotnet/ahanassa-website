@@ -32,10 +32,10 @@
 #              V11_AUTO_PRODUCTION_PREP=off turns the auto-start off (staging only). A ledger-only merge never starts it.
 #   - production-prep (dispatch, GitHub UI): the same, for the branch tip.
 #   - 22:47 UTC (02:17 Tehran) schedule: the branch tip, staging only (unchanged).
-#   - daily-content (W11.2; dispatched by daily-content.yml — its 08:00/08:20/08:40 UTC schedules, Odoo after a price
-#     publish, or the ops-health watchdog — never directly by GitHub's scheduler): production content. Job
-#     `daily-guard` first makes it a no-op when today's (Tehran date) content publish already succeeded, so at most one
-#     AUTO publish per Tehran day. It builds the code LIVE on www.ahanassa.com, resolved
+#   - daily-content (W11.2; dispatched by daily-content.yml — the Odoo-server timer at 08:00/08:20/08:40 UTC, Odoo after
+#     a price publish, GitHub schedules as backup, or the ops-health watchdog): production content. Job `daily-guard`
+#     first makes it a no-op unless Odoo has approved prices published after the live snapshot's Odoo fetch began
+#     (.github/scripts/v11-daily-content.mjs). It builds the code LIVE on www.ahanassa.com, resolved
 #     from the production publish state (.github/scripts/v11-live-release.mjs: the newest trusted production record
 #     whose snapshot www serves) — never the ledger's older STABLE_100 and never the branch tip, so it can neither
 #     downgrade the code nor release new code. It refuses (staging only, notice) when the live code is not on
@@ -75,7 +75,7 @@ on:
         required: false
         default: false
       target:
-        description: "staging = staging only; production-prep = also publish the production twin to www.ahanassa.com (waits for your Approve; RELEASE_POLICY.md §20); daily-content = today's production content (live code, AUTO only; no-op if already published today)"
+        description: "staging = staging only; production-prep = also publish the production twin to www.ahanassa.com (waits for your Approve; RELEASE_POLICY.md §20); daily-content = production content (live code, AUTO only; no-op unless Odoo has approved prices newer than www)"
         type: choice
         required: false
         default: staging
@@ -111,15 +111,16 @@ env:
   LEDGER_REF: feat/v11-static-site
 
 jobs:
-  # W11.2: at most one AUTO content publish per Tehran day. A daily-content run whose day already has a successful
-  # content publish (v11-live-release record) stops here as a no-op; every other run passes straight through (no API
-  # call). Fails closed: when the state cannot be read, nothing is built (the watchdog ALERTs after 09:00 UTC).
+  # W11.2: a daily-content run publishes only when Odoo has approved prices newer than the ones live on www (published
+  # after the live snapshot's Odoo fetch began); otherwise it stops here as a no-op. Every other run passes straight
+  # through (no API call). Fails closed: when Odoo or the live state cannot be read, nothing is built (job fails; the
+  # watchdog ALERTs from 09:00 UTC).
   daily-guard:
-    name: daily-guard (one content publish per Tehran day)
+    name: daily-guard (newer approved prices in Odoo?)
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
-      published: ${{ steps.guard.outputs.published }}
+      needed: ${{ steps.guard.outputs.needed }}
     steps:
       - name: Checkout the release scripts (this workflow's own commit on main)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'daily-content' }}
@@ -128,7 +129,7 @@ jobs:
           sparse-checkout: .github/scripts
           persist-credentials: false
 
-      - name: "Today's content publish already succeeded?"
+      - name: "Odoo has approved prices newer than the ones live on www?"
         id: guard
         shell: bash
         env:
@@ -136,16 +137,16 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [ "$DAILY" != "true" ]; then echo "published=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "$DAILY" != "true" ]; then echo "needed=true" >> "$GITHUB_OUTPUT"; exit 0; fi
           node .github/scripts/v11-daily-content.mjs status
 
   build:
     name: build (fetch, validate, snapshot, export, checks)
     needs: daily-guard
     # A workflow_run only for a successful CI run of a push to the application branch of this repository; a daily-content
-    # run only when today's content publish has not succeeded yet.
+    # run only when Odoo has newer approved prices than www.
     if: >-
-      ${{ needs.daily-guard.outputs.published != 'true' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' &&
+      ${{ needs.daily-guard.outputs.needed == 'true' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository)) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -724,7 +725,8 @@ jobs:
           if [ "$CODE_SHA" = "$LIVE_SHA" ]; then kind=content; fi
           node "$CI_SCRIPTS/v11-live-release.mjs" record --out "$RUNNER_TEMP/live-record/live-release.json" --kind "$kind" \
             --code-sha "$CODE_SHA" --publish-state "$WORK/publish-state.production.json" --previous-code-sha "$LIVE_SHA" \
-            --risk "$RISK" --run-id "$GITHUB_RUN_ID" --switched-at "$SWITCHED_AT"
+            --risk "$RISK" --run-id "$GITHUB_RUN_ID" --switched-at "$SWITCHED_AT" \
+            --content-fetched-at "$(jq -r '.pipeline.fetched_at // ""' "$WORK/artifact-production/manifest.json")"
           echo "- live on www since $SWITCHED_AT: \`$CODE_SHA\` ($kind${RISK:+, risk $RISK}); v11-release-watch.yml observes it for 24 h" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Keep the production publish state (90 days)
@@ -752,8 +754,8 @@ jobs:
   # rollback of v11-release-watch.yml. It publishes ONLY when the CONTENT_REBUILD check returns AUTO (exit 0) against
   # the LIVE code (W9.7). APPROVAL_REQUIRED (3) or REFUSED (1) publish nothing: the owner then dispatches
   # target=production-prep, which runs the reviewer-gated `publish-production` job above.
-  # Runs ONLY on a daily-content run (W11.2: dispatched by daily-content.yml, at most one AUTO publish per Tehran day)
-  # and only when the build checked out the live v11 code (build.outputs.production_eligible, never 'true' in any other
+  # Runs ONLY on a daily-content run (W11.2: dispatched by daily-content.yml when Odoo has newer approved prices) and
+  # only when the build checked out the live v11 code (build.outputs.production_eligible, never 'true' in any other
   # mode); the 22:47 staging schedule never reaches it.
   publish-production-content:
     name: publish-production-content (daily; CONTENT_REBUILD AUTO only)
@@ -842,13 +844,6 @@ jobs:
           set -euo pipefail
           # Right before the first write: www still serves what the build saw, so the build's live code is still live.
           node "$CI_SCRIPTS/v11-live-release.mjs" live --app . --ledger-ref "origin/$LEDGER_REF" --expect-snapshot "$LIVE_SNAPSHOT" > "$RUNNER_TEMP/live-now.json"
-          # W11.2: still no content publish today (a production-prep of the live code may have finalized since the guard).
-          node "$CI_SCRIPTS/v11-daily-content.mjs" status > "$RUNNER_TEMP/daily-now.json"
-          if [ "$(jq -r '.published != null' "$RUNNER_TEMP/daily-now.json")" = "true" ]; then
-            echo "auto=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=production content not published::today's (Tehran date) content publish already succeeded since this run started — one AUTO publish per day"
-            exit 0
-          fi
           status=0
           node "$CI_SCRIPTS/v11-live-release.mjs" content-check --artifact "$WORK/artifact-production" --live-sha "$LIVE_SHA" \
             --decision-file "$WORK/content-rebuild.json" || status=$?
@@ -931,7 +926,8 @@ jobs:
           mkdir -p "$RUNNER_TEMP/live-record"
           node "$CI_SCRIPTS/v11-live-release.mjs" record --out "$RUNNER_TEMP/live-record/live-release.json" --kind content \
             --code-sha "$CODE_SHA" --publish-state "$WORK/publish-state.production.json" --previous-code-sha "$CODE_SHA" \
-            --risk NONE --run-id "$GITHUB_RUN_ID" --switched-at "$SWITCHED_AT"
+            --risk NONE --run-id "$GITHUB_RUN_ID" --switched-at "$SWITCHED_AT" \
+            --content-fetched-at "$(jq -r '.pipeline.fetched_at // ""' "$WORK/artifact-production/manifest.json")"
 
       - name: Keep the production publish state (90 days)
         if: ${{ steps.record.outcome == 'success' }}
