@@ -46,7 +46,8 @@ jobs:
           # The v11 workflows. The legacy Worker workflows (deploy-*/verify-/promote-production) are frozen copies kept
           # byte-identical with feat/header-hero-integrated and are not linted here.
           ./actionlint -color .github/workflows/content-publish.yml .github/workflows/v11-release-watch.yml \
-            .github/workflows/ops-health.yml .github/workflows/rfq-ci-reconciler.yml .github/workflows/ci-main.yml
+            .github/workflows/ops-health.yml .github/workflows/rfq-ci-reconciler.yml .github/workflows/ci-main.yml \
+            .github/workflows/daily-content.yml
 
       - name: "Price-source names: none in the tracked tree"
         env:

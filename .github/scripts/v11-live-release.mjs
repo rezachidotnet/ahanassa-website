@@ -192,7 +192,7 @@ export function unzipEntry(zip, entry) {
   }
 }
 
-async function trustedRun(gh, runId, cache) {
+export async function trustedRun(gh, runId, cache) {
   if (!cache.has(runId)) {
     const run = await gh.json(`/actions/runs/${runId}`);
     cache.set(runId, run);

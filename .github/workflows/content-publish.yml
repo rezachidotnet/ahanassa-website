@@ -32,21 +32,29 @@
 #              V11_AUTO_PRODUCTION_PREP=off turns the auto-start off (staging only). A ledger-only merge never starts it.
 #   - production-prep (dispatch, GitHub UI): the same, for the branch tip.
 #   - 22:47 UTC (02:17 Tehran) schedule: the branch tip, staging only (unchanged).
-#   - 08:00 UTC (11:30 Tehran) schedule: production content. It builds the code LIVE on www.ahanassa.com, resolved
+#   - daily-content (W11.2; dispatched by daily-content.yml — its 08:00/08:20/08:40 UTC schedules, Odoo after a price
+#     publish, or the ops-health watchdog — never directly by GitHub's scheduler): production content. Job
+#     `daily-guard` first makes it a no-op when today's (Tehran date) content publish already succeeded, so at most one
+#     AUTO publish per Tehran day. It builds the code LIVE on www.ahanassa.com, resolved
 #     from the production publish state (.github/scripts/v11-live-release.mjs: the newest trusted production record
 #     whose snapshot www serves) — never the ledger's older STABLE_100 and never the branch tip, so it can neither
 #     downgrade the code nor release new code. It refuses (staging only, notice) when the live code is not on
 #     LEDGER_REF, has no pipeline, or does not contain the latest STABLE_100. CONTENT_REBUILD (§19) is checked
-#     against the live code; only AUTO publishes. Do NOT disable this workflow during an observation.
+#     against the live code; only AUTO publishes. Do NOT disable this workflow (or daily-content.yml) during an
+#     observation.
 #   Every production job re-checks right before its first write that www still serves the snapshot the build saw
 #   (a rollback or another publish in between stops it), and after finalize leaves a `v11-live-release` artifact
 #   (live-release.json) — the production publish state that v11-release-watch.yml (auto-rollback, ledger rows)
-#   and the next 08:00 run read.
+#   and the next daily-content run read.
 #   Secrets: AHANASSA_PRICE_SOURCE_NAMES (newline list) is written to a 0600 file under $RUNNER_TEMP (outside the
 #   checkout) and passed as AHANASSA_PRICE_SOURCE_NAMES_FILE to the artifact gate; the tracked tree is scanned too.
 #   Neither ever prints a name. AHANASSA_CONTENT_REPO_TOKEN (read-only, rezachidotnet/ahanassa-content) is given to
 #   the fetch step only (articles, W11.1).
 name: Content publish
+
+# daily-content runs are recognised by this title (.github/scripts/v11-daily-content.mjs DAILY_TITLE); others keep the
+# default titles (the CI run's commit message for a merge, the workflow name otherwise).
+run-name: "${{ github.event_name == 'workflow_dispatch' && inputs.target == 'daily-content' && format('daily-content ({0})', inputs.source || 'manual') || (github.event_name == 'workflow_run' && github.event.workflow_run.display_title) || github.workflow }}"
 
 on:
   workflow_dispatch:
@@ -67,11 +75,16 @@ on:
         required: false
         default: false
       target:
-        description: "staging = staging only; production-prep = also publish the production twin to www.ahanassa.com (waits for your Approve; RELEASE_POLICY.md §20)"
+        description: "staging = staging only; production-prep = also publish the production twin to www.ahanassa.com (waits for your Approve; RELEASE_POLICY.md §20); daily-content = today's production content (live code, AUTO only; no-op if already published today)"
         type: choice
         required: false
         default: staging
-        options: [staging, production-prep]
+        options: [staging, production-prep, daily-content]
+      source:
+        description: "daily-content only: who asked (schedule, odoo, watchdog, manual) — set by daily-content.yml"
+        type: string
+        required: false
+        default: manual
   # W9.7: a merge to the application branch (its CI run on the push succeeded) builds staging at once.
   workflow_run:
     workflows: [CI]
@@ -80,9 +93,8 @@ on:
   schedule:
     # Daily 22:47 UTC = 02:17 Tehran (§7.4: outside Tehran business hours). Staging only (branch tip).
     - cron: "47 22 * * *"
-    # Daily 08:00 UTC = 11:30 Tehran (D-SCHEDULE): production content, built from the LIVE code (§20.5).
-    # Keep this string identical to every `github.event.schedule == '0 8 * * *'` below.
-    - cron: "0 8 * * *"
+    # W11.2: the daily production content run (08:00 UTC = 11:30 Tehran, D-SCHEDULE) moved to daily-content.yml, which
+    # dispatches target=daily-content behind a once-per-Tehran-day guard, with backups and a watchdog.
 
 permissions:
   contents: read
@@ -99,19 +111,49 @@ env:
   LEDGER_REF: feat/v11-static-site
 
 jobs:
+  # W11.2: at most one AUTO content publish per Tehran day. A daily-content run whose day already has a successful
+  # content publish (v11-live-release record) stops here as a no-op; every other run passes straight through (no API
+  # call). Fails closed: when the state cannot be read, nothing is built (the watchdog ALERTs after 09:00 UTC).
+  daily-guard:
+    name: daily-guard (one content publish per Tehran day)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      published: ${{ steps.guard.outputs.published }}
+    steps:
+      - name: Checkout the release scripts (this workflow's own commit on main)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'daily-content' }}
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: "Today's content publish already succeeded?"
+        id: guard
+        shell: bash
+        env:
+          DAILY: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'daily-content' }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "$DAILY" != "true" ]; then echo "published=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          node .github/scripts/v11-daily-content.mjs status
+
   build:
     name: build (fetch, validate, snapshot, export, checks)
-    # A workflow_run only for a successful CI run of a push to the application branch of this repository.
+    needs: daily-guard
+    # A workflow_run only for a successful CI run of a push to the application branch of this repository; a daily-content
+    # run only when today's content publish has not succeeded yet.
     if: >-
-      ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository) }}
+      ${{ needs.daily-guard.outputs.published != 'true' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository)) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment: staging
     outputs:
       code_sha: ${{ steps.meta.outputs.code_sha }}
       snapshot_version: ${{ steps.meta.outputs.snapshot_version }}
-      # 'true' only on the 08:00 schedule when the build checked out the live v11 code (§20.5).
+      # 'true' only on a daily-content run when the build checked out the live v11 code (§20.5).
       production_eligible: ${{ steps.mode.outputs.mode == 'production-content' && steps.live.outputs.eligible == 'true' && 'true' || 'false' }}
       # What www.ahanassa.com served when the build started (the production jobs' pre-write guard), and its code.
       live_snapshot: ${{ steps.live.outputs.snapshot }}
@@ -136,18 +178,17 @@ jobs:
         shell: bash
         env:
           EVENT: ${{ github.event_name }}
-          SCHEDULE: ${{ github.event.schedule }}
           TARGET: ${{ inputs.target }}
         run: |
           set -euo pipefail
           if [ "$EVENT" = "workflow_run" ]; then mode=merge
-          elif [ "$EVENT" = "schedule" ] && [ "$SCHEDULE" = "0 8 * * *" ]; then mode=production-content
+          elif [ "$EVENT" = "workflow_dispatch" ] && [ "$TARGET" = "daily-content" ]; then mode=production-content
           elif [ "$EVENT" = "workflow_dispatch" ] && [ "$TARGET" = "production-prep" ]; then mode=production-prep
           else mode=staging; fi
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
           echo "- run mode: **$mode**" >> "$GITHUB_STEP_SUMMARY"
 
-      # merge: the exact commit CI passed; otherwise the branch tip (the 08:00 run moves to the live code below).
+      # merge: the exact commit CI passed; otherwise the branch tip (a daily-content run moves to the live code below).
       - name: Checkout application code (full history unless staging-only)
         uses: actions/checkout@v6
         with:
@@ -195,7 +236,7 @@ jobs:
       - name: "Live code on www.ahanassa.com (production publish state; RELEASE_POLICY.md §20.5)"
         id: live
         if: ${{ steps.mode.outputs.mode != 'staging' }}
-        # Unresolvable (GitHub API or www down) = no live code: the 08:00 run stays staging-only, a release is HIGH and
+        # Unresolvable (GitHub API or www down) = no live code: a daily-content run stays staging-only, a release is HIGH and
         # its production job's guard stops it. The staging build never depends on it.
         continue-on-error: true
         shell: bash
@@ -208,7 +249,7 @@ jobs:
           node "$CI_SCRIPTS/v11-live-release.mjs" live --app . --ledger-ref "origin/$LEDGER_REF" | tee "$RUNNER_TEMP/live-release.json"
           jq -r '"- live: www serves `\(.snapshot)` from code `\(.sha // "unresolved")` (\(.reason))"' "$RUNNER_TEMP/live-release.json" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: "Production schedule: build the LIVE code, not the branch tip and never the older STABLE_100"
+      - name: "Daily content: build the LIVE code, not the branch tip and never the older STABLE_100"
         if: ${{ steps.mode.outputs.mode == 'production-content' }}
         shell: bash
         env:
@@ -220,10 +261,10 @@ jobs:
           if [ "$ELIGIBLE" = "true" ]; then
             git checkout --quiet --detach "$SHA"
             test "$(git rev-parse HEAD)" = "$SHA"
-            echo "- production schedule: building the live code \`$SHA\`, not the $APP_REF tip" >> "$GITHUB_STEP_SUMMARY"
+            echo "- daily content: building the live code \`$SHA\`, not the $APP_REF tip" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "::warning title=production content not published::${REASON:-the live code could not be resolved} — building the $APP_REF tip for staging only"
-            echo "- production schedule: **not eligible** ($REASON); building the $APP_REF tip, staging only" >> "$GITHUB_STEP_SUMMARY"
+            echo "- daily content: **not eligible** ($REASON); building the $APP_REF tip, staging only" >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: "Release risk against the live code (LOW / HIGH; RELEASE_POLICY.md §20.1)"
@@ -258,7 +299,7 @@ jobs:
       - name: Install dependencies (immutable)
         run: npm ci
 
-      - name: "Production schedule: the live code's own config keeps www.ahanassa.com and workers.dev off"
+      - name: "Daily content: the live code's own config keeps www.ahanassa.com and workers.dev off"
         if: ${{ steps.mode.outputs.mode == 'production-content' && steps.live.outputs.eligible == 'true' }}
         shell: bash
         run: |
@@ -711,12 +752,13 @@ jobs:
   # rollback of v11-release-watch.yml. It publishes ONLY when the CONTENT_REBUILD check returns AUTO (exit 0) against
   # the LIVE code (W9.7). APPROVAL_REQUIRED (3) or REFUSED (1) publish nothing: the owner then dispatches
   # target=production-prep, which runs the reviewer-gated `publish-production` job above.
-  # Runs ONLY on the 08:00 UTC schedule (11:30 Tehran) and only when the build checked out the live v11 code
-  # (build.outputs.production_eligible); the 22:47 staging schedule never reaches it.
+  # Runs ONLY on a daily-content run (W11.2: dispatched by daily-content.yml, at most one AUTO publish per Tehran day)
+  # and only when the build checked out the live v11 code (build.outputs.production_eligible, never 'true' in any other
+  # mode); the 22:47 staging schedule never reaches it.
   publish-production-content:
-    name: publish-production-content (scheduled; CONTENT_REBUILD AUTO only)
+    name: publish-production-content (daily; CONTENT_REBUILD AUTO only)
     needs: [build, publish]
-    if: ${{ github.event_name == 'schedule' && github.event.schedule == '0 8 * * *' && needs.build.outputs.production_eligible == 'true' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'daily-content' && needs.build.outputs.production_eligible == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: production-v11-content
@@ -800,6 +842,13 @@ jobs:
           set -euo pipefail
           # Right before the first write: www still serves what the build saw, so the build's live code is still live.
           node "$CI_SCRIPTS/v11-live-release.mjs" live --app . --ledger-ref "origin/$LEDGER_REF" --expect-snapshot "$LIVE_SNAPSHOT" > "$RUNNER_TEMP/live-now.json"
+          # W11.2: still no content publish today (a production-prep of the live code may have finalized since the guard).
+          node "$CI_SCRIPTS/v11-daily-content.mjs" status > "$RUNNER_TEMP/daily-now.json"
+          if [ "$(jq -r '.published != null' "$RUNNER_TEMP/daily-now.json")" = "true" ]; then
+            echo "auto=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=production content not published::today's (Tehran date) content publish already succeeded since this run started — one AUTO publish per day"
+            exit 0
+          fi
           status=0
           node "$CI_SCRIPTS/v11-live-release.mjs" content-check --artifact "$WORK/artifact-production" --live-sha "$LIVE_SHA" \
             --decision-file "$WORK/content-rebuild.json" || status=$?
