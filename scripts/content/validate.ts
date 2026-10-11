@@ -18,7 +18,7 @@ import type { OdooSource } from "../../lib/content-pipeline/odoo-source.ts";
 import { decreaseFindings, describeDecrease, validateSource } from "../../lib/content-pipeline/validate.ts";
 import { validateArticles } from "../../lib/content-pipeline/articles.ts";
 import type { ArticlesSource } from "../../lib/content-pipeline/articles-source.ts";
-import { loadSourceNames } from "../../lib/static/source-name-scan.ts";
+import { loadSourceNames, redactSourceNames } from "../../lib/static/source-name-scan.ts";
 import fs from "node:fs";
 import { annotate, log as logger, parseArgs, paths, readJson, runStep, summary, workDir, writeJson } from "./common.ts";
 
@@ -35,7 +35,18 @@ await runStep("validate", async () => {
   const result = validateSource(odoo, tables, previous);
   // W11.1: articles (fail-safe like prices: blocked only when the live site shows articles).
   const articlesSource = fs.existsSync(p.articlesSource) ? readJson<ArticlesSource>(p.articlesSource) : undefined;
-  const articles = validateArticles(articlesSource, tables, previous, loadSourceNames());
+  const sourceNames = loadSourceNames();
+  const checked = validateArticles(articlesSource, tables, previous, sourceNames);
+  // W9.7 review: a reason (a link, a leak match) or a path may hold a listed name; it never reaches a log or file.
+  const redact = (line: string) => redactSourceNames(line, sourceNames);
+  const articles = {
+    ...checked,
+    excluded: checked.excluded.map((e) => ({ file: redact(e.file), reasons: e.reasons.map(redact) })),
+    notes: checked.notes.map(redact),
+    errors: checked.errors.map(redact),
+    warnings: checked.warnings.map(redact),
+    summary: redact(checked.summary),
+  };
   result.errors.push(...articles.errors);
   result.warnings.push(...articles.warnings);
   Object.assign(result.counts, articles.counts);

@@ -45,7 +45,7 @@ If this file assigns a keyword to a page that does not exist in `SITEMAP.md`, th
 
 ### 3.1 Demand-entry language
 
-Iranian steel SERPs are strongly price- and transaction-led. Current results for broad queries emphasize terms such as `قیمت آهن`, `قیمت روز آهن آلات`, `خرید آهن آلات`, `استعلام قیمت`, direct purchase, and delivery. Representative ranking pages include [آهن آنلاین](https://ahanonline.com/), [مرکزآهن](https://www.markazeahan.com/), [فولاد ایرانیان](https://www.fooladiranian.com/), and [آهن پرایس](https://ahanprice.com/).
+Iranian steel SERPs are strongly price- and transaction-led. Current results for broad queries emphasize terms such as `قیمت آهن`, `قیمت روز آهن آلات`, `خرید آهن آلات`, `استعلام قیمت`, direct purchase, and delivery. Representative ranking pages include a price-listing site (name removed, W9.7), a price-listing site (name removed, W9.7), [فولاد ایرانیان](https://www.fooladiranian.com/), and a price-listing site (name removed, W9.7).
 
 Ahan Asa should not imitate these sites unless it later operates a verified live-price and product-data system. Instead, the keyword strategy uses a two-layer model:
 

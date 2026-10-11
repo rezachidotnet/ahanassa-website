@@ -238,7 +238,7 @@ export function checkArticleFiles(files: readonly ArticleSourceFile[], ctx: Arti
 
     // Price-source names, never anywhere (text, links, cover).
     if (ctx.sourceNames?.length) {
-      for (const f of scanSourceNames([{ path: file.path, content: `${file.content}\n${cover ?? ""}` }], ctx.sourceNames)) reasons.push(`names a price source (name #${ctx.sourceNames.indexOf(f.name) + 1} of the private list)`);
+      for (const f of scanSourceNames([{ path: file.path, content: `${file.content}\n${cover ?? ""}` }], ctx.sourceNames)) reasons.push(`names a price source (name #${f.index} of the private list)`);
     }
     if (reasons.length || !md || !category || cover === undefined) {
       exclude(file.path, reasons);
