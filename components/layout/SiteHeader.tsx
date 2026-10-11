@@ -13,6 +13,7 @@ import { CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 import { HeaderNavDisclosure } from "@/components/layout/header-nav-disclosure";
 import { HeaderLanguageSelector } from "@/components/layout/header-language-selector";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
+import { RfqBasketBadge } from "@/components/layout/rfq-basket-badge";
 import { ButtonLink } from "@/components/ui/button";
 import type { HeaderProductFamilyShortcut } from "@/lib/catalog/editorial-repository";
 import type { PublicProcessingGroup } from "@/lib/processing/public-repository";
@@ -231,6 +232,8 @@ export function SiteHeader({
                 (Nav/Phone-text/Language/CTA) — using a different breakpoint
                 for phone/language than for nav/CTA/hamburger would leave a
                 broken overlapping state in the tablet range. */}
+            {/* W10.5 RFQ basket (< lg): renders nothing while the basket is empty. */}
+            <RfqBasketBadge locale={locale} variant="bar" className="lg:hidden" />
             <a
               href={`tel:${CONTACT_PHONE_E164}`}
               aria-label={headerPhoneLabel[locale].srLabel}
@@ -278,6 +281,12 @@ export function SiteHeader({
             >
               <Menu className="size-5" aria-hidden="true" />
             </button>
+          </div>
+        </div>
+        {/* W10.5 RFQ basket (≥ lg): a tab under the header's end edge, outside the bar's flex row so it takes no bar width. */}
+        <div className="pointer-events-none absolute inset-x-0 top-full hidden lg:block">
+          <div className="container-x flex justify-end">
+            <RfqBasketBadge locale={locale} variant="tab" className="pointer-events-auto" />
           </div>
         </div>
       </header>

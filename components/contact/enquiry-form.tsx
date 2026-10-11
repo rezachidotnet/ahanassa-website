@@ -3,18 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Script from "next/script";
 import { Plus, ChevronDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { controlClass, labelClass, textareaClass } from "@/components/ui/form-control";
 import type { Locale } from "@/config/locales";
 import type { RfqItemInput } from "@/lib/rfq/types";
-import type { RfqCatalogSelection } from "@/lib/catalog/editorial-repository";
-import type { RfqRowPrefill } from "@/lib/rfq/rfq-prefill";
 import { createIdempotencyKeyLifecycle } from "@/lib/rfq/idempotency-key-lifecycle";
 import { TURNSTILE_RFQ_ACTION } from "@/lib/security/turnstile-action";
-import { findCatalogItemByXid, groupCatalogItemsForSelector, type PublicRfqCatalogItem } from "@/lib/rfq/catalog-selector";
+import { groupCatalogItemsForSelector, type PublicRfqCatalogItem } from "@/lib/rfq/catalog-selector";
 import {
   buildRfqItemInput,
-  createCatalogRowFromSelection,
   createEmptyCatalogRow,
   validateRfqRow,
   MAX_ITEMS,
@@ -27,6 +24,7 @@ import { getDefaultPhoneCountry, getCountryLabel, PHONE_COUNTRIES } from "@/lib/
 import { normalizeDigits } from "@/lib/rfq/quantity";
 import { submitRfqWithRetry } from "@/lib/rfq/submit-with-retry";
 import { RfqSuccessPanel, RFQ_SUBMITTED_ATTR } from "@/components/contact/rfq-success-panel";
+import { clearRfqBasket, writeRfqBasket, EMPTY_RFQ_CUSTOMER, type RfqBasketAddOutcome, type RfqBasketCustomer } from "@/lib/rfq/rfq-basket";
 
 /**
  * Multi-item RFQ / purchase-list form (docs/RFQ_MULTI_ITEM_FORM.md).
@@ -94,6 +92,8 @@ const copy: Record<
     requiredMark: string;
     phoneRequired: string; phoneInvalid: string;
     turnstileVerifying: string; turnstileInteractive: string; turnstileFailed: string;
+    continueBrowsing: string;
+    basketNotice: Record<RfqBasketAddOutcome, string>;
   }
 > = {
   fa: {
@@ -129,6 +129,12 @@ const copy: Record<
     turnstileVerifying: "در حال انجام تأیید امنیتی…",
     turnstileInteractive: "برای فعال شدن ارسال درخواست، تأیید امنیتی را تکمیل کنید.",
     turnstileFailed: "تأیید امنیتی کامل نشد. لطفاً دوباره تلاش کنید.",
+    continueBrowsing: "ادامه انتخاب محصول",
+    basketNotice: {
+      added: "محصول به لیست درخواست شما اضافه شد.",
+      existing: "این محصول از قبل در لیست درخواست شما هست.",
+      full: "لیست به حداکثر ۲۰ ردیف رسیده است؛ این محصول اضافه نشد.",
+    },
   },
   en: {
     customerInfoTitle: "Your information",
@@ -163,6 +169,12 @@ const copy: Record<
     turnstileVerifying: "Running security verification…",
     turnstileInteractive: "Complete the security verification to enable sending your request.",
     turnstileFailed: "Security verification did not complete. Please try again.",
+    continueBrowsing: "Continue browsing",
+    basketNotice: {
+      added: "The product was added to your request list.",
+      existing: "This product is already in your request list.",
+      full: "Your list already has the maximum of 20 rows; this product was not added.",
+    },
   },
   ar: {
     customerInfoTitle: "معلوماتك",
@@ -197,6 +209,12 @@ const copy: Record<
     turnstileVerifying: "جارٍ إجراء التحقق الأمني…",
     turnstileInteractive: "أكمل التحقق الأمني لتفعيل إرسال الطلب.",
     turnstileFailed: "لم يكتمل التحقق الأمني. يرجى المحاولة مرة أخرى.",
+    continueBrowsing: "متابعة اختيار المنتجات",
+    basketNotice: {
+      added: "تمت إضافة المنتج إلى قائمة طلبك.",
+      existing: "هذا المنتج موجود بالفعل في قائمة طلبك.",
+      full: "وصلت القائمة إلى الحد الأقصى (20 صفًا)؛ لم تتم إضافة هذا المنتج.",
+    },
   },
 };
 
@@ -232,21 +250,37 @@ function generateIdempotencyKey(): string {
 export function EnquiryForm({
   locale,
   turnstileSiteKey,
-  catalogPreselection = null,
+  initialRows,
+  initialCustomer,
+  focusRowId = null,
+  basketNotice = null,
+  persistBasket = false,
+  continueBrowsingHref,
   catalogPreselectionInvalid = false,
-  catalogPreselectionPrefill,
   catalogItems = [],
   catalogSnapshotVersion = null,
   rfqEndpoint = "/api/rfqs",
 }: {
   locale: Locale;
   turnstileSiteKey?: string;
-  /** The `?variant=` value resolved against `catalogItems` (StaticEnquiryForm) — only ever a Variant from that published list, never a raw URL value (docs/CATALOG_RFQ_INTEGRATION.md). The server re-validates every submitted variant. */
-  catalogPreselection?: Pick<RfqCatalogSelection, "variantXid" | "templateXid"> | null;
+  /**
+   * W10.5 basket (lib/rfq/rfq-basket.ts): the rows to start with — the visitor's stored rows plus the
+   * `?variant=` item (resolved against `catalogItems` only, never a raw URL value), built by
+   * StaticEnquiryForm. Without it the form starts with one blank row. The server re-validates every variant.
+   */
+  initialRows?: RfqRow[];
+  /** The customer fields the visitor already typed in this tab (sessionStorage). */
+  initialCustomer?: RfqBasketCustomer;
+  /** The row the `?variant=` hand-off added or found (same variant → no duplicate): scrolled to and focused on mount. */
+  focusRowId?: string | null;
+  /** Shown when the hand-off joined an existing list ("added"), matched a row ("existing") or hit MAX_ITEMS ("full"). */
+  basketNotice?: RfqBasketAddOutcome | null;
+  /** Keep rows + customer fields in sessionStorage. Off until StaticEnquiryForm has restored the stored basket, so the first render can never overwrite it. */
+  persistBasket?: boolean;
+  /** «ادامه انتخاب محصول»: the safe same-origin page the visitor came from, else /products (resolveContinueBrowsingHref). */
+  continueBrowsingHref?: string;
   /** True when a `?variant=` was present in the URL but did not resolve to a real, currently RFQ-eligible Variant. */
   catalogPreselectionInvalid?: boolean;
-  /** Quantity/unit/length for the preselected row (`?qty=&unit=&length=`, the weight calculator hand-off), already validated by lib/rfq/rfq-prefill.ts against the Variant's group policy — the same row fields a visitor types; nothing new is submitted. */
-  catalogPreselectionPrefill?: RfqRowPrefill;
   /** Every RFQ-selectable Catalog Variant for this locale (`/data/rfq-catalog.<locale>.json`), loaded once and shared across every Catalog row's selects — never re-fetched per row (docs/RFQ_MULTI_ITEM_FORM.md "Performance"). */
   catalogItems?: PublicRfqCatalogItem[];
   /** snapshot.v1 version of the deployed static catalog (manifest.public.json); null on the legacy SSR runtime. */
@@ -261,16 +295,7 @@ export function EnquiryForm({
   const [turnstileScriptLoaded, setTurnstileScriptLoaded] = useState(false);
   /** UI-only status for explaining the disabled Submit button while Turnstile hasn't produced a token yet — never affects whether Submit is actually enabled (that remains solely `Boolean(turnstileToken)`, unchanged). */
   const [turnstileStatus, setTurnstileStatus] = useState<"verifying" | "interactive" | "failed" | "success">("verifying");
-  const [rows, setRows] = useState<RfqRow[]>(() => [
-    catalogPreselection
-      ? createCatalogRowFromSelection({
-          // The selector groups by public category; the preselected Variant is always in `catalogItems` (same eligibility predicate), so its group is read from there — no extra query.
-          categoryCode: findCatalogItemByXid(catalogItems, catalogPreselection.variantXid)?.publicCategoryCode ?? null,
-          templateXid: catalogPreselection.templateXid,
-          variantXid: catalogPreselection.variantXid,
-        }, catalogPreselectionPrefill)
-      : createEmptyCatalogRow(),
-  ]);
+  const [rows, setRows] = useState<RfqRow[]>(() => (initialRows && initialRows.length > 0 ? initialRows : [createEmptyCatalogRow()]));
   const [rowErrors, setRowErrors] = useState<Record<string, RfqRowFieldKey[]>>({});
   const idempotencyKeyRef = useRef(createIdempotencyKeyLifecycle(generateIdempotencyKey));
   const formRenderedAtRef = useRef(Date.now());
@@ -278,8 +303,18 @@ export function EnquiryForm({
   const turnstileWidgetIdRef = useRef<string | null>(null);
   const rowElementRefs = useRef<Record<string, HTMLElement | null>>({});
   const t = copy[locale];
-  const [phoneCountry, setPhoneCountry] = useState<string>(() => getDefaultPhoneCountry(locale)?.iso2 ?? "");
-  const [phoneLocal, setPhoneLocal] = useState("");
+  const [phoneCountry, setPhoneCountry] = useState<string>(() =>
+    initialCustomer?.phoneCountry && PHONE_COUNTRIES.some((c) => c.iso2 === initialCustomer.phoneCountry) ? initialCustomer.phoneCountry : (getDefaultPhoneCountry(locale)?.iso2 ?? ""),
+  );
+  const [phoneLocal, setPhoneLocal] = useState(() => normalizeDigits(initialCustomer?.phoneLocal ?? "").replace(/[^\d]/g, ""));
+  // Controlled since W10.5 so they can be kept in the basket; the submitted values are unchanged (still read via FormData).
+  const [customerText, setCustomerText] = useState(() => ({
+    name: initialCustomer?.name ?? "",
+    company: initialCustomer?.company ?? "",
+    email: initialCustomer?.email ?? "",
+    message: initialCustomer?.message ?? "",
+  }));
+  const [notice, setNotice] = useState<RfqBasketAddOutcome | null>(basketNotice);
   const [referenceCopied, setReferenceCopied] = useState(false);
   const successHeadingRef = useRef<HTMLHeadingElement>(null);
   const succeeded = status === "success" && reference !== null;
@@ -305,6 +340,18 @@ export function EnquiryForm({
       () => setReferenceCopied(false),
     );
   }, [reference]);
+
+  // W10.5 basket: keep rows + customer fields in this tab only (sessionStorage) — never sent anywhere before submit.
+  useEffect(() => {
+    if (!persistBasket || status === "success") return;
+    writeRfqBasket(locale, { rows: rows.map((r) => r.fields), customer: { ...EMPTY_RFQ_CUSTOMER, ...customerText, phoneCountry, phoneLocal } });
+  }, [persistBasket, status, locale, rows, customerText, phoneCountry, phoneLocal]);
+
+  // The `?variant=` hand-off's row (new, or the existing one for the same variant): bring it into view once.
+  useEffect(() => {
+    if (focusRowId) scrollToRow(focusRowId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const catalogGroups = useMemo(() => groupCatalogItemsForSelector(catalogItems, locale), [catalogItems, locale]);
 
@@ -422,6 +469,11 @@ export function EnquiryForm({
     });
   }
 
+  function updateCustomerText(key: keyof typeof customerText, value: string) {
+    regenerateIdempotencyKey();
+    setCustomerText((prev) => ({ ...prev, [key]: value }));
+  }
+
   function addRow() {
     regenerateIdempotencyKey();
     setRows((prev) => (prev.length >= MAX_ITEMS ? prev : [...prev, createEmptyCatalogRow()]));
@@ -501,6 +553,8 @@ export function EnquiryForm({
       const { body } = await submitRfqWithRetry(rfqEndpoint, payload);
 
       if (body?.ok) {
+        // W10.5: the request is in — the basket and the typed fields are not kept.
+        clearRfqBasket(locale);
         setReference(body.reference);
         setStatus("success");
         return;
@@ -538,6 +592,8 @@ export function EnquiryForm({
     setRowErrors({});
     setPhoneCountry(getDefaultPhoneCountry(locale)?.iso2 ?? "");
     setPhoneLocal("");
+    setCustomerText({ name: "", company: "", email: "", message: "" });
+    setNotice(null);
     setReferenceCopied(false);
     resetTurnstile();
   }
@@ -577,20 +633,20 @@ export function EnquiryForm({
               {t.name}
               <RequiredMark srLabel={t.requiredMark} />
             </label>
-            <input id="name" name="name" required aria-required="true" autoComplete="name" placeholder={t.namePlaceholder} disabled={submitting} onChange={regenerateIdempotencyKey} className={field} />
+            <input id="name" name="name" required aria-required="true" autoComplete="name" placeholder={t.namePlaceholder} disabled={submitting} value={customerText.name} onChange={(e) => updateCustomerText("name", e.target.value)} className={field} />
           </div>
           <div className="grid gap-2">
             <label className={label} htmlFor="company">
               {t.company} <span className="text-muted-foreground font-normal normal-case tracking-normal">({t.companyOptionalSuffix})</span>
             </label>
-            <input id="company" name="company" autoComplete="organization" placeholder={t.companyPlaceholder} disabled={submitting} onChange={regenerateIdempotencyKey} className={field} />
+            <input id="company" name="company" autoComplete="organization" placeholder={t.companyPlaceholder} disabled={submitting} value={customerText.company} onChange={(e) => updateCustomerText("company", e.target.value)} className={field} />
           </div>
           <div className="grid gap-2">
             <label className={label} htmlFor="email">
               {t.email}
               <RequiredMark srLabel={t.requiredMark} />
             </label>
-            <input id="email" name="email" type="email" required aria-required="true" autoComplete="email" placeholder={t.emailPlaceholder} disabled={submitting} onChange={regenerateIdempotencyKey} className={field} />
+            <input id="email" name="email" type="email" required aria-required="true" autoComplete="email" placeholder={t.emailPlaceholder} disabled={submitting} value={customerText.email} onChange={(e) => updateCustomerText("email", e.target.value)} className={field} />
           </div>
           {/* A nested <fieldset>/<legend> (not just a <label>) so assistive
               tech announces "Mobile number" as shared context for BOTH the
@@ -668,7 +724,7 @@ export function EnquiryForm({
           </fieldset>
           <div className="grid gap-2 sm:col-span-2">
             <label className={label} htmlFor="message">{t.message}</label>
-            <textarea id="message" name="message" rows={3} placeholder={t.messagePlaceholder} disabled={submitting} onChange={regenerateIdempotencyKey} className={textareaClass} />
+            <textarea id="message" name="message" rows={3} placeholder={t.messagePlaceholder} disabled={submitting} value={customerText.message} onChange={(e) => updateCustomerText("message", e.target.value)} className={textareaClass} />
           </div>
         </div>
       </fieldset>
@@ -693,6 +749,12 @@ export function EnquiryForm({
             {t.counter(rows.length, MAX_ITEMS)}
           </span>
         </div>
+
+        {notice && (
+          <p role="status" className="border-border bg-[var(--aa-color-bg-subtle)] text-navy mt-4 rounded-[var(--aa-radius-control)] border px-4 py-2.5 text-sm">
+            {t.basketNotice[notice]}
+          </p>
+        )}
 
         {/* Desktop table. table-layout:fixed + an explicit <colgroup> gives
             every column (Quantity in particular) a guaranteed reserved
@@ -775,6 +837,12 @@ export function EnquiryForm({
             <Plus className="size-4" aria-hidden="true" />
             {t.addRow}
           </Button>
+          {/* W10.5: back to the page the visitor came from (safe same-origin referrer, else /products); the basket stays in this tab. */}
+          {continueBrowsingHref && (
+            <ButtonLink href={continueBrowsingHref} variant="secondary" data-rfq-continue-browsing="">
+              {t.continueBrowsing}
+            </ButtonLink>
+          )}
           {rows.length >= MAX_ITEMS && <p className="text-muted-foreground text-xs">{t.maxReached}</p>}
         </div>
 
