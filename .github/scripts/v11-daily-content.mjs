@@ -1,7 +1,7 @@
 // W11.2 (owner requirement 2026-10-11) — the daily production content publish is never silently skipped.
 //
 // GitHub `schedule` is best-effort and on this repository drops most events (2026-10-11: the 08:00 UTC content
-// publish never fired; ops-health fired 2 of ~64 scheduled slots between 00:00 and 09:00 UTC). So the daily publish
+// publish never fired; ops-health fired 2 of 36 scheduled slots between 00:00 and 09:00 UTC). So the daily publish
 // has three independent ways in, all behind one guard — "today's (Tehran date) content publish already succeeded":
 //   - daily-content.yml schedules 08:00, 08:20, 08:40 UTC (backups of each other);
 //   - daily-content.yml dispatched by Odoo right after the owner publishes prices (workflow_dispatch, source=odoo);
