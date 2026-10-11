@@ -24,6 +24,8 @@ import {
   type ShapeKind,
 } from "@/lib/weight-calculator/model";
 import { estimateCostToman, type CalculatorPrices } from "@/lib/weight-calculator/price";
+import { PRICE_DISCLAIMER, type PriceLocale } from "@/lib/pricing/price-locale";
+import { PRICE_RFQ_COPY, priceRfqHref } from "@/lib/pricing/price-rfq";
 
 /**
  * Steel weight / conversion calculator (W10.1). Client-side only: every
@@ -309,6 +311,14 @@ export function WeightCalculator({ locale, products, prices }: { locale: Locale;
                     </dd>
                   </div>
                   <p className="text-tertiary text-xs leading-relaxed">{t.priceDisclaimer}</p>
+                  {/* W9.6: the price disclaimer (fa/ar) and «استعلام قیمت نهایی» — the RFQ form with this variant and quantity (+ the factory on fa). */}
+                  <p className="text-tertiary text-xs leading-relaxed">{PRICE_DISCLAIMER[locale as PriceLocale]}</p>
+                  <Link
+                    href={priceRfqHref(locale as PriceLocale, variant!.xid, price.factory, rfqHandoffHref(locale, { variantXid: variant!.xid, groupCode: product.groupCode, mode, quantity: computed.quantity, result: result!, lengthM: linear ? computed.lengthM : null }).split("?")[1])}
+                    className="text-copper justify-self-start text-sm font-semibold underline underline-offset-4"
+                  >
+                    {PRICE_RFQ_COPY[locale as PriceLocale]}
+                  </Link>
                 </div>
               )}
             </dl>

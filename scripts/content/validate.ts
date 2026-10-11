@@ -50,6 +50,7 @@ await runStep("validate", async () => {
     [
       `### Content validate: ${ok ? "PASS" : "BLOCKED"}`,
       `- **Prices:** ${pricing ? `${pricing.outcome === "published" ? "✅" : pricing.outcome === "blocked" ? "❌" : "⚠️"} ${pricing.summary}` : "not checked"}`,
+      ...(pricing?.history ? [`- **Price history (30-day chart):** ${pricing.history}`] : []),
       `- counts: \`${JSON.stringify(result.counts)}\``,
       `- previous active \`${d1.publication.active_version}\`: \`${JSON.stringify(previous)}\``,
       ...result.warnings.map((w) => `- ⚠️ ${w}`),

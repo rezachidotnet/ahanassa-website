@@ -99,7 +99,7 @@ export function createCatalogRowFromSelection(selection: { categoryCode: string 
       variantXid: selection.variantXid,
       quantityValue: prefill.quantityValue ?? "",
       unit: prefill.unit ?? DEFAULT_RFQ_UOM,
-      notes: "",
+      notes: prefill.notes ?? "",
       lengthMm: prefill.lengthMm ?? "",
     },
   };

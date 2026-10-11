@@ -36,12 +36,13 @@ test("row -> PriceBlockData: Toman = IRR ÷ 10, factory, location, time, previou
 
 test("cell: fa shows amount + compact factory/location + date; ar shows amount + date only; unpriced -> «استعلام قیمت» / «السعر عند الطلب»; en nothing", () => {
   const cell = presentPriceCell("fa", priceBlockDataFromRow(ROW));
-  assert.deepEqual(cell, { kind: "price", amount: "۴۸٬۹۴۷", place: "کارخانه آزمایشی الف، درب کارخانه", datetime: "2026-10-08T07:20:00.000Z", dateLabel: "۱۶ مهر ۱۴۰۵" });
+  // W9.6: ▲/▼ (previous price from an earlier Tehran day); no RFQ button without a variant id.
+  assert.deepEqual(cell, { kind: "price", amount: "۴۸٬۹۴۷", place: "کارخانه آزمایشی الف، درب کارخانه", datetime: "2026-10-08T07:20:00.000Z", dateLabel: "۱۶ مهر ۱۴۰۵", change: { direction: "down", glyph: "▼", label: "۱٫۲٪", word: "کاهش" }, rfq: null });
   assert.deepEqual(presentPriceCell("fa", undefined), { kind: "missing", label: "استعلام قیمت" });
   assert.equal(presentPriceCell("en", priceBlockDataFromRow(ROW)), null);
   assert.equal(presentPriceCell("en", undefined), null);
   // ar (owner decision change 2026-10-09): price only — no factory, no location, no timestamp.
-  assert.deepEqual(presentPriceCell("ar", priceBlockDataFromRow(ROW)), { kind: "price", amount: "٤٨٬٩٤٧", place: null, datetime: null, dateLabel: "٨ أكتوبر ٢٠٢٦" });
+  assert.deepEqual(presentPriceCell("ar", priceBlockDataFromRow(ROW)), { kind: "price", amount: "٤٨٬٩٤٧", place: null, datetime: null, dateLabel: "٨ أكتوبر ٢٠٢٦", change: { direction: "down", glyph: "▼", label: "١٫٢٪", word: "انخفاض" }, rfq: null });
   assert.deepEqual(presentPriceCell("ar", undefined), { kind: "missing", label: "السعر عند الطلب" });
   assert.equal(PRICE_COLUMN_COPY.fa.header, "قیمت روز");
   assert.deepEqual(AR_PRICE_COPY, { header: "سعر اليوم", unit: "تومان/كغ", vat: "شامل ضريبة القيمة المضافة", missing: "السعر عند الطلب" });
@@ -119,9 +120,10 @@ test("page wiring: fa-only price block + column inside an always-suspending asyn
   assert.match(repo, /if \(!isStaticExportBuild\(\)\) return null;/, "prices exist only in the static build");
 });
 
-test("calculator price map: fa {tomanPerKg, datetime, dateLabel}; ar {tomanPerKg, dateLabel} only; en none", () => {
+test("calculator price map: fa {tomanPerKg, datetime, dateLabel, factory}; ar {tomanPerKg, dateLabel} only; en none", () => {
   const map = { "CVAR-000031": priceBlockDataFromRow(ROW) };
-  assert.deepEqual(toCalculatorPrices("fa", map), { "CVAR-000031": { tomanPerKg: 48947, datetime: "2026-10-08T07:20:00.000Z", dateLabel: "۱۶ مهر ۱۴۰۵" } });
+  // W9.6: fa also carries the factory, for the «استعلام قیمت نهایی» prefill; ar never.
+  assert.deepEqual(toCalculatorPrices("fa", map), { "CVAR-000031": { tomanPerKg: 48947, datetime: "2026-10-08T07:20:00.000Z", dateLabel: "۱۶ مهر ۱۴۰۵", factory: "کارخانه آزمایشی الف" } });
   assert.deepEqual(toCalculatorPrices("ar", map), { "CVAR-000031": { tomanPerKg: 48947, dateLabel: "٨ أكتوبر ٢٠٢٦" } });
   assert.equal(toCalculatorPrices("en", map), undefined);
   const page = code("app/[locale]/tools/weight-calculator/page.tsx");

@@ -5,6 +5,7 @@ import { artifactManifest, publicManifest, publicRfqCatalog, PRIVATE_DIR, PUBLIC
 import { scanPublicFile, type LeakFinding } from "./leak-scan.ts";
 import { internalIdsFromSnapshot, scanPublication } from "./publication-gate.ts";
 import { priceGateInput, scanPrices } from "./price-gate.ts";
+import { loadSourceNames, redactSourceNames, scanSourceNames } from "./source-name-scan.ts";
 import { STATIC_TARGETS, TURNSTILE_ORIGIN } from "./targets.ts";
 import { checkIndexingPolicy, PRODUCTION_ORIGIN } from "./indexing-gate.ts";
 
@@ -32,7 +33,7 @@ export const REQUIRED_PUBLIC_FILES = [
 export interface GateResult {
   failures: string[];
   leaks: LeakFinding[];
-  stats: { publicFiles: number; privateFiles: number; htmlPages: number; largestPublicFile: { path: string; bytes: number } | null };
+  stats: { publicFiles: number; privateFiles: number; htmlPages: number; largestPublicFile: { path: string; bytes: number } | null; /** W9.6: "ran" or "not_run" (no private name list given). */ sourceNameScan?: "ran" | "not_run" };
 }
 
 export function sha256File(file: string): string {
@@ -66,7 +67,11 @@ export function forbiddenPublicPath(p: string): string | null {
   return null;
 }
 
-export function runArtifactGate(artifactDir: string, options: { companyPhones?: readonly string[] } = {}): GateResult {
+/**
+ * `sourceNames` (W9.6): the private price-source names to refuse in every public file; by default read from
+ * AHANASSA_PRICE_SOURCE_NAMES_FILE (lib/static/source-name-scan.ts). `stats.sourceNameScan` says whether it ran.
+ */
+export function runArtifactGate(artifactDir: string, options: { companyPhones?: readonly string[]; sourceNames?: readonly string[] | null } = {}): GateResult {
   const failures: string[] = [];
   const publicDir = path.join(artifactDir, PUBLIC_DIR);
   const privateDir = path.join(artifactDir, PRIVATE_DIR);
@@ -164,7 +169,16 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
   for (const f of scanPublication(textFiles, internalIdsFromSnapshot(snapshotDoc))) failures.push(`publication ${f.kind} in ${f.file}: ${f.match}`);
   // 7. Price gate (W9.4): rendered price text = the snapshot row's allow-listed fields, Persian pages only.
   for (const f of scanPrices(textFiles, priceGateInput(snapshotDoc))) failures.push(`price ${f.kind} in ${f.file}: ${f.match}`);
+  // 8. Price-source names (W9.6): never in any public file. The names never live in this public repository.
+  const sourceNames = options.sourceNames === undefined ? loadSourceNames() : options.sourceNames;
+  // Never a name in the output: a finding is the file (redacted when its path holds a name) + the list index.
+  if (sourceNames?.length) for (const f of scanSourceNames([...publicEntries.filter((e) => !textFiles.some((t) => t.path === e.path)).map((e) => ({ path: e.path, content: "" })), ...textFiles], sourceNames)) failures.push(`price source name in ${f.file} (name #${f.index} of the private list)`);
+  // Every other failure line names a path or a match: redact any that holds a listed name (W9.7 review).
+  for (let i = 0; i < failures.length; i++) failures[i] = redactSourceNames(failures[i], sourceNames);
 
   const largest = publicEntries.reduce<ArtifactFileEntry | null>((a, b) => (!a || b.bytes > a.bytes ? b : a), null);
-  return { failures, leaks, stats: { publicFiles: publicEntries.length, privateFiles: privateEntries.length, htmlPages: htmlFiles.length, largestPublicFile: largest ? { path: largest.path, bytes: largest.bytes } : null } };
+  // Callers print stats and may print leaks: the same redaction applies there.
+  const shownLeaks = leaks.map((l) => ({ ...l, file: redactSourceNames(l.file, sourceNames), match: redactSourceNames(l.match, sourceNames) }));
+  const largestPublicFile = largest ? { path: redactSourceNames(largest.path, sourceNames), bytes: largest.bytes } : null;
+  return { failures, leaks: shownLeaks, stats: { publicFiles: publicEntries.length, privateFiles: privateEntries.length, htmlPages: htmlFiles.length, largestPublicFile, sourceNameScan: sourceNames?.length ? "ran" : "not_run" } };
 }

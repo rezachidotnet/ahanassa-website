@@ -1,4 +1,5 @@
 import type { Locale } from "@/config/locales";
+import { PRICE_NAV_LABEL, PRICE_PAGE_ROUTE } from "../pricing/price-page.ts";
 
 /**
  * Primary Header navigation — docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md §58.1.
@@ -11,6 +12,11 @@ import type { Locale } from "@/config/locales";
  * intent (§32.1-32.2) — `/markets`'s own page/content is left untouched
  * (still reachable at its URL), it is simply no longer the primary-nav
  * target.
+ *
+ * W9.6 (owner instruction 2026-10-09, approved on PR #35):
+ * «قیمت روز» → /prices after Products, fa and ar only (ar label approved
+ * «أسعار اليوم»); en has no price page and no such item. A plain direct link,
+ * no dropdown. The footer's company list repeats this list.
  */
 export interface NavLink {
   path: string;
@@ -21,6 +27,7 @@ export interface NavLink {
 export const navLinks: Record<Locale, NavLink[]> = {
   fa: [
     { path: "/products", label: "محصولات", hasDropdown: true },
+    { path: PRICE_PAGE_ROUTE, label: PRICE_NAV_LABEL.fa },
     { path: "/services", label: "خدمات", hasDropdown: true },
     { path: "/industries", label: "صنایع" },
     { path: "/about", label: "درباره ما" },
@@ -35,6 +42,7 @@ export const navLinks: Record<Locale, NavLink[]> = {
   ],
   ar: [
     { path: "/products", label: "المنتجات", hasDropdown: true },
+    { path: PRICE_PAGE_ROUTE, label: PRICE_NAV_LABEL.ar },
     { path: "/services", label: "الخدمات", hasDropdown: true },
     { path: "/industries", label: "الصناعات" },
     { path: "/about", label: "من نحن" },

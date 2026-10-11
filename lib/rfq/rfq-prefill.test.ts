@@ -34,7 +34,7 @@ test("length only for groups with a length input (ANGLE/CHANNEL), whole positive
 });
 
 test("build → parse round trip; parameter names are the documented ones", () => {
-  assert.deepEqual(RFQ_PREFILL_PARAMS, { quantity: "qty", unit: "unit", lengthMm: "length" });
+  assert.deepEqual(RFQ_PREFILL_PARAMS, { quantity: "qty", unit: "unit", lengthMm: "length", factory: "factory" });
   const query = buildRfqRowPrefillQuery("CVAR-000019", { quantity: 912.3, unit: "kg", lengthMm: 12000 });
   assert.equal(query, "variant=CVAR-000019&qty=912.3&unit=kg&length=12000");
   assert.deepEqual(parseRfqRowPrefill(q(query), "CHANNEL"), { unit: "kg", quantityValue: "912.3", lengthMm: "12000" });
@@ -50,7 +50,7 @@ test("the pre-filled row is the same row model and produces the same existing wi
 
 test("the static /contact form pre-fills only the resolved preselection, through parseRfqRowPrefill", () => {
   const src = fs.readFileSync(path.join(ROOT, "components/contact/static-enquiry-form.tsx"), "utf8");
-  assert.match(src, /const prefill = preselection && query \? parseRfqRowPrefill\(query, preselection\.groupCode\) : undefined;/);
+  assert.match(src, /const prefill = preselection && query \? parseRfqRowPrefill\(query, preselection\.groupCode, locale\) : undefined;/);
   assert.match(src, /catalogPreselectionPrefill=\{prefill\}/);
   const form = fs.readFileSync(path.join(ROOT, "components/contact/enquiry-form.tsx"), "utf8");
   assert.match(form, /\}, catalogPreselectionPrefill\)\n\s*: createEmptyCatalogRow\(\),/);

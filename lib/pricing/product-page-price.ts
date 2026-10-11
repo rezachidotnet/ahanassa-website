@@ -2,9 +2,11 @@ import type { Locale } from "@/config/locales";
 import { irrToToman, type PublishedPriceRow } from "../contracts/snapshot-prices.ts";
 import { formatNumber } from "../weight-calculator/format.ts";
 import { formatPersianDate, formatPersianToman, PRICE_BLOCK_COPY, presentPriceBlock, type PriceBlockData } from "./price-block-presentation.ts";
-import { formatArabicDate, isPriceLocale, type PriceLocale } from "./price-locale.ts";
+import { formatArabicDate, isPriceLocale, PRICE_DISCLAIMER, type PriceLocale } from "./price-locale.ts";
+import { isEarlierTehranDay, priceChange } from "./price-history.ts";
+import { PRICE_RFQ_COPY, priceRfqHref } from "./price-rfq.ts";
 
-export { formatArabicDate, isPriceLocale, PRICE_LOCALES, priceDateLabel, type PriceLocale } from "./price-locale.ts";
+export { formatArabicDate, isPriceLocale, PRICE_DISCLAIMER, PRICE_LOCALES, priceDateLabel, type PriceLocale } from "./price-locale.ts";
 
 /**
  * W9.4 — the daily price on product pages. Pure: the snapshot's `published_prices` row → the W10.2
@@ -39,46 +41,99 @@ export const AR_PRICE_COPY = {
   missing: "السعر عند الطلب",
 } as const;
 
+
 export const PRICE_COLUMN_COPY: Record<PriceLocale, { header: string; unit: string; missing: string; note: string }> = {
-  fa: {
-    header: PRICE_BLOCK_COPY.title,
-    unit: PRICE_BLOCK_COPY.unit,
-    missing: PRICE_BLOCK_COPY.missing,
-    note: "قیمت‌ها به تومان برای هر کیلوگرم و شامل ارزش افزوده است؛ قیمت قطعی پس از استعلام اعلام می‌شود.",
-  },
-  ar: { header: AR_PRICE_COPY.header, unit: AR_PRICE_COPY.unit, missing: AR_PRICE_COPY.missing, note: AR_PRICE_COPY.vat },
+  fa: { header: PRICE_BLOCK_COPY.title, unit: PRICE_BLOCK_COPY.unit, missing: PRICE_BLOCK_COPY.missing, note: PRICE_DISCLAIMER.fa },
+  ar: { header: AR_PRICE_COPY.header, unit: AR_PRICE_COPY.unit, missing: AR_PRICE_COPY.missing, note: PRICE_DISCLAIMER.ar },
 };
+
+/**
+ * W9.6 — locales that show ▲/▼ + % next to a price: fa and ar (owner decision on PR #35, 2026-10-09).
+ * The 30-day chart stays fa only; ar still never shows the factory, location or a timestamp.
+ */
+export const PRICE_CHANGE_LOCALES: readonly PriceLocale[] = ["fa", "ar"];
+
+/**
+ * The compact change next to a price: glyph + percent, and the words a screen reader hears instead of the
+ * glyph. ar words in Arabic letters only (ي ك).
+ */
+export const PRICE_CHANGE_GLYPHS = { up: "▲", down: "▼" } as const;
+export const PRICE_CHANGE_WORDS: Record<PriceLocale, { up: string; down: string; unchanged: string }> = {
+  fa: { up: "افزایش", down: "کاهش", unchanged: PRICE_BLOCK_COPY.unchanged },
+  ar: { up: "ارتفاع", down: "انخفاض", unchanged: "دون تغيير" },
+};
+/** The glyphs + the fa words (the fa allow-list and the gate use this shape). */
+export const PRICE_CHANGE_COPY = { ...PRICE_CHANGE_GLYPHS, upWord: PRICE_CHANGE_WORDS.fa.up, downWord: PRICE_CHANGE_WORDS.fa.down, unchanged: PRICE_CHANGE_WORDS.fa.unchanged } as const;
+
+export interface CompactPriceChange {
+  direction: "up" | "down" | "none";
+  /** «▲» / «▼» / null when unchanged (aria-hidden). */
+  glyph: string | null;
+  /** «۱٫۲٪», or «بدون تغییر». */
+  label: string;
+  /** Screen-reader words, e.g. «افزایش» (empty when unchanged). */
+  word: string;
+}
+
+/** ▲/▼ + % vs the previous-day price already in `data` (priceBlockDataFromRow applies the earlier-day rule); null = render nothing. */
+export function presentCompactChange(locale: Locale, data: PriceBlockData | null | undefined): CompactPriceChange | null {
+  if (!data || !isPriceLocale(locale) || !PRICE_CHANGE_LOCALES.includes(locale)) return null;
+  const change = priceChange(data.tomanPerKg, data.previousTomanPerKg);
+  if (!change || !data.previousPricedAt) return null;
+  const words = PRICE_CHANGE_WORDS[locale];
+  if (change.direction === "none") return { direction: "none", glyph: null, label: words.unchanged, word: "" };
+  // fa «۱٫۲٪»; ar «١٫٢٪» (Arabic-Indic digits, the same digit set as the ar amounts).
+  const percent = `${locale === "fa" ? new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 1, minimumFractionDigits: 0 }).format(change.percent) : formatNumber("ar", change.percent, 1)}٪`;
+  return change.direction === "up" ? { direction: "up", glyph: PRICE_CHANGE_GLYPHS.up, label: percent, word: words.up } : { direction: "down", glyph: PRICE_CHANGE_GLYPHS.down, label: percent, word: words.down };
+}
 
 /** The Toman/kg amount as the page shows it (fa: «۴۸٬۹۴۷»; ar: «٤٨٬٩٤٧»). */
 export function formatTomanAmount(locale: PriceLocale, toman: number): string {
   return locale === "fa" ? formatPersianToman(toman) : formatNumber("ar", toman, 0);
 }
 
-/** Snapshot row → the typed prop of the W10.2 PriceBlock (Toman = IRR ÷ 10; no source field exists). */
+/**
+ * Snapshot row → the typed prop of the W10.2 PriceBlock (Toman = IRR ÷ 10; no source field exists).
+ * W9.6: the previous price is kept only when it is from an EARLIER Tehran day than the current one (owner:
+ * ▲/▼ only when a previous day exists) — a same-day correction shows no change at all.
+ */
 export function priceBlockDataFromRow(row: PublishedPriceRow): PriceBlockData {
+  const previousDay = row.previous_price_irr_per_kg !== null && isEarlierTehranDay(row.previous_published_at, row.published_at);
   return {
     tomanPerKg: irrToToman(row.price_irr_per_kg),
     factoryName: row.factory_name_fa,
     deliveryLocation: row.location_fa,
     pricedAt: row.published_at,
-    previousTomanPerKg: row.previous_price_irr_per_kg === null ? null : irrToToman(row.previous_price_irr_per_kg),
-    previousPricedAt: row.previous_published_at,
+    previousTomanPerKg: previousDay ? irrToToman(row.previous_price_irr_per_kg!) : null,
+    previousPricedAt: previousDay ? row.previous_published_at : null,
   };
 }
 
 export type PriceCellPresentation =
-  | { kind: "price"; amount: string; /** fa only (ar never shows factory/location). */ place: string | null; /** fa only (ar carries no timestamp). */ datetime: string | null; dateLabel: string }
+  | {
+      kind: "price";
+      amount: string;
+      /** fa only (ar never shows factory/location). */ place: string | null;
+      /** fa only (ar carries no timestamp). */ datetime: string | null;
+      dateLabel: string;
+      /** W9.6: ▲/▼ + % (fa, previous day only). */ change: CompactPriceChange | null;
+      /** W9.6: «استعلام قیمت نهایی» → the RFQ form prefilled (variant; fa also the factory). */ rfq: { href: string; label: string } | null;
+    }
   | { kind: "missing"; label: string };
 
-/** Table cell: fa amount + factory/location + date; ar amount + date; or the missing label. `null` = no column (en). */
-export function presentPriceCell(locale: Locale, data: PriceBlockData | null | undefined): PriceCellPresentation | null {
+/**
+ * Table cell: fa amount + ▲/▼ + factory/location + date + RFQ button; ar amount + date + RFQ button; or the
+ * missing label. `null` = no column (en). `variantXid` (W9.6) builds the RFQ button; without it, none.
+ */
+export function presentPriceCell(locale: Locale, data: PriceBlockData | null | undefined, variantXid?: string): PriceCellPresentation | null {
   if (!isPriceLocale(locale)) return null;
   // Validity is the PriceBlock's (never an empty/0/NaN value), whatever the locale shows of it.
   const view = presentPriceBlock("fa", data);
   if (!view) return null;
   if (view.kind === "missing" || !data) return { kind: "missing", label: PRICE_COLUMN_COPY[locale].missing };
-  if (locale === "ar") return { kind: "price", amount: formatTomanAmount("ar", data.tomanPerKg), place: null, datetime: null, dateLabel: formatArabicDate(new Date(view.datetime)) };
-  return { kind: "price", amount: view.amount, place: `${view.factoryName}، ${view.deliveryLocation}`, datetime: view.datetime, dateLabel: formatPersianDate(new Date(view.datetime)) };
+  const rfq = variantXid ? { href: priceRfqHref(locale, variantXid, locale === "fa" ? view.factoryName : null), label: PRICE_RFQ_COPY[locale] } : null;
+  if (locale === "ar") return { kind: "price", amount: formatTomanAmount("ar", data.tomanPerKg), place: null, datetime: null, dateLabel: formatArabicDate(new Date(view.datetime)), change: presentCompactChange("ar", data), rfq };
+  return { kind: "price", amount: view.amount, place: `${view.factoryName}، ${view.deliveryLocation}`, datetime: view.datetime, dateLabel: formatPersianDate(new Date(view.datetime)), change: presentCompactChange("fa", data), rfq };
 }
 
 /** The page's main priced variant: the first one, in the table's order, that has a price. */
@@ -89,11 +144,15 @@ export function firstPricedVariant<T extends { xid: string }>(orderedVariants: r
 /** Every string the price markup of one variant may show on a page of `locale` (the gate's allow-list). */
 export function allowedPriceTexts(row: PublishedPriceRow | null, locale: PriceLocale = "fa", productName?: string): string[] {
   if (locale === "ar") {
-    const out: string[] = [...Object.values(AR_PRICE_COPY)];
-    if (row) out.push(renderedAmount(row, "ar"), formatArabicDate(new Date(row.published_at)));
+    const out: string[] = [...Object.values(AR_PRICE_COPY), PRICE_RFQ_COPY.ar, ...Object.values(PRICE_CHANGE_GLYPHS), ...Object.values(PRICE_CHANGE_WORDS.ar)];
+    if (row) {
+      out.push(renderedAmount(row, "ar"), formatArabicDate(new Date(row.published_at)));
+      const compact = presentCompactChange("ar", priceBlockDataFromRow(row));
+      if (compact) out.push(compact.label);
+    }
     return out;
   }
-  const fixed = [PRICE_BLOCK_COPY.title, PRICE_BLOCK_COPY.unit, PRICE_BLOCK_COPY.vat, PRICE_BLOCK_COPY.factory, PRICE_BLOCK_COPY.delivery, PRICE_BLOCK_COPY.updated, PRICE_BLOCK_COPY.askToday, PRICE_BLOCK_COPY.missing, PRICE_BLOCK_COPY.cta, PRICE_BLOCK_COPY.unchanged];
+  const fixed = [PRICE_BLOCK_COPY.title, PRICE_BLOCK_COPY.unit, PRICE_BLOCK_COPY.vat, PRICE_BLOCK_COPY.factory, PRICE_BLOCK_COPY.delivery, PRICE_BLOCK_COPY.updated, PRICE_BLOCK_COPY.askToday, PRICE_BLOCK_COPY.missing, PRICE_BLOCK_COPY.cta, PRICE_BLOCK_COPY.unchanged, PRICE_RFQ_COPY.fa, PRICE_TREND_COPY.fa, PRICE_CHANGE_COPY.up, PRICE_CHANGE_COPY.down, PRICE_CHANGE_COPY.upWord, PRICE_CHANGE_COPY.downWord];
   const out: string[] = [...fixed];
   if (productName) out.push(productName);
   if (!row) return out;
@@ -105,6 +164,8 @@ export function allowedPriceTexts(row: PublishedPriceRow | null, locale: PriceLo
       out.push(view.change.since);
       if (view.change.percent) out.push(view.change.percent);
     }
+    const compact = presentCompactChange("fa", data);
+    if (compact) out.push(compact.label);
   }
   return out;
 }
@@ -113,3 +174,8 @@ export function allowedPriceTexts(row: PublishedPriceRow | null, locale: PriceLo
 export function renderedAmount(row: PublishedPriceRow, locale: PriceLocale = "fa"): string {
   return formatTomanAmount(locale, irrToToman(row.price_irr_per_kg));
 }
+
+/** W9.6 — the caption of the product page's 30-day chart (fa; ar shows price only). */
+export const PRICE_TREND_COPY = { fa: "روند ۳۰ روز اخیر" } as const;
+/** The chart's element attribute: its value is the number of daily points drawn (the gate re-counts them). */
+export const PRICE_SPARKLINE_ATTRIBUTE = "data-aa-price-sparkline";

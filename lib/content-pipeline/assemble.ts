@@ -4,6 +4,7 @@ import type { SnapshotV1 } from "../contracts/snapshot-v1.ts";
 import type { D1Source } from "./d1-source.ts";
 import type { OdooSource } from "./odoo-source.ts";
 import { validatePricing } from "./pricing.ts";
+import { validatePricingHistory } from "./pricing-history.ts";
 
 /**
  * Builds the snapshot.v1 tables from one full Odoo fetch plus the
@@ -224,6 +225,9 @@ export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivat
     groups.push(g.is_active === 0 ? g : { ...g, is_active: 0, updated_at: maxIso(g.updated_at, deactivatedAt) });
   }
 
+  // W9.4/W9.6: prices and their daily history, Odoo-owned and build-only.
+  const prices = validatePricing(odoo.prices, odoo.products, odoo.fetched_at).rows;
+
   // --- editorial layer: carried verbatim from DB_PUBLIC -------------------------
   return {
     catalog_public_categories: categories.sort(byKey((c) => `${c.locale}|${String(c.position).padStart(4, "0")}`)),
@@ -236,6 +240,8 @@ export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivat
     catalog_group_labels: [...d1.tables.catalog_group_labels].sort(byKey((r) => `${r.group_code}|${r.locale}`)),
     // W9.4: Odoo-owned, build-only; only the allow-listed fields (empty when the pricing source has any error,
     // which validateSource reports and which stops the run).
-    published_prices: validatePricing(odoo.prices, odoo.products, odoo.fetched_at).rows,
+    published_prices: prices,
+    // W9.6: the daily points of the 30-day chart (empty, never an error, when the history is unusable).
+    published_price_history: validatePricingHistory(odoo.price_history, prices, odoo.fetched_at).rows,
   };
 }
