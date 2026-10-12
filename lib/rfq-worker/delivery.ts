@@ -1,6 +1,7 @@
 import { mapRfqToApiPayload, buildOutboundRfqIdempotencyKey, type RfqSnapshotItem } from "../odoo/rfq-payload-mapper.ts";
 import { classifyIntakeStatus, type DeliveryClassification } from "../contracts/rfq-intake-status.ts";
 import { ulid } from "../rfq/ulid.ts";
+import { notesWithAttachments, type AttachmentNoteRow } from "../rfq/attachment-notes.ts";
 
 /**
  * RFQ delivery to Odoo (architecture V1.1 §6.2–§6.4, A5) — ONE module used by
@@ -15,6 +16,10 @@ import { ulid } from "../rfq/ulid.ts";
  *    `received_at` (= rfqs.submitted_at, the acceptance time, identical on
  *    every retry) and `website_reference` (the reference the customer saw);
  *  - classification `classifyIntakeStatus` (§6.2);
+ *  - D-RFQ-FILE: an RFQ with declared files first FREEZES its file list
+ *    (`attachments_frozen_at`; still-pending files become `failed` /
+ *    `not_received`), then sends it in `notes` (lib/rfq/attachment-notes.ts).
+ *    Frozen means identical on every retry, as the Idempotency-Key requires;
  *  - ALL post-delivery writes (rfq status, Odoo reference, attempt row,
  *    outbox bookkeeping) in ONE db.batch. If the run is cut off after the
  *    POST and before that batch, the next run re-sends the same key + same
@@ -98,7 +103,7 @@ export async function deliverOne(db: D1Database, rfqId: string, cfg: DeliveryCon
 
   const header = await db
     .prepare(
-      `SELECT r.id, r.reference_number, r.submitted_at, r.locale, r.company_name, r.message,
+      `SELECT r.id, r.reference_number, r.submitted_at, r.locale, r.company_name, r.message, r.attachment_count,
               c.full_name, c.email_normalized, c.phone_e164, c.phone_national,
               o.event_id, o.attempt_count, o.correlation_id
        FROM rfqs r JOIN rfq_contacts c ON c.rfq_id = r.id
@@ -106,7 +111,7 @@ export async function deliverOne(db: D1Database, rfqId: string, cfg: DeliveryCon
        WHERE r.id = ?`,
     )
     .bind(rfqId)
-    .first<{ id: string; reference_number: string; submitted_at: string; locale: string; company_name: string | null; message: string | null; full_name: string; email_normalized: string | null; phone_e164: string | null; phone_national: string | null; event_id: string; attempt_count: number; correlation_id: string }>();
+    .first<{ id: string; reference_number: string; submitted_at: string; locale: string; company_name: string | null; message: string | null; attachment_count: number | null; full_name: string; email_normalized: string | null; phone_e164: string | null; phone_national: string | null; event_id: string; attempt_count: number; correlation_id: string }>();
   if (!header) return { status: "skipped", rfqId, reason: "not_found" };
 
   const { results: itemRows } = await db
@@ -116,6 +121,22 @@ export async function deliverOne(db: D1Database, rfqId: string, cfg: DeliveryCon
     )
     .bind(rfqId)
     .all<{ line_number: number; variant_ref: string | null; sku_snapshot: string | null; freeform_title: string | null; description: string | null; quantity_text: string; quantity_value: number | null; quantity_scale: number | null; unit_ref: string | null; length_mm: number | null; unpublished_at_receipt: number | null }>();
+
+  // Freeze the file list once (first attempt), then read it — the same rows on every retry.
+  let attachmentRows: AttachmentNoteRow[] = [];
+  if ((header.attachment_count ?? 0) > 0) {
+    const frozenAt = now.toISOString();
+    await db.batch([
+      db.prepare(`UPDATE rfqs SET attachments_frozen_at = ? WHERE id = ? AND attachments_frozen_at IS NULL`).bind(frozenAt, rfqId),
+      db.prepare(`UPDATE rfq_attachments SET upload_status = 'failed', failure_code = 'not_received', updated_at = ? WHERE rfq_id = ? AND upload_status = 'pending'`).bind(frozenAt, rfqId),
+    ]);
+    attachmentRows = (
+      await db
+        .prepare(`SELECT slot, original_filename, byte_size, upload_status, failure_code, object_key FROM rfq_attachments WHERE rfq_id = ? ORDER BY slot ASC`)
+        .bind(rfqId)
+        .all<AttachmentNoteRow>()
+    ).results;
+  }
 
   const items: RfqSnapshotItem[] = itemRows.map((i) => ({
     lineNumber: i.line_number,
@@ -132,7 +153,7 @@ export async function deliverOne(db: D1Database, rfqId: string, cfg: DeliveryCon
   const attempt = (header.attempt_count ?? 0) + 1;
   const startedAt = now.toISOString();
 
-  const mapping = mapRfqToApiPayload({ locale: header.locale, fullName: header.full_name, companyName: header.company_name, phone: header.phone_e164 ?? header.phone_national, email: header.email_normalized, message: header.message, items });
+  const mapping = mapRfqToApiPayload({ locale: header.locale, fullName: header.full_name, companyName: header.company_name, phone: header.phone_e164 ?? header.phone_national, email: header.email_normalized, message: notesWithAttachments(header.message, attachmentRows), items });
 
   let classification: DeliveryClassification;
   let httpStatus: number | null = null;

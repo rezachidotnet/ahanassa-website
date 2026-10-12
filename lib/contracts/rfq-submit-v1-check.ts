@@ -2,6 +2,7 @@ import { MAX_ITEMS } from "../rfq/item-row-validation.ts";
 import { MAX_BODY_BYTES, MAX_LENGTH_MM } from "../rfq/validation.ts";
 import { RFQ_UOM_CODES } from "../rfq/uom.ts";
 import { SNAPSHOT_VERSION_PATTERN } from "./snapshot-version.ts";
+import { MAX_RFQ_FILES, MAX_RFQ_FILE_BYTES } from "../rfq/attachment-policy.ts";
 
 /**
  * rfq_submit.v1 strict check WITHOUT zod — the RFQ Worker's copy of
@@ -44,6 +45,12 @@ export const RFQ_SUBMIT_LIMITS = {
     units: RFQ_UOM_CODES,
     description: { max: 1000 },
     lengthMm: { max: MAX_LENGTH_MM },
+  },
+  /** D-RFQ-FILE: files declared with the request; their bytes follow to /api/rfqs/files (docs/RFQ_FILE_UPLOAD.md). */
+  attachments: { max: MAX_RFQ_FILES },
+  attachment: {
+    name: { min: 1, max: 255 },
+    size: { max: MAX_RFQ_FILE_BYTES },
   },
 } as const;
 
@@ -104,7 +111,8 @@ function unknownKeys(obj: Record<string, unknown>, known: readonly string[], pat
 }
 
 const ITEM_KEYS = ["catalogVariantXid", "productSlug", "freeformTitle", "categoryLabel", "gradeOrStandard", "quantityText", "unit", "description", "lengthMm"] as const;
-const REQUEST_KEYS = ["idempotencyKey", "locale", "fullName", "companyName", "email", "phoneCountry", "phoneLocal", "deliveryLocation", "message", "items", "website", "formRenderedAt", "turnstileToken", "catalogSnapshotVersion"] as const;
+const ATTACHMENT_KEYS = ["name", "size"] as const;
+const REQUEST_KEYS = ["idempotencyKey", "locale", "fullName", "companyName", "email", "phoneCountry", "phoneLocal", "deliveryLocation", "message", "items", "website", "formRenderedAt", "turnstileToken", "catalogSnapshotVersion", "attachments"] as const;
 
 function checkItem(item: unknown, path: Path, out: ContractIssue[]): void {
   if (!isPlainObject(item)) return void out.push({ path, code: "invalid_type" });
@@ -120,6 +128,14 @@ function checkItem(item: unknown, path: Path, out: ContractIssue[]): void {
   opt("description", L.description);
   if (item.lengthMm !== undefined && item.lengthMm !== null) int(item.lengthMm, { positive: true, max: L.lengthMm.max }, [...path, "lengthMm"], out);
   unknownKeys(item, ITEM_KEYS, path, out);
+}
+
+function checkAttachment(attachment: unknown, path: Path, out: ContractIssue[]): void {
+  if (!isPlainObject(attachment)) return void out.push({ path, code: "invalid_type" });
+  const L = RFQ_SUBMIT_LIMITS.attachment;
+  str(attachment.name, L.name, [...path, "name"], out);
+  int(attachment.size, { positive: true, max: L.size.max }, [...path, "size"], out);
+  unknownKeys(attachment, ATTACHMENT_KEYS, path, out);
 }
 
 /** Same verdict and issues as `rfqSubmitRequest.safeParse(body)`; `data` is the input (the schema is strict and transforms nothing). */
@@ -145,6 +161,12 @@ export function checkRfqSubmitRequest(body: unknown): RfqSubmitCheck {
   if (body.formRenderedAt !== undefined) int(body.formRenderedAt, {}, ["formRenderedAt"], out);
   str(body.turnstileToken, L.turnstileToken, ["turnstileToken"], out);
   if (body.catalogSnapshotVersion !== undefined && body.catalogSnapshotVersion !== null) str(body.catalogSnapshotVersion, L.catalogSnapshotVersion, ["catalogSnapshotVersion"], out);
+  if (body.attachments !== undefined) {
+    const attachments = body.attachments;
+    if (!Array.isArray(attachments)) out.push({ path: ["attachments"], code: "invalid_type" });
+    else attachments.forEach((a, i) => checkAttachment(a, ["attachments", i], out));
+    lengthChecks(attachments, L.attachments, ["attachments"], out);
+  }
   unknownKeys(body, REQUEST_KEYS, [], out);
   return out.length ? { success: false, issues: out } : { success: true, data: body };
 }

@@ -1577,6 +1577,32 @@ Policy: `RELEASE_POLICY.md` §11 (contract item) and new §11.1. Tests: `lib/ci/
   - A tracked-tree scan in `CI` now blocks a reintroduction (`RELEASE_POLICY.md` §20.9).
 - **Not done (owner decision):** git history is not rewritten. The names were introduced in `d108f01` (2026-08-26, "chore: initialize Ahan Asa website") and are present in that commit and every later commit of both files on 42 remote branches. The W9.7 report lists them.
 
+### DAR-065 — RFQ file upload (D-RFQ-FILE) is built before the attachment-scanning gate it depends on (2026-10-12)
+
+**Severity:** MEDIUM. **Status:** OPEN (production upload stays off until it is resolved).
+- **Conflict:** owner decision D-RFQ-FILE (2026-10-12) asks for RFQ file upload. Two sources hold
+  production uploads back until a malware/content scanner is selected and approved, and say upload
+  stays disabled until then:
+  - `PROJECT_OVERRIDES.md` §8 (`ATTACHMENT_SCANNING_BLOCKS_PRODUCTION_UPLOADS = true`);
+  - `01-sources/SECURITY_GUIDELINES.md` §13 and §19.
+  The owner's instruction is the latest one, so it wins for the code (`CLAUDE.md` §8). Neither source
+  is edited here.
+- **Done (W13.1):**
+  - Upload is built behind a switch: the `RFQ_FILES` binding plus `RFQ_FILES_ENABLED=1`.
+  - It is on in staging only. Production has no bucket bound and the flag set to `0`, so its form does
+    not show the field.
+  - Server-side the upload is checked by extension, magic bytes and container markers (macro, archive,
+    executable).
+  - Files go to a private EU bucket and are never rendered back. Staff downloads are octet-stream +
+    attachment + nosniff, and every one is access-logged.
+  - `scan_status` is recorded as `not_configured`.
+  - `docs/RFQ_FILE_UPLOAD.md` has the details.
+- **Open, for the owner:**
+  1. Either select a scanner, or accept these checks as the §8 pipeline. Then switch production on.
+  2. Decide how long the R2 objects are kept. No job deletes them today.
+  3. Decide whether a file alone, without a typed item row, may make an RFQ. Today at least one row is
+     still required.
+
 ---
 
 **End of `DOCUMENT_AUDIT_REPORT.md`**

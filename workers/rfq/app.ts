@@ -4,6 +4,7 @@
  * lib/security, lib/odoo payload mapping only.
  *
  *   OPTIONS/POST /api/rfqs     rfq_submit.v1 intake (CORS: exact allow-list)
+ *   GET/OPTIONS/PUT /api/rfqs/files[/<reference>/<slot>]  RFQ file upload (D-RFQ-FILE, lib/rfq-worker/attachments.ts)
  *   GET          /healthz      liveness (no D1)
  *   /__admin/*                 §15 manual-review tool + reconcile trigger (lib/rfq-worker/admin.ts)
  *   queue                      one message = one RFQ (max_batch_size 1)
@@ -14,6 +15,7 @@
  */
 import { handleRfqSubmit } from "../../lib/rfq-worker/submit.ts";
 import { preflightResponse } from "../../lib/rfq-worker/cors.ts";
+import { filesCapability, filesPreflight, handleFileUpload, isFilesPath, FILES_PATH } from "../../lib/rfq-worker/attachments.ts";
 import { consumeOne, reconcileOnce, type QueueMessageLike } from "../../lib/rfq-worker/runners.ts";
 import { handleAdmin, type AdminExtension } from "../../lib/rfq-worker/admin.ts";
 import { csv, type RfqWorkerEnv } from "../../lib/rfq-worker/config.ts";
@@ -59,6 +61,11 @@ export function createRfqWorker(options: RfqWorkerOptions = {}) {
             ctx.waitUntil(queueHandoff(env, event));
           },
         });
+      }
+      if (isFilesPath(url.pathname)) {
+        if (request.method === "OPTIONS") return filesPreflight(request, csv(env.ALLOWED_ORIGINS));
+        if (url.pathname === FILES_PATH && request.method === "GET") return filesCapability(request, env);
+        return handleFileUpload(request, env, url);
       }
       if (url.pathname === "/healthz" && request.method === "GET") return json(200, { ok: true });
       if (url.pathname.startsWith("/__admin/")) return handleAdmin(request, env, url, options.adminExtension);

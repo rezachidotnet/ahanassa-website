@@ -130,3 +130,20 @@ test("rfq_submit.v1 check: unknown keys (order, nesting) and seeded random multi
     assertSame(body, `random #${i}`);
   }
 });
+
+test("rfq_submit.v1 check: attachments (D-RFQ-FILE) field x value battery, shapes and array sizes give zod's issues", () => {
+  const file = { name: "list.xlsx", size: 1024 };
+  for (const value of BATTERY) {
+    assertSame({ ...valid(), attachments: value === undefined ? undefined : roundTrip(value) }, "attachments");
+    for (const key of ["name", "size", "extra"]) {
+      const a: Record<string, unknown> = { ...file };
+      if (value === undefined) delete a[key];
+      else a[key] = roundTrip(value);
+      assertSame({ ...valid(), attachments: [a, file] }, `attachment ${key}`);
+    }
+  }
+  for (const attachments of [[], [file], [null], ["x"], {}, Array.from({ length: 5 }, () => file), Array.from({ length: 6 }, () => file), [{ name: "", size: 0 }], [{ name: "a.pdf", size: 15 * 1024 * 1024 }], [{ name: "a.pdf", size: 15 * 1024 * 1024 + 1 }], [{ name: "a.pdf", size: 1.5 }]]) {
+    assertSame({ ...valid(), attachments }, `attachments ${JSON.stringify(attachments).slice(0, 40)}`);
+  }
+  assert.equal(checkRfqSubmitRequest({ ...valid(), attachments: [file] }).success, true);
+});

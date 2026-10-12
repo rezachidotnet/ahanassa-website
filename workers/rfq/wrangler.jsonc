@@ -36,6 +36,10 @@
       "ratelimits": [{ "name": "RFQ_RATE_LIMITER", "namespace_id": "1102", "simple": { "limit": 20, "period": 60 } }],
       // Cron reconciler: one due RFQ per run (§6.4). Account cap: 5 triggers.
       "triggers": { "crons": ["*/5 * * * *"] },
+      // D-RFQ-FILE: PRIVATE bucket for RFQ files (no r2.dev URL, no custom domain), EU jurisdiction
+      // (PROJECT_OVERRIDES.md D1/R2 jurisdiction decision). The owner creates it before the next deploy:
+      //   npx wrangler r2 bucket create ahanassa-v11-rfq-files-staging --jurisdiction eu
+      "r2_buckets": [{ "binding": "RFQ_FILES", "bucket_name": "ahanassa-v11-rfq-files-staging", "jurisdiction": "eu" }],
       "vars": {
         "APP_ENV": "staging",
         "ALLOWED_ORIGINS": "https://ahanassa-v11-static-staging.nova-b1e6f0.workers.dev",
@@ -49,6 +53,8 @@
         "DELIVERY_ON_QUEUE": "0",
         "DELIVERY_ON_CRON": "1",
         "QUEUE_FAST_PATH": "0",
+        // File upload on (needs the RFQ_FILES bucket above). docs/RFQ_FILE_UPLOAD.md.
+        "RFQ_FILES_ENABLED": "1",
         "TEST_HOOKS": "1"
       }
       // Secrets (wrangler secret put --env staging): TURNSTILE_SECRET_KEY, ODOO_RFQ_API_TOKEN (= stub bearer), ADMIN_TOKEN.
@@ -80,7 +86,13 @@
         "ODOO_INTAKE_V11": "1",
         "DELIVERY_ON_QUEUE": "0",
         "DELIVERY_ON_CRON": "1",
-        "QUEUE_FAST_PATH": "0"
+        "QUEUE_FAST_PATH": "0",
+        // D-RFQ-FILE: OFF in production. No RFQ_FILES binding yet, so this deploys without the bucket;
+        // the form hides the upload field (GET /api/rfqs/files says enabled:false). To switch on (owner):
+        //   npx wrangler r2 bucket create ahanassa-v11-rfq-files-production --jurisdiction eu
+        //   add "r2_buckets": [{ "binding": "RFQ_FILES", "bucket_name": "ahanassa-v11-rfq-files-production", "jurisdiction": "eu" }]
+        //   set RFQ_FILES_ENABLED to "1" — after the scanning decision of PROJECT_OVERRIDES.md §8.
+        "RFQ_FILES_ENABLED": "0"
       }
     }
   }

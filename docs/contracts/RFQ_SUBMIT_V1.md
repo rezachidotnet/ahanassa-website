@@ -24,6 +24,7 @@ Code twin: `lib/contracts/rfq-submit-v1.ts` — field limits are imported from t
 | `website` | honeypot — must be empty |
 | `formRenderedAt` | optional epoch ms (passive timing signal) |
 | `turnstileToken` | Cloudflare Turnstile response token; action `rfq_submit`; the Worker also checks `hostname` (W2) |
+| `attachments` | optional, 0–5 × `{name (1–255), size (integer, 1..15 MiB)}` — D-RFQ-FILE (`docs/RFQ_FILE_UPLOAD.md`). The Worker checks the extension and size, answering 422 `attachments[i].name: [macro_file \| executable_or_archive \| extension_not_allowed \| …]`, or `attachments: [uploads_disabled]` when upload is off. Each declared file is part of the payload fingerprint. The bytes follow, after the RFQ is accepted, with `PUT /api/rfqs/files/<reference>/<slot>` and `X-RFQ-Key: <idempotencyKey>`. |
 | `catalogSnapshotVersion` | `snap-<16 hex>` from `/data/rfq-catalog.<locale>.json` (`snapshot.v1`); `null` on the legacy SSR runtime. Variants are validated against this snapshot's `rfq_variant_index` rows (fallback: active version). |
 
 ## Responses
@@ -44,6 +45,14 @@ carries `Cache-Control: no-store`.
 | 422 | `VALIDATION_ERROR` + `fieldErrors` | schema, catalog-variant or UoM validation failed |
 | 429 | `RATE_LIMITED` | rate limit exceeded; `Retry-After: 60` |
 | 503 | `SERVICE_UNAVAILABLE` | D1, Turnstile Siteverify or the rate-limit binding unavailable — fail closed; the browser may retry with the same key |
+
+## File upload (D-RFQ-FILE)
+
+| Request | Answer |
+|---|---|
+| `GET /api/rfqs/files` | `{ok, enabled, maxFiles?, maxFileBytes?, extensions?}`; `Cache-Control: public, max-age=300`. `enabled` is true only with the `RFQ_FILES` binding and `RFQ_FILES_ENABLED=1`. |
+| `OPTIONS /api/rfqs/files/…` | 204 for an allowed origin, with `Allow-Methods: GET, PUT` and `Allow-Headers: content-type, x-rfq-key`. Any other origin gets 403. |
+| `PUT /api/rfqs/files/<reference>/<slot>` | 201 `{ok, status: "received"}`. An already received file gets 200. Wrong reference, key or slot gets 404 `NOT_FOUND` (one answer for all three). A missing length gets 411. Over 15 MiB gets 413. A size mismatch or refused content gets 422 `FILE_REJECTED` + `reason`. After the first delivery attempt the answer is 409 `UPLOAD_CLOSED`. Over the per-IP limit gets 429. A storage error gets 503 `STORAGE_UNAVAILABLE`. Upload switched off gets 404 `UPLOADS_DISABLED`. |
 
 ## CORS and CSP
 
