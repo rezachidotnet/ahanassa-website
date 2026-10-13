@@ -40,6 +40,7 @@ import { resolveVariantsFromIndex } from "../../lib/rfq-worker/variant-index.ts"
 import { compareTargetArtifacts } from "../../lib/static/target-diff-gate.ts";
 import { PRODUCTION_ROBOTS_TXT, STAGING_ROBOTS_TXT } from "../../lib/static/indexing-gate.ts";
 import { STATIC_TARGETS } from "../../lib/static/targets.ts";
+import { nextStaticEntries, STATIC_ASSET_WAIT, waitForStaticAssets } from "../../lib/content-pipeline/static-asset-wait.ts";
 import { annotate, log as logger, parseArgs, paths, publicDb, readJson, repoRoot, runStep, summary, workDir, writeJson } from "./common.ts";
 
 const command = process.argv[2];
@@ -302,6 +303,17 @@ await runStep(`publish ${command}`, async () => {
         if (r.status !== 404) throw new Error(`smoke ${nf}: expected 404, got ${r.status}`);
       }
       lines.push(`sitemap.xml (${sitemapUrls} URLs = artifact), robots.txt = the ${env} policy file, 404 × 3`);
+      // W10.6: a fresh deploy's new chunks can take seconds to be reachable (publish #34 opened /contact before
+      // the new SiteHeader chunk was): wait until every /_next/static/ file serves the artifact's bytes.
+      const assets = await waitForStaticAssets(STATIC_BASE_URL, nextStaticEntries(manifest.public_assets), {
+        ...STATIC_ASSET_WAIT,
+        fetchBytes: async (url) => {
+          const r = await fetch(url);
+          return { status: r.status, bytes: new Uint8Array(await r.arrayBuffer()) };
+        },
+      });
+      if (!assets.ok) throw new Error(`smoke /_next/static: ${assets.pending.length} of ${assets.checked} file(s) not served with the artifact's bytes after ${Math.round(assets.waitedMs / 1000)} s: ${assets.pending.slice(0, 10).map((f) => `${f.path} (${f.last})`).join(", ")}`);
+      lines.push(`${assets.checked} /_next/static files serve the artifact's bytes (${assets.rounds} round(s), ${Math.round(assets.waitedMs / 1000)} s)`);
       const form = spawnSync("node", ["scripts/static/hydration-check.ts", "--base-url", STATIC_BASE_URL, "--pages", "/contact,/en/contact,/ar/contact", "--expect-snapshot", version], { cwd: repoRoot, encoding: "utf8" });
       process.stdout.write(form.stdout);
       if (form.status !== 0) throw new Error(`smoke /contact form: ${form.stdout.split("\n").filter((l) => l.startsWith("FAIL")).join(" | ") || form.stderr.slice(-400)}`);
