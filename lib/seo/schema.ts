@@ -16,6 +16,20 @@ export const ORGANIZATION_ADDRESS: Record<Locale, { streetAddress: string; addre
 };
 
 /**
+ * Decision D-COMPANY-INFO (owner, 2026-10-13): the Tehran coordination office — a second location of the
+ * same company, with its own postal code and no separate phone. Same wording /contact renders
+ * (app/[locale]/contact/page.tsx). Isfahan stays the official (LocalBusiness) address.
+ */
+export const TEHRAN_OFFICE: Record<Locale, { name: string; streetAddress: string; addressLocality: string; postalCode: string }> = {
+  fa: { name: "آهن آسا — دفتر هماهنگی تهران", streetAddress: "خیابان ستارخان، پلاک 660", addressLocality: "تهران", postalCode: "1454954166" },
+  en: { name: "Ahan Asa — Tehran coordination office", streetAddress: "Sattarkhan Street, No. 660", addressLocality: "Tehran", postalCode: "1454954166" },
+  ar: { name: "آهن آسا — مكتب التنسيق في طهران", streetAddress: "شارع ستارخان، رقم 660", addressLocality: "طهران", postalCode: "1454954166" },
+};
+
+/** D-COMPANY-INFO: Iran, plus export to Iraq as an approved business line (ISO 3166-1 codes). */
+export const AREA_SERVED = ["IR", "IQ"] as const;
+
+/**
  * Foundation-level structured data only: Organization, WebSite, BreadcrumbList.
  * Product/Offer schema is deferred to the catalog/pricing phase (out of
  * Phase 1 scope — PROJECT_OVERRIDES.md §4).
@@ -64,7 +78,7 @@ export function organizationSchema(locale: Locale = "fa") {
       "@type": "ContactPoint",
       telephone: CONTACT_PHONE_E164,
       contactType: "sales",
-      areaServed: "IR",
+      areaServed: [...AREA_SERVED],
     },
   };
 }
@@ -74,12 +88,14 @@ export function localBusinessId(): string {
 }
 
 /**
- * W16.2 (D-SEO): the office as a `LocalBusiness` — the confirmed address (PROJECT_OVERRIDES.md §7.1:
- * Isfahan; no Tehran address and no postal code is confirmed, so none is emitted) and the one verified
- * phone, exactly as the footer and /contact render them. Never opening hours, ratings, price range or
- * geo coordinates (not confirmed, PROJECT_OVERRIDES.md §10).
+ * W16.2 (D-SEO): the office as a `LocalBusiness` — the official address (PROJECT_OVERRIDES.md §7.1:
+ * Isfahan, no postal code confirmed for it) and the one verified phone, exactly as the footer and /contact
+ * render them. D-COMPANY-INFO: `withTehranOffice` adds the Tehran coordination office as a `department`
+ * (its own address and postal code, no separate phone) — only on /contact, the page that renders it.
+ * Never opening hours, ratings, price range or geo coordinates (not confirmed, PROJECT_OVERRIDES.md §10).
  */
-export function localBusinessSchema(locale: Locale = "fa") {
+export function localBusinessSchema(locale: Locale = "fa", options: { withTehranOffice?: boolean } = {}) {
+  const { name: tehranName, ...tehranAddress } = TEHRAN_OFFICE[locale];
   return {
     "@type": "LocalBusiness",
     "@id": localBusinessId(),
@@ -93,7 +109,18 @@ export function localBusinessSchema(locale: Locale = "fa") {
       ...ORGANIZATION_ADDRESS[locale],
       addressCountry: "IR",
     },
+    areaServed: [...AREA_SERVED],
     parentOrganization: { "@id": organizationId() },
+    ...(options.withTehranOffice
+      ? {
+          department: {
+            "@type": "LocalBusiness",
+            "@id": `${siteConfig.baseUrl}/#tehran-office`,
+            name: tehranName,
+            address: { "@type": "PostalAddress", ...tehranAddress, addressCountry: "IR" },
+          },
+        }
+      : {}),
   };
 }
 

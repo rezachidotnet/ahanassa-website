@@ -4,9 +4,10 @@
  * configured INSIDE the GTM container (docs/analytics/GTM_SETUP.md); the
  * site only loads GTM and pushes dataLayer events.
  *
- * Both values stay `null` until the owner supplies them (PROJECT_OVERRIDES.md
- * §5/§10: never invented). With `null`, no Google script is loaded at all;
- * events still go to `window.dataLayer`, which is harmless.
+ * Both IDs were supplied by the owner on 2026-10-13 (W16.2/W16.4 follow-up;
+ * PROJECT_OVERRIDES.md §5). GA4 loads ONLY through the "Google tag" inside the
+ * GTM container (docs/analytics/GTM_SETUP.md step 1) — the site never adds a
+ * gtag.js snippet, so a page view is never counted twice. A test enforces that.
  *
  * Why a committed config and not a per-target env var: the staging and
  * production artifacts must be byte-identical outside the r4 allowlist
@@ -14,10 +15,10 @@
  * browser decides by hostname whether to load it (ANALYTICS_HOSTNAMES), so
  * staging traffic never reaches GA4.
  */
-export const GTM_CONTAINER_ID: string | null = null;
+export const GTM_CONTAINER_ID: string | null = "GTM-TFN25VZQ";
 
-/** GA4 measurement ID — documentation only (it is entered in the GTM GA4 tag, not used by the site). */
-export const GA4_MEASUREMENT_ID: string | null = null;
+/** GA4 measurement ID — documentation only: it is entered in the GTM "Google tag", never used by the site's code. */
+export const GA4_MEASUREMENT_ID: string | null = "G-C8MZB6DXPZ";
 
 /** Hostnames that load GTM. Any other host (staging, local) loads it only with `?gtm_debug=` (Tag Assistant preview). */
 export const ANALYTICS_HOSTNAMES: readonly string[] = ["www.ahanassa.com"];

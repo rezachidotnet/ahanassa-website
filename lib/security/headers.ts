@@ -18,14 +18,17 @@
  * that host). The SSR Worker posts same-origin and passes none.
  */
 /**
- * W16.4 (D-SEO): Google Tag Manager + GA4 (configured inside GTM) — the GTM script and GA4's image
- * beacons. No 'unsafe-inline'/'unsafe-eval': the site loads GTM from its own bundle (lib/analytics/gtm.ts).
- * connect-src is deliberately NOT widened: architecture V1.1 §6.1 (W2 gate) pins it to 'self', Turnstile
- * and the RFQ API. GA4's fetch/sendBeacon hits are therefore REPORTED by this Report-Only policy; before
- * any enforced CSP the owner must decide §6.1 vs GA4 (docs/analytics/GTM_SETUP.md §8).
+ * W16.4 (D-SEO): Google Tag Manager + GA4 (GA4 runs only as the Google tag inside GTM). No
+ * 'unsafe-inline'/'unsafe-eval': the site loads GTM from its own bundle (lib/analytics/gtm.ts).
+ * Owner decision 2026-10-13 (DAR-066 item 3, amends architecture V1.1 §6.1): `connect-src` also allows
+ * GA4's collection endpoints, so switching this policy from Report-Only to enforced does not stop
+ * analytics. The origins are Google's documented CSP for GTM + GA4 (Google signals stay off, so no
+ * doubleclick origin). GTM Preview's own UI (tagmanager.google.com) is not allowed: Preview is a
+ * debugging tool and works while the policy is Report-Only.
  */
-export const GTM_SCRIPT_ORIGIN = "https://www.googletagmanager.com";
-export const GA4_IMG_ORIGINS = ["https://*.google-analytics.com", "https://www.googletagmanager.com"] as const;
+export const GTM_SCRIPT_ORIGIN = "https://*.googletagmanager.com";
+export const GA4_IMG_ORIGINS = ["https://*.google-analytics.com", "https://*.googletagmanager.com"] as const;
+export const GA4_CONNECT_ORIGINS = ["https://*.google-analytics.com", "https://*.analytics.google.com", "https://*.googletagmanager.com"] as const;
 
 export function buildCspReportOnly(connectSrc: readonly string[] = []): string {
   return [
@@ -41,7 +44,7 @@ export function buildCspReportOnly(connectSrc: readonly string[] = []): string {
     "style-src 'self' 'unsafe-inline'",
     ["img-src 'self' data:", ...GA4_IMG_ORIGINS].join(" "),
     "font-src 'self'",
-    ["connect-src 'self' https://challenges.cloudflare.com", ...connectSrc].join(" "),
+    ["connect-src 'self' https://challenges.cloudflare.com", ...connectSrc, ...GA4_CONNECT_ORIGINS].join(" "),
     "frame-src 'self' https://challenges.cloudflare.com",
     "upgrade-insecure-requests",
   ].join("; ");

@@ -304,10 +304,10 @@ test("static build: generated build root excludes Worker-only code and uses no C
 
 // --- W2: per-target RFQ origin and CSP ----------------------------------------------------------
 
-test("W2: CSP connect-src is exactly 'self', Turnstile and the target's RFQ API origin", () => {
+test("W2: CSP connect-src is exactly 'self', Turnstile, the target's RFQ API origin and GA4 (DAR-066)", () => {
   for (const env of ["staging", "production"] as const) {
     const csp = /connect-src ([^;\n]*)/.exec(buildHeadersFile(env, STATIC_TARGETS[env].rfqApiOrigin))![1].split(" ");
-    assert.deepEqual(csp, ["'self'", "https://challenges.cloudflare.com", STATIC_TARGETS[env].rfqApiOrigin]);
+    assert.deepEqual(csp, ["'self'", "https://challenges.cloudflare.com", STATIC_TARGETS[env].rfqApiOrigin, "https://*.google-analytics.com", "https://*.analytics.google.com", "https://*.googletagmanager.com"]);
   }
   assert.equal(STATIC_TARGETS.staging.rfqApiOrigin, "https://api-staging.ahanassa.com");
   assert.equal(STATIC_TARGETS.production.rfqApiOrigin, "https://api.ahanassa.com");

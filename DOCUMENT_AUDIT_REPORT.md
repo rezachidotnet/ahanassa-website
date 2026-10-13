@@ -1620,11 +1620,17 @@ follow-up). Production upload is still off until the owner switches it on.
 
 (DAR-065 is taken by W13.1, PR #45.)
 
-**Severity:** MEDIUM. **Status:** OPEN for item 3 only; items 1–2 resolved in implementation as below.
+**Severity:** MEDIUM. **Status:** RESOLVED 2026-10-13. Items 1–2 were resolved in implementation as below. Items 2 and 3 were then closed by owner decisions on the same day (see the resolution after item 3).
 
 1. **GTM container ID: committed config, not an env var.** `PROJECT_OVERRIDES.md` §5 asks for "environment-driven GTM configuration". The owner's W16.4 instruction says "ID from config", and the r4 allowlisted-diff gate (`lib/static/target-diff-gate.ts`) requires the staging and production artifacts to be byte-identical outside robots/sitemap/_headers/Turnstile/RFQ origin. So the ID lives in `config/analytics.ts` (`null` until supplied, never invented), is the same in both artifacts, and the browser loads GTM only on `www.ahanassa.com` (or with `?gtm_debug=`). `lib/env.ts#getGtmId` / `NEXT_PUBLIC_GTM_ID` (never called) are left in place and superseded.
 2. **"LocalBusiness with Tehran address."** No Tehran address is confirmed anywhere. The only owner-confirmed office address is Isfahan (`PROJECT_OVERRIDES.md` §7.1). `localBusinessSchema` emits that address and the confirmed phone, with no postal code, hours or geo. A Tehran branch/warehouse address needs an owner-supplied value before it can be added.
 3. **GA4 vs architecture V1.1 §6.1 (OPEN).** The W2 gate pins CSP `connect-src` to `'self'`, Turnstile and the RFQ API origin. GA4 sends its hits with fetch/sendBeacon to `*.google-analytics.com`. The CSP is Report-Only, so nothing is blocked today. The CSP now lists GTM in `script-src` and GA4 in `img-src` but deliberately leaves `connect-src` unchanged. **Before the CSP is ever enforced, the owner must decide:** widen `connect-src` for GA4 (an amendment to §6.1), or accept that an enforced CSP blocks GA4.
+
+**Resolution (owner, 2026-10-13, PR #47 follow-up):**
+- **Item 2 (decision D-COMPANY-INFO).** A Tehran coordination office is confirmed: تهران، خیابان ستارخان، پلاک 660، کد پستی 1454954166, with no separate phone. It is rendered on `/contact` and emitted there as the `LocalBusiness`'s `department`, with `postalCode` added to the JSON-LD key allowlist. Isfahan stays the official address. The phone is confirmed as 031-35134: `tel:` and JSON-LD use `+983135134`, visible text uses `031-35134` (`PROJECT_OVERRIDES.md` §7.2). Export to Iraq is approved (§7.3, `areaServed` `IR`/`IQ`).
+- **Item 3.** `connect-src` is widened for GA4, which amends architecture V1.1 §6.1. It now holds `'self'`, Turnstile, the RFQ origin and `https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com`. `script-src` and `img-src` use `https://*.googletagmanager.com`. The artifact gate and `docs/contracts/RFQ_SUBMIT_V1.md` were updated to match. The CSP stays Report-Only, and an enforced CSP would no longer block GA4.
+- **IDs.** GTM `GTM-TFN25VZQ` and GA4 `G-C8MZB6DXPZ` are in `config/analytics.ts`. GA4 loads only through the Google tag inside GTM, and a test refuses any gtag.js in the site source.
+- **Drift noted, not edited:** the frozen header specs (`docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.*.md`) still show `☎ 03135134`. The rendered number now follows `CONTACT_PHONE_DISPLAY`.
 
 ---
 

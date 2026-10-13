@@ -33,11 +33,12 @@ Rules:
 
 - **No price in JSON-LD anywhere** (an open owner decision). The gate refuses `offers`, `price`, `priceRange` and `Offer`. An FAQ question or answer that mentions a currency (تومان, ریال, Toman, …) is kept on the page but left out of the `FAQPage`, so a price can never reach structured data through FAQ text.
 - **`LocalBusiness`** contains only confirmed facts:
-  - the Isfahan office address (`PROJECT_OVERRIDES.md` §7.1);
-  - the phone `03135134`;
+  - the Isfahan office address (`PROJECT_OVERRIDES.md` §7.1), which is the official address;
+  - the phone `+983135134` (shown as `031-35134`);
+  - `areaServed` `IR` and `IQ`, because export to Iraq is an approved line (§7.3);
   - the brand mark as the image.
 
-  It has no postal code, hours, geo or ratings, because none of these is confirmed. **No Tehran address exists in the confirmed facts** (DAR-066). If there is a Tehran office or warehouse, send its exact address and it can be added as a second `LocalBusiness`.
+  On `/contact` only, which is the page that renders it, the Tehran coordination office is added as a `department`. It has its own address and postal code `1454954166`, and no phone (D-COMPANY-INFO, 2026-10-13). There are no hours, geo or ratings, because none of these is confirmed.
 
 ## 3. Core Web Vitals
 

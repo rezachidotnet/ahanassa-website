@@ -9,7 +9,7 @@ import type { NavLink } from "@/lib/content/nav";
 import type { HeaderProductFamilyShortcut } from "@/lib/catalog/editorial-repository";
 import { categoryListingPath } from "@/lib/catalog/public-categories";
 import type { PublicProcessingGroup } from "@/lib/processing/public-repository";
-import { CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
+import { CONTACT_PHONE_DISPLAY, CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 import { stripLocalePrefix } from "@/components/layout/header-language-selector";
 import { ButtonLink } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -241,7 +241,7 @@ export function MobileNavDrawer({
 
           <a href={`tel:${CONTACT_PHONE_E164}`} aria-label={phoneSrLabel} className="text-navy border-border mt-4 flex min-h-11 items-center gap-2 border-t py-4 text-sm font-medium">
             <Phone className="text-copper size-4" aria-hidden="true" />
-            {CONTACT_PHONE_E164}
+            {CONTACT_PHONE_DISPLAY}
           </a>
 
           {/* role="group" is required here — aria-label on a plain <div> with

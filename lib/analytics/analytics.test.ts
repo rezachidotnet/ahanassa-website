@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { ANALYTICS_EVENTS, buildEvent, clickEventFor, trackEvent } from "./events.ts";
 import { gtmScriptUrl, shouldLoadGtm, startGtm } from "./gtm.ts";
+import { buildCspReportOnly } from "../security/headers.ts";
 import { GA4_MEASUREMENT_ID, GA4_MEASUREMENT_ID_PATTERN, GTM_CONTAINER_ID, gtmContainerId } from "../../config/analytics.ts";
 
 test("events: the seven D-SEO events, each with a fixed parameter allowlist", () => {
@@ -34,7 +35,7 @@ test("trackEvent: pushes to window.dataLayer, creating it; a no-op without windo
 });
 
 test("clickEventFor: tel: and WhatsApp links only", () => {
-  assert.equal(clickEventFor("tel:03135134"), "phone_click");
+  assert.equal(clickEventFor("tel:+983135134"), "phone_click");
   assert.equal(clickEventFor("https://wa.me/989121234567?text=x"), "whatsapp_click");
   assert.equal(clickEventFor("https://api.whatsapp.com/send?phone=1"), "whatsapp_click");
   assert.equal(clickEventFor("/contact"), null);
@@ -62,9 +63,27 @@ test("GTM: loads on the production hostname, or anywhere with ?gtm_debug=; never
   assert.equal(startGtm(fakeWindow("www.ahanassa.com"), null), false);
 });
 
-test("config: IDs are either unset or well-formed (never invented: PROJECT_OVERRIDES.md §5/§10)", () => {
-  assert.ok(GTM_CONTAINER_ID === null || gtmContainerId(GTM_CONTAINER_ID) === GTM_CONTAINER_ID);
-  assert.ok(GA4_MEASUREMENT_ID === null || GA4_MEASUREMENT_ID_PATTERN.test(GA4_MEASUREMENT_ID));
+test("config: the owner-supplied IDs (2026-10-13), well-formed", () => {
+  assert.equal(GTM_CONTAINER_ID, "GTM-TFN25VZQ");
+  assert.equal(gtmContainerId(GTM_CONTAINER_ID), GTM_CONTAINER_ID);
+  assert.equal(GA4_MEASUREMENT_ID, "G-C8MZB6DXPZ");
+  assert.ok(GA4_MEASUREMENT_ID_PATTERN.test(GA4_MEASUREMENT_ID));
+});
+
+test("GA4 loads only through GTM: no gtag.js and no G- measurement ID in any site source", () => {
+  const files: string[] = [];
+  const walk = (dir: URL) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const child = new URL(`${e.name}${e.isDirectory() ? "/" : ""}`, dir);
+      if (e.isDirectory()) walk(child);
+      else if (/\.(ts|tsx)$/.test(e.name) && !/\.test\.tsx?$/.test(e.name)) files.push(child.pathname);
+    }
+  };
+  for (const dir of ["app/", "components/", "lib/"]) walk(new URL(`../../${dir}`, import.meta.url));
+  for (const file of files) {
+    const code = fs.readFileSync(file, "utf8");
+    assert.doesNotMatch(code, /gtag\/js|gtag\(|G-C8MZB6DXPZ|GA4_MEASUREMENT_ID/, `${file}: GA4 must be configured inside GTM only (double counting)`);
+  }
 });
 
 test("wiring: rfq_submit sends the tracking number only; the layout mounts the runtime once", () => {
@@ -73,4 +92,12 @@ test("wiring: rfq_submit sends the tracking number only; the layout mounts the r
   assert.deepEqual(calls, ['"rfq_submit", { rfq_tracking_number: body.reference }']);
   const layout = fs.readFileSync(new URL("../../app/[locale]/layout.tsx", import.meta.url), "utf8");
   assert.equal(layout.match(/<AnalyticsRuntime /g)?.length, 1);
+});
+
+test("CSP allows GTM and GA4 (script, image beacon, fetch/sendBeacon), so an enforced policy keeps analytics", () => {
+  const csp = Object.fromEntries(buildCspReportOnly(["https://api.ahanassa.com"]).split("; ").map((d) => [d.split(" ")[0], d.split(" ").slice(1)]));
+  assert.ok(csp["script-src"].includes("https://*.googletagmanager.com"));
+  for (const origin of ["https://*.google-analytics.com", "https://*.googletagmanager.com"]) assert.ok(csp["img-src"].includes(origin), origin);
+  for (const origin of ["https://*.google-analytics.com", "https://*.analytics.google.com", "https://*.googletagmanager.com"]) assert.ok(csp["connect-src"].includes(origin), origin);
+  assert.ok(!csp["script-src"].includes("'unsafe-inline'") && !csp["script-src"].includes("'unsafe-eval'"));
 });

@@ -77,8 +77,11 @@ test("No hardcoded Persian sample-category label can leak into EN/AR (source no 
 // --- Phone: single source of truth, tel: link, bidi isolation ---
 
 test("Phone reuses the canonical CONTACT_PHONE_E164 constant, never re-hardcoded", () => {
-  assert.match(FOOTER_SOURCE, /import\s*\{\s*CONTACT_PHONE_E164\s*\}\s*from\s*"@\/lib\/content\/contact-channels"/);
-  assert.ok(!/\+98\d{10}/.test(FOOTER_SOURCE.replace(/import[^;]*contact-channels[^;]*;/, "")), "the raw E.164 literal must not appear anywhere outside the import statement");
+  // D-COMPANY-INFO (2026-10-13): the tel: form and the display form are two constants of the same module.
+  assert.match(FOOTER_SOURCE, /import\s*\{\s*CONTACT_PHONE_DISPLAY,\s*CONTACT_PHONE_E164\s*\}\s*from\s*"@\/lib\/content\/contact-channels"/);
+  const body = FOOTER_SOURCE.replace(/import[^;]*contact-channels[^;]*;/, "");
+  assert.ok(!/\+98\d{8,10}|031-?35134/.test(body), "the raw number must not appear anywhere outside the import statement");
+  assert.match(body, /\{CONTACT_PHONE_DISPLAY\}/, "the visible number is the display constant");
 });
 
 test("A real tel: anchor exists using the canonical phone constant", () => {

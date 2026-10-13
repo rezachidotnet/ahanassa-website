@@ -41,8 +41,10 @@ export const JSONLD_ALLOWED_KEYS: ReadonlySet<string> = new Set([
   "address", "streetAddress", "addressLocality", "addressCountry",
   "contactPoint", "telephone", "contactType", "areaServed",
   "itemListElement", "position", "item",
-  // W16.2 (D-SEO): LocalBusiness + FAQPage. Still never offers/price/priceRange/geo/openingHours/postalCode.
+  // W16.2 (D-SEO): LocalBusiness + FAQPage. Still never offers/price/priceRange/geo/openingHours.
   "image", "parentOrganization", "mainEntity", "acceptedAnswer", "text",
+  // D-COMPANY-INFO: the Tehran coordination office (a `department` with its confirmed postal code).
+  "department", "postalCode",
 ]);
 
 const LEGACY_XID = /ahanassa_marketplace\.[a-z0-9_]+/g;

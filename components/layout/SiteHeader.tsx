@@ -8,7 +8,7 @@ import { localizedPath, type Locale } from "@/config/locales";
 import { categoryListingPath } from "@/lib/catalog/public-categories";
 import { siteConfig } from "@/lib/metadata/site";
 import { visibleNavLinks, primaryCta, headerPhoneLabel, dropdownViewAllLabel, dropdownDisclosureAccessibleName } from "@/lib/content/nav";
-import { CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
+import { CONTACT_PHONE_DISPLAY, CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 import { HeaderNavDisclosure } from "@/components/layout/header-nav-disclosure";
 import { HeaderLanguageSelector } from "@/components/layout/header-language-selector";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
@@ -256,7 +256,7 @@ export function SiteHeader({
               dir="ltr"
             >
               <Phone className="text-copper group-hover:text-[var(--aa-color-action-accent-bg-hover)] size-4 transition-colors" aria-hidden="true" />
-              {CONTACT_PHONE_E164}
+              {CONTACT_PHONE_DISPLAY}
             </a>
 
             <div className="hidden lg:block">

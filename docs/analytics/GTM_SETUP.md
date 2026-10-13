@@ -2,6 +2,13 @@
 
 This page is for the owner. It covers what the site sends, and every step to do in Google Tag Manager (GTM) and Google Analytics 4 (GA4).
 
+| | |
+|---|---|
+| GTM container | **`GTM-TFN25VZQ`** (in `config/analytics.ts`) |
+| GA4 measurement ID | **`G-C8MZB6DXPZ`**, entered only in GTM (step 1) |
+
+The steps start at [§3](#3-step-1--create-the-google-tag-ga4-in-gtm). §1–§2 explain what the site already does.
+
 ## 1. What the site does
 
 The site does three things, and only these:
@@ -10,7 +17,7 @@ The site does three things, and only these:
 - It pushes events to `window.dataLayer`.
 - It never loads `gtag.js` directly.
 
-**GA4 is configured inside GTM.** The site has no GA4 code.
+**GA4 is configured inside GTM, as a Google tag.** The site has no GA4 code and no gtag.js snippet, and a test enforces that (`lib/analytics/analytics.test.ts`). If a second Google tag for `G-C8MZB6DXPZ` were added anywhere else (in the page or in a second GTM tag), every page view would be counted twice.
 
 | Piece | File |
 |---|---|
@@ -44,36 +51,36 @@ The staging and production builds are byte-identical except for robots, sitemap,
 | `whatsapp_click` | Any `wa.me` / WhatsApp link is clicked | `link_location` |
 | `calculator_use` | The visitor's first change to the weight calculator on this page view | `calculator_product_group` (e.g. `REBAR`), `calculator_mode` |
 | `price_page_view` | `/prices` or `/ar/prices` is viewed (when it has prices) | `price_date` (the newest price date shown, `YYYY-MM-DD`) |
-| `basket_add` | A product is added to the RFQ basket (wired when PR #44 merges) | `basket_size` |
-| `file_upload` | A file is attached to an RFQ (wired when PR #45 / W13.1 merges) | `file_count`, `file_type` (extension, e.g. `pdf`) |
+| `basket_add` | A product is added to the RFQ basket. **Not sent yet:** a follow-up wires it once PR #44 merges | `basket_size` |
+| `file_upload` | A file is attached to an RFQ. **Not sent yet:** a follow-up wires it once PR #45 / W13.1 merges | `file_count`, `file_type` (extension, e.g. `pdf`) |
 
 Every page also pushes `{ page_locale: "fa" | "en" | "ar" }` before any event.
 
 Every page is a full page load (static site), so GA4's normal page view is enough. You do **not** need a History Change trigger.
 
-## 3. Before you start
+## 3. Step 1 — create the Google tag (GA4) in GTM
 
-1. Send the two IDs: the GTM container ID (`GTM-XXXXXXX`) and the GA4 measurement ID (`G-XXXXXXXXXX`).
-2. I put them in `config/analytics.ts`, in a small PR. A test checks their format.
-3. Until that PR is deployed, nothing loads. Steps 4–6 can be done in GTM before that.
+Do this first. It is the only place GA4 is configured.
 
-## 4. Create the GA4 property (if it does not exist yet)
+1. Open tagmanager.google.com → container **`GTM-TFN25VZQ`** → Workspace.
+2. Variables → User-Defined Variables → New → **Constant**. Name it `CONST - GA4 ID`, value **`G-C8MZB6DXPZ`**. Save.
+3. Variables → New → **Data Layer Variable** (Version 2). Name it `DLV - page_locale`, Data Layer Variable Name `page_locale`. Save.
+4. Tags → New:
+   - Name: `Google tag - GA4`.
+   - Tag type: **Google Tag**. Tag ID: `{{CONST - GA4 ID}}`, which is `G-C8MZB6DXPZ`.
+   - Configuration settings → add the parameter `page_locale` = `{{DLV - page_locale}}`.
+   - Trigger: **Initialization - All Pages**.
+   - Save.
+5. Make sure no other tag in the container is a Google tag or GA4 configuration for `G-C8MZB6DXPZ`. There must be exactly one, or page views double.
 
-1. In analytics.google.com, go to Admin → Create → Property. Name it `Ahan Asa – www.ahanassa.com`, set the time zone to Iran and the currency to IRR.
-2. Add a data stream: Web, URL `https://www.ahanassa.com`, name `www`. Copy the **Measurement ID** (`G-…`).
-3. In the stream, open Enhanced measurement:
-   - Keep page views, scrolls, outbound clicks, site search and file downloads on.
-   - Turn **Form interactions** off. Our `rfq_submit` is the real conversion, and GA4's automatic form event would double-count.
-4. Admin → Data collection: leave Google signals **off** unless you decide otherwise.
-5. Admin → Data retention: 14 months.
+This one tag sends GA4's page views (every page is a full load, so you do **not** need a History Change trigger). It also turns on enhanced measurement, which is configured in GA4 in step 4.
 
-## 5. GTM: variables
+## 4. Step 2 — the remaining variables
 
-In tagmanager.google.com, open the container → Variables → User-Defined Variables → New. Create each of these as a **Data Layer Variable** (Version 2):
+Variables → User-Defined Variables → New. Create each of these as a **Data Layer Variable** (Version 2):
 
 | Variable name | Data Layer Variable Name |
 |---|---|
-| `DLV - page_locale` | `page_locale` |
 | `DLV - rfq_tracking_number` | `rfq_tracking_number` |
 | `DLV - link_location` | `link_location` |
 | `DLV - calculator_product_group` | `calculator_product_group` |
@@ -83,20 +90,9 @@ In tagmanager.google.com, open the container → Variables → User-Defined Vari
 | `DLV - file_count` | `file_count` |
 | `DLV - file_type` | `file_type` |
 
-Also create one **Constant** variable: `CONST - GA4 ID` = your `G-…` ID.
+## 5. Step 3 — one trigger and one GA4 event tag per event
 
-## 6. GTM: the GA4 configuration tag
-
-Tags → New:
-- Name: `GA4 - Config`.
-- Tag type: **Google Tag**. Tag ID: `{{CONST - GA4 ID}}`.
-- Configuration settings → add the parameter `page_locale` = `{{DLV - page_locale}}`.
-- Trigger: **Initialization - All Pages**.
-- Save.
-
-## 7. GTM: one trigger and one tag per event
-
-Do this for each of the 7 events.
+Do this for each of the 7 events. The `basket_add` and `file_upload` tags can be created now. They stay silent until the site sends those events.
 
 **Trigger:** Triggers → New.
 - Type: **Custom Event**.
@@ -122,35 +118,50 @@ Do this for each of the 7 events.
 | `GA4 - basket_add` | `basket_add` | `basket_size` = `{{DLV - basket_size}}` |
 | `GA4 - file_upload` | `file_upload` | `file_count` = `{{DLV - file_count}}`, `file_type` = `{{DLV - file_type}}` |
 
-Do **not** add a Custom HTML tag. The site's CSP allows scripts only from the site itself, Turnstile and `www.googletagmanager.com`.
+Do **not** add a Custom HTML tag. The site's CSP allows scripts only from the site itself, Turnstile and `*.googletagmanager.com`.
 
-## 8. GA4: conversions and custom dimensions
+## 6. Step 4 — GA4 property settings
 
-1. GA4 → Admin → Events. The events appear after they first fire, up to 24 hours later.
-2. Mark `rfq_submit` as a **key event**. Optionally also mark `phone_click` and `whatsapp_click`.
-3. Admin → Custom definitions → Create custom dimension (scope **Event**) for each of these: `page_locale`, `link_location`, `calculator_product_group`, `calculator_mode`, `price_date`, `file_type`. Then create a custom metric (unit: standard) for `basket_size` and `file_count`. `rfq_tracking_number` is optional; register it only if you want to find a single request in GA4.
+In analytics.google.com, open the property that owns `G-C8MZB6DXPZ`:
 
-### CSP note (DAR-066, open)
+1. Admin → Data streams → the `www.ahanassa.com` web stream (its Measurement ID must be `G-C8MZB6DXPZ`) → Enhanced measurement:
+   - Keep page views, scrolls, outbound clicks, site search and file downloads on.
+   - Turn **Form interactions** off. Our `rfq_submit` is the real conversion, and GA4's automatic form event would double-count.
+2. Admin → Data collection: leave Google signals **off** unless you decide otherwise. The CSP has no doubleclick origin.
+3. Admin → Data retention: 14 months.
+4. Admin → Events. The events appear after they first fire, up to 24 hours later. Mark `rfq_submit` as a **key event**. Optionally also mark `phone_click` and `whatsapp_click`.
+5. Admin → Custom definitions → Create custom dimension (scope **Event**) for each of these: `page_locale`, `link_location`, `calculator_product_group`, `calculator_mode`, `price_date`, `file_type`. Then create a custom metric (unit: standard) for `basket_size` and `file_count`. `rfq_tracking_number` is optional; register it only if you want to find a single request in GA4.
 
-The site's Content-Security-Policy is **Report-Only**. It lists GTM and GA4's image beacons, but `connect-src` is pinned by architecture V1.1 §6.1 to the site, Turnstile and the RFQ API. GA4 hits therefore work, but they produce CSP reports.
+### CSP (DAR-066, resolved 2026-10-13)
 
-Before the CSP is ever switched to enforced, decide one of these:
-- allow `https://*.google-analytics.com https://*.analytics.google.com` in `connect-src`, or
-- accept that GA4 stops.
+The Content-Security-Policy is still **Report-Only**, and it already allows everything GTM and GA4 need, so switching it to enforced will not break analytics:
 
-## 9. Test before publishing the container
+| Directive | Google origins |
+|---|---|
+| `script-src` | `https://*.googletagmanager.com` |
+| `img-src` | `https://*.google-analytics.com https://*.googletagmanager.com` |
+| `connect-src` | `https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com` |
+
+GTM Preview's own panel (`tagmanager.google.com`) is not allowed. It is a debugging tool, and under an enforced CSP Preview would only lose its on-page badge. If you add Google signals or Ads tags later, their origins must be added first.
+
+## 7. Step 5 — test before publishing the container
 
 1. In GTM, click **Preview** and enter `https://www.ahanassa.com/`. Tag Assistant opens the site with `?gtm_debug=…`. That parameter also loads GTM on staging, so you can test there too, with staging's address.
 2. Check each of these:
-   - Every page: `GA4 - Config` fires, and `page_locale` is in the dataLayer.
+   - Every page: `Google tag - GA4` fires **once**, and `page_locale` is in the dataLayer.
    - Click the phone number in the header: you should see `phone_click`, `link_location=header`.
    - Change a field on `/tools/weight-calculator`: `calculator_use` fires once.
    - Open `/prices`: `price_page_view`.
    - Send a test RFQ on staging: `rfq_submit` with only the tracking number. Check that the dataLayer has no name, phone or email.
 3. GA4 → Admin → DebugView shows the same events.
-4. GTM → **Submit** → Version name `W16.4 initial` → **Publish**.
 
-## 10. After publishing
+## 8. Step 6 — publish
+
+1. GTM → **Submit** → Version name `W16.4 initial` → **Publish**.
+2. Nothing reaches GA4 until PR #47 is deployed, because the site does not load the container before then.
+
+## 9. After publishing and deploying
 
 - GA4 → Reports → Realtime should show visits within a minute.
+- GA4 → Reports → Engagement → Pages: one page view per page load. Two per load means a second Google tag exists (step 1.5).
 - Re-run Lighthouse on the home page. GTM loads after `load`, so LCP and CLS must not change.
