@@ -26,8 +26,10 @@ on:
         required: false
         default: watch
         options: [watch, rollback]
+  # W11.2: PRIMARY trigger = the Odoo-server timer ahanassa-ops-dispatch, which dispatches this workflow hourly on its
+  # :49 firing with {"ref":"main"} (operation defaults to watch); GitHub drops most scheduled events on this repository.
   schedule:
-    # Hourly, after the :49 ops-health run.
+    # Backup: hourly, after the :49 ops-health run.
     - cron: "52 * * * *"
 
 permissions:

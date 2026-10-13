@@ -20,6 +20,15 @@
 # It runs in environment production-v11-monitor (no reviewer, branch main, read-only monitor token only) —
 # not production-v11, whose reviewer gate would hold every 15-min run. Until that environment has the
 # monitor token it skips with a notice. It never exposes `test_force_alert` (staging-only).
+#
+# W11.2: a third job, `content watchdog (production)`: from 09:00 UTC (12:30 Tehran) of the Tehran day, when Odoo has
+# approved prices that are not live on www 45 min after they were published, it dispatches daily-content.yml once for
+# those prices (source=watchdog) and ALERTs on every run until they are live (.github/scripts/v11-daily-content.mjs).
+# It is its own job, not a step of health-production: v11-release-watch.yml reads health-production's outcome as the
+# release observation (unpublished prices must not roll a LOW release back), and it needs no environment (no
+# environment wait can hold it). ALERT = failed job (GitHub e-mail) + healthchecks.io: HC_PING_DAILY_CONTENT (its own
+# check; also a dead-man's switch for the watchdog) when set, otherwise a /fail ping to HC_PING_OPS_HEALTH_PRODUCTION.
+
 name: Ops health
 
 on:
@@ -149,6 +158,63 @@ jobs:
           fi
           url="$HC_URL"
           if [ "$JOB_STATUS" != "success" ]; then url="$HC_URL/fail"; fi
+          # URL passed as a curl config on stdin (it is a secret; not in argv).
+          if printf 'url = "%s"\n' "$url" | curl -fsS -K - -o /dev/null --max-time 10 --retry 2; then
+            echo "healthchecks ping sent ($([ "$JOB_STATUS" = success ] && echo success || echo fail))"
+          else
+            echo "::warning title=healthchecks ping failed::could not reach healthchecks.io"
+          fi
+
+  daily-content-watchdog:
+    name: content watchdog (production)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      # Reads the production publish state; dispatches daily-content.yml.
+      actions: write
+    concurrency:
+      group: ops-health-daily-content-watchdog
+      cancel-in-progress: false
+    steps:
+      - name: Checkout the release scripts
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: "Newer Odoo prices live on www? (from 09:00 UTC; fails only on ALERT; dispatches daily-content once per price update)"
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node .github/scripts/v11-daily-content.mjs watchdog
+
+      - name: healthchecks.io (daily content)
+        if: ${{ always() }}
+        shell: bash
+        env:
+          HC_URL: ${{ secrets.HC_PING_DAILY_CONTENT }}
+          HC_FALLBACK: ${{ secrets.HC_PING_OPS_HEALTH_PRODUCTION }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          if [ -n "$HC_URL" ]; then
+            url="$HC_URL"
+            if [ "$JOB_STATUS" != "success" ]; then url="$HC_URL/fail"; fi
+          elif [ "$JOB_STATUS" != "success" ] && [ -n "$HC_FALLBACK" ]; then
+            # No own check: the ALERT goes to the production check as /fail only (never a success ping there).
+            url="$HC_FALLBACK/fail"
+          else
+            echo "healthchecks ping not needed (job $JOB_STATUS; HC_PING_DAILY_CONTENT not set)"
+            exit 0
+          fi
           # URL passed as a curl config on stdin (it is a secret; not in argv).
           if printf 'url = "%s"\n' "$url" | curl -fsS -K - -o /dev/null --max-time 10 --retry 2; then
             echo "healthchecks ping sent ($([ "$JOB_STATUS" = success ] && echo success || echo fail))"

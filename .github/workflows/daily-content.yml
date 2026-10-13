@@ -1,0 +1,75 @@
+# W11.2 (owner requirements 2026-10-11) — the production content publish is never silently skipped, and runs whenever
+# Odoo has approved prices newer than the ones live on www.ahanassa.com (a no-op otherwise).
+#
+# The entry point of the content publish. It never builds or writes anything itself: it compares Odoo's newest published
+# price (GET https://odoo.ahanassa.com/api/v1/pricing/current) with the moment the live snapshot's Odoo fetch began
+# (production publish state), and only when newer prices exist and no publish is under way dispatches
+# content-publish.yml target=daily-content — which builds the code LIVE on www.ahanassa.com and publishes on
+# CONTENT_REBUILD AUTO only (environment production-v11-content, no approval). A no-op takes ~20 s and never touches
+# content-publish's concurrency slot. Logic and tests: .github/scripts/v11-daily-content.mjs.
+#
+# Ways in (all share the guard):
+#   - PRIMARY: the Odoo-server timer ahanassa-ops-dispatch (docs/OPS_ALERTS.md §1a; its existing token) dispatches this
+#     workflow at 08:00, 08:20 and 08:40 UTC (11:30 / 11:50 / 12:10 Tehran) with {"ref":"main","inputs":{"source":"odoo-timer"}};
+#   - Odoo, right after the owner publishes prices: {"ref":"main","inputs":{"source":"odoo"}}
+#     (POST https://api.github.com/repos/rezachidotnet/ahanassa-website/actions/workflows/daily-content.yml/dispatches,
+#     fine-grained token: Actions read and write on this repository only). repository_dispatch (event_type
+#     daily-content) is accepted too but needs Contents: write — use workflow_dispatch;
+#   - BACKUP: the GitHub schedules below (GitHub drops most scheduled events on this repository);
+#   - ops-health.yml job `content watchdog`: from 09:00 UTC, newer prices still not live 45 min after they were
+#     published → it dispatches this workflow once for them (source=watchdog) and ALERTs.
+name: Daily content
+
+run-name: "daily-content (${{ inputs.source || (github.event_name == 'repository_dispatch' && 'repository-dispatch') || github.event_name }})"
+
+on:
+  # Backup only: the Odoo-server timer dispatches at these times (primary).
+  schedule:
+    - cron: "0 8 * * *"
+    - cron: "20 8 * * *"
+    - cron: "40 8 * * *"
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Who asks (odoo-timer, odoo, watchdog, manual): shown in the run name"
+        type: string
+        required: false
+        default: manual
+  repository_dispatch:
+    types: [daily-content]
+
+permissions:
+  contents: read
+  # Reads the production publish state and content-publish runs; dispatches content-publish.yml.
+  actions: write
+
+# One entry decision at a time: the second sees the content-publish run the first dispatched.
+concurrency:
+  group: daily-content
+  cancel-in-progress: false
+
+jobs:
+  entry:
+    name: daily content (guard, then dispatch when needed)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout the release scripts
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: "Newer approved prices in Odoo? No-op when not (or already publishing), else dispatch content-publish target=daily-content"
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SOURCE: ${{ inputs.source || (github.event_name == 'repository_dispatch' && 'repository-dispatch') || github.event_name }}
+        run: |
+          set -euo pipefail
+          node .github/scripts/v11-daily-content.mjs entry --source "$SOURCE"
