@@ -254,11 +254,11 @@ test("«مبنای محاسبه»: every shape has a basis line that names its s
 
 // --- page, publication, SEO ------------------------------------------------------------------
 
-test("publication: one route, fa only (owner 2026-10-09: en/ar copy stays an unpublished draft), and the home button links to the same route", () => {
+test("publication: one route, fa + en + ar since W16.3 (owner brief 2026-10-13, keyword map §6 P1-3), and the home button links to the same route", () => {
   assert.equal(WEIGHT_CALCULATOR_ROUTE, "/tools/weight-calculator");
-  assert.deepEqual([...WEIGHT_CALCULATOR_LOCALES], ["fa"]);
-  assert.equal(isWeightCalculatorPublished("en"), false);
-  assert.equal(isWeightCalculatorPublished("ar"), false);
+  assert.deepEqual([...WEIGHT_CALCULATOR_LOCALES], ["fa", "en", "ar"]);
+  assert.equal(isWeightCalculatorPublished("en"), true);
+  assert.equal(isWeightCalculatorPublished("ar"), true);
   assert.match(read("components/home/product-showcase.tsx"), /href=\{localizedPath\(locale, WEIGHT_CALCULATOR_ROUTE\)\}/);
 });
 

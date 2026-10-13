@@ -105,14 +105,24 @@ test("en: ANY W9.6 price data on an en page fails the gate (HTML or Flight paylo
   for (const leak of leaks.slice(0, 3)) assert.ok(kinds([{ path: "en/prices.html", content: en(leak) }]).some((k) => k.startsWith("price_on_en_page")));
 });
 
-test("en has no price page, no «قیمت روز» nav item and no sitemap/hreflang entry; /en/prices 302s to /en", () => {
+test("en has no price page, no «قیمت روز» nav item and no sitemap/hreflang entry; /en/prices 302s to /en/products (W16.3)", () => {
   assert.deepEqual(PRICE_PAGE_LOCALES, ["fa", "ar"]);
   assert.equal(isPricePagePublished("en"), false);
   assert.ok(!navLinks.en.some((l) => l.path === PRICE_PAGE_ROUTE));
   assert.ok(navLinks.fa.some((l) => l.path === PRICE_PAGE_ROUTE && l.label === "قیمت روز"));
   assert.ok(navLinks.ar.some((l) => l.path === PRICE_PAGE_ROUTE && l.label === PRICE_NAV_LABEL.ar));
-  assert.deepEqual(unpublishedPricePageRedirects(), ["/en/prices /en 302"]);
-  assert.ok(buildRedirectsFile().includes("/en/prices /en 302\n"));
+  // W16.3 (keyword map §2.2 #11): en price URLs go to the spec pages — /en/products, and each hub to its category.
+  assert.deepEqual(unpublishedPricePageRedirects(), [
+    "/en/prices /en/products 302",
+    "/en/prices/rebar /en/products/category/rebar 302",
+    "/en/prices/beam /en/products/category/beam 302",
+    "/en/prices/angle /en/products/category/angle 302",
+    "/en/prices/channel /en/products/category/channel 302",
+    "/en/prices/box-section /en/products/category/box-section 302",
+    "/en/prices/sheet-plate /en/products/category/sheet-plate 302",
+    "/en/prices/pipe /en/products/category/pipe 302",
+  ]);
+  assert.ok(buildRedirectsFile().includes("/en/prices /en/products 302\n"));
   const sitemap = fs.readFileSync(path.join(REPO, "app/sitemap.ts"), "utf8");
   assert.match(sitemap, /PRICE_PAGE_LOCALES as readonly string\[\]\)\.includes\(locale\)/);
   const route = fs.readFileSync(path.join(REPO, "app/[locale]/prices/page.tsx"), "utf8");

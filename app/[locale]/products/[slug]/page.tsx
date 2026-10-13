@@ -20,6 +20,7 @@ import { firstPricedVariant, isPriceLocale, PRICE_BLOCK_ATTRIBUTE, PRICE_BLOCK_O
 import { sparklineSeries, tehranDay } from "@/lib/pricing/price-history";
 import { PRICE_RFQ_COPY, priceRfqHref } from "@/lib/pricing/price-rfq";
 import { PriceSparkline } from "@/components/products/price-sparkline";
+import { ProductRelatedLinks } from "@/components/products/product-related-links";
 import { sortVariantsBySize } from "@/lib/catalog/specification-presenter";
 import type { ProductVariant } from "@/lib/catalog/types";
 
@@ -200,6 +201,9 @@ export default async function ProductDetailPage({ params }: PageProps) {
           </div>
         </div>
       </section>
+
+      {/* W16.3 (D-SEO): category, sibling grades, price hub, calculator, articles (components/products/product-related-links.tsx). */}
+      <ProductRelatedLinks locale={locale} templateXid={product.templateXid} slug={slug} groupCode={variants[0]?.group.code ?? null} />
 
       <CtaBand locale={locale} />
     </>

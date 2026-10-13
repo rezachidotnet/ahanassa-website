@@ -16,6 +16,11 @@ export interface PageMetadataInput {
   /** Locale-neutral path, e.g. "/" or "/about". */
   path: string;
   title: string;
+  /**
+   * W16.3 (D-SEO): the title is the whole `<title>` — the layout's ` | <brand>` suffix is not added (the home
+   * page, whose title already starts with the brand).
+   */
+  titleAbsolute?: boolean;
   description: string;
   /** false for pages that must not be indexed yet (e.g. structural placeholders). */
   indexable?: boolean;
@@ -83,7 +88,7 @@ export function buildPageMetadata(input: PageMetadataInput): Metadata {
   const canonical = buildCanonicalUrl(input.locale, input.path);
 
   return {
-    title: input.title,
+    title: input.titleAbsolute ? { absolute: input.title } : input.title,
     description: input.description,
     alternates: {
       canonical,

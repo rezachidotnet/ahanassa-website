@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import "../globals.css";
 import { locales, isLocale, getDirection, type Locale } from "@/config/locales";
 import { estedad } from "@/lib/fonts/estedad";
-import { siteConfig } from "@/lib/metadata/site";
+import { siteConfig, titleBrand } from "@/lib/metadata/site";
 import { SkipLink } from "@/components/layout/SkipLink";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
@@ -17,13 +17,18 @@ export function generateStaticParams() {
 
 export const dynamicParams = false;
 
-export const metadata: Metadata = {
-  metadataBase: new URL(siteConfig.baseUrl),
-  title: {
-    default: siteConfig.name,
-    template: `%s | ${siteConfig.name}`,
-  },
-};
+/** W16.3 (D-SEO): the title suffix is the locale's brand (lib/metadata/site.ts#titleBrand) — "Ahan Asa" on en. */
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale: rawLocale } = await params;
+  const brand = titleBrand(isLocale(rawLocale) ? rawLocale : "fa");
+  return {
+    metadataBase: new URL(siteConfig.baseUrl),
+    title: {
+      default: brand,
+      template: `%s | ${brand}`,
+    },
+  };
+}
 
 const skipLinkLabel: Record<Locale, string> = {
   fa: "رفتن به محتوای اصلی",

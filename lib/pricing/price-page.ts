@@ -53,6 +53,16 @@ export const PRICE_PAGE_COPY: Record<
     empty: string;
     emptyCta: string;
     swipe: string;
+    /** W16.3 (keyword map §7.2): the dated title/H1/meta of a day with prices; `families` = the hub names that day. */
+    metaTitleDated: (date: string, families: string[]) => string;
+    metaDescriptionDated: (families: string[]) => string;
+    titleDated: (date: string) => string;
+    /** W16.3: the H2 sections (§8 item 1): one per family hub, then the full table. */
+    familiesTitle: string;
+    familyLink: (name: string) => string;
+    familyProducts: string;
+    tableTitle: string;
+    calculator: string;
   }
 > = {
   fa: {
@@ -73,6 +83,14 @@ export const PRICE_PAGE_COPY: Record<
     empty: "در حال حاضر قیمتی منتشر نشده است. برای قیمت روز استعلام بگیرید.",
     emptyCta: "ارسال درخواست استعلام",
     swipe: "جدول را افقی بکشید",
+    metaTitleDated: (d, f) => `قیمت آهن‌آلات امروز ${d}؛ ${f.slice(0, 3).join("، ")}`,
+    metaDescriptionDated: (f) => `قیمت امروز ${listFa(f)} به تومان برای هر کیلوگرم، با کارخانه، محل تحویل و ارزش افزوده. برای قیمت نهایی سفارش استعلام بگیرید.`,
+    titleDated: (d) => `قیمت روز آهن‌آلات — ${d}`,
+    familiesTitle: "قیمت روز به تفکیک گروه کالایی",
+    familyLink: (n) => `قیمت روز ${n}`,
+    familyProducts: "محصولات این گروه:",
+    tableTitle: "جدول قیمت روز همه محصولات",
+    calculator: "محاسبه وزن آهن‌آلات",
   },
   ar: {
     eyebrow: "أسعار اليوم",
@@ -92,8 +110,25 @@ export const PRICE_PAGE_COPY: Record<
     empty: "لا توجد أسعار منشورة حاليًا. أرسل طلب تسعير للحصول على سعر اليوم.",
     emptyCta: "إرسال طلب تسعير",
     swipe: "اسحب الجدول أفقيًا",
+    metaTitleDated: (d) => `أسعار الحديد الإيراني اليوم ${d}`,
+    metaDescriptionDated: (f) => `أسعار ${listAr(f)} الإيرانية اليوم بالتومان لكل كيلوغرام، شاملة ضريبة القيمة المضافة. اطلب السعر النهائي لطلبك.`,
+    titleDated: (d) => `أسعار الحديد اليوم — ${d}`,
+    familiesTitle: "أسعار اليوم حسب فئة المنتج",
+    familyLink: (n) => `سعر ${n} اليوم`,
+    familyProducts: "منتجات هذه الفئة:",
+    tableTitle: "جدول أسعار جميع المنتجات اليوم",
+    calculator: "حاسبة وزن الحديد",
   },
 };
+
+/** «الف، ب و ج» */
+function listFa(items: string[]): string {
+  return items.length < 2 ? (items[0] ?? "") : `${items.slice(0, -1).join("، ")} و ${items[items.length - 1]}`;
+}
+/** «أ وب وج» — Arabic joins every item with و. */
+function listAr(items: string[]): string {
+  return items.join(" و");
+}
 
 export interface PriceTableRow {
   xid: string;
@@ -101,19 +136,23 @@ export interface PriceTableRow {
   productName: string;
   /** `/products/<slug>?variant=<xid>`, locale-less (the page localizes it). */
   productPath: string;
+  /** W16.3: the clean `/products/<slug>` (crawlable; robots.txt disallows `/*?`), locale-less. */
+  productPagePath: string;
   size: string;
   familyCode: string;
   familyLabel: string;
   /** fa only (the factory filter); null on ar — ar never carries the factory. */
   factory: string | null;
   price: PriceBlockData;
+  /** W16.3: the variant's nominal weight per piece (or per metre), already formatted; null when the catalog has none. */
+  weight: { label: string; value: string } | null;
 }
 
 export interface PriceTableTemplateInput {
   slug: string;
   productName: string;
   /** Variants in display order (sortVariantsBySize). */
-  variants: ReadonlyArray<{ xid: string; size: string; groupCode: string | null; familyName: string | null }>;
+  variants: ReadonlyArray<{ xid: string; size: string; groupCode: string | null; familyName: string | null; weight?: { label: string; value: string } | null }>;
 }
 
 export interface FamilyResolver {
@@ -136,11 +175,13 @@ export function buildPriceTableRows(locale: PriceLocale, templates: readonly Pri
         xid: v.xid,
         productName: t.productName,
         productPath: `/products/${t.slug}?variant=${encodeURIComponent(v.xid)}`,
+        productPagePath: `/products/${t.slug}`,
         size: v.size,
         familyCode: f.code,
         familyLabel: f.label,
         factory: locale === "fa" ? price.factoryName : null,
         price,
+        weight: v.weight ?? null,
         position: f.position,
         order: order++,
       });

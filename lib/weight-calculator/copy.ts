@@ -63,7 +63,7 @@ export interface WeightCalculatorCopy {
 }
 
 const fa: WeightCalculatorCopy = {
-  metaTitle: "محاسبه وزن آهن‌آلات",
+  metaTitle: "محاسبه وزن آهن‌آلات: میلگرد، تیرآهن، ورق، قوطی",
   metaDescription: "وزن اسمی میلگرد، تیرآهن، ناودانی، نبشی، قوطی، لوله و ورق را برای هر متر، هر شاخه و کل سفارش محاسبه کنید؛ بر پایه کاتالوگ آهن آسا و جدول‌های استاندارد.",
   eyebrow: "محاسبه‌گر وزن",
   title: "محاسبه وزن آهن‌آلات",
@@ -128,8 +128,8 @@ const fa: WeightCalculatorCopy = {
 };
 
 const en: WeightCalculatorCopy = {
-  metaTitle: "Steel weight calculator",
-  metaDescription: "Calculate the nominal weight of rebar, beams, channels, angles, hollow sections, pipe and plate per metre, per piece and for the whole order — from the Ahan Asa catalog and standard tables.",
+  metaTitle: "Steel Weight Calculator (kg) — Rebar, IPE, Plate",
+  metaDescription: "Nominal weight of rebar, IPE beams, channels, angles, hollow sections, pipe and plate — per metre, per piece and per order, in kg, from the Ahan Asa catalog and standard tables.",
   eyebrow: "Weight calculator",
   title: "Steel weight calculator",
   body: "Choose the section and size, then enter pieces, kilograms or tonnes to see the nominal weight per metre, per piece and for the whole order.",
@@ -193,8 +193,8 @@ const en: WeightCalculatorCopy = {
 };
 
 const ar: WeightCalculatorCopy = {
-  metaTitle: "حاسبة وزن الحديد",
-  metaDescription: "احسب الوزن الاسمي لحديد التسليح والكمرات والمجاري والزوايا والمقاطع المجوفة والأنابيب والألواح لكل متر ولكل قطعة وللطلب كله، استنادًا إلى كتالوج آهن آسا والجداول القياسية.",
+  metaTitle: "حساب وزن الحديد: التسليح، الشيلمان، الصاج",
+  metaDescription: "احسب الوزن الاسمي لحديد التسليح والشيلمان والمجاري والزوايا والحديد المربع والصاج والأنابيب لكل متر ولكل قطعة وللطلب كاملًا، استنادًا إلى كتالوج آهن آسا والجداول القياسية.",
   eyebrow: "حاسبة الوزن",
   title: "حاسبة وزن الحديد",
   body: "اختر المقطع والمقاس ثم أدخل العدد أو الكيلوغرام أو الطن لترى الوزن الاسمي لكل متر ولكل قطعة وللطلب كله.",

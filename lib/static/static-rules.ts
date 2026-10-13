@@ -3,6 +3,8 @@ import { PRODUCTION_NOINDEX_HEADER_PATHS } from "../seo/indexing-policy.ts";
 import { locales, localizedPath } from "../../config/locales.ts";
 import { WEIGHT_CALCULATOR_LOCALES, WEIGHT_CALCULATOR_ROUTE } from "../weight-calculator/publication.ts";
 import { PRICE_PAGE_LOCALES, PRICE_PAGE_ROUTE } from "../pricing/price-page.ts";
+import { PRICE_HUB_CATEGORY_CODES, priceHubPath, priceHubSegment } from "../pricing/price-hubs.ts";
+import { EXPORT_LOCALES, EXPORT_ROUTE } from "../content/export.ts";
 
 /**
  * Static replacements for what `proxy.ts` and the metadata routes did on the
@@ -64,16 +66,28 @@ export function unpublishedCalculatorRedirects(): string[] {
 
 /**
  * W9.6: the price page exists in fa and ar only (en has no price data); /en/prices sends the same
- * temporary 302 to the en home, for the same reason (the language selector links every page across
- * locales). Derived from PRICE_PAGE_LOCALES.
+ * temporary 302, for the same reason (the language selector links every page across locales). Derived
+ * from PRICE_PAGE_LOCALES. W16.3 (keyword map §2.2 #11): the target is the locale's products index (was its
+ * home), and each family hub path sends its locale to the same family's category page — en price queries
+ * map to spec pages, never to a price.
  */
 export function unpublishedPricePageRedirects(): string[] {
-  return locales.filter((l) => !(PRICE_PAGE_LOCALES as readonly string[]).includes(l)).map((l) => `${localizedPath(l, PRICE_PAGE_ROUTE)} ${localizedPath(l, "/")} 302`);
+  return locales
+    .filter((l) => !(PRICE_PAGE_LOCALES as readonly string[]).includes(l))
+    .flatMap((l) => [
+      `${localizedPath(l, PRICE_PAGE_ROUTE)} ${localizedPath(l, "/products")} 302`,
+      ...PRICE_HUB_CATEGORY_CODES.map((code) => `${localizedPath(l, priceHubPath(code))} ${localizedPath(l, `/products/category/${priceHubSegment(code)}`)} 302`),
+    ]);
+}
+
+/** W16.3: the export page exists in en and ar only; fa sends a temporary 302 to its home (language selector). */
+export function unpublishedExportRedirects(): string[] {
+  return locales.filter((l) => !EXPORT_LOCALES.includes(l)).map((l) => `${localizedPath(l, EXPORT_ROUTE)} ${localizedPath(l, "/")} 302`);
 }
 
 /** `_redirects`: fa has no visible prefix; /request is the frozen Header CTA path whose form lives at /contact. */
 export function buildRedirectsFile(): string {
-  return ["/fa / 308", "/fa/* /:splat 308", "/request /contact 308", "/en/request /en/contact 308", "/ar/request /ar/contact 308", ...unpublishedCalculatorRedirects(), ...unpublishedPricePageRedirects(), ""].join("\n");
+  return ["/fa / 308", "/fa/* /:splat 308", "/request /contact 308", "/en/request /en/contact 308", "/ar/request /ar/contact 308", ...unpublishedCalculatorRedirects(), ...unpublishedPricePageRedirects(), ...unpublishedExportRedirects(), ""].join("\n");
 }
 
 /** `.assetsignore`: defence in depth — these must never be uploaded even if present (the artifact gate also rejects them). */

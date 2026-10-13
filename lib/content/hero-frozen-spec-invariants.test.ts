@@ -56,7 +56,8 @@ const CSS_CODE = stripComments(CSS_SOURCE);
 test("Hero FA content matches the current owner-directed baseline exactly", () => {
   const t = homepageCopy.fa.hero;
   assert.equal(t.eyebrow, "مدیریت تأمین فولاد پروژه");
-  assert.equal(t.title, "تأمین فولاد پروژه‌ها");
+  // W16.3 (D-SEO, owner brief 2026-10-13): text-only H1 change.
+  assert.equal(t.title, "تأمین و خرید آهن‌آلات پروژه");
   assert.equal(t.body, "آهن آسا مسیر خرید آهن شما را آسان، شفاف و قابل‌کنترل می‌کند.");
   assert.equal(t.secondaryCta, "درخواست قیمت تلفنی");
   assert.equal(t.reassurance, "ارسال لیست خرید برای شما تعهدی ایجاد نمی‌کند.");

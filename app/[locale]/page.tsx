@@ -117,10 +117,14 @@ interface PageProps {
   params: Promise<{ locale: string }>;
 }
 
+/**
+ * W16.3 (D-SEO, keyword map §2.2 #7, §7.1): the whole `<title>` (absolute — it starts with the brand, so the
+ * layout's ` | <brand>` suffix would repeat it) with the commercial terms, and the §7.1 metas.
+ */
 const metaCopy: Record<Locale, { title: string; description: string }> = {
-  fa: { title: "آهن آسا — مدیریت خرید فولاد", description: "فاکتور یا لیست خریدتان را بفرستید؛ آهن آسا نیاز پروژه، گزینه‌های تأمین و مسیر خرید را بررسی و هماهنگ می‌کند." },
-  en: { title: "Ahan Asa — Steel purchasing management", description: "Send your invoice or purchase list — Ahan Asa reviews the requirement, sourcing options, and purchasing path." },
-  ar: { title: "آهن آسا — إدارة شراء الصلب", description: "أرسل فاتورتك أو قائمة الشراء؛ يراجع آهن آسا الاحتياج وخيارات التوريد ومسار الشراء." },
+  fa: { title: "آهن آسا | خرید آهن‌آلات و قیمت روز آهن برای پروژه", description: "قیمت روز میلگرد، تیرآهن، ورق و قوطی با نام کارخانه و تاریخ. فاکتور یا لیست خریدتان را بفرستید؛ آهن آسا مشخصات، گزینه‌های تأمین و تحویل را بررسی می‌کند." },
+  en: { title: "Ahan Asa | Iranian Steel Sourcing for Projects", description: "Rebar, IPE beams, plates and hollow sections from Iranian mills — specs, sizes and weight tables. Send your purchase list and Ahan Asa reviews sourcing and delivery." },
+  ar: { title: "آهن آسا | توريد الحديد الإيراني للمشاريع", description: "حديد التسليح والشيلمان والصاج والحديد المربع الإيراني مع جداول الأوزان والمواصفات وأسعار اليوم. أرسل قائمة الشراء ليراجع آهن آسا الاحتياج وخيارات التوريد." },
 };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -132,6 +136,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     locale,
     path: "/",
     title: text.title,
+    titleAbsolute: true,
     description: text.description,
     // Owner decision D6 (2026-10-04, docs/OWNER_DECISIONS.md): index,follow on
     // the production target; staging keeps its pre-D6 noindex.

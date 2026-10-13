@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { locales, localizedPath, type Locale } from "@/config/locales";
 import { siteConfig } from "@/lib/metadata/site";
 import { buildLanguageAlternates, buildLanguageAlternatesFromEntries } from "@/lib/metadata/resolve";
-import { isIndexableTarget, STATIC_PUBLIC_PATHS } from "@/lib/seo/indexing-policy";
+import { isIndexableTarget, isNoindexPage, STATIC_PUBLIC_PATHS } from "@/lib/seo/indexing-policy";
 import { categoryListingPath } from "@/lib/catalog/public-categories";
 import { listIndexableCatalogTemplateSlugs, listPublicCatalogCategories, listPublishedCatalogTemplates, listPublishedLocalesForProduct } from "@/lib/catalog/editorial-repository";
 import { WEIGHT_CALCULATOR_LOCALES, WEIGHT_CALCULATOR_ROUTE } from "@/lib/weight-calculator/publication";
@@ -10,6 +10,10 @@ import { PRICE_PAGE_LOCALES, PRICE_PAGE_ROUTE } from "@/lib/pricing/price-page";
 import { getArticle, latestArticleUpdate, listArticleCategories, listArticleLocales, listArticles, listCategoryLocales } from "@/lib/articles/repository";
 import { articleListingPath, articlePath, pageCount } from "@/lib/articles/routes";
 import { ARTICLE_LOCALES } from "@/lib/contracts/snapshot-articles";
+import { listPublishedHubFamilies } from "@/lib/pricing/price-page-data";
+import { priceHubPath } from "@/lib/pricing/price-hubs";
+import { RAW_MATERIAL_LOCALES, RAW_MATERIAL_SLUGS, RAW_MATERIALS_ROUTE, rawMaterialPath } from "@/lib/content/raw-materials";
+import { EXPORT_LOCALES, EXPORT_ROUTE } from "@/lib/content/export";
 
 /** The public, non-catalog pages of every locale (D6, lib/seo/indexing-policy.ts). Articles (W11.1) are listed below, per locale. */
 export { STATIC_PUBLIC_PATHS };
@@ -21,8 +25,10 @@ const canonicalLanguages = (languages: Record<string, string> | undefined) => (l
 
 /**
  * Production (D6, docs/OWNER_DECISIONS.md): every indexable URL of fa/en/ar —
- * the static pages, every public category listing and every published
- * product page — each with its reciprocal hreflang alternates (+ x-default).
+ * the static pages (minus PRODUCTION_NOINDEX_PAGES), every public category
+ * listing, every published product page and, since W16.3, the family price
+ * hubs of the day, the raw-material pages and the export page — each with its
+ * reciprocal hreflang alternates (+ x-default).
  * lastmod comes from the snapshot: a product page's own Odoo/editorial
  * `updated_at`; every other page the newest of those (the snapshot's content
  * date), so the same snapshot always gives the same sitemap.
@@ -54,9 +60,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const contentDate = maxIso(productEntries.map((e) => String(e.lastModified)));
   const lastModified = contentDate || undefined;
 
+  // W16.3: the family price hubs of the day, per locale (fa/ar only), with alternates between the locales that publish each.
+  const hubLocales = new Map<string, Locale[]>();
+  for (const locale of locales) for (const family of await listPublishedHubFamilies(locale)) hubLocales.set(priceHubPath(family), [...(hubLocales.get(priceHubPath(family)) ?? []), locale]);
+  /** W16.3: a page published in a fixed locale list (raw materials, export), with alternates between those locales. */
+  const fixedLocaleEntry = (locale: Locale, path: string, published: readonly Locale[]) => ({ url: url(locale, path), lastModified, alternates: { languages: canonicalLanguages(buildLanguageAlternatesFromEntries(published.map((l) => ({ locale: l, path })))) } });
+
   const entries: MetadataRoute.Sitemap = [];
   for (const locale of locales) {
-    for (const path of STATIC_PUBLIC_PATHS) entries.push({ url: url(locale, path), lastModified, alternates: { languages: canonicalLanguages(buildLanguageAlternates(path)) } });
+    // W16.3: PRODUCTION_NOINDEX_PAGES (Industries, Markets) stay out until they have real content.
+    for (const path of STATIC_PUBLIC_PATHS) if (!isNoindexPage(path)) entries.push({ url: url(locale, path), lastModified, alternates: { languages: canonicalLanguages(buildLanguageAlternates(path)) } });
     // The weight calculator (W10.1): only its published locales, with alternates between those locales only.
     if (WEIGHT_CALCULATOR_LOCALES.includes(locale)) entries.push({ url: url(locale, WEIGHT_CALCULATOR_ROUTE), lastModified, alternates: { languages: canonicalLanguages(buildLanguageAlternatesFromEntries(WEIGHT_CALCULATOR_LOCALES.map((l) => ({ locale: l, path: WEIGHT_CALCULATOR_ROUTE })))) } });
     // The daily price page (W9.6): fa and ar only, with alternates between those two.
@@ -65,6 +78,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       if (!present.includes(locale)) continue;
       entries.push({ url: url(locale, path), lastModified, alternates: { languages: canonicalLanguages(buildLanguageAlternatesFromEntries(present.map((l) => ({ locale: l, path })))) } });
     }
+    for (const [path, present] of hubLocales) if (present.includes(locale)) entries.push(fixedLocaleEntry(locale, path, present));
+    if (RAW_MATERIAL_LOCALES.includes(locale)) for (const path of [RAW_MATERIALS_ROUTE, ...RAW_MATERIAL_SLUGS.map(rawMaterialPath)]) entries.push(fixedLocaleEntry(locale, path, RAW_MATERIAL_LOCALES));
+    if (EXPORT_LOCALES.includes(locale)) entries.push(fixedLocaleEntry(locale, EXPORT_ROUTE, EXPORT_LOCALES));
   }
   return [...entries, ...productEntries, ...(await articleEntries(url))];
 }

@@ -1,77 +1,13 @@
 import type { Locale } from "@/config/locales";
 
 /**
- * Interior-page copy (about/services/markets). Grounded only in confirmed
+ * Interior-page copy (services/markets; /about moved to lib/content/about.ts in W16.3). Grounded only in confirmed
  * product truth (CLAUDE.md §7, PROJECT_OVERRIDES.md §4/§7) and the same
  * approved process/pillar content used on the homepage — no company
  * statistics, named certifications, client counts, or country/port lists,
  * all of which were fabricated in the v0 source and were removed; see
  * DOCUMENT_AUDIT_REPORT.md "v0 integration".
  */
-
-export interface AboutCopy {
-  hero: { eyebrow: string; title: string; body: string };
-  roleTitle: string;
-  roleBody: string[];
-  notTitle: string;
-  notItems: string[];
-  isTitle: string;
-  isItems: string[];
-}
-
-export const aboutCopy: Record<Locale, AboutCopy> = {
-  fa: {
-    hero: {
-      eyebrow: "درباره ما",
-      title: "مدیر خرید فولاد شما — نه فروشنده، نه بازارگاه.",
-      body: "آهن آسا فرآیند خرید فولاد را از سمت خریدار مدیریت می‌کند: از بررسی نیاز تا هماهنگی تأمین و تحویل.",
-    },
-    roleTitle: "چرا «مدیریت خرید»؟",
-    roleBody: [
-      "در یک معامله معمولی، مسئولیت ارزیابی مشخصات، تأمین‌کننده، مستندات و زمان‌بندی عمدتاً بر عهده خریدار است.",
-      "آهن آسا این بار ارزیابی را بر عهده می‌گیرد: نیاز پروژه شما را بررسی می‌کند، گزینه‌های تأمین را بر اساس معیارهای مرتبط مقایسه می‌کند و مسیر خرید را تا تحویل هماهنگ می‌کند.",
-      "این رویکرد از فروش یک قلم کالا با کمترین قیمت متفاوت است؛ روی تصمیم درست برای پروژه شما تمرکز دارد.",
-    ],
-    notTitle: "این خدمت برای چه نیازهایی مناسب نیست",
-    notItems: ["خریدهای جزئی و لحظه‌ای بدون بررسی فنی", "انتظار خرید فوری و آنی بدون فرآیند بررسی", "درخواست‌های نامشخص و ناقص که نیاز به پیگیری ندارند"],
-    isTitle: "این خدمت برای چه نیازهایی مناسب است",
-    isItems: ["تأمین پروژه‌ای که نیاز به مقایسه منظم تأمین‌کنندگان دارد", "سفارش‌های عمده و کنترل‌شده", "خریدارانی که پیگیری کامل تا تحویل نیاز دارند"],
-  },
-  en: {
-    hero: {
-      eyebrow: "About us",
-      title: "Your steel purchasing manager — not a seller, not a marketplace.",
-      body: "Ahan Asa manages the steel purchasing process from the buyer's side: from requirement review to sourcing and delivery coordination.",
-    },
-    roleTitle: "Why \"purchasing management\"?",
-    roleBody: [
-      "In a regular transaction, the burden of evaluating specification, supplier, documentation, and timing sits mostly with the buyer.",
-      "Ahan Asa takes on that evaluation burden: reviewing your project requirement, comparing sourcing options against relevant criteria, and coordinating the purchasing path through to delivery.",
-      "This is different from selling a single item at the lowest price; it focuses on the right decision for your project.",
-    ],
-    notTitle: "Who this service isn't for",
-    notItems: ["Small, impulsive purchases without technical review", "Expectations of instant, on-demand buying with no review process", "Vague, incomplete requests that don't need follow-through"],
-    isTitle: "Who this service is for",
-    isItems: ["Project sourcing that needs regular supplier comparison", "Bulk, controlled orders", "Buyers who need full follow-through to delivery"],
-  },
-  ar: {
-    hero: {
-      eyebrow: "من نحن",
-      title: "مدير شراء الصلب الخاص بك — لسنا بائعًا ولا سوقًا إلكترونيًا.",
-      body: "يدير آهن آسا عملية شراء الصلب من جانب المشتري: من مراجعة الاحتياج إلى تنسيق التوريد والتسليم.",
-    },
-    roleTitle: "لماذا «إدارة الشراء»؟",
-    roleBody: [
-      "في المعاملة العادية، يقع عبء تقييم المواصفات والمورد والمستندات والتوقيت غالبًا على عاتق المشتري.",
-      "يتحمل آهن آسا هذا العبء: يراجع احتياج مشروعك، ويقارن خيارات التوريد وفق المعايير ذات الصلة، وينسّق مسار الشراء حتى التسليم.",
-      "هذا يختلف عن بيع صنف واحد بأقل سعر؛ فهو يركز على القرار الصحيح لمشروعك.",
-    ],
-    notTitle: "لمن لا تناسب هذه الخدمة",
-    notItems: ["المشتريات الصغيرة والعفوية دون مراجعة فنية", "توقع الشراء الفوري دون عملية مراجعة", "الطلبات غامضة وغير مكتملة لا تحتاج متابعة"],
-    isTitle: "لمن تناسب هذه الخدمة",
-    isItems: ["توريد المشاريع التي تحتاج مقارنة منتظمة للموردين", "الطلبات الكبيرة والمُدارة", "المشترون الذين يحتاجون متابعة كاملة حتى التسليم"],
-  },
-};
 
 export interface ServicesCopy {
   hero: { eyebrow: string; title: string; body: string };
