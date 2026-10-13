@@ -102,6 +102,18 @@ export async function listRelatedArticles(article: ArticleSummary, n = 3): Promi
   return [...others.filter((a) => a.category === article.category), ...others.filter((a) => a.category !== article.category)].slice(0, n);
 }
 
+/**
+ * W16.3 (keyword map §8 item 3): up to `n` articles of `locale` that list the product template among their
+ * `related_products` (the reverse of the article's product cards), newest first. [] for a locale without articles.
+ */
+export async function listArticlesForProduct(locale: string, templateXid: string, n = 3): Promise<ArticleSummary[]> {
+  if (!(ARTICLE_LOCALES as readonly string[]).includes(locale)) return [];
+  return (await allArticles())
+    .filter((a) => a.locale === locale && a.relatedProducts.includes(templateXid))
+    .slice(0, n)
+    .map(summary);
+}
+
 export function categoryLabel(code: ArticleCategoryCode, locale: ArticleLocale): string {
   return ARTICLE_CATEGORIES.find((c) => c.code === code)![locale];
 }

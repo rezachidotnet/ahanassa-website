@@ -82,14 +82,14 @@ test("the component: no JSON-LD offers, no source field, the fixed 'ask for toda
   assert.deepEqual(users.map((f) => path.relative(REPO_ROOT, f)), ["app/[locale]/products/[slug]/page.tsx"], "product page only");
 });
 
-test("W10.3: no Calculator CTA section on the home page; one fa-only «محاسبه وزن آهن‌آلات» button under the Product Showcase grid, no price", () => {
+test("W10.3: no Calculator CTA section on the home page; one «محاسبه وزن آهن‌آلات» button under the Product Showcase grid (fa, + en/ar since W16.3), no price", () => {
   assert.ok(!existsSync(path.join(REPO_ROOT, "components/home/calculator-cta.tsx")), "the CTA section component is removed");
   const page = readFileSync(path.join(REPO_ROOT, "app/[locale]/page.tsx"), "utf8");
   const render = page.slice(page.indexOf("return (", page.indexOf("export default async function HomePage")));
   assert.doesNotMatch(page, /CalculatorCta|calculator-cta|isWeightCalculatorPublished/);
   assert.match(render, /<Hero locale=\{locale\} \/>\n\s*<PriceStrip /, "Hero -> Price Strip again (frozen order)");
   const showcase = readFileSync(path.join(REPO_ROOT, "components/home/product-showcase.tsx"), "utf8");
-  assert.match(showcase, /const CALCULATOR_LINK_LABEL: Partial<Record<Locale, string>> = \{ fa: "محاسبه وزن آهن‌آلات" \};/);
+  assert.match(showcase, /const CALCULATOR_LINK_LABEL: Partial<Record<Locale, string>> = \{ fa: "محاسبه وزن آهن‌آلات", en: "Steel weight calculator", ar: "حاسبة وزن الحديد" \};/);
   assert.match(showcase, /isWeightCalculatorPublished\(locale\) \? CALCULATOR_LINK_LABEL\[locale\] : undefined/, "only where the calculator is published");
   const afterGrid = showcase.slice(showcase.indexOf("</ul>"));
   assert.match(afterGrid, /^<\/ul>\n\n\s*\{calculatorLabel && \(\n\s*<div className="mt-10 flex justify-center">\n\s*<ButtonLink href=\{localizedPath\(locale, WEIGHT_CALCULATOR_ROUTE\)\} variant="secondary">/, "directly under the category grid");

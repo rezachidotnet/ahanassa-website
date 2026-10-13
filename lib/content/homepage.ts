@@ -314,7 +314,8 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
   fa: {
     hero: {
       eyebrow: "مدیریت تأمین فولاد پروژه",
-      title: "تأمین فولاد پروژه‌ها",
+      // W16.3 (D-SEO, keyword map §10 Q8): text-only change of the frozen hero's H1, owner brief 2026-10-13.
+      title: "تأمین و خرید آهن‌آلات پروژه",
       process: ["ارسال لیست درخواست", "بررسی فنی", "بررسی تجاری", "تأمین"],
       body: "آهن آسا مسیر خرید آهن شما را آسان، شفاف و قابل‌کنترل می‌کند.",
       reassurance: "ارسال لیست خرید برای شما تعهدی ایجاد نمی‌کند.",

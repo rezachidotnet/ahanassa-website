@@ -17,11 +17,10 @@ const HEADING_ID = "home-product-showcase-heading";
 /**
  * The weight-calculator button under the category grid (owner, W10.3,
  * 2026-10-09 — it replaced the separate Calculator CTA section after the
- * Hero). Shown only in a locale the calculator is published in (fa only
- * today), so only fa copy exists; publishing another locale needs its label
- * here as well.
+ * Hero). Shown only in a locale the calculator is published in (fa, en and
+ * ar since W16.3); publishing another locale needs its label here as well.
  */
-const CALCULATOR_LINK_LABEL: Partial<Record<Locale, string>> = { fa: "محاسبه وزن آهن‌آلات" };
+const CALCULATOR_LINK_LABEL: Partial<Record<Locale, string>> = { fa: "محاسبه وزن آهن‌آلات", en: "Steel weight calculator", ar: "حاسبة وزن الحديد" };
 
 /** Localized alt text for a category's representative photo — built from Odoo's own translated category name. */
 const imageAlt: Record<Locale, (name: string) => string> = {

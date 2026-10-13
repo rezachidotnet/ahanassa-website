@@ -28,6 +28,18 @@ export const NON_INDEXABLE = [
 /** The public, non-catalog pages every locale has (app/sitemap.ts; W11.1 articles may link to them). */
 export const STATIC_PUBLIC_PATHS = ["/", "/products", "/services", "/about", "/industries", "/markets", "/contact"] as const;
 
+/**
+ * W16.3 (D-SEO, docs/seo/keyword-map.md §2.2 #9 / §10 Q7, owner brief 2026-10-13): public pages that stay
+ * reachable and linked but are `noindex, follow` on EVERY target, and so are left out of the sitemap, until
+ * they have real content. Industries and Markets are placeholders («… به‌زودی»). Removing a path here makes
+ * it indexable again (and puts it back in the sitemap) — the indexing gate checks both directions.
+ */
+export const PRODUCTION_NOINDEX_PAGES = ["/industries", "/markets"] as const;
+
+export function isNoindexPage(path: string): boolean {
+  return (PRODUCTION_NOINDEX_PAGES as readonly string[]).includes(path);
+}
+
 /** Paths robots.txt disallows on the production target — the technical paths above, nothing else. */
 export const PRODUCTION_ROBOTS_DISALLOW = ["/api/", "/static-404", "/*?"] as const;
 

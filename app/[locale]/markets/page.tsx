@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { isLocale, type Locale } from "@/config/locales";
 import { buildPageMetadata } from "@/lib/metadata/resolve";
-import { publicPageIndexable } from "@/lib/seo/indexing-policy";
+import { isNoindexPage, publicPageIndexable } from "@/lib/seo/indexing-policy";
 import { marketsCopy } from "@/lib/content/pages";
 import { PageHero } from "@/components/ui/page-hero";
 import { CtaBand } from "@/components/ui/cta-band";
@@ -17,7 +17,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { locale: rawLocale } = await params;
   const locale = isLocale(rawLocale) ? rawLocale : "fa";
   const t = marketsCopy[locale];
-  return buildPageMetadata({ locale, path: "/markets", title: t.hero.title, description: t.hero.body, indexable: publicPageIndexable() });
+  // W16.3 (D-SEO, keyword map §2.2 #9): noindex until the page has real content (PRODUCTION_NOINDEX_PAGES).
+  return buildPageMetadata({ locale, path: "/markets", title: t.hero.title, description: t.hero.body, indexable: publicPageIndexable() && !isNoindexPage("/markets") });
 }
 
 export default async function MarketsPage({ params }: PageProps) {

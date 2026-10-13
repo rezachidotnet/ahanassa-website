@@ -1,4 +1,4 @@
-import { PRODUCTION_NOINDEX_HEADER_PATHS, PRODUCTION_ROBOTS_DISALLOW } from "../seo/indexing-policy.ts";
+import { isNoindexPage, PRODUCTION_NOINDEX_HEADER_PATHS, PRODUCTION_ROBOTS_DISALLOW } from "../seo/indexing-policy.ts";
 import { renderRobotsTxt, type StaticEnvironment } from "./static-rules.ts";
 
 /**
@@ -10,7 +10,8 @@ import { renderRobotsTxt, type StaticEnvironment } from "./static-rules.ts";
  * production  no noindex on `/*` (only on the non-page data paths); robots.txt allows
  *             all and disallows only the technical paths; every page except the 404s
  *             is `index, follow` with a self canonical and hreflang (incl. x-default);
- *             the 404s are noindex; the sitemap lists exactly the indexable pages,
+ *             the 404s are noindex; a PRODUCTION_NOINDEX_PAGES page (W16.3) is
+ *             `noindex, follow` with a self canonical and is NOT in the sitemap; the sitemap lists exactly the indexable pages,
  *             each with lastmod and the same reciprocal alternates as the page.
  */
 export const PRODUCTION_ORIGIN = "https://www.ahanassa.com";
@@ -28,6 +29,12 @@ export function pageUrl(file: string): string | null {
   if (!file.endsWith(".html") || NOT_FOUND_PAGES.has(file)) return null;
   const route = file === "index.html" ? "" : `/${file.slice(0, -".html".length).replace(/\/index$/, "")}`;
   return `${PRODUCTION_ORIGIN}${route}`;
+}
+
+/** The locale-neutral route of a page URL (`…/en/industries` → `/industries`, the bare origin → `/`). */
+export function neutralRoute(url: string): string {
+  const route = url.slice(PRODUCTION_ORIGIN.length) || "/";
+  return route.replace(/^\/(en|ar)(?=\/|$)/, "") || "/";
 }
 
 /** `_headers` as {path → header lines}. */
@@ -111,6 +118,12 @@ export function checkIndexingPolicy(env: StaticEnvironment, files: readonly stri
     const url = pageUrl(file);
     if (!url) {
       if (!meta || !/noindex/i.test(meta)) failures.push(`indexing: ${file} (404) must be noindex`);
+      continue;
+    }
+    if (isNoindexPage(neutralRoute(url))) {
+      // W16.3: a placeholder page kept out of the index until it has real content (lib/seo/indexing-policy.ts).
+      if (meta?.replace(/\s/g, "") !== "noindex,follow") failures.push(`indexing: ${file} is a PRODUCTION_NOINDEX_PAGES page and must be "noindex, follow" (got ${meta ?? "none"})`);
+      if (canonicalOf(html) !== url) failures.push(`indexing: ${file} canonical must be ${url} (got ${canonicalOf(html) ?? "none"})`);
       continue;
     }
     if (meta?.replace(/\s/g, "") !== "index,follow") failures.push(`indexing: ${file} must be "index, follow" (got ${meta ?? "none"})`);
