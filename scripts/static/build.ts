@@ -164,7 +164,12 @@ for (const a of snapshot.tables.published_articles) {
 counts.article_covers = snapshot.tables.published_articles.length;
 if (snapshot.tables.published_articles.length) log(`rasterized ${snapshot.tables.published_articles.length} article cover(s) to PNG + WebP`);
 
-fs.writeFileSync(path.join(publicDir, "_headers"), buildHeadersFile(environment, target.rfqApiOrigin));
+// W10.6: the immutable Cache-Control names each hashed file the export wrote (never a wildcard; static-rules.ts).
+const nextStaticDir = path.join(publicDir, "_next/static");
+const staticAssetPaths = fs.existsSync(nextStaticDir)
+  ? (fs.readdirSync(nextStaticDir, { recursive: true, withFileTypes: true }) as fs.Dirent[]).filter((d) => d.isFile()).map((d) => "/" + path.relative(publicDir, path.join(d.parentPath, d.name)).split(path.sep).join("/"))
+  : [];
+fs.writeFileSync(path.join(publicDir, "_headers"), buildHeadersFile(environment, target.rfqApiOrigin, staticAssetPaths));
 fs.writeFileSync(path.join(publicDir, "_redirects"), buildRedirectsFile());
 fs.writeFileSync(path.join(publicDir, ".assetsignore"), buildAssetsIgnoreFile());
 // generated_at = the snapshot's own time, so the same snapshot always gives byte-identical public files (W4 determinism).

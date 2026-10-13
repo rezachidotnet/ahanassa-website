@@ -18,16 +18,38 @@ export type StaticEnvironment = "staging" | "production";
  * target's RFQ API origin only (§6.1); staging additionally
  * `X-Robots-Tag: noindex, nofollow` (§4.2, R2-4). Production marks only the
  * non-page data files noindex (D6, lib/seo/indexing-policy.ts); its pages never.
+ *
+ * W10.6: the one-year `immutable` Cache-Control is one rule per hashed file
+ * the build actually wrote under /_next/static/ (`staticAssetPaths`), never
+ * a `/_next/static/*` wildcard. Cloudflare applies `_headers` rules to the
+ * 404 response of a matching path too, so a wildcard made a 404 for a chunk
+ * name — e.g. requested in the seconds before a fresh deploy's new chunks
+ * are reachable — cacheable for a year in the visitor's browser. A path
+ * with no rule keeps the platform's `max-age=0, must-revalidate`.
  */
-export function buildHeadersFile(env: StaticEnvironment, rfqApiOrigin: string): string {
+export const IMMUTABLE_CACHE_CONTROL = "public, max-age=31536000, immutable";
+/** Cloudflare's limit on rules in one `_headers` file (Workers static assets). */
+export const MAX_HEADER_RULES = 100;
+export function buildHeadersFile(env: StaticEnvironment, rfqApiOrigin: string, staticAssetPaths: readonly string[] = []): string {
   const lines = ["/*", ...buildSecurityHeaders([rfqApiOrigin]).map(([name, value]) => `  ${name}: ${value}`)];
   if (env === "staging") lines.push("  X-Robots-Tag: noindex, nofollow");
   const noindex = new Set<string>(env === "production" ? PRODUCTION_NOINDEX_HEADER_PATHS : []);
-  lines.push("", "/_next/static/*", "  Cache-Control: public, max-age=31536000, immutable", "", "/data/*", "  Cache-Control: public, max-age=300");
+  for (const p of [...staticAssetPaths].sort()) {
+    if (!/^\/_next\/static\/[^*\s]+$/.test(p) || p.includes("/:")) throw new Error(`_headers: not a concrete /_next/static/ file path: ${p}`);
+    lines.push("", p, `  Cache-Control: ${IMMUTABLE_CACHE_CONTROL}`);
+  }
+  lines.push("", "/data/*", "  Cache-Control: public, max-age=300");
   if (noindex.delete("/data/*")) lines.push("  X-Robots-Tag: noindex");
   lines.push("");
   for (const p of noindex) lines.push(p, "  X-Robots-Tag: noindex", "");
+  const rules = headerRuleCount(lines.join("\n"));
+  if (rules > MAX_HEADER_RULES) throw new Error(`_headers: ${rules} rules exceed Cloudflare's limit of ${MAX_HEADER_RULES} (${staticAssetPaths.length} /_next/static/ files)`);
   return lines.join("\n");
+}
+
+/** Rules in a `_headers` file: its unindented path lines. */
+export function headerRuleCount(headers: string): number {
+  return headers.split("\n").filter((l) => l.startsWith("/")).length;
 }
 
 /**
@@ -99,4 +121,28 @@ export function renderSitemapXml(entries: SitemapEntry[]): string {
   });
   const xhtml = entries.some((e) => alternatesOf(e).length) ? ' xmlns:xhtml="http://www.w3.org/1999/xhtml"' : "";
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"${xhtml}>\n${urls.join("\n")}${urls.length ? "\n" : ""}</urlset>\n`;
+}
+
+/**
+ * W10.6 gate: `_headers` gives the immutable Cache-Control to exactly the artifact's /_next/static/ files —
+ * one rule each, no wildcard (a wildcard also covers the 404 of a missing chunk), no rule for a path the
+ * artifact does not contain — and stays within Cloudflare's rule limit.
+ */
+export function checkStaticCacheRules(headers: string, publicPaths: readonly string[]): string[] {
+  const failures: string[] = [];
+  const blocks = new Map<string, string[]>();
+  let current: string[] | null = null;
+  for (const line of headers.split("\n")) {
+    if (line.startsWith("/")) blocks.set(line.trim(), (current = blocks.get(line.trim()) ?? []));
+    else if (line.trim() && current) current.push(line.trim());
+  }
+  const immutable = [...blocks].filter(([, lines]) => lines.some((l) => /^cache-control:.*immutable/i.test(l))).map(([rule]) => rule);
+  for (const rule of immutable) {
+    if (rule.includes("*")) failures.push(`_headers: immutable Cache-Control on a wildcard rule (${rule}) also caches 404s for a year`);
+    else if (!publicPaths.includes(rule.slice(1))) failures.push(`_headers: immutable rule for ${rule}, which is not in the artifact`);
+  }
+  for (const p of publicPaths) if (p.startsWith("_next/static/") && !immutable.includes(`/${p}`)) failures.push(`_headers: /${p} has no immutable Cache-Control rule`);
+  const rules = headerRuleCount(headers);
+  if (rules > MAX_HEADER_RULES) failures.push(`_headers: ${rules} rules exceed Cloudflare's limit of ${MAX_HEADER_RULES}`);
+  return failures;
 }
