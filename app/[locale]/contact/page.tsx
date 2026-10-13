@@ -11,6 +11,7 @@ import { WhatsAppDrawingsLink } from "@/components/contact/whatsapp-drawings-lin
 import { FaqSection } from "@/components/contact/faq-section";
 import { getTurnstileSiteKey } from "@/lib/env";
 import { cardVariants } from "@/components/ui/surface-variants";
+import { WORKING_HOURS_TEXT } from "@/lib/content/company";
 
 export { generateLocaleStaticParams as generateStaticParams } from "@/lib/static/locale-params";
 
@@ -157,6 +158,13 @@ export default async function ContactPage({ params }: PageProps) {
                 <span key={line} className="block">{line}</span>
               ))}
             </address>
+            {/* W16.3: working hours from the shared company facts (lib/content/company.ts), also on /about. */}
+            <h3 className="text-navy mt-5 text-sm font-bold">{WORKING_HOURS_TEXT[locale].label}</h3>
+            <ul className="text-muted-foreground mt-2 space-y-1 text-sm leading-relaxed">
+              {WORKING_HOURS_TEXT[locale].lines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
           </div>
         </div>
       </section>

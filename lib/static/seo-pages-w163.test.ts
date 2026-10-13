@@ -278,3 +278,53 @@ test("internal links (keyword map §8): product link block, /prices → hubs, ca
   const brand: Record<Locale, string> = { fa: "آهن آسا", en: "Ahan Asa", ar: "آهن آسا" };
   for (const l of locales) assert.equal(titleBrand(l), brand[l]);
 });
+
+// --- /about and the shared company facts (owner text 2026-10-13) ----------------------------------------
+
+test("about: the approved fa facts, translated 1:1 to en/ar; no amount or currency; ar Arabic-only, en Latin-only", async () => {
+  const { ABOUT_COPY, ABOUT_PHOTOS } = await import("../content/about.ts");
+  const fa = ABOUT_COPY.fa;
+  assert.equal(fa.h1, "درباره آهن آسا");
+  assert.equal(fa.metaTitle, "درباره آهن آسا؛ مدیر خرید فولاد شما", "keyword map §7.1");
+  assert.deepEqual(fa.timeline.map((r) => r.year), ["۱۳۷۶", "۱۳۸۸", "۱۳۹۴", "۱۴۰۰", "۱۴۰۳", "۱۴۰۴", "۱۴۰۵"]);
+  assert.deepEqual(fa.leadership.map((p) => p.name), ["خانم فاطمه زاهدی", "آقای امیرموسی طالقانی"]);
+  for (const l of ["en", "ar"] as const) {
+    const t = ABOUT_COPY[l];
+    for (const key of ["intro", "timeline", "supply", "why", "leadership"] as const) assert.equal(t[key].length, fa[key].length, `${l} ${key}: same items as fa`);
+    t.timeline.forEach((row, i) => assert.ok(row.year.startsWith(["1376", "1388", "1394", "1400", "1403", "1404", "1405"][i]), `${l} year ${row.year}`));
+  }
+  for (const l of locales) assert.ok(!strings(ABOUT_COPY[l]).some((s) => DIGIT_AMOUNT.test(s) || /تومان|ریال|Toman|Rial|USD|\$|دينار|ريال/.test(s)), `${l}: no amount or currency`);
+  assert.deepEqual(languageFindings("ar", strings(ABOUT_COPY.ar)), []);
+  assert.deepEqual(languageFindings("en", strings(ABOUT_COPY.en)), []);
+  assert.deepEqual([...ABOUT_PHOTOS], [], "no photos supplied yet: the gallery slot stays empty");
+});
+
+test("company facts: parent group, sister companies with links, working hours, phone display", async () => {
+  const { PARENT_ORGANIZATION, GROUP_COMPANIES, WORKING_HOURS, WORKING_HOURS_TEXT, companyPhoneDisplay, sinceLabel, OFFICES } = await import("../content/company.ts");
+  assert.equal(PARENT_ORGANIZATION.name.fa, "فضاسازه نقش جهان");
+  assert.equal(PARENT_ORGANIZATION.url, "https://fazasazeh.ir");
+  assert.equal(PARENT_ORGANIZATION.foundingDate, "1997");
+  assert.deepEqual(GROUP_COMPANIES.map((c) => [c.domain, c.sinceSolar, c.url]), [
+    ["fazasazeh.ir", 1376, "https://fazasazeh.ir"],
+    ["sipanelco.com", 1394, "https://sipanelco.com"],
+    ["avizsazeh.com", 1400, "https://avizsazeh.com"],
+    ["ahanassa.com", 1403, null],
+    ["aisanat.ir", 1405, "https://aisanat.ir"],
+  ]);
+  assert.deepEqual(WORKING_HOURS, [
+    { dayOfWeek: ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday"], opens: "08:00", closes: "17:00" },
+    { dayOfWeek: ["Thursday"], opens: "08:00", closes: "12:00" },
+  ]);
+  assert.deepEqual(WORKING_HOURS_TEXT.fa.lines, ["شنبه تا چهارشنبه ۸ تا ۱۷", "پنجشنبه ۸ تا ۱۲"]);
+  assert.equal(companyPhoneDisplay("03135134"), "031-35134");
+  assert.equal(companyPhoneDisplay("+983135134"), "031-35134", "same display after PR #47's +98 form");
+  assert.equal(sinceLabel("fa", 1394), "از ۱۳۹۴");
+  assert.equal(sinceLabel("en", 1394), "since 1394 SH (2015–16)");
+  assert.equal(sinceLabel("ar", 1376), "منذ 1376 هـ.ش (1997–1998)");
+  assert.deepEqual(languageFindings("ar", [...strings(GROUP_COMPANIES.map((c) => [c.name.ar, c.field.ar])), ...strings(WORKING_HOURS_TEXT.ar), OFFICES.ar.tehran.address]), []);
+  assert.deepEqual(languageFindings("en", [...strings(GROUP_COMPANIES.map((c) => [c.name.en, c.field.en])), ...strings(WORKING_HOURS_TEXT.en), ...strings(OFFICES.en)]), []);
+  assert.match(read("app/[locale]/contact/page.tsx"), /WORKING_HOURS_TEXT\[locale\]\.lines\.map/, "hours on /contact too");
+  const about = read("app/[locale]/about/page.tsx");
+  assert.ok(!/pricing|PriceCell|PRICE_CELL|listAllPublishedPrices|PRICE_PAGE_ROUTE/.test(about), "no price on /about");
+  assert.match(about, /title: t\.metaTitle, titleAbsolute: true, description: t\.metaDescription/);
+});
