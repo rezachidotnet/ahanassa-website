@@ -13,6 +13,7 @@ import { groupCatalogItemsForSelector, type PublicRfqCatalogItem } from "@/lib/r
 import {
   buildRfqItemInput,
   createEmptyCatalogRow,
+  isRfqRowEmpty,
   validateRfqRow,
   MAX_ITEMS,
   type RfqRow,
@@ -565,7 +566,11 @@ export function EnquiryForm({
     // rather than a generic error.
     const nextRowErrors: Record<string, RfqRowFieldKey[]> = {};
     let firstInvalidId: string | null = null;
+    // File-only RFQ (owner decision 2026-10-13): with at least one accepted file, untouched rows are
+    // simply not sent; a row the customer started must still be complete.
+    const fileOnlyAllowed = Boolean(filesEndpoint) && files.length > 0;
     for (const row of rows) {
+      if (fileOnlyAllowed && isRfqRowEmpty(row.fields)) continue;
       const errs = validateRfqRow(row.fields);
       if (errs.length > 0) {
         nextRowErrors[row.id] = errs;

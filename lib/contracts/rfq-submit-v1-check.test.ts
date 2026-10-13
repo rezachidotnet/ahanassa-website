@@ -147,3 +147,16 @@ test("rfq_submit.v1 check: attachments (D-RFQ-FILE) field x value battery, shape
   }
   assert.equal(checkRfqSubmitRequest({ ...valid(), attachments: [file] }).success, true);
 });
+
+test("rfq_submit.v1 check: file-only RFQ — no item rows is valid only with at least one declared file, in both", () => {
+  const file = [{ name: "list.xlsx", size: 100 }];
+  for (const [items, attachments, ok] of [[[], file, true], [[], [], false], [[], undefined, false]] as const) {
+    const input = { ...valid(), items, ...(attachments === undefined ? {} : { attachments }) };
+    assertSame(input, `items=[] attachments=${JSON.stringify(attachments)}`);
+    assert.equal(checkRfqSubmitRequest(input).success, ok);
+  }
+  // with other errors: zod 4 still reports it after continuable issues, and skips it after aborting ones — so does the check
+  for (const extra of [{ fullName: "" }, { fullName: 5 }, { locale: "de" }, { zzz: 1 }, { email: "x" }, { fullName: s(101) }, { attachments: "x" }, { attachments: [{ name: "", size: 1 }] }]) {
+    assertSame({ ...valid(), items: [], ...extra }, `items=[] + ${JSON.stringify(extra).slice(0, 40)}`);
+  }
+});

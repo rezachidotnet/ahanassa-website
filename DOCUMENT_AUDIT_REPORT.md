@@ -1579,7 +1579,8 @@ Policy: `RELEASE_POLICY.md` §11 (contract item) and new §11.1. Tests: `lib/ci/
 
 ### DAR-065 — RFQ file upload (D-RFQ-FILE) is built before the attachment-scanning gate it depends on (2026-10-12)
 
-**Severity:** MEDIUM. **Status:** OPEN (production upload stays off until it is resolved).
+**Severity:** MEDIUM. **Status:** RESOLVED for the §8 control by owner decision 2026-10-13 (W13.1
+follow-up). Production upload is still off until the owner switches it on.
 - **Conflict:** owner decision D-RFQ-FILE (2026-10-12) asks for RFQ file upload. Two sources hold
   production uploads back until a malware/content scanner is selected and approved, and say upload
   stays disabled until then:
@@ -1597,11 +1598,21 @@ Policy: `RELEASE_POLICY.md` §11 (contract item) and new §11.1. Tests: `lib/ci/
     attachment + nosniff, and every one is access-logged.
   - `scan_status` is recorded as `not_configured`.
   - `docs/RFQ_FILE_UPLOAD.md` has the details.
-- **Open, for the owner:**
-  1. Either select a scanner, or accept these checks as the §8 pipeline. Then switch production on.
-  2. Decide how long the R2 objects are kept. No job deletes them today.
-  3. Decide whether a file alone, without a typed item row, may make an RFQ. Today at least one row is
-     still required.
+- **Resolution (owner, 2026-10-13):**
+  1. **Malware:** the current checks (extension allow-list, magic bytes, macro/archive/executable
+     markers, private storage, never rendered, download as octet-stream + nosniff) are **accepted as the
+     §8 control for now**. A real scanner (ClamAV) comes with the new server in **W14**; until then
+     `scan_status` stays `not_configured`. The known limit stays: an Excel 4.0 (XLM) macro sheet in a
+     legacy `.xls` is not detected, so staff open customer files with macros disabled.
+  2. **Retention:** an R2 object is deleted 30 days after Odoo confirms it as a contract-v1.2
+     attachment, or 90 days after the RFQ if that never happens (the RFQ Worker cron,
+     `lib/rfq-worker/file-retention.ts`).
+  3. **File-only RFQ:** allowed — no item row is needed when at least one file is declared.
+  - The hand-off to Odoo is now contract v1.2 `attachments`, with the `notes` text only as the fallback
+    when Odoo answers that it does not support v1.2.
+- **Still open:** switching production on (bucket, binding, `RFQ_FILES_ENABLED=1`, migration 0009) is a
+  separate owner step at release time. `PROJECT_OVERRIDES.md` §8 and `SECURITY_GUIDELINES.md` §13 still
+  read as a hard block; updating that wording is a controlled documentation task, not done here.
 
 ---
 

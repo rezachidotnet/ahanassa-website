@@ -31,7 +31,8 @@ export const RFQ_SUBMIT_LIMITS = {
   phoneLocal: { min: 1, max: 20 },
   deliveryLocation: { max: 200 },
   message: { max: 3000 },
-  items: { min: 1, max: MAX_ITEMS },
+  /** min 0: a file-only RFQ (owner decision 2026-10-13) has no rows; without files at least one row is required (`itemsOrFiles`). */
+  items: { min: 0, max: MAX_ITEMS },
   website: { max: 0 },
   turnstileToken: { min: 1, max: 2048 },
   catalogSnapshotVersion: { pattern: SNAPSHOT_VERSION_PATTERN },
@@ -138,6 +139,9 @@ function checkAttachment(attachment: unknown, path: Path, out: ContractIssue[]):
   unknownKeys(attachment, ATTACHMENT_KEYS, path, out);
 }
 
+/** At least one item row, or (file-only RFQ, owner decision 2026-10-13) at least one declared file. */
+export const hasRowsOrFiles = (body: { items?: unknown; attachments?: unknown }) => (Array.isArray(body.items) && body.items.length > 0) || (Array.isArray(body.attachments) && body.attachments.length > 0);
+
 /** Same verdict and issues as `rfqSubmitRequest.safeParse(body)`; `data` is the input (the schema is strict and transforms nothing). */
 export function checkRfqSubmitRequest(body: unknown): RfqSubmitCheck {
   const out: ContractIssue[] = [];
@@ -168,5 +172,8 @@ export function checkRfqSubmitRequest(body: unknown): RfqSubmitCheck {
     lengthChecks(attachments, L.attachments, ["attachments"], out);
   }
   unknownKeys(body, REQUEST_KEYS, [], out);
+  // File-only RFQ: no item rows only when files are declared. Like zod 4's refinement, it is skipped once an
+  // aborting issue (invalid_type / invalid_value) was found, and runs after continuable ones (lengths, formats, keys).
+  if (!out.some((i) => i.code === "invalid_type" || i.code === "invalid_value") && !hasRowsOrFiles(body)) out.push({ path: ["items"], code: "too_small" });
   return out.length ? { success: false, issues: out } : { success: true, data: body };
 }

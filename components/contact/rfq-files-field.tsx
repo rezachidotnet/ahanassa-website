@@ -40,7 +40,7 @@ const copy: Record<
   fa: {
     title: "بارگذاری لیست اقلام",
     optional: "اختیاری",
-    body: "اگر لیست خرید، فاکتور یا عکس لیست اقلام دارید، آن را در کنار ردیف‌های بالا پیوست کنید. حداکثر ۵ فایل، هر فایل تا ۱۵ مگابایت.",
+    body: "اگر لیست خرید، فاکتور یا عکس لیست اقلام دارید، آن را اینجا پیوست کنید؛ با پیوست فایل، پر کردن ردیف‌های بالا لازم نیست. حداکثر ۵ فایل، هر فایل تا ۱۵ مگابایت.",
     formats: `فرمت‌های مجاز: ${FORMATS}`,
     choose: "انتخاب فایل",
     template: "دریافت فایل نمونه اکسل",
@@ -62,7 +62,7 @@ const copy: Record<
   en: {
     title: "Upload your item list",
     optional: "optional",
-    body: "Have a purchase list, an invoice or a photo of your list? Attach it here, alongside the rows above. Up to 5 files, 15 MB each.",
+    body: "Have a purchase list, an invoice or a photo of your list? Attach it here; with a file, the rows above are not required. Up to 5 files, 15 MB each.",
     formats: `Allowed formats: ${FORMATS}`,
     choose: "Choose files",
     template: "Download the Excel template",
@@ -84,7 +84,7 @@ const copy: Record<
   ar: {
     title: "تحميل قائمة الأصناف",
     optional: "اختياري",
-    body: "هل لديك قائمة شراء أو فاتورة أو صورة لقائمتك؟ أرفقها هنا إلى جانب الصفوف أعلاه. حتى 5 ملفات، بحد أقصى 15 ميغابايت لكل ملف.",
+    body: "هل لديك قائمة شراء أو فاتورة أو صورة لقائمتك؟ أرفقها هنا؛ عند إرفاق ملف لا يلزم ملء الصفوف أعلاه. حتى 5 ملفات، بحد أقصى 15 ميغابايت لكل ملف.",
     formats: `الصيغ المسموح بها: ${FORMATS}`,
     choose: "اختيار الملفات",
     template: "تنزيل نموذج Excel",

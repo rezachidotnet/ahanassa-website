@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
 import { RFQ_KEY_HEADER_NAME, checkFileHead, createContainerScanner, MAX_RFQ_FILE_BYTES, MAX_RFQ_FILES, RFQ_FILE_EXTENSIONS, RFQ_FILE_HEAD_BYTES, type ByteFinder, type RfqFileExtension, type RfqFileRejection } from "../rfq/attachment-policy.ts";
 import { hashIdempotencyKey, isValidIdempotencyKey } from "../rfq/idempotency.ts";
 import { getClientIp, hashRateLimitKey } from "../security/rate-limit.ts";
@@ -21,11 +22,11 @@ import { csv, filesEnabled, type RfqWorkerEnv } from "./config.ts";
  * (fail-closed, the RFQ limiter with its own key space).
  *
  * The body is streamed straight into the PRIVATE R2 bucket (RFQ_FILES) under
- * `rfq/<reference>/<slot>.<ext>`: the first RFQ_FILE_HEAD_BYTES are checked
+ * `rfq-files/<reference>/<slot>.<ext>`: the first RFQ_FILE_HEAD_BYTES are checked
  * against the extension (magic bytes) before anything is written, and Office
  * containers are scanned chunk by chunk for macro/archive markers while they
  * stream; a failed check aborts the write and deletes the key.
- * Images, PDF and text are piped natively after the head check.
+ * Every stored byte is hashed on the way (SHA-256, sent to Odoo, contract v1.2).
  *
  * Any failure after the RFQ was saved never touches the RFQ: the row becomes
  * `failed` with a failure_code and the delivery reports the file to Odoo as
@@ -216,8 +217,10 @@ export async function handleFileUpload(request: Request, env: RfqWorkerEnv, url:
     return reject(head.reason);
   }
 
-  // 2. Stream into R2. Containers are scanned on the way; anything else is piped natively.
+  // 2. Stream into R2. Every chunk is hashed (SHA-256 of the stored bytes, sent to Odoo with contract
+  // v1.2); Office containers are also scanned on the way.
   const scanner = createContainerScanner(ext, nativeFind);
+  const hash = createHash("sha256");
   const pipe = exactLengthStream(row.byte_size);
   const put = env.RFQ_FILES.put(row.object_key, pipe.readable, {
     httpMetadata: { contentType: row.mime_declared, contentDisposition: `attachment; filename="${slotText}.${ext}"` },
@@ -227,28 +230,21 @@ export async function handleFileUpload(request: Request, env: RfqWorkerEnv, url:
   let streamError = false;
   try {
     const writer = pipe.writable.getWriter();
-    for (const chunk of first.chunks) {
-      scanner.push(chunk);
+    const forward = async (chunk: Uint8Array) => {
+      if (scanner.needed) scanner.push(chunk);
+      hash.update(chunk);
       await writer.write(chunk);
+    };
+    for (const chunk of first.chunks) await forward(chunk);
+    for (let done = first.done; !done; ) {
+      const next = await reader.read();
+      done = next.done;
+      if (next.value) await forward(next.value);
     }
-    if (first.done || scanner.needed) {
-      for (let done = first.done; !done; ) {
-        const next = await reader.read();
-        done = next.done;
-        if (next.value) {
-          scanner.push(next.value);
-          await writer.write(next.value);
-        }
-      }
-      // The verdict comes before close; a refused container is aborted and its key deleted below.
-      verdict = scanner.verdict();
-      if (verdict.ok) await writer.close();
-      else await writer.abort(new Error(verdict.reason));
-    } else {
-      writer.releaseLock();
-      reader.releaseLock();
-      await request.body.pipeTo(pipe.writable);
-    }
+    // The verdict comes before close; a refused container is aborted and its key deleted below.
+    verdict = scanner.verdict();
+    if (verdict.ok) await writer.close();
+    else await writer.abort(new Error(verdict.reason));
   } catch {
     streamError = true;
   }
@@ -279,10 +275,10 @@ export async function handleFileUpload(request: Request, env: RfqWorkerEnv, url:
     const [update] = await db.batch([
       db
         .prepare(
-          `UPDATE rfq_attachments SET upload_status = 'uploaded', mime_detected = ?, r2_etag = ?, failure_code = NULL, upload_attempts = upload_attempts + 1, uploaded_at = ?, updated_at = ?
+          `UPDATE rfq_attachments SET upload_status = 'uploaded', mime_detected = ?, r2_etag = ?, checksum_sha256 = ?, failure_code = NULL, upload_attempts = upload_attempts + 1, uploaded_at = ?, updated_at = ?
            WHERE id = ? AND upload_status IN ('pending', 'failed') AND EXISTS (SELECT 1 FROM rfqs WHERE id = ? AND attachments_frozen_at IS NULL)`,
         )
-        .bind(row.mime_declared, stored.etag ?? null, at, at, row.id, row.rfq_id),
+        .bind(row.mime_declared, stored.etag ?? null, hash.digest("hex"), at, at, row.id, row.rfq_id),
       releaseStatement(db, row.rfq_id, at),
     ]);
     if (!update.meta?.changes) {

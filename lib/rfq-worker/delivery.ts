@@ -1,7 +1,9 @@
 import { mapRfqToApiPayload, buildOutboundRfqIdempotencyKey, type RfqSnapshotItem } from "../odoo/rfq-payload-mapper.ts";
 import { classifyIntakeStatus, type DeliveryClassification } from "../contracts/rfq-intake-status.ts";
 import { ulid } from "../rfq/ulid.ts";
-import { notesWithAttachments, type AttachmentNoteRow } from "../rfq/attachment-notes.ts";
+import { buildV12Attachments, FILE_ONLY_PLACEHOLDER, notesWithAttachments, preferredChannel, type AttachmentChannel, type AttachmentNoteRow } from "../rfq/attachment-notes.ts";
+import { isV12UnsupportedAnswer } from "../contracts/rfq-intake-v1-2.ts";
+import { addDays, ATTACHMENT_RETENTION_CONFIRMED_DAYS } from "../rfq/intake-store.ts";
 
 /**
  * RFQ delivery to Odoo (architecture V1.1 §6.2–§6.4, A5) — ONE module used by
@@ -18,8 +20,14 @@ import { notesWithAttachments, type AttachmentNoteRow } from "../rfq/attachment-
  *  - classification `classifyIntakeStatus` (§6.2);
  *  - D-RFQ-FILE: an RFQ with declared files first FREEZES its file list
  *    (`attachments_frozen_at`; still-pending files become `failed` /
- *    `not_received`), then sends it in `notes` (lib/rfq/attachment-notes.ts).
- *    Frozen means identical on every retry, as the Idempotency-Key requires;
+ *    `not_received`). Received files go to Odoo as contract-v1.2
+ *    `attachments`; if Odoo answers that it does not support v1.2, the same
+ *    attempt re-sends the list in `notes` instead (lib/rfq/attachment-notes.ts),
+ *    and `rfqs.attachments_channel` keeps that choice for every retry. Frozen
+ *    list + kept channel = an identical payload on every retry, as the
+ *    Idempotency-Key requires. A file-only RFQ gets one marked placeholder
+ *    line (Odoo requires a line). A v1.2 delivery shortens the R2 retention
+ *    of its files to 30 days (lib/rfq-worker/file-retention.ts);
  *  - ALL post-delivery writes (rfq status, Odoo reference, attempt row,
  *    outbox bookkeeping) in ONE db.batch. If the run is cut off after the
  *    POST and before that batch, the next run re-sends the same key + same
@@ -123,7 +131,9 @@ export async function deliverOne(db: D1Database, rfqId: string, cfg: DeliveryCon
     .all<{ line_number: number; variant_ref: string | null; sku_snapshot: string | null; freeform_title: string | null; description: string | null; quantity_text: string; quantity_value: number | null; quantity_scale: number | null; unit_ref: string | null; length_mm: number | null; unpublished_at_receipt: number | null }>();
 
   // Freeze the file list once (first attempt), then read it — the same rows on every retry.
+  // (Only RFQs with files touch the migration-0009 columns, so a file-less delivery never depends on them.)
   let attachmentRows: AttachmentNoteRow[] = [];
+  let keptChannel: AttachmentChannel | null = null;
   if ((header.attachment_count ?? 0) > 0) {
     const frozenAt = now.toISOString();
     await db.batch([
@@ -132,11 +142,14 @@ export async function deliverOne(db: D1Database, rfqId: string, cfg: DeliveryCon
     ]);
     attachmentRows = (
       await db
-        .prepare(`SELECT slot, original_filename, byte_size, upload_status, failure_code, object_key FROM rfq_attachments WHERE rfq_id = ? ORDER BY slot ASC`)
+        .prepare(`SELECT slot, original_filename, byte_size, upload_status, failure_code, object_key, extension, mime_declared, checksum_sha256 FROM rfq_attachments WHERE rfq_id = ? ORDER BY slot ASC`)
         .bind(rfqId)
         .all<AttachmentNoteRow>()
     ).results;
+    keptChannel = (await db.prepare(`SELECT attachments_channel FROM rfqs WHERE id = ?`).bind(rfqId).first<{ attachments_channel: AttachmentChannel | null }>())?.attachments_channel ?? null;
   }
+  // The channel of an earlier attempt is kept, so a retry re-sends the same payload (same Idempotency-Key).
+  let channel: AttachmentChannel | null = attachmentRows.length ? (keptChannel ?? preferredChannel(attachmentRows)) : null;
 
   const items: RfqSnapshotItem[] = itemRows.map((i) => ({
     lineNumber: i.line_number,
@@ -150,23 +163,19 @@ export async function deliverOne(db: D1Database, rfqId: string, cfg: DeliveryCon
     unitCode: i.unit_ref,
     lengthMm: i.length_mm,
   }));
+  // File-only RFQ: Odoo needs one line — a marked placeholder, never read from the file.
+  if (!items.length && attachmentRows.length) {
+    items.push({ lineNumber: 1, variantRef: null, skuSnapshot: null, freeformTitle: FILE_ONLY_PLACEHOLDER.title, description: FILE_ONLY_PLACEHOLDER.notes, quantityText: String(FILE_ONLY_PLACEHOLDER.quantity), quantityValue: FILE_ONLY_PLACEHOLDER.quantity, quantityScale: 0, unitCode: FILE_ONLY_PLACEHOLDER.uom, lengthMm: null });
+  }
   const attempt = (header.attempt_count ?? 0) + 1;
   const startedAt = now.toISOString();
+  // Flag a line whose variant left the active snapshot between form load and submit (§6.1).
+  const unpublishedLines = new Set(itemRows.filter((i) => i.unpublished_at_receipt === 1).map((i) => i.line_number));
 
-  const mapping = mapRfqToApiPayload({ locale: header.locale, fullName: header.full_name, companyName: header.company_name, phone: header.phone_e164 ?? header.phone_national, email: header.email_normalized, message: notesWithAttachments(header.message, attachmentRows), items });
-
-  let classification: DeliveryClassification;
-  let httpStatus: number | null = null;
-  let errorCode: string | null = null;
-  let reference: string | null = null;
-
-  if (!mapping.ok) {
-    classification = "MANUAL_REVIEW";
-    errorCode = `RFQ_MAPPING_${mapping.reason}`;
-  } else {
+  const buildPayload = (ch: AttachmentChannel | null) => {
+    const mapping = mapRfqToApiPayload({ locale: header.locale, fullName: header.full_name, companyName: header.company_name, phone: header.phone_e164 ?? header.phone_national, email: header.email_normalized, message: ch ? notesWithAttachments(header.message, attachmentRows, ch) : header.message, items });
+    if (!mapping.ok) return mapping;
     const payload: Record<string, unknown> = { ...mapping.payload };
-    // Flag a line whose variant left the active snapshot between form load and submit (§6.1).
-    const unpublishedLines = new Set(itemRows.filter((i) => i.unpublished_at_receipt === 1).map((i) => i.line_number));
     if (unpublishedLines.size) {
       payload.items = (mapping.payload.items as unknown as Record<string, unknown>[]).map((item, idx) =>
         unpublishedLines.has(itemRows[idx].line_number) ? { ...item, notes: [item.notes, "[website] variant unpublished at receipt"].filter(Boolean).join(" ") } : item,
@@ -176,42 +185,75 @@ export async function deliverOne(db: D1Database, rfqId: string, cfg: DeliveryCon
       payload.received_at = header.submitted_at;
       payload.website_reference = header.reference_number;
     }
+    if (ch === "odoo_v12") payload.attachments = buildV12Attachments(attachmentRows);
+    return { ok: true as const, payload };
+  };
+
+  const post = async (payload: Record<string, unknown>): Promise<{ status: number; text: string } | { failure: "timeout" | "network_error" }> => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), cfg.timeoutMs ?? DEFAULT_TIMEOUT_MS);
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json", "Idempotency-Key": buildOutboundRfqIdempotencyKey(rfqId) };
       if (cfg.token) headers.Authorization = `Bearer ${cfg.token}`;
       const response = await (cfg.fetchImpl ?? fetch)(`${cfg.odooBaseUrl.replace(/\/+$/, "")}/api/v1/rfq`, { method: "POST", headers, body: JSON.stringify(payload), signal: controller.signal });
-      httpStatus = response.status;
-      classification = classifyIntakeStatus(response.status);
-      const text = await response.text();
+      return { status: response.status, text: await response.text() };
+    } catch (err) {
+      return { failure: err instanceof Error && err.name === "AbortError" ? "timeout" : "network_error" };
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  const parse = (text: string): unknown => {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return null;
+    }
+  };
+
+  let classification: DeliveryClassification;
+  let httpStatus: number | null = null;
+  let errorCode: string | null = null;
+  let reference: string | null = null;
+  let fellBack = false;
+
+  let built = buildPayload(channel);
+  if (!built.ok) {
+    classification = "MANUAL_REVIEW";
+    errorCode = `RFQ_MAPPING_${built.reason}`;
+  } else {
+    let answer = await post(built.payload);
+    // Odoo without contract v1.2 (no ahanassa_rfq_file_intake) refuses the `attachments` key and stores
+    // nothing, so the same key is still free: send the list in `notes` instead, in this same attempt.
+    if (channel === "odoo_v12" && "status" in answer && isV12UnsupportedAnswer(answer.status, parse(answer.text))) {
+      channel = "notes";
+      fellBack = true;
+      built = buildPayload(channel);
+      if (built.ok) answer = await post(built.payload);
+      console.log(JSON.stringify({ operation: "rfq.deliver", rfqId, attachments: "v1_2_unsupported_notes_fallback" }));
+    }
+    if (!built.ok) {
+      classification = "MANUAL_REVIEW";
+      errorCode = `RFQ_MAPPING_${built.reason}`;
+    } else if ("failure" in answer) {
+      classification = classifyIntakeStatus(answer.failure);
+      errorCode = answer.failure === "timeout" ? "ODOO_TIMEOUT" : "ODOO_NETWORK_ERROR";
+    } else {
+      httpStatus = answer.status;
+      classification = classifyIntakeStatus(answer.status);
+      const body = parse(answer.text) as { data?: { reference?: unknown }; error?: { code?: unknown } } | null;
       if (classification === "DELIVERED") {
-        try {
-          const ref = (JSON.parse(text) as { data?: { reference?: unknown } }).data?.reference;
-          if (typeof ref === "string" && ref.length > 0) reference = ref;
-        } catch {
-          // fall through: malformed success body
-        }
-        if (!reference) {
+        const ref = body?.data?.reference;
+        if (typeof ref === "string" && ref.length > 0) reference = ref;
+        else {
           classification = "RETRY_PENDING";
           errorCode = "ODOO_MALFORMED_SUCCESS";
         }
       } else {
         // Only the stable error.code is kept — never Odoo's message text (may echo customer data).
-        let code = "";
-        try {
-          code = String((JSON.parse(text) as { error?: { code?: unknown } }).error?.code ?? "");
-        } catch {
-          // non-JSON error body
-        }
-        errorCode = `ODOO_${response.status}${/^[a-z_]{1,64}$/.test(code) ? `_${code}` : ""}`;
+        const code = String(body?.error?.code ?? "");
+        errorCode = `ODOO_${answer.status}${/^[a-z_]{1,64}$/.test(code) ? `_${code}` : ""}`;
       }
-    } catch (err) {
-      const aborted = err instanceof Error && err.name === "AbortError";
-      classification = classifyIntakeStatus(aborted ? "timeout" : "network_error");
-      errorCode = aborted ? "ODOO_TIMEOUT" : "ODOO_NETWORK_ERROR";
-    } finally {
-      clearTimeout(timer);
     }
     cfg.afterPost?.();
   }
@@ -241,7 +283,23 @@ export async function deliverOne(db: D1Database, rfqId: string, cfg: DeliveryCon
        VALUES (?, ?, 'odoo', ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(ulid(), header.event_id, attempt, startedAt, finishedAt, httpCategory(httpStatus), classification === "DELIVERED" ? "success" : retrying ? "transient_failure" : "permanent_failure", errorCode, header.correlation_id);
-  await db.batch([rfqUpdate, outboxUpdate, attemptInsert]);
+  const fileUpdates: D1PreparedStatement[] = [];
+  // The channel that reached Odoo (or that Odoo told us to use) is kept for every retry.
+  if (channel && (classification === "DELIVERED" || fellBack)) {
+    fileUpdates.push(db.prepare(`UPDATE rfqs SET attachments_channel = COALESCE(attachments_channel, ?) WHERE id = ?`).bind(channel, rfqId));
+  }
+  // Odoo confirmed the v1.2 attachments: the R2 copies are kept 30 more days, then deleted (owner decision 2026-10-13).
+  if (classification === "DELIVERED" && channel === "odoo_v12") {
+    fileUpdates.push(
+      db
+        .prepare(
+          `UPDATE rfq_attachments SET odoo_confirmed_at = ?, retention_until = ?, updated_at = ?
+           WHERE rfq_id = ? AND upload_status = 'uploaded' AND checksum_sha256 IS NOT NULL AND odoo_confirmed_at IS NULL AND deleted_at IS NULL`,
+        )
+        .bind(finishedAt, addDays(finishedAt, ATTACHMENT_RETENTION_CONFIRMED_DAYS), finishedAt, rfqId),
+    );
+  }
+  await db.batch([rfqUpdate, outboxUpdate, attemptInsert, ...fileUpdates]);
 
   return { status: "done", rfqId, classification, httpStatus, errorCode, reference, attempt, nextAttemptAt };
 }

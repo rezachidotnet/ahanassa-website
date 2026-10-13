@@ -48,8 +48,18 @@ export interface DeclaredAttachment {
  */
 export const ATTACHMENT_WAIT_MS = 10 * 60 * 1000;
 
-/** Private R2 key of one declared file — keyed by the RFQ tracking number, never by the customer's filename. */
-export const attachmentObjectKey = (reference: string, slot: number, extension: string) => `rfq/${reference}/${slot}.${extension}`;
+/**
+ * R2 retention of an RFQ file (owner decision 2026-10-13): 90 days after the
+ * RFQ was accepted, shortened to 30 days after Odoo confirmed the file as a
+ * contract-v1.2 attachment (lib/rfq-worker/delivery.ts). The RFQ Worker cron
+ * deletes due objects (lib/rfq-worker/file-retention.ts).
+ */
+export const ATTACHMENT_RETENTION_UNCONFIRMED_DAYS = 90;
+export const ATTACHMENT_RETENTION_CONFIRMED_DAYS = 30;
+export const addDays = (iso: string, days: number) => new Date(Date.parse(iso) + days * 86_400_000).toISOString();
+
+/** Private R2 key of one declared file — keyed by the RFQ tracking number, never by the customer's filename. The `rfq-files/` prefix is what Odoo contract v1.2 accepts. */
+export const attachmentObjectKey = (reference: string, slot: number, extension: string) => `rfq-files/${reference}/${slot}.${extension}`;
 
 export interface PersistRfqResult {
   reference: string;
@@ -107,7 +117,7 @@ export async function persistRfq(
               payload_fingerprint, catalog_snapshot_version
             ) VALUES (?, ?, ?, 'received', ?, ?, ?, NULL, ?, ?, ?, ?, 'website', 'pending', 0, ?, ?, ?, ?, ?)`,
           )
-          .bind(rfqId, reference, idempotencyKeyHash, input.locale, attachments.length ? "mixed" : "structured", input.companyName, input.deliveryLocation, input.message, input.items.length, attachments.length, acceptedAt, acceptedAt, acceptedAt, v11.payloadFingerprint, v11.catalogSnapshotVersion)
+          .bind(rfqId, reference, idempotencyKeyHash, input.locale, !attachments.length ? "structured" : input.items.length ? "mixed" : "attachment", input.companyName, input.deliveryLocation, input.message, input.items.length, attachments.length, acceptedAt, acceptedAt, acceptedAt, v11.payloadFingerprint, v11.catalogSnapshotVersion)
       : db
           .prepare(
             `INSERT INTO rfqs (
@@ -154,10 +164,10 @@ export async function persistRfq(
     const attachmentInserts = attachments.map((a) =>
       db
         .prepare(
-          `INSERT INTO rfq_attachments (id, rfq_id, slot, object_key, original_filename, extension, mime_declared, byte_size, upload_status, scan_status, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'not_configured', ?, ?)`,
+          `INSERT INTO rfq_attachments (id, rfq_id, slot, object_key, original_filename, extension, mime_declared, byte_size, upload_status, scan_status, retention_until, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'not_configured', ?, ?, ?)`,
         )
-        .bind(ulid(), rfqId, a.slot, attachmentObjectKey(reference, a.slot, a.extension), a.originalFilename, a.extension, a.mimeDeclared, a.byteSize, acceptedAt, acceptedAt),
+        .bind(ulid(), rfqId, a.slot, attachmentObjectKey(reference, a.slot, a.extension), a.originalFilename, a.extension, a.mimeDeclared, a.byteSize, addDays(acceptedAt, ATTACHMENT_RETENTION_UNCONFIRMED_DAYS), acceptedAt, acceptedAt),
     );
 
     try {

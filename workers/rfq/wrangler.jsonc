@@ -37,7 +37,7 @@
       // Cron reconciler: one due RFQ per run (§6.4). Account cap: 5 triggers.
       "triggers": { "crons": ["*/5 * * * *"] },
       // D-RFQ-FILE: PRIVATE bucket for RFQ files (no r2.dev URL, no custom domain), EU jurisdiction
-      // (PROJECT_OVERRIDES.md D1/R2 jurisdiction decision). The owner creates it before the next deploy:
+      // (PROJECT_OVERRIDES.md D1/R2 jurisdiction decision). Created 2026-10-13:
       //   npx wrangler r2 bucket create ahanassa-v11-rfq-files-staging --jurisdiction eu
       "r2_buckets": [{ "binding": "RFQ_FILES", "bucket_name": "ahanassa-v11-rfq-files-staging", "jurisdiction": "eu" }],
       "vars": {
@@ -88,10 +88,12 @@
         "DELIVERY_ON_CRON": "1",
         "QUEUE_FAST_PATH": "0",
         // D-RFQ-FILE: OFF in production. No RFQ_FILES binding yet, so this deploys without the bucket;
-        // the form hides the upload field (GET /api/rfqs/files says enabled:false). To switch on (owner):
+        // the form hides the upload field (GET /api/rfqs/files says enabled:false). Migration 0009 must be
+        // applied to production DB_OPS before this Worker version goes live (docs/RFQ_FILE_UPLOAD.md).
+        // The §8 control is accepted (DAR-065, 2026-10-13). To switch on (owner):
         //   npx wrangler r2 bucket create ahanassa-v11-rfq-files-production --jurisdiction eu
         //   add "r2_buckets": [{ "binding": "RFQ_FILES", "bucket_name": "ahanassa-v11-rfq-files-production", "jurisdiction": "eu" }]
-        //   set RFQ_FILES_ENABLED to "1" — after the scanning decision of PROJECT_OVERRIDES.md §8.
+        //   set RFQ_FILES_ENABLED to "1".
         "RFQ_FILES_ENABLED": "0"
       }
     }

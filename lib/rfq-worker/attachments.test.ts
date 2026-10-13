@@ -5,6 +5,11 @@ import { handleRfqSubmit } from "./submit.ts";
 import { deliverOne } from "./delivery.ts";
 import { filesCapability, filesPreflight, handleFileUpload, RFQ_KEY_HEADER } from "./attachments.ts";
 import { handleAdmin } from "./admin.ts";
+import { sweepRfqFiles } from "./file-retention.ts";
+import { FILE_ONLY_PLACEHOLDER } from "../rfq/attachment-notes.ts";
+import { rfqIntakeAttachments } from "../contracts/rfq-intake-v1-2-schema.ts";
+import { rfqIntakeRequest } from "../contracts/rfq-intake-v1-1.ts";
+import { createHash } from "node:crypto";
 import { ATTACHMENT_WAIT_MS } from "../rfq/intake-store.ts";
 import { MAX_RFQ_FILE_BYTES } from "../rfq/attachment-policy.ts";
 import type { RfqWorkerEnv } from "./config.ts";
@@ -21,6 +26,7 @@ const jsonOf = async (r: Response): Promise<any> => r.json();
 const ORIGIN = "https://static.example";
 const SNAP = "snap-e55d81c754270c1f";
 const KEY = "0f8fad5b-d9cb-469f-a165-70867728950e";
+const sha256 = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
 
 class MemoryBucket {
   objects = new Map<string, { bytes: Uint8Array; contentType?: string }>();
@@ -132,12 +138,26 @@ async function accepted(env: RfqWorkerEnv, files: { name: string; size: number }
   return (await jsonOf(res)).reference as string;
 }
 
-async function deliver(env: RfqWorkerEnv, ops: SqliteD1, at = new Date(Date.now() + ATTACHMENT_WAIT_MS + 1000)) {
+/**
+ * Odoo double: "v1.2" accepts `attachments` (ahanassa_rfq_file_intake installed); "v1.1" answers a payload
+ * with `attachments` exactly like ahanassa_marketplace alone (400 invalid_payload, nothing stored).
+ */
+function odoo(contract: "v1.1" | "v1.2" = "v1.2") {
+  const bodies: Record<string, unknown>[] = [];
+  const fetchImpl = (async (_url: string, init: RequestInit) => {
+    const sent = JSON.parse(String(init.body)) as Record<string, unknown>;
+    bodies.push(sent);
+    if (contract === "v1.1" && "attachments" in sent) return Response.json({ error: { code: "invalid_payload", message: "payload contains unsupported fields" } }, { status: 400 });
+    return Response.json({ data: { reference: "S00042", status: "new" }, meta: { idempotent_replay: false } }, { status: 201 });
+  }) as unknown as typeof fetch;
+  return { bodies, fetchImpl };
+}
+
+async function deliver(env: RfqWorkerEnv, ops: SqliteD1, at = new Date(Date.now() + ATTACHMENT_WAIT_MS + 1000), contract: "v1.1" | "v1.2" = "v1.2") {
   const rfqId = ops.q("SELECT id FROM rfqs")[0].id as string;
-  let sent: Record<string, unknown> | null = null;
-  const fetchImpl = (async (_url: string, init: RequestInit) => ((sent = JSON.parse(String(init.body))), Response.json({ data: { reference: "S00042", status: "new" }, meta: { idempotent_replay: false } }, { status: 201 }))) as unknown as typeof fetch;
-  const result = await deliverOne(env.DB_OPS, rfqId, { odooBaseUrl: "https://stub.example", token: "bearer", intakeV11: true, fetchImpl, now: () => at });
-  return { result, sent: sent as Record<string, unknown> | null };
+  const double = odoo(contract);
+  const result = await deliverOne(env.DB_OPS, rfqId, { odooBaseUrl: "https://stub.example", token: "bearer", intakeV11: true, fetchImpl: double.fetchImpl, now: () => at });
+  return { result, sent: double.bodies.at(-1) ?? null, bodies: double.bodies };
 }
 
 // --- capability / disabled ---------------------------------------------------------
@@ -203,7 +223,7 @@ test("Turnstile failure with files declared: 403, no RFQ, no file rows, nothing 
 
 // --- happy path ------------------------------------------------------------------
 
-test("RFQ with basket rows + 2 files: rows pending, delivery held; uploads land in the PRIVATE bucket under rfq/<reference>/<slot>.<ext>; Odoo notes list them", async () => {
+test("RFQ with basket rows + 2 files: rows pending, delivery held; uploads land in the PRIVATE bucket under rfq-files/<reference>/<slot>.<ext> with their SHA-256; Odoo gets them as v1.2 attachments", async () => {
   const { env, ops, bucket, limiterKeys } = setup();
   const reference = await accepted(env, [
     { name: "C:\\Users\\me\\لیست خرید.xlsx", size: XLSX.length },
@@ -213,8 +233,8 @@ test("RFQ with basket rows + 2 files: rows pending, delivery held; uploads land 
   assert.deepEqual([rfq.m, rfq.c], ["mixed", 2]);
   const rows = ops.q("SELECT slot, original_filename, extension, upload_status, scan_status, object_key FROM rfq_attachments ORDER BY slot");
   assert.deepEqual(rows.map((r) => [r.slot, r.original_filename, r.extension, r.upload_status, r.scan_status, r.object_key]), [
-    [1, "لیست خرید.xlsx", "xlsx", "pending", "not_configured", `rfq/${reference}/1.xlsx`],
-    [2, "photo.PNG", "png", "pending", "not_configured", `rfq/${reference}/2.png`],
+    [1, "لیست خرید.xlsx", "xlsx", "pending", "not_configured", `rfq-files/${reference}/1.xlsx`],
+    [2, "photo.PNG", "png", "pending", "not_configured", `rfq-files/${reference}/2.png`],
   ]);
   const held = Date.parse(ops.q("SELECT available_at a FROM integration_outbox")[0].a as string);
   assert.ok(held - Date.now() > ATTACHMENT_WAIT_MS - 5000, "outbox waits for the files");
@@ -227,21 +247,96 @@ test("RFQ with basket rows + 2 files: rows pending, delivery held; uploads land 
   assert.ok(Date.parse(ops.q("SELECT available_at a FROM integration_outbox")[0].a as string) <= Date.now(), "released once no file is pending");
   assert.ok(limiterKeys.some((k) => k.startsWith("files:")), "uploads use their own rate-limit key space");
 
-  assert.deepEqual([...bucket.objects.keys()].sort(), [`rfq/${reference}/1.xlsx`, `rfq/${reference}/2.png`]);
-  assert.deepEqual(bucket.objects.get(`rfq/${reference}/2.png`)?.bytes, PNG);
-  assert.equal(bucket.objects.get(`rfq/${reference}/1.xlsx`)?.contentType, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  assert.deepEqual([...bucket.objects.keys()].sort(), [`rfq-files/${reference}/1.xlsx`, `rfq-files/${reference}/2.png`]);
+  assert.deepEqual(bucket.objects.get(`rfq-files/${reference}/2.png`)?.bytes, PNG);
+  assert.equal(bucket.objects.get(`rfq-files/${reference}/1.xlsx`)?.contentType, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   // Same slot again: idempotent, nothing rewritten.
   assert.equal((await put(env, reference, 2, PNG)).status, 200);
   assert.equal(bucket.puts, 2);
 
-  const { result, sent } = await deliver(env, ops, new Date());
+  // The SHA-256 of the stored bytes is recorded on upload.
+  assert.deepEqual(ops.q("SELECT checksum_sha256 h FROM rfq_attachments ORDER BY slot").map((r) => r.h), [sha256(XLSX), sha256(PNG)]);
+
+  const deliveredAt = new Date();
+  const { result, sent, bodies } = await deliver(env, ops, deliveredAt);
   assert.equal(result.status === "done" && result.classification, "DELIVERED");
-  const notes = String(sent?.notes);
-  assert.ok(notes.startsWith("لیست پیوست شده\n\n[website] Files with this request: 2 received"), notes);
-  assert.match(notes, new RegExp(`1\\. لیست خرید\\.xlsx — \\d+ KB — received — rfq/${reference}/1\\.xlsx`));
-  assert.match(notes, new RegExp(`2\\. photo\\.PNG — \\d+ KB — received — rfq/${reference}/2\\.png`));
-  assert.equal(Object.hasOwn(sent ?? {}, "attachments"), false, "no new key for Odoo's strict allow-list");
+  assert.equal(bodies.length, 1);
+  assert.deepEqual(sent?.attachments, [
+    { key: `rfq-files/${reference}/1.xlsx`, filename: "لیست خرید.xlsx", size: XLSX.length, sha256: sha256(XLSX), content_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+    { key: `rfq-files/${reference}/2.png`, filename: "photo.PNG", size: PNG.length, sha256: sha256(PNG), content_type: "image/png" },
+  ]);
+  assert.ok(rfqIntakeAttachments.safeParse(sent?.attachments).success, "Odoo's v1.2 rules");
+  assert.equal(sent?.notes, "لیست پیوست شده", "every file arrived: the notes stay the customer's message");
   assert.equal(sent?.website_reference, reference);
+  // Odoo confirmed: channel kept, R2 retention shortened to 30 days from the confirmation.
+  assert.equal(ops.q("SELECT attachments_channel c FROM rfqs")[0].c, "odoo_v12");
+  for (const row of ops.q("SELECT odoo_confirmed_at c, retention_until r FROM rfq_attachments")) {
+    assert.equal(row.c, deliveredAt.toISOString());
+    assert.equal(row.r, new Date(deliveredAt.getTime() + 30 * 86_400_000).toISOString());
+  }
+});
+
+test("Odoo without contract v1.2 (400 'payload contains unsupported fields'): the same attempt re-sends the list in notes; the channel is kept for retries; retention stays 90 days", async () => {
+  const { env, ops } = setup();
+  const reference = await accepted(env, [{ name: "list.xlsx", size: XLSX.length }]);
+  assert.equal((await put(env, reference, 1, XLSX)).status, 201);
+  const acceptedAt = ops.q("SELECT submitted_at s FROM rfqs")[0].s as string;
+
+  const { result, bodies } = await deliver(env, ops, new Date(), "v1.1");
+  assert.equal(result.status === "done" && result.classification, "DELIVERED");
+  assert.equal(bodies.length, 2, "v1.2 first, then the notes fallback in the same attempt");
+  assert.ok(Object.hasOwn(bodies[0], "attachments"));
+  assert.equal(Object.hasOwn(bodies[1], "attachments"), false);
+  assert.match(String(bodies[1].notes), new RegExp(`^لیست پیوست شده\\n\\n\\[website\\] Files with this request: 1 received .*\\n1\\. list\\.xlsx — \\d+ KB — received — rfq-files/${reference}/1\\.xlsx$`));
+  assert.equal(ops.q("SELECT attachments_channel c FROM rfqs")[0].c, "notes");
+  assert.deepEqual(ops.q("SELECT odoo_confirmed_at c, retention_until r FROM rfq_attachments")[0], { c: null, r: new Date(Date.parse(acceptedAt) + 90 * 86_400_000).toISOString() });
+});
+
+test("notes fallback, then Odoo down: the retry goes straight to notes (same payload, same key) — never back to v1.2", async () => {
+  const { env, ops } = setup();
+  const reference = await accepted(env, [{ name: "list.xlsx", size: XLSX.length }]);
+  assert.equal((await put(env, reference, 1, XLSX)).status, 201);
+  const rfqId = ops.q("SELECT id FROM rfqs")[0].id as string;
+  const bodies: Record<string, unknown>[] = [];
+  let calls = 0;
+  const flaky = (async (_u: string, init: RequestInit) => {
+    const sent = JSON.parse(String(init.body)) as Record<string, unknown>;
+    bodies.push(sent);
+    calls++;
+    if ("attachments" in sent) return Response.json({ error: { code: "invalid_payload", message: "payload contains unsupported fields" } }, { status: 400 });
+    return calls === 2 ? new Response("down", { status: 503 }) : Response.json({ data: { reference: "S00043", status: "new" } }, { status: 201 });
+  }) as unknown as typeof fetch;
+  const first = await deliverOne(env.DB_OPS, rfqId, { odooBaseUrl: "https://stub.example", token: "t", intakeV11: true, fetchImpl: flaky, now: () => new Date() });
+  assert.equal(first.status === "done" && first.classification, "RETRY_PENDING");
+  assert.equal(ops.q("SELECT attachments_channel c FROM rfqs")[0].c, "notes", "the fallback is remembered even though the attempt failed");
+  const second = await deliverOne(env.DB_OPS, rfqId, { odooBaseUrl: "https://stub.example", token: "t", intakeV11: true, fetchImpl: flaky, now: () => new Date(Date.now() + 3 * 60 * 60 * 1000) });
+  assert.equal(second.status === "done" && second.classification, "DELIVERED");
+  assert.equal(bodies.length, 3);
+  assert.deepEqual(bodies[2], bodies[1], "identical notes payload on the retry");
+});
+
+test("file-only RFQ (no item rows, at least one file): accepted; Odoo gets one marked placeholder line; without files an empty list is still refused", async () => {
+  const { env, ops } = setup();
+  const refused = await submit(env, body(undefined, { items: [] }));
+  assert.equal(refused.status, 422);
+  assert.ok(Object.hasOwn((await jsonOf(refused)).fieldErrors, "items"));
+  const res = await submit(env, body([{ name: "list.pdf", size: PDF.length }], { items: [], idempotencyKey: "1f8fad5b-d9cb-469f-a165-70867728950e" }));
+  assert.equal(res.status, 201);
+  const fileOnly = (await jsonOf(res)).reference as string;
+  assert.deepEqual(ops.q("SELECT submission_method m, item_count i, attachment_count c FROM rfqs WHERE reference_number = ?", fileOnly)[0], { m: "attachment", i: 0, c: 1 });
+  const url = new URL(`https://api.example/api/rfqs/files/${fileOnly}/1`);
+  const upload = await handleFileUpload(new Request(url, { method: "PUT", headers: { origin: ORIGIN, "content-length": String(PDF.length), [RFQ_KEY_HEADER]: "1f8fad5b-d9cb-469f-a165-70867728950e" }, body: PDF as BodyInit }), env, url);
+  assert.equal(upload.status, 201);
+  const rfqId = ops.q("SELECT id FROM rfqs WHERE reference_number = ?", fileOnly)[0].id as string;
+  const double = odoo("v1.2");
+  const result = await deliverOne(env.DB_OPS, rfqId, { odooBaseUrl: "https://stub.example", token: "t", intakeV11: true, fetchImpl: double.fetchImpl, now: () => new Date() });
+  assert.equal(result.status === "done" && result.classification, "DELIVERED");
+  const sent = double.bodies[0];
+  assert.deepEqual(sent.items, [{ product_variant_xid: null, quantity: 1, uom: "ton", description: FILE_ONLY_PLACEHOLDER.title, notes: FILE_ONLY_PLACEHOLDER.notes }]);
+  assert.equal((sent.attachments as unknown[]).length, 1);
+  const { attachments: _files, ...v11Part } = sent;
+  const parsed = rfqIntakeRequest.safeParse(v11Part);
+  assert.ok(parsed.success, `the placeholder satisfies Odoo's v1.1 item rules: ${JSON.stringify(parsed.error?.issues)}`);
 });
 
 // --- byte validation ---------------------------------------------------------------
@@ -290,7 +385,9 @@ test("R2 write failure: 503 STORAGE_UNAVAILABLE, the RFQ is still saved, the fil
   assert.equal((await put(env, reference, 1, PDF)).status, 503);
   const { result, sent } = await deliver(env, ops, new Date());
   assert.equal(result.status === "done" && result.classification, "DELIVERED");
-  assert.match(String(sent?.notes), /1 received, 1 NOT RECEIVED/);
+  // v1.2: the received photo is an attachment; the notes name only the file that did not arrive.
+  assert.deepEqual((sent?.attachments as { key: string }[]).map((a) => a.key), [`rfq-files/${reference}/2.png`]);
+  assert.match(String(sent?.notes), /1 attached as customer files, 1 NOT RECEIVED/);
   assert.match(String(sent?.notes), /1\. list\.pdf — \d+ KB — FILE NOT RECEIVED \(not received — storage error\)/);
   assert.equal(bucket.objects.size, 1);
 });
@@ -367,4 +464,41 @@ test("admin: list + download need ADMIN_TOKEN; the download is octet-stream, att
   assert.match(res.headers.get("content-disposition") ?? "", /^attachment; filename="1\.png"; filename\*=UTF-8''/);
   assert.deepEqual(new Uint8Array(await res.arrayBuffer()), PNG);
   assert.deepEqual(ops.q("SELECT actor, result FROM rfq_attachment_access_log"), [{ actor: "staff", result: "ok" }]);
+});
+
+test("retention sweep: deletes due R2 objects in bounded batches, keeps the row (deleted_at), skips files not yet due; admin download then answers 410", async () => {
+  const { env, ops, bucket } = setup();
+  const reference = await accepted(env, [{ name: "a.png", size: PNG.length }, { name: "b.pdf", size: PDF.length }]);
+  assert.equal((await put(env, reference, 1, PNG)).status, 201);
+  assert.equal((await put(env, reference, 2, PDF)).status, 201);
+  const deliveredAt = new Date();
+  await deliver(env, ops, deliveredAt);
+  assert.equal(bucket.objects.size, 2);
+
+  // Day 29 after confirmation: nothing due.
+  assert.deepEqual(await sweepRfqFiles(env, new Date(deliveredAt.getTime() + 29 * 86_400_000)), { due: 0, deleted: 0, failed: 0 });
+  // Day 30: due; a batch of 1 deletes one per run.
+  const day30 = new Date(deliveredAt.getTime() + 30 * 86_400_000);
+  assert.deepEqual(await sweepRfqFiles(env, day30, 1), { due: 1, deleted: 1, failed: 0 });
+  assert.deepEqual(await sweepRfqFiles(env, day30, 1), { due: 1, deleted: 1, failed: 0 });
+  assert.deepEqual(await sweepRfqFiles(env, day30, 1), { due: 0, deleted: 0, failed: 0 });
+  assert.equal(bucket.objects.size, 0);
+  assert.deepEqual(ops.q("SELECT upload_status s, deleted_at d FROM rfq_attachments ORDER BY slot").map((r) => [r.s, r.d]), [["uploaded", day30.toISOString()], ["uploaded", day30.toISOString()]]);
+
+  const id = ops.q("SELECT id FROM rfq_attachments WHERE slot = 1")[0].id as string;
+  const path = `/__admin/attachments/${id}`;
+  const res = await handleAdmin(new Request(`https://api.example${path}`, { headers: { authorization: "Bearer admin-secret", "x-admin-actor": "staff" } }), env, new URL(`https://api.example${path}`));
+  assert.equal(res.status, 410);
+  assert.deepEqual(ops.q("SELECT result FROM rfq_attachment_access_log").map((r) => r.result), ["deleted"]);
+});
+
+test("retention sweep: an unconfirmed file (notes channel / never delivered) stays 90 days; no bucket binding = no-op", async () => {
+  const { env, ops, bucket } = setup();
+  const reference = await accepted(env, [{ name: "a.png", size: PNG.length }]);
+  assert.equal((await put(env, reference, 1, PNG)).status, 201);
+  const acceptedAt = Date.parse(ops.q("SELECT submitted_at s FROM rfqs")[0].s as string);
+  assert.equal((await sweepRfqFiles(env, new Date(acceptedAt + 89 * 86_400_000))).deleted, 0);
+  assert.deepEqual(await sweepRfqFiles({ ...env, RFQ_FILES: undefined }, new Date(acceptedAt + 91 * 86_400_000)), { due: 0, deleted: 0, failed: 0 });
+  assert.equal((await sweepRfqFiles(env, new Date(acceptedAt + 90 * 86_400_000))).deleted, 1);
+  assert.equal(bucket.objects.size, 0);
 });

@@ -20,7 +20,7 @@ Code twin: `lib/contracts/rfq-submit-v1.ts` — field limits are imported from t
 | `phoneCountry` | ISO-3166 alpha-2 |
 | `phoneLocal` | 1–20; composed to E.164 on the server |
 | `deliveryLocation`, `message` | optional, ≤ 200 / ≤ 3000 |
-| `items` | 1–20 lines: `catalogVariantXid?` (≤ 200, `[A-Za-z0-9_.-]`, canonical CVAR), `freeformTitle?`, `productSlug?`, `categoryLabel?`, `gradeOrStandard?`, `quantityText` (1–100), `unit` (`kg`, `ton`, `branch`, `sheet`, `meter`, `coil`, `bundle`, `piece`; launch policy per group), `description?` (≤ 1000), `lengthMm?` (integer, (0, 1e6]) |
+| `items` | 1–20 lines, or 0 lines when `attachments` is non-empty (file-only RFQ, owner decision 2026-10-13; otherwise 422 `items: [too_small]`): `catalogVariantXid?` (≤ 200, `[A-Za-z0-9_.-]`, canonical CVAR), `freeformTitle?`, `productSlug?`, `categoryLabel?`, `gradeOrStandard?`, `quantityText` (1–100), `unit` (`kg`, `ton`, `branch`, `sheet`, `meter`, `coil`, `bundle`, `piece`; launch policy per group), `description?` (≤ 1000), `lengthMm?` (integer, (0, 1e6]) |
 | `website` | honeypot — must be empty |
 | `formRenderedAt` | optional epoch ms (passive timing signal) |
 | `turnstileToken` | Cloudflare Turnstile response token; action `rfq_submit`; the Worker also checks `hostname` (W2) |

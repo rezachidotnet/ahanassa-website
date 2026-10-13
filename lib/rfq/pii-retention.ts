@@ -22,9 +22,9 @@
  *   rfq_items     customer free text: freeform_title (→ '' when present — the line CHECK
  *                 needs a non-null identity), size_text, quantity_text (→ '' — NOT NULL),
  *                 description
- *   rfq_attachments original_filename (→ '' — NOT NULL); the file bytes stay in the private
- *                 R2 bucket (Odoo holds only their keys) — their retention is a separate
- *                 owner decision (docs/RFQ_FILE_UPLOAD.md)
+ *   rfq_attachments original_filename (→ '' — NOT NULL); the file bytes in the private
+ *                 R2 bucket follow their own retention (30 days after Odoo confirmed
+ *                 them, else 90; lib/rfq-worker/file-retention.ts)
  * DB_OPS stores no IP address or user agent (the RFQ Worker uses the client IP only
  * as an in-memory rate-limit key), so there is nothing else to clear.
  *

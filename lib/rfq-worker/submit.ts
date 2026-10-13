@@ -159,7 +159,7 @@ export async function handleRfqSubmit(request: Request, env: RfqWorkerEnv, deps:
   if (!contract.success) return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors: contractFieldErrors(contract.issues) }, cors);
 
   // 6. full validation early (to compute fingerprint before Turnstile).
-  const validated = validateRfqSubmission(body);
+  const validated = validateRfqSubmission(body, { allowFileOnly: true });
   if (!validated.ok || !validated.value) return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors: validated.fieldErrors }, cors);
   const now = deps.now?.() ?? new Date();
   if (typeof body.formRenderedAt === "number" && now.getTime() - body.formRenderedAt < MIN_COMPLETION_MS) {

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RFQ_SUBMIT_LIMITS as L } from "./rfq-submit-v1-check.ts";
+import { hasRowsOrFiles, RFQ_SUBMIT_LIMITS as L } from "./rfq-submit-v1-check.ts";
 
 /**
  * rfq_submit.v1 — browser -> RFQ Worker (`POST https://api.ahanassa.com/api/rfqs`,
@@ -59,7 +59,11 @@ export const rfqSubmitRequest = z
     /** Optional files (D-RFQ-FILE); extension/size policy re-checked by the Worker, bytes checked on upload. */
     attachments: z.array(rfqSubmitAttachment).max(L.attachments.max).optional(),
   })
-  .strict();
+  .strict()
+  // File-only RFQ (owner decision 2026-10-13): no item rows only when files are declared.
+  .superRefine((b, ctx) => {
+    if (!hasRowsOrFiles(b)) ctx.addIssue({ code: "too_small", origin: "array", minimum: 1, inclusive: true, path: ["items"], input: b.items, message: "at least one item row or one file is required" });
+  });
 export type RfqSubmitRequest = z.infer<typeof rfqSubmitRequest>;
 
 export { RFQ_SUBMIT_MAX_BODY_BYTES } from "./rfq-submit-v1-check.ts";

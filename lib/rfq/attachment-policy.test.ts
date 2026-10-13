@@ -1,7 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { checkDeclaredFile, checkFileBytes, classifyExtension, createContainerScanner, fileExtension, MAX_RFQ_FILE_BYTES, RFQ_FILE_ACCEPT, sanitizeFilename } from "./attachment-policy.ts";
-import { buildAttachmentNotes, formatFileSize } from "./attachment-notes.ts";
+import { buildAttachmentNotes, buildV12Attachments, formatFileSize, preferredChannel, type AttachmentNoteRow } from "./attachment-notes.ts";
+import { rfqIntakeAttachments } from "../contracts/rfq-intake-v1-2-schema.ts";
+
+const SHA = "a".repeat(64);
+const NOTE_ROWS: AttachmentNoteRow[] = [
+  { slot: 2, original_filename: "photo.png", byte_size: 2_500_000, upload_status: "failed", failure_code: "storage_error", object_key: "rfq-files/AA-RFQ-1/2.png", extension: "png", mime_declared: "image/png", checksum_sha256: null },
+  { slot: 1, original_filename: "list.xlsx", byte_size: 900, upload_status: "uploaded", failure_code: null, object_key: "rfq-files/AA-RFQ-1/1.xlsx", extension: "xlsx", mime_declared: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", checksum_sha256: SHA },
+];
 
 const ascii = (s: string) => Uint8Array.from(s, (c) => c.charCodeAt(0));
 const utf16 = (s: string) => Uint8Array.from([...s].flatMap((c) => [c.charCodeAt(0), 0]));
@@ -21,7 +28,9 @@ const verdict = (bytes: Uint8Array, name: string) => {
 };
 
 test("allow-list: exactly the 11 owner-approved extensions, case-insensitive; macro, executable/archive and other types refused with their reason", () => {
-  assert.equal(RFQ_FILE_ACCEPT, ".jpg,.jpeg,.png,.webp,.heic,.pdf,.xlsx,.xls,.csv,.docx,.txt");
+  // HEIC is accepted but not offered: iPhone Safari then converts library photos to JPEG.
+  assert.equal(RFQ_FILE_ACCEPT, ".jpg,.jpeg,.png,.webp,.pdf,.xlsx,.xls,.csv,.docx,.txt,image/jpeg,image/png,image/webp");
+  assert.ok(!/heic/i.test(RFQ_FILE_ACCEPT));
   for (const name of ["a.jpg", "a.JPEG", "a.png", "a.webp", "a.HEIC", "a.pdf", "a.xlsx", "a.xls", "a.csv", "a.docx", "a.txt"]) assert.equal(classifyExtension(name).ok, true, name);
   const reason = (n: string) => {
     const r = classifyExtension(n);
@@ -133,19 +142,31 @@ test("sanitizeFilename: path, control and bidi characters removed, long names cu
   assert.ok(long.endsWith(".xlsx"));
 });
 
-test("Odoo notes: received files with their private key, missing ones flagged FILE NOT RECEIVED with the reason", () => {
+test("Odoo notes (fallback channel): received files with their private key, missing ones flagged FILE NOT RECEIVED with the reason", () => {
   assert.equal(buildAttachmentNotes([]), null);
-  const notes = buildAttachmentNotes([
-    { slot: 2, original_filename: "photo.png", byte_size: 2_500_000, upload_status: "failed", failure_code: "storage_error", object_key: "rfq/AA-RFQ-1/2.png" },
-    { slot: 1, original_filename: "list.xlsx", byte_size: 900, upload_status: "uploaded", failure_code: null, object_key: "rfq/AA-RFQ-1/1.xlsx" },
-  ]);
   assert.equal(
-    notes,
+    buildAttachmentNotes(NOTE_ROWS, "notes"),
     [
       "[website] Files with this request: 1 received, 1 NOT RECEIVED (private storage; open with the RFQ admin tool, /__admin/attachments):",
-      "1. list.xlsx — 1 KB — received — rfq/AA-RFQ-1/1.xlsx",
+      "1. list.xlsx — 1 KB — received — rfq-files/AA-RFQ-1/1.xlsx",
       "2. photo.png — 2.4 MB — FILE NOT RECEIVED (not received — storage error)",
     ].join("\n"),
   );
   assert.equal(formatFileSize(15 * 1024 * 1024), "15.0 MB");
+});
+
+test("Odoo v1.2 channel: received files become `attachments`, notes name only the missing ones", () => {
+  assert.deepEqual(buildV12Attachments(NOTE_ROWS), [
+    { key: "rfq-files/AA-RFQ-1/1.xlsx", filename: "list.xlsx", size: 900, sha256: SHA, content_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+  ]);
+  assert.equal(preferredChannel(NOTE_ROWS), "odoo_v12");
+  assert.equal(preferredChannel([NOTE_ROWS[0]]), "notes");
+  assert.equal(buildAttachmentNotes(NOTE_ROWS, "odoo_v12"), ["[website] Files with this request: 1 attached as customer files, 1 NOT RECEIVED:", "2. photo.png — 2.4 MB — FILE NOT RECEIVED (not received — storage error)"].join("\n"));
+  assert.equal(buildAttachmentNotes([NOTE_ROWS[1]], "odoo_v12"), null);
+  // after the PII purge cleared the name, Odoo still gets a valid filename with the extension
+  assert.equal(buildV12Attachments([{ ...NOTE_ROWS[1], original_filename: "" }])[0].filename, "1.xlsx");
+  // every entry satisfies the Odoo v1.2 schema (mirror)
+  assert.ok(rfqIntakeAttachments.safeParse(buildV12Attachments(NOTE_ROWS)).success);
+  // an uploaded row without a checksum is never sent as an attachment
+  assert.deepEqual(buildV12Attachments([{ ...NOTE_ROWS[1], checksum_sha256: null }]), []);
 });

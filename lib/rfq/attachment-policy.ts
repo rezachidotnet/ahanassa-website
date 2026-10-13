@@ -44,8 +44,16 @@ export const RFQ_FILE_TYPES = {
 
 export type RfqFileExtension = keyof typeof RFQ_FILE_TYPES;
 export const RFQ_FILE_EXTENSIONS = Object.keys(RFQ_FILE_TYPES) as RfqFileExtension[];
-/** `accept` attribute for the file input: extensions only (MIME types from the OS are unreliable, e.g. HEIC, CSV). */
-export const RFQ_FILE_ACCEPT = RFQ_FILE_EXTENSIONS.map((e) => `.${e}`).join(",");
+/**
+ * `accept` attribute for the file input (owner decision 2026-10-13). HEIC is
+ * left OUT on purpose: when the list names JPEG but not HEIC, iPhone Safari
+ * converts a photo from the library to JPEG before it is uploaded, which Odoo
+ * can read. A HEIC file that still arrives (e.g. picked from Files) is
+ * accepted all the same (RFQ_FILE_TYPES; Odoo marks it manual-reading).
+ * Extensions plus the image MIME types, because the iOS photo picker goes by
+ * type, not by name.
+ */
+export const RFQ_FILE_ACCEPT = [...RFQ_FILE_EXTENSIONS.filter((e) => e !== "heic").map((e) => `.${e}`), "image/jpeg", "image/png", "image/webp"].join(",");
 
 /**
  * Why a file is refused. The form maps each code to a localized message;
