@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { trackEvent } from "@/lib/analytics/events";
 import { localizedPath, type Locale } from "@/config/locales";
 import { EnquiryForm } from "@/components/contact/enquiry-form";
 import { findCatalogItemByXid, type PublicRfqCatalogItem } from "@/lib/rfq/catalog-selector";
@@ -125,6 +126,8 @@ export function StaticEnquiryForm({ locale, turnstileSiteKey, rfqEndpoint }: { l
       );
       rows = result.rows;
       focusRowId = result.rowId;
+      // W16.4: a product joined the basket (not a duplicate, not a full list; a reload finds it and adds nothing).
+      if (result.outcome === "added") trackEvent("basket_add", { basket_size: rows.filter((r) => !isRfqRowEmpty(r.fields)).length });
       // A first item on an empty form needs no message; joining a list, a duplicate or a full list does.
       notice = result.outcome === "added" && !hadItems ? null : result.outcome;
     }

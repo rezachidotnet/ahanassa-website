@@ -34,17 +34,19 @@ export const PUBLIC_JSON_ALLOWLIST: ReadonlyArray<{ pattern: RegExp; keys: Reado
   { pattern: /^manifest\.public\.json$/, keys: keysOf(publicManifest) },
 ];
 
-export const JSONLD_ALLOWED_TYPES: ReadonlySet<string> = new Set(["Organization", "LocalBusiness", "WebSite", "BreadcrumbList", "ListItem", "PostalAddress", "ContactPoint", "Product", "FAQPage", "Question", "Answer"]);
+export const JSONLD_ALLOWED_TYPES: ReadonlySet<string> = new Set(["Organization", "LocalBusiness", "WebSite", "BreadcrumbList", "ListItem", "PostalAddress", "ContactPoint", "Product", "FAQPage", "Question", "Answer", "OpeningHoursSpecification"]);
 export const JSONLD_ALLOWED_KEYS: ReadonlySet<string> = new Set([
   "@context", "@graph", "@id", "@type",
   "name", "alternateName", "url", "logo", "description", "publisher",
   "address", "streetAddress", "addressLocality", "addressCountry",
   "contactPoint", "telephone", "contactType", "areaServed",
   "itemListElement", "position", "item",
-  // W16.2 (D-SEO): LocalBusiness + FAQPage. Still never offers/price/priceRange/geo/openingHours.
+  // W16.2 (D-SEO): LocalBusiness + FAQPage. Still never offers/price/priceRange/geo/aggregateRating.
   "image", "parentOrganization", "mainEntity", "acceptedAnswer", "text",
   // D-COMPANY-INFO: the Tehran coordination office (a `department` with its confirmed postal code).
   "department", "postalCode",
+  // Owner, 2026-10-13 (lib/content/company.ts): working hours and the parent group's founding year.
+  "openingHoursSpecification", "dayOfWeek", "opens", "closes", "foundingDate",
 ]);
 
 const LEGACY_XID = /ahanassa_marketplace\.[a-z0-9_]+/g;

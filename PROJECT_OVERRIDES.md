@@ -224,6 +224,14 @@ EXPORT_LINE = approved (export to Iraq and other countries)
 
 Exporting steel to Iraq and other countries is an approved business line. The JSON-LD `areaServed` is `["IR", "IQ"]` (Organization `contactPoint` and `LocalBusiness`). Other countries are not named, so none is listed. Export prices, terms, volumes and partners are **not** confirmed (§10) and must not be invented in copy.
 
+### 7.4 Working hours, parent group and digit style — OWNER-CONFIRMED 2026-10-13
+
+- **Working hours:** Saturday–Wednesday 08:00–17:00 and Thursday 08:00–12:00, Iran time.
+- **Parent group:** «فضاسازه نقش جهان» (Fazasazeh Naghsh-e Jahan), founded 1376 SH / 1997. Its URL is `https://fazasazeh.ir`; `https://www.fazasazeh.ir` answers 301 to that host.
+- **Single source:** `lib/content/company.ts` (W16.3, PR #48). PR #47 emits these as JSON-LD: `openingHoursSpecification` on the `LocalBusiness`, and `parentOrganization` with `foundingDate` on the `Organization`.
+- **Digits:** addresses use Latin digits in every locale (پلاک 6, پلاک 660, کد پستی 1454954166), the same as the phone `031-35134`.
+- **Not needed:** Kuwait in `areaServed` (owner, 2026-10-13).
+
 ---
 
 ## 8. Attachment security
@@ -339,7 +347,7 @@ This override file controls only the decisions explicitly listed above. For ever
 
 The following remain genuinely unresolved after the 2026-08-26 owner sign-off round. Per `CLAUDE.md`, Claude Code must never invent business facts, contact data, or credentials for any of these:
 
-- Company email, WhatsApp, business hours (phone number is confirmed for production use — §7.2 — not listed here)
+- Company email, WhatsApp (the phone, §7.2, and the working hours and parent group, §7.4, are confirmed and not listed here)
 - Company legal entity name, registration/tax ID, invoicing identity
 - Board/leadership information
 - Odoo deployed version, installed modules, exact API protocol, exact model/field mapping (§3 — confirmed as an integration-phase gate, not a blocker, but the values themselves remain unknown)

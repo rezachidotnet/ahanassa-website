@@ -1,5 +1,6 @@
 import { siteConfig } from "../metadata/site.ts";
 import { CONTACT_PHONE_E164 } from "../content/contact-channels.ts";
+import { PARENT_ORGANIZATION, WORKING_HOURS } from "../content/company.ts";
 import type { Locale } from "../../config/locales.ts";
 
 /**
@@ -57,6 +58,24 @@ export function websiteId(): string {
   return `${siteConfig.baseUrl}/#website`;
 }
 
+/**
+ * The parent group (owner, 2026-10-13; lib/content/company.ts, shown on /about). `url` is the group site's
+ * canonical host: https://www.fazasazeh.ir answers 301 to https://fazasazeh.ir.
+ */
+export function parentOrganizationSchema(locale: Locale = "fa") {
+  return {
+    "@type": "Organization",
+    name: PARENT_ORGANIZATION.name[locale],
+    url: PARENT_ORGANIZATION.url,
+    foundingDate: PARENT_ORGANIZATION.foundingDate,
+  };
+}
+
+/** Working hours (owner, 2026-10-13; lib/content/company.ts, shown on /contact and /about), Iran time. */
+export function openingHoursSchema() {
+  return WORKING_HOURS.map((h) => ({ "@type": "OpeningHoursSpecification", dayOfWeek: [...h.dayOfWeek], opens: h.opens, closes: h.closes }));
+}
+
 export function organizationSchema(locale: Locale = "fa") {
   return {
     "@type": "Organization",
@@ -64,6 +83,7 @@ export function organizationSchema(locale: Locale = "fa") {
     name: siteConfig.name,
     alternateName: siteConfig.alternateName,
     url: siteConfig.baseUrl,
+    parentOrganization: parentOrganizationSchema(locale),
     // The full brand mark (byte-identical to the former app/icon.jpg, which W10.2 replaced with sized favicons).
     logo: `${siteConfig.baseUrl}/brand/ahan-asa-mark.jpg`,
     // Confirmed address (PROJECT_OVERRIDES.md §7 item 6), now rendered in
@@ -90,9 +110,11 @@ export function localBusinessId(): string {
 /**
  * W16.2 (D-SEO): the office as a `LocalBusiness` — the official address (PROJECT_OVERRIDES.md §7.1:
  * Isfahan, no postal code confirmed for it) and the one verified phone, exactly as the footer and /contact
- * render them. D-COMPANY-INFO: `withTehranOffice` adds the Tehran coordination office as a `department`
- * (its own address and postal code, no separate phone) — only on /contact, the page that renders it.
- * Never opening hours, ratings, price range or geo coordinates (not confirmed, PROJECT_OVERRIDES.md §10).
+ * render them, and the confirmed working hours. D-COMPANY-INFO: `withTehranOffice` adds the Tehran
+ * coordination office as a `department` (its own address and postal code, no separate phone) — only on
+ * /contact, the page that renders it. Its `parentOrganization` is Ahan Asa's Organization node, whose own
+ * parent is the group (parentOrganizationSchema). Never ratings, price range or geo coordinates (not
+ * confirmed, PROJECT_OVERRIDES.md §10).
  */
 export function localBusinessSchema(locale: Locale = "fa", options: { withTehranOffice?: boolean } = {}) {
   const { name: tehranName, ...tehranAddress } = TEHRAN_OFFICE[locale];
@@ -110,6 +132,7 @@ export function localBusinessSchema(locale: Locale = "fa", options: { withTehran
       addressCountry: "IR",
     },
     areaServed: [...AREA_SERVED],
+    openingHoursSpecification: openingHoursSchema(),
     parentOrganization: { "@id": organizationId() },
     ...(options.withTehranOffice
       ? {

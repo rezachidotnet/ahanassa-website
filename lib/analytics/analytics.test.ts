@@ -89,7 +89,13 @@ test("GA4 loads only through GTM: no gtag.js and no G- measurement ID in any sit
 test("wiring: rfq_submit sends the tracking number only; the layout mounts the runtime once", () => {
   const form = fs.readFileSync(new URL("../../components/contact/enquiry-form.tsx", import.meta.url), "utf8");
   const calls = [...form.matchAll(/trackEvent\(([^)]*)\)/g)].map((m) => m[1]);
-  assert.deepEqual(calls, ['"rfq_submit", { rfq_tracking_number: body.reference }']);
+  assert.deepEqual(calls, ['"file_upload", { file_count: next.length, file_type: verdict.ext }', '"rfq_submit", { rfq_tracking_number: body.reference }']);
+  // file_type is the attachment policy's allowlisted extension (checkFileBytes), never derived from the file name.
+  assert.match(form, /const verdict = checkFileBytes\(/);
+  const staticForm = fs.readFileSync(new URL("../../components/contact/static-enquiry-form.tsx", import.meta.url), "utf8");
+  const basketCalls = [...staticForm.matchAll(/trackEvent\(("[a-z_]+"), \{ ([a-z_]+):/g)].map((m) => `${m[1]} ${m[2]}`);
+  assert.deepEqual(basketCalls, ['"basket_add" basket_size'], "basket_add: the basket size only");
+  assert.match(staticForm, /if \(result\.outcome === "added"\) trackEvent\("basket_add"/, "only a real add counts (not a duplicate or a full list)");
   const layout = fs.readFileSync(new URL("../../app/[locale]/layout.tsx", import.meta.url), "utf8");
   assert.equal(layout.match(/<AnalyticsRuntime /g)?.length, 1);
 });

@@ -21,9 +21,9 @@ export const ANALYTICS_EVENTS = {
   calculator_use: ["calculator_product_group", "calculator_mode"],
   /** The daily price page was viewed; `price_date` = the newest price date shown (YYYY-MM-DD). */
   price_page_view: ["price_date"],
-  /** A product was added to the RFQ basket (W10.5, PR #44): the basket size after the add. */
+  /** A product was added to the RFQ basket (W10.5): the basket size after the add (components/contact/static-enquiry-form.tsx). */
   basket_add: ["basket_size"],
-  /** A file was attached to the RFQ (W13.1, PR #45): count and lower-case extension only, never the name. */
+  /** A file passed the attachment checks (W13.1): count and the policy's extension only, never the name (components/contact/enquiry-form.tsx). */
   file_upload: ["file_count", "file_type"],
 } as const satisfies Record<string, readonly string[]>;
 

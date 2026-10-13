@@ -530,11 +530,13 @@ export function EnquiryForm({
           errors.push({ name: file.name, reason: verdict.reason });
           continue;
         }
+        next.push(file);
+        // W16.4: an accepted attachment — the count and the policy's allowlisted extension, never the file name.
+        trackEvent("file_upload", { file_count: next.length, file_type: verdict.ext });
       } catch {
         errors.push({ name: file.name, reason: "read_error" });
         continue;
       }
-      next.push(file);
     }
     setFiles(next);
     setFileErrors(errors);

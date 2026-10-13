@@ -58,11 +58,11 @@ export function companyPhoneDisplay(stored: string = CONTACT_PHONE_E164): string
   return `${local.slice(0, 3)}-${local.slice(3)}`;
 }
 
-/** Offices (D-COMPANY-INFO): Isfahan head office, Tehran office (no separate phone). */
+/** Offices (D-COMPANY-INFO): Isfahan head office, Tehran office (no separate phone). Addresses use Latin digits in every locale, like the phone (owner, 2026-10-13). */
 export const OFFICES: Record<Locale, { head: { label: string; address: string }; tehran: { label: string; address: string } }> = {
   fa: {
-    head: { label: "دفتر مرکزی", address: "اصفهان، خیابان هزارجریب، کوی آزادگان، پلاک ۶" },
-    tehran: { label: "دفتر تهران", address: "تهران، خیابان ستارخان، پلاک ۶۶۰، کد پستی ۱۴۵۴۹۵۴۱۶۶" },
+    head: { label: "دفتر مرکزی", address: "اصفهان، خیابان هزارجریب، کوی آزادگان، پلاک 6" },
+    tehran: { label: "دفتر تهران", address: "تهران، خیابان ستارخان، پلاک 660، کد پستی 1454954166" },
   },
   en: {
     head: { label: "Head office", address: "Hezar Jarib Street, Kooy Azadegan, No. 6, Isfahan, Iran" },

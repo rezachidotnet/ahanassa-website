@@ -51,8 +51,8 @@ The staging and production builds are byte-identical except for robots, sitemap,
 | `whatsapp_click` | Any `wa.me` / WhatsApp link is clicked | `link_location` |
 | `calculator_use` | The visitor's first change to the weight calculator on this page view | `calculator_product_group` (e.g. `REBAR`), `calculator_mode` |
 | `price_page_view` | `/prices` or `/ar/prices` is viewed (when it has prices) | `price_date` (the newest price date shown, `YYYY-MM-DD`) |
-| `basket_add` | A product is added to the RFQ basket. **Not sent yet:** a follow-up wires it once PR #44 merges | `basket_size` |
-| `file_upload` | A file is attached to an RFQ. **Not sent yet:** a follow-up wires it once PR #45 / W13.1 merges | `file_count`, `file_type` (extension, e.g. `pdf`) |
+| `basket_add` | A product joins the RFQ basket: the visitor arrives at `/contact` from a product, price or calculator link. A duplicate of a row already in the basket, a full list or a reload sends nothing | `basket_size` (filled rows after the add) |
+| `file_upload` | A file passes the attachment checks and joins the RFQ (once per accepted file; refused files send nothing) | `file_count` (files attached after this one), `file_type` (the policy's extension, e.g. `pdf`; never the file name) |
 
 Every page also pushes `{ page_locale: "fa" | "en" | "ar" }` before any event.
 
@@ -92,7 +92,7 @@ Variables → User-Defined Variables → New. Create each of these as a **Data L
 
 ## 5. Step 3 — one trigger and one GA4 event tag per event
 
-Do this for each of the 7 events. The `basket_add` and `file_upload` tags can be created now. They stay silent until the site sends those events.
+Do this for each of the 7 events.
 
 **Trigger:** Triggers → New.
 - Type: **Custom Event**.
@@ -152,7 +152,9 @@ GTM Preview's own panel (`tagmanager.google.com`) is not allowed. It is a debugg
    - Click the phone number in the header: you should see `phone_click`, `link_location=header`.
    - Change a field on `/tools/weight-calculator`: `calculator_use` fires once.
    - Open `/prices`: `price_page_view`.
-   - Send a test RFQ on staging: `rfq_submit` with only the tracking number. Check that the dataLayer has no name, phone or email.
+   - Open a product page and click «استعلام قیمت»: `basket_add`, `basket_size=1`. A second product: `basket_size=2`.
+   - On staging, attach a PDF to the request form: `file_upload`, `file_count=1`, `file_type=pdf`.
+   - Send a test RFQ on staging: `rfq_submit` with only the tracking number. Check that the dataLayer has no name, phone, email or file name.
 3. GA4 → Admin → DebugView shows the same events.
 
 ## 8. Step 6 — publish

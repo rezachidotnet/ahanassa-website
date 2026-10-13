@@ -4,10 +4,11 @@ import { faqPageSchema, jsonLdGraph, localBusinessSchema, organizationSchema, OR
 import { scanPublication } from "../static/publication-gate.ts";
 import { CONTACT_PHONE_DISPLAY, CONTACT_PHONE_E164 } from "../content/contact-channels.ts";
 import fs from "node:fs";
+import { companyPhoneDisplay } from "../content/company.ts";
 
 const html = (data: unknown) => `<html><body><script type="application/ld+json">${JSON.stringify(data)}</script></body></html>`;
 
-test("LocalBusiness: the official (Isfahan) address and phone only — no postal code, hours, geo, rating or price", () => {
+test("LocalBusiness: the official (Isfahan) address, phone and hours — no postal code, geo, rating or price", () => {
   for (const locale of ["fa", "en", "ar"] as const) {
     const lb = localBusinessSchema(locale);
     assert.equal(lb["@type"], "LocalBusiness");
@@ -16,6 +17,10 @@ test("LocalBusiness: the official (Isfahan) address and phone only — no postal
     assert.deepEqual(lb.areaServed, ["IR", "IQ"]);
     assert.ok(!("department" in lb), "the Tehran office only where it is rendered (/contact)");
     const keys = JSON.stringify(lb);
+    assert.deepEqual(lb.openingHoursSpecification, [
+      { "@type": "OpeningHoursSpecification", dayOfWeek: ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday"], opens: "08:00", closes: "17:00" },
+      { "@type": "OpeningHoursSpecification", dayOfWeek: ["Thursday"], opens: "08:00", closes: "12:00" },
+    ]);
     for (const forbidden of ["postalCode", "openingHours", "geo", "aggregateRating", "priceRange", "offers", "price"]) assert.ok(!keys.includes(`"${forbidden}"`), forbidden);
   }
 });
@@ -32,6 +37,7 @@ test("D-COMPANY-INFO: /contact adds the Tehran coordination office as a departme
   }
   assert.deepEqual(organizationSchema("fa").contactPoint, { "@type": "ContactPoint", telephone: "+983135134", contactType: "sales", areaServed: ["IR", "IQ"] });
   assert.equal(CONTACT_PHONE_DISPLAY, "031-35134");
+  assert.equal(companyPhoneDisplay(), CONTACT_PHONE_DISPLAY, "/about and the header/contact show the same number");
   const page = fs.readFileSync(new URL("../../app/[locale]/contact/page.tsx", import.meta.url), "utf8");
   assert.match(page, /localBusinessSchema\(locale, \{ withTehranOffice: true \}\)/);
   assert.match(page, /tehranLines: \["تهران، خیابان ستارخان، پلاک 660", "کد پستی 1454954166"\]/);
@@ -55,4 +61,14 @@ test("publication gate accepts the new nodes and still refuses offers/price", ()
   const priced = html(jsonLdGraph([{ "@type": "Product", name: "x", offers: { "@type": "Offer", price: "1" } }]));
   const kinds = scanPublication([{ path: "products/x.html", content: priced }], new Set()).map((f) => `${f.kind}:${f.match}`);
   assert.ok(kinds.includes("jsonld_field_not_allowed:offers") && kinds.includes("jsonld_type_not_allowed:Offer"), kinds.join());
+});
+
+test("Organization: the parent group from lib/content/company.ts (name per locale, canonical URL, founded 1997)", () => {
+  assert.deepEqual(organizationSchema("fa").parentOrganization, { "@type": "Organization", name: "فضاسازه نقش جهان", url: "https://fazasazeh.ir", foundingDate: "1997" });
+  assert.equal(organizationSchema("en").parentOrganization.name, "Fazasazeh Naghsh-e Jahan");
+  const page = html(jsonLdGraph([organizationSchema("en"), localBusinessSchema("en", { withTehranOffice: true })]));
+  assert.deepEqual(scanPublication([{ path: "en/contact.html", content: page }], new Set()), [], "the gate allows OpeningHoursSpecification and foundingDate");
+  const extra = html(jsonLdGraph([{ "@type": "LocalBusiness", openingHours: "Mo-Fr", geo: { "@type": "GeoCoordinates" } }]));
+  const kinds = scanPublication([{ path: "x.html", content: extra }], new Set()).map((f) => f.match);
+  assert.ok(kinds.includes("openingHours") && kinds.includes("geo") && kinds.includes("GeoCoordinates"), kinds.join());
 });
