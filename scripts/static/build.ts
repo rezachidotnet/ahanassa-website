@@ -170,7 +170,8 @@ const staticAssetPaths = fs.existsSync(nextStaticDir)
   ? (fs.readdirSync(nextStaticDir, { recursive: true, withFileTypes: true }) as fs.Dirent[]).filter((d) => d.isFile()).map((d) => "/" + path.relative(publicDir, path.join(d.parentPath, d.name)).split(path.sep).join("/"))
   : [];
 fs.writeFileSync(path.join(publicDir, "_headers"), buildHeadersFile(environment, target.rfqApiOrigin, staticAssetPaths));
-fs.writeFileSync(path.join(publicDir, "_redirects"), buildRedirectsFile());
+fs.writeFileSync(path.join(publicDir, "_redirects"), buildRedirectsFile(snapshot.tables.route_redirects));
+counts.route_redirect_rules = snapshot.tables.route_redirects.length;
 fs.writeFileSync(path.join(publicDir, ".assetsignore"), buildAssetsIgnoreFile());
 // generated_at = the snapshot's own time, so the same snapshot always gives byte-identical public files (W4 determinism).
 fs.writeFileSync(

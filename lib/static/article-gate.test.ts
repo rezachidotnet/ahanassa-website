@@ -33,12 +33,17 @@ test("ar article pages: no factory or delivery location of the price snapshot", 
   assert.deepEqual(kinds([{ path: "ar/articles/a.html", content: page(`<p>${ROW.factory_name_fa}</p>`) }]), ["article_place_on_ar:ar/articles/a.html"]);
 });
 
-test("article pages: every image is a file of this site; no JSON-LD; other pages are not scanned by this gate", () => {
+test("article pages: every image is a file of this site; JSON-LD only breadcrumb + FAQ; other pages are not scanned by this gate", () => {
   const ok = page('<picture><source srcSet="/images/articles/fa/a.webp"/><img src="/images/articles/fa/a.png"/></picture>', '<meta property="og:image" content="https://www.ahanassa.com/images/articles/fa/a.png"/>');
   assert.deepEqual(kinds([{ path: "articles/a.html", content: ok }]), []);
   assert.deepEqual(externalImages('<img src="https://cdn.example.org/x.png"><meta property="og:image" content="//cdn.example.org/y.png"><div style="background:url(https://x.example/z.png)">'), ["https://cdn.example.org/x.png", "//cdn.example.org/y.png", "https://x.example/z.png"]);
   assert.deepEqual(kinds([{ path: "articles/a.html", content: page('<img src="https://cdn.example.org/x.png">') }]), ["article_external_image:articles/a.html"]);
-  assert.deepEqual(kinds([{ path: "articles/a.html", content: page('<script type="application/ld+json">{}</script>') }]), ["article_json_ld:articles/a.html"]);
+  const ld = (data: unknown) => page(`<script type="application/ld+json">${JSON.stringify(data)}</script>`);
+  const crumbs = { "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "خانه", item: "https://www.ahanassa.com/" }] };
+  const faq = { "@type": "FAQPage", mainEntity: [{ "@type": "Question", name: "q", acceptedAnswer: { "@type": "Answer", text: "a" } }] };
+  assert.deepEqual(kinds([{ path: "articles/a.html", content: ld({ "@context": "https://schema.org", "@graph": [crumbs, faq] }) }]), []);
+  assert.deepEqual(kinds([{ path: "articles/a.html", content: ld({ "@context": "https://schema.org", "@graph": [crumbs, { "@type": "Article", headline: "x" }] }) }]), ["article_json_ld:articles/a.html"]);
+  assert.deepEqual(kinds([{ path: "articles/a.html", content: page('<script type="application/ld+json">{oops</script>') }]), ["article_json_ld:articles/a.html"]);
   assert.deepEqual(kinds([{ path: "products/x.html", content: page('<img src="https://cdn.example.org/x.png">') }]), []);
 });
 

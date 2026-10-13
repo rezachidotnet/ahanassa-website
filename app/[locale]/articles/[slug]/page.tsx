@@ -10,6 +10,8 @@ import { isLocale, localizedPath } from "@/config/locales";
 import { buildLanguageAlternatesFromEntries, buildPageMetadata, robotsMetaContent } from "@/lib/metadata/resolve";
 import { siteConfig } from "@/lib/metadata/site";
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";
+import { breadcrumbListSchema, faqPageSchema, jsonLdGraph } from "@/lib/seo/schema";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { listPublishedCatalogTemplates } from "@/lib/catalog/editorial-repository";
 import { ARTICLE_COPY, formatArticleDate } from "@/lib/articles/copy";
 import { categoryLabel, getArticle, listArticles, listRelatedArticles, type Article } from "@/lib/articles/repository";
@@ -72,7 +74,7 @@ function RfqBox({ locale, className }: { locale: ArticleLocale; className?: stri
 /**
  * W11.1 — one article (docs/ARTICLES.md): title, dates («به‌روزرسانی»), reading time, cover, table of
  * contents, body, FAQ, sources, related product cards (`related_products`), «استعلام قیمت», related
- * articles and the author line. No JSON-LD yet (SEO phase). Build-time snapshot only.
+ * articles and the author line. JSON-LD (W16.2): the visible breadcrumb trail + the visible FAQ. Build-time snapshot only.
  */
 export default async function ArticlePage({ params }: PageProps) {
   return <ArticleContent a={await load(params)} />;
@@ -92,18 +94,25 @@ async function ArticleContent({ a }: { a: Article }) {
   const products = a.relatedProducts.map((id) => published.find((p) => p.product.templateXid === id)).filter((p) => p !== undefined);
   const related = await listRelatedArticles(a);
 
+  const crumbs = [
+    { href: localizedPath(locale, "/"), label: HOME[locale] },
+    { href: localizedPath(locale, ARTICLES_ROUTE), label: t.nav },
+    { href: localizedPath(locale, articleListingPath(1, a.category)), label: category },
+  ];
+  const jsonLd = jsonLdGraph([
+    breadcrumbListSchema([...crumbs.map((c) => ({ name: c.label, url: `${siteConfig.baseUrl}${c.href}` })), { name: a.title, url: `${siteConfig.baseUrl}${localizedPath(locale, articlePath(a.slug))}` }]),
+    ...[faqPageSchema(a.faq)].filter((n) => n !== null),
+  ]);
+
   return (
     <article>
+      <JsonLd data={jsonLd} />
       <header className="bg-navy on-inverse relative isolate overflow-hidden">
         <div className="hairline-grid absolute inset-0" aria-hidden="true" />
         <div className="container-x relative py-14 lg:py-20">
           <nav aria-label={HOME[locale]} className="mb-6">
             <ol className="text-on-inverse-muted flex flex-wrap items-center gap-x-1.5 text-xs">
-              {[
-                { href: localizedPath(locale, "/"), label: HOME[locale] },
-                { href: localizedPath(locale, ARTICLES_ROUTE), label: t.nav },
-                { href: localizedPath(locale, articleListingPath(1, a.category)), label: category },
-              ].map((c, i) => (
+              {crumbs.map((c, i) => (
                 <li key={c.href} className="flex items-center gap-1.5">
                   {i > 0 && <ChevronRight className="size-3.5 rtl:-scale-x-100" aria-hidden="true" />}
                   <Link href={c.href} className={CRUMB}>

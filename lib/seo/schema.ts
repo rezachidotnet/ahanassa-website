@@ -1,6 +1,6 @@
-import { siteConfig } from "@/lib/metadata/site";
-import { CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
-import type { Locale } from "@/config/locales";
+import { siteConfig } from "../metadata/site.ts";
+import { CONTACT_PHONE_E164 } from "../content/contact-channels.ts";
+import type { Locale } from "../../config/locales.ts";
 
 /**
  * The confirmed office address (PROJECT_OVERRIDES.md §7 item 6) in each
@@ -66,6 +66,57 @@ export function organizationSchema(locale: Locale = "fa") {
       contactType: "sales",
       areaServed: "IR",
     },
+  };
+}
+
+export function localBusinessId(): string {
+  return `${siteConfig.baseUrl}/#localbusiness`;
+}
+
+/**
+ * W16.2 (D-SEO): the office as a `LocalBusiness` — the confirmed address (PROJECT_OVERRIDES.md §7.1:
+ * Isfahan; no Tehran address and no postal code is confirmed, so none is emitted) and the one verified
+ * phone, exactly as the footer and /contact render them. Never opening hours, ratings, price range or
+ * geo coordinates (not confirmed, PROJECT_OVERRIDES.md §10).
+ */
+export function localBusinessSchema(locale: Locale = "fa") {
+  return {
+    "@type": "LocalBusiness",
+    "@id": localBusinessId(),
+    name: siteConfig.name,
+    alternateName: siteConfig.alternateName,
+    url: siteConfig.baseUrl,
+    image: `${siteConfig.baseUrl}/brand/ahan-asa-mark.jpg`,
+    telephone: CONTACT_PHONE_E164,
+    address: {
+      "@type": "PostalAddress",
+      ...ORGANIZATION_ADDRESS[locale],
+      addressCountry: "IR",
+    },
+    parentOrganization: { "@id": organizationId() },
+  };
+}
+
+/**
+ * A question or answer that talks money (a currency word). Prices in structured data are an open owner
+ * decision (D-SEO: no price in JSON-LD), so such an item stays visible on the page but out of the FAQPage.
+ */
+export const FAQ_PRICE_TALK = /تومان|ریال|ريال|درهم|دلار|دولار|\btoman|\brials?\b|\bIRR\b|\bUSD\b|\$/i;
+
+/**
+ * W16.2: `FAQPage` for a page that visibly renders these questions and answers (never hidden-only copy),
+ * minus any item that mentions a currency (FAQ_PRICE_TALK). null when nothing is left.
+ */
+export function faqPageSchema(items: readonly { q: string; a: string }[]) {
+  const kept = items.filter((item) => !FAQ_PRICE_TALK.test(`${item.q} ${item.a}`));
+  if (kept.length === 0) return null;
+  return {
+    "@type": "FAQPage",
+    mainEntity: kept.map((item) => ({
+      "@type": "Question",
+      name: item.q,
+      acceptedAnswer: { "@type": "Answer", text: item.a },
+    })),
   };
 }
 

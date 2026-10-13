@@ -17,6 +17,16 @@
  * target's RFQ API origin (architecture V1.1 §6.1: connect-src limited to
  * that host). The SSR Worker posts same-origin and passes none.
  */
+/**
+ * W16.4 (D-SEO): Google Tag Manager + GA4 (configured inside GTM) — the GTM script and GA4's image
+ * beacons. No 'unsafe-inline'/'unsafe-eval': the site loads GTM from its own bundle (lib/analytics/gtm.ts).
+ * connect-src is deliberately NOT widened: architecture V1.1 §6.1 (W2 gate) pins it to 'self', Turnstile
+ * and the RFQ API. GA4's fetch/sendBeacon hits are therefore REPORTED by this Report-Only policy; before
+ * any enforced CSP the owner must decide §6.1 vs GA4 (docs/analytics/GTM_SETUP.md §8).
+ */
+export const GTM_SCRIPT_ORIGIN = "https://www.googletagmanager.com";
+export const GA4_IMG_ORIGINS = ["https://*.google-analytics.com", "https://www.googletagmanager.com"] as const;
+
 export function buildCspReportOnly(connectSrc: readonly string[] = []): string {
   return [
     "default-src 'self'",
@@ -27,9 +37,9 @@ export function buildCspReportOnly(connectSrc: readonly string[] = []): string {
     // Cloudflare Turnstile (RFQ form) requires its own script/frame/connect
     // origin — the narrowest addition that unblocks it, not a broad
     // relaxation (CLAUDE.md "CSP / Security Headers").
-    "script-src 'self' https://challenges.cloudflare.com",
+    `script-src 'self' https://challenges.cloudflare.com ${GTM_SCRIPT_ORIGIN}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data:",
+    ["img-src 'self' data:", ...GA4_IMG_ORIGINS].join(" "),
     "font-src 'self'",
     ["connect-src 'self' https://challenges.cloudflare.com", ...connectSrc].join(" "),
     "frame-src 'self' https://challenges.cloudflare.com",

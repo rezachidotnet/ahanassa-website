@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ChevronDown, Send } from "lucide-react";
 import { localizedPath, type Locale } from "@/config/locales";
 import { ButtonLink } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { badgeVariants, cardVariants } from "@/components/ui/surface-variants";
 import { WEIGHT_CALCULATOR_COPY } from "@/lib/weight-calculator/copy";
 import { DISPLAY_DECIMALS, formatInputValue, formatNumber, parseDecimalInput } from "@/lib/weight-calculator/format";
 import { rfqHandoffHref } from "@/lib/weight-calculator/handoff";
+import { trackEvent } from "@/lib/analytics/events";
 import {
   beamTableKgPerMetre,
   computeWeight,
@@ -65,6 +66,7 @@ export function WeightCalculator({ locale, products, prices }: { locale: Locale;
   const [lengthText, setLengthText] = useState(() => (product ? formatInputValue(locale, defaultLengthM(product, product.variants[0])) : ""));
   const [mode, setMode] = useState<QuantityMode>("pieces");
   const [quantityText, setQuantityText] = useState(() => formatInputValue(locale, 1));
+  const usedRef = useRef(false);
 
   function selectProduct(index: number, xid?: string) {
     const next = products[index];
@@ -137,10 +139,16 @@ export function WeightCalculator({ locale, products, prices }: { locale: Locale;
   const price = (locale === "fa" || locale === "ar") && variant && result ? prices?.[variant.xid] : undefined;
   const tableSizes = tableOnlySizes(product);
   const label = (field: string) => `${id}-${field}`;
+  // W16.4: calculator_use once per page view, on the visitor's first change (never the ?variant= preselection).
+  const markUsed = () => {
+    if (usedRef.current) return;
+    usedRef.current = true;
+    trackEvent("calculator_use", { calculator_product_group: product.groupCode ?? undefined, calculator_mode: mode });
+  };
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start">
-      <form className={cardVariants({ variant: "panel" })} aria-labelledby={label("form-title")} onSubmit={(e) => e.preventDefault()} noValidate>
+      <form className={cardVariants({ variant: "panel" })} aria-labelledby={label("form-title")} onSubmit={(e) => e.preventDefault()} onChange={markUsed} noValidate>
         <h2 id={label("form-title")} className="text-navy text-lg font-bold">
           {t.formTitle}
         </h2>

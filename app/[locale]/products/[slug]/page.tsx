@@ -174,6 +174,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
     <>
       <JsonLd data={breadcrumbJsonLd} />
       <PageHero
+        breadcrumbJsonLd={false}
         locale={locale}
         eyebrow={t.productsLabel}
         title={seo.h1 ?? product.commercialTemplateName}

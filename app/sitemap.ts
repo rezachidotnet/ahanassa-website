@@ -4,7 +4,7 @@ import { siteConfig } from "@/lib/metadata/site";
 import { buildLanguageAlternates, buildLanguageAlternatesFromEntries } from "@/lib/metadata/resolve";
 import { isIndexableTarget, isNoindexPage, STATIC_PUBLIC_PATHS } from "@/lib/seo/indexing-policy";
 import { categoryListingPath } from "@/lib/catalog/public-categories";
-import { listIndexableCatalogTemplateSlugs, listPublicCatalogCategories, listPublishedCatalogTemplates, listPublishedLocalesForProduct } from "@/lib/catalog/editorial-repository";
+import { getPublishedCatalogTemplateBySlug, listIndexableCatalogTemplateSlugs, listPublicCatalogCategories, listPublishedCatalogTemplates, listPublishedLocalesForProduct } from "@/lib/catalog/editorial-repository";
 import { WEIGHT_CALCULATOR_LOCALES, WEIGHT_CALCULATOR_ROUTE } from "@/lib/weight-calculator/publication";
 import { PRICE_PAGE_LOCALES, PRICE_PAGE_ROUTE } from "@/lib/pricing/price-page";
 import { getArticle, latestArticleUpdate, listArticleCategories, listArticleLocales, listArticles, listCategoryLocales } from "@/lib/articles/repository";
@@ -14,6 +14,8 @@ import { listPublishedHubFamilies } from "@/lib/pricing/price-page-data";
 import { priceHubPath } from "@/lib/pricing/price-hubs";
 import { RAW_MATERIAL_LOCALES, RAW_MATERIAL_SLUGS, RAW_MATERIALS_ROUTE, rawMaterialPath } from "@/lib/content/raw-materials";
 import { EXPORT_LOCALES, EXPORT_ROUTE } from "@/lib/content/export";
+import { listAllPublishedPrices } from "@/lib/pricing/product-page-price-repository";
+import { isPriceLocale } from "@/lib/pricing/price-locale";
 
 /** The public, non-catalog pages of every locale (D6, lib/seo/indexing-policy.ts). Articles (W11.1) are listed below, per locale. */
 export { STATIC_PUBLIC_PATHS };
@@ -31,7 +33,10 @@ const canonicalLanguages = (languages: Record<string, string> | undefined) => (l
  * reciprocal hreflang alternates (+ x-default).
  * lastmod comes from the snapshot: a product page's own Odoo/editorial
  * `updated_at`; every other page the newest of those (the snapshot's content
- * date), so the same snapshot always gives the same sitemap.
+ * date), so the same snapshot always gives the same sitemap. W16.2: a page
+ * that SHOWS prices (fa/ar only: /prices, the calculator, product pages) is
+ * also as new as the newest price it shows (`published_at`), and articles
+ * keep their own `updated` (articleEntries).
  *
  * Other targets (staging) keep the pre-D6 sitemap: only templates that are
  * published, approved and editorially `index` (docs/CATALOG_PUBLIC_ROUTES.md
@@ -41,7 +46,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (!isIndexableTarget()) return editorialSitemap();
 
   const url = (locale: Locale, path: string) => asCanonical(`${siteConfig.baseUrl}${localizedPath(locale, path)}`);
+  // W16.2: the price dates (xid -> published_at); empty outside the static build.
+  const priceDates = new Map([...((await listAllPublishedPrices()) ?? new Map()).entries()].map(([xid, p]) => [xid, p.pricedAt]));
+  const latestPrice = maxIso([...priceDates.values()]);
   const productEntries: MetadataRoute.Sitemap = [];
+  const contentDates: string[] = []; // product/editorial dates only: a price never moves a page that shows none
   const categoryLocales = new Map<string, Locale[]>();
   for (const locale of locales) {
     for (const category of await listPublicCatalogCategories(locale)) {
@@ -50,15 +59,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
     for (const { product, seo } of await listPublishedCatalogTemplates(locale)) {
       const published = await listPublishedLocalesForProduct(product.id);
+      contentDates.push(product.updatedAt, seo.updatedAt);
+      const variants = isPriceLocale(locale) && priceDates.size ? ((await getPublishedCatalogTemplateBySlug(locale, seo.slug))?.variants ?? []) : [];
       productEntries.push({
         url: url(locale, `/products/${seo.slug}`),
-        lastModified: maxIso([product.updatedAt, seo.updatedAt]),
+        lastModified: maxIso([product.updatedAt, seo.updatedAt, ...variants.flatMap((v) => priceDates.get(v.xid) ?? [])]),
         alternates: { languages: canonicalLanguages(buildLanguageAlternatesFromEntries(published.map((p) => ({ locale: p.locale, path: `/products/${p.slug}` })))) },
       });
     }
   }
-  const contentDate = maxIso(productEntries.map((e) => String(e.lastModified)));
+  const contentDate = maxIso(contentDates);
   const lastModified = contentDate || undefined;
+  /** A page that shows the day's prices: the newer of the content date and the newest price. */
+  const pricedModified = (locale: Locale) => (isPriceLocale(locale) ? maxIso([contentDate, latestPrice]) || undefined : lastModified);
 
   // W16.3: the family price hubs of the day, per locale (fa/ar only), with alternates between the locales that publish each.
   const hubLocales = new Map<string, Locale[]>();
@@ -71,14 +84,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // W16.3: PRODUCTION_NOINDEX_PAGES (Industries, Markets) stay out until they have real content.
     for (const path of STATIC_PUBLIC_PATHS) if (!isNoindexPage(path)) entries.push({ url: url(locale, path), lastModified, alternates: { languages: canonicalLanguages(buildLanguageAlternates(path)) } });
     // The weight calculator (W10.1): only its published locales, with alternates between those locales only.
-    if (WEIGHT_CALCULATOR_LOCALES.includes(locale)) entries.push({ url: url(locale, WEIGHT_CALCULATOR_ROUTE), lastModified, alternates: { languages: canonicalLanguages(buildLanguageAlternatesFromEntries(WEIGHT_CALCULATOR_LOCALES.map((l) => ({ locale: l, path: WEIGHT_CALCULATOR_ROUTE })))) } });
+    if (WEIGHT_CALCULATOR_LOCALES.includes(locale)) entries.push({ url: url(locale, WEIGHT_CALCULATOR_ROUTE), lastModified: pricedModified(locale), alternates: { languages: canonicalLanguages(buildLanguageAlternatesFromEntries(WEIGHT_CALCULATOR_LOCALES.map((l) => ({ locale: l, path: WEIGHT_CALCULATOR_ROUTE })))) } });
     // The daily price page (W9.6): fa and ar only, with alternates between those two.
-    if ((PRICE_PAGE_LOCALES as readonly string[]).includes(locale)) entries.push({ url: url(locale, PRICE_PAGE_ROUTE), lastModified, alternates: { languages: canonicalLanguages(buildLanguageAlternatesFromEntries(PRICE_PAGE_LOCALES.map((l) => ({ locale: l, path: PRICE_PAGE_ROUTE })))) } });
+    if ((PRICE_PAGE_LOCALES as readonly string[]).includes(locale)) entries.push({ url: url(locale, PRICE_PAGE_ROUTE), lastModified: pricedModified(locale), alternates: { languages: canonicalLanguages(buildLanguageAlternatesFromEntries(PRICE_PAGE_LOCALES.map((l) => ({ locale: l, path: PRICE_PAGE_ROUTE })))) } });
     for (const [path, present] of categoryLocales) {
       if (!present.includes(locale)) continue;
       entries.push({ url: url(locale, path), lastModified, alternates: { languages: canonicalLanguages(buildLanguageAlternatesFromEntries(present.map((l) => ({ locale: l, path })))) } });
     }
-    for (const [path, present] of hubLocales) if (present.includes(locale)) entries.push(fixedLocaleEntry(locale, path, present));
+    // W16.2: a hub shows the day's prices, so it is as new as the newest price (like /prices).
+    for (const [path, present] of hubLocales) if (present.includes(locale)) entries.push({ ...fixedLocaleEntry(locale, path, present), lastModified: pricedModified(locale) });
     if (RAW_MATERIAL_LOCALES.includes(locale)) for (const path of [RAW_MATERIALS_ROUTE, ...RAW_MATERIAL_SLUGS.map(rawMaterialPath)]) entries.push(fixedLocaleEntry(locale, path, RAW_MATERIAL_LOCALES));
     if (EXPORT_LOCALES.includes(locale)) entries.push(fixedLocaleEntry(locale, EXPORT_ROUTE, EXPORT_LOCALES));
   }

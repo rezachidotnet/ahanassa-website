@@ -24,6 +24,7 @@ import { RfqItemRow } from "@/components/contact/rfq-item-row";
 import { getDefaultPhoneCountry, getCountryLabel, PHONE_COUNTRIES } from "@/lib/rfq/phone-country-registry";
 import { normalizeDigits } from "@/lib/rfq/quantity";
 import { submitRfqWithRetry } from "@/lib/rfq/submit-with-retry";
+import { trackEvent } from "@/lib/analytics/events";
 import { RfqSuccessPanel, RFQ_SUBMITTED_ATTR } from "@/components/contact/rfq-success-panel";
 import { clearRfqBasket, writeRfqBasket, EMPTY_RFQ_CUSTOMER, type RfqBasketAddOutcome, type RfqBasketCustomer } from "@/lib/rfq/rfq-basket";
 import { RfqFilesField, type RfqFileError } from "@/components/contact/rfq-files-field";
@@ -630,6 +631,8 @@ export function EnquiryForm({
         clearRfqBasket(locale);
         setReference(body.reference);
         setStatus("success");
+        // W16.4: the tracking number only — never a name, phone, email, company or item (lib/analytics/events.ts).
+        trackEvent("rfq_submit", { rfq_tracking_number: body.reference });
         return;
       }
 

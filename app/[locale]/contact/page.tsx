@@ -12,6 +12,9 @@ import { FaqSection } from "@/components/contact/faq-section";
 import { getTurnstileSiteKey } from "@/lib/env";
 import { cardVariants } from "@/components/ui/surface-variants";
 import { WORKING_HOURS_TEXT } from "@/lib/content/company";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { faqPageSchema, jsonLdGraph, localBusinessSchema } from "@/lib/seo/schema";
+import { contactFaq } from "@/lib/content/pages";
 
 export { generateLocaleStaticParams as generateStaticParams } from "@/lib/static/locale-params";
 
@@ -172,6 +175,9 @@ export default async function ContactPage({ params }: PageProps) {
       <div data-rfq-hide-on-success="">
         <FaqSection locale={locale} />
       </div>
+
+      {/* W16.2 (D-SEO): the office (rendered above) and the FAQ (rendered above), word for word. */}
+      <JsonLd data={jsonLdGraph([localBusinessSchema(locale), faqPageSchema(contactFaq[locale].items)].filter((n) => n !== null))} />
     </>
   );
 }

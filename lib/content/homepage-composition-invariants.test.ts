@@ -545,9 +545,10 @@ test("structured data describes only the site itself, never omitted or invented 
   // §14: "Structured data MUST describe only visible, eligible content" and
   // "Hidden or omitted products, evidence, industries, or FAQs MUST NOT remain
   // represented as if visible and current." The Homepage emits Organization +
-  // WebSite only — nothing derived from the conditional sections.
+  // WebSite only — nothing derived from the conditional sections. W16.2 (D-SEO) adds LocalBusiness:
+  // the office address and phone, which the footer (address) and Hero/Header (phone) render on this page.
   // organizationSchema(locale): the address is emitted in the page's locale (architecture V1.1 A6).
-  assert.match(PAGE_CODE, /jsonLdGraph\(\[organizationSchema\(locale\), websiteSchema\(\)\]\)/, "only Organization and WebSite are emitted");
+  assert.match(PAGE_CODE, /jsonLdGraph\(\[organizationSchema\(locale\), localBusinessSchema\(locale\), websiteSchema\(\)\]\)/, "only Organization, LocalBusiness and WebSite are emitted");
   for (const forbidden of ["ProductSchema", "productSchema", "faqSchema", "reviewSchema", "aggregateRating", "offerSchema"]) {
     assert.ok(!PAGE_CODE.includes(forbidden), `${forbidden} would describe content the Homepage does not reliably render`);
   }

@@ -1616,4 +1616,16 @@ follow-up). Production upload is still off until the owner switches it on.
 
 ---
 
+### DAR-066 — W16.2/W16.4 (D-SEO): GTM ID source, the "Tehran address", and GA4 vs CSP connect-src (2026-10-13)
+
+(DAR-065 is taken by W13.1, PR #45.)
+
+**Severity:** MEDIUM. **Status:** OPEN for item 3 only; items 1–2 resolved in implementation as below.
+
+1. **GTM container ID: committed config, not an env var.** `PROJECT_OVERRIDES.md` §5 asks for "environment-driven GTM configuration". The owner's W16.4 instruction says "ID from config", and the r4 allowlisted-diff gate (`lib/static/target-diff-gate.ts`) requires the staging and production artifacts to be byte-identical outside robots/sitemap/_headers/Turnstile/RFQ origin. So the ID lives in `config/analytics.ts` (`null` until supplied, never invented), is the same in both artifacts, and the browser loads GTM only on `www.ahanassa.com` (or with `?gtm_debug=`). `lib/env.ts#getGtmId` / `NEXT_PUBLIC_GTM_ID` (never called) are left in place and superseded.
+2. **"LocalBusiness with Tehran address."** No Tehran address is confirmed anywhere. The only owner-confirmed office address is Isfahan (`PROJECT_OVERRIDES.md` §7.1). `localBusinessSchema` emits that address and the confirmed phone, with no postal code, hours or geo. A Tehran branch/warehouse address needs an owner-supplied value before it can be added.
+3. **GA4 vs architecture V1.1 §6.1 (OPEN).** The W2 gate pins CSP `connect-src` to `'self'`, Turnstile and the RFQ API origin. GA4 sends its hits with fetch/sendBeacon to `*.google-analytics.com`. The CSP is Report-Only, so nothing is blocked today. The CSP now lists GTM in `script-src` and GA4 in `img-src` but deliberately leaves `connect-src` unchanged. **Before the CSP is ever enforced, the owner must decide:** widen `connect-src` for GA4 (an amendment to §6.1), or accept that an enforced CSP blocks GA4.
+
+---
+
 **End of `DOCUMENT_AUDIT_REPORT.md`**

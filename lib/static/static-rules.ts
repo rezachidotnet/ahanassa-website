@@ -1,6 +1,6 @@
 import { buildSecurityHeaders } from "../security/headers.ts";
 import { PRODUCTION_NOINDEX_HEADER_PATHS } from "../seo/indexing-policy.ts";
-import { locales, localizedPath } from "../../config/locales.ts";
+import { locales, localizedPath, type Locale } from "../../config/locales.ts";
 import { WEIGHT_CALCULATOR_LOCALES, WEIGHT_CALCULATOR_ROUTE } from "../weight-calculator/publication.ts";
 import { PRICE_PAGE_LOCALES, PRICE_PAGE_ROUTE } from "../pricing/price-page.ts";
 import { PRICE_HUB_CATEGORY_CODES, priceHubPath, priceHubSegment } from "../pricing/price-hubs.ts";
@@ -85,9 +85,43 @@ export function unpublishedExportRedirects(): string[] {
   return locales.filter((l) => !EXPORT_LOCALES.includes(l)).map((l) => `${localizedPath(l, EXPORT_ROUTE)} ${localizedPath(l, "/")} 302`);
 }
 
-/** `_redirects`: fa has no visible prefix; /request is the frozen Header CTA path whose form lives at /contact. */
-export function buildRedirectsFile(): string {
-  return ["/fa / 308", "/fa/* /:splat 308", "/request /contact 308", "/en/request /en/contact 308", "/ar/request /ar/contact 308", ...unpublishedCalculatorRedirects(), ...unpublishedPricePageRedirects(), ...unpublishedExportRedirects(), ""].join("\n");
+/** The snapshot's `route_redirects` row fields this file needs (lib/contracts/snapshot-v1.ts). */
+export interface RouteRedirectInput {
+  locale: Locale;
+  old_path: string;
+  target_path: string | null;
+  status_code: 308 | 302 | 410;
+}
+
+/** A site path that is safe as a `_redirects` token: absolute, no whitespace, no query/fragment, no splat/placeholder. */
+const REDIRECT_PATH = /^\/[^\s?#*:]*$/;
+
+/**
+ * W16.2 (D-SEO): the catalog's own redirect register — `route_redirects` (docs/CATALOG_PUBLIC_ROUTES.md
+ * §18: a product slug change writes a 308 from the old URL) — as static rules. The SSR runtime resolved
+ * these per request; the static site had no equivalent, so a renamed product's old URL would 404 once the
+ * page left the build. 308/302 rows become `old new status` in the row's locale; a 410 row has no
+ * static equivalent (the 404 page answers, as on the SSR runtime — §18 "Retirement"); an unsafe or
+ * self-referencing path is skipped. Sorted, so the same snapshot always gives the same file.
+ */
+export function routeRedirectRules(rows: readonly RouteRedirectInput[]): string[] {
+  return rows
+    .filter((r): r is RouteRedirectInput & { target_path: string; status_code: 308 | 302 } => r.status_code !== 410 && r.target_path !== null)
+    .filter((r) => REDIRECT_PATH.test(r.old_path) && REDIRECT_PATH.test(r.target_path) && r.old_path !== r.target_path)
+    .map((r) => `${localizedPath(r.locale, r.old_path)} ${localizedPath(r.locale, r.target_path)} ${r.status_code}`)
+    .sort();
+}
+
+/**
+ * The fixed permanent rules every build carries (docs/seo/LEGACY_REDIRECT_MAP.md): the pre-v11 SSR site's
+ * `/fa` prefix (fa has no visible prefix) and `/request`, the frozen Header CTA path whose form lives at
+ * /contact. 308 = permanent (01-sources/REDIRECTS.md prefers 308; search engines treat it as a 301).
+ */
+export const LEGACY_PERMANENT_RULES = ["/fa / 308", "/fa/* /:splat 308", "/request /contact 308", "/en/request /en/contact 308", "/ar/request /ar/contact 308"] as const;
+
+/** `_redirects`: the fixed legacy rules, the catalog's slug-change register, then the temporary unpublished-locale rules. */
+export function buildRedirectsFile(routeRedirects: readonly RouteRedirectInput[] = []): string {
+  return [...LEGACY_PERMANENT_RULES, ...routeRedirectRules(routeRedirects), ...unpublishedCalculatorRedirects(), ...unpublishedPricePageRedirects(), ...unpublishedExportRedirects(), ""].join("\n");
 }
 
 /** `.assetsignore`: defence in depth — these must never be uploaded even if present (the artifact gate also rejects them). */

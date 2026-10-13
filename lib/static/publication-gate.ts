@@ -12,7 +12,8 @@ import { publicManifest, publicRfqCatalog, publicRfqCatalogItem } from "../contr
  *    public contracts). Any other field — cost, supplier, margin, stock,
  *    purchase price, partner data, internal ids — blocks.
  * 2. JSON-LD in HTML: only the allowed schema.org types and properties
- *    (Organization, WebSite, BreadcrumbList, Product WITHOUT offers/price).
+ *    (Organization, LocalBusiness, WebSite, BreadcrumbList, FAQPage,
+ *    Product WITHOUT offers/price).
  * 3. Internal ids: no DB_PUBLIC row id and no legacy Odoo XID
  *    (`ahanassa_marketplace.…`) anywhere in public text. The only public
  *    identities are canonical_id (CVAR) and canonical_template_id (CTMPL).
@@ -33,13 +34,15 @@ export const PUBLIC_JSON_ALLOWLIST: ReadonlyArray<{ pattern: RegExp; keys: Reado
   { pattern: /^manifest\.public\.json$/, keys: keysOf(publicManifest) },
 ];
 
-export const JSONLD_ALLOWED_TYPES: ReadonlySet<string> = new Set(["Organization", "WebSite", "BreadcrumbList", "ListItem", "PostalAddress", "ContactPoint", "Product"]);
+export const JSONLD_ALLOWED_TYPES: ReadonlySet<string> = new Set(["Organization", "LocalBusiness", "WebSite", "BreadcrumbList", "ListItem", "PostalAddress", "ContactPoint", "Product", "FAQPage", "Question", "Answer"]);
 export const JSONLD_ALLOWED_KEYS: ReadonlySet<string> = new Set([
   "@context", "@graph", "@id", "@type",
   "name", "alternateName", "url", "logo", "description", "publisher",
   "address", "streetAddress", "addressLocality", "addressCountry",
   "contactPoint", "telephone", "contactType", "areaServed",
   "itemListElement", "position", "item",
+  // W16.2 (D-SEO): LocalBusiness + FAQPage. Still never offers/price/priceRange/geo/openingHours/postalCode.
+  "image", "parentOrganization", "mainEntity", "acceptedAnswer", "text",
 ]);
 
 const LEGACY_XID = /ahanassa_marketplace\.[a-z0-9_]+/g;

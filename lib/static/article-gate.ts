@@ -15,7 +15,9 @@ import { visibleText } from "./price-gate.ts";
  * 2. ar: no factory or delivery location of this snapshot's prices (ar = price + date only);
  * 3. no external image: every <img src>, <source srcset>, og:image / twitter:image and CSS url() is a
  *    file of this site (root-relative or on the production origin) — the link check proves it exists;
- * 4. no JSON-LD on article pages (owner 2026-10-09: structured data waits for the SEO phase).
+ * 4. JSON-LD on article pages is the SEO phase's (W16.2) breadcrumb + FAQ only: any other schema type
+ *    (Article, NewsArticle, Product, Offer, …) blocks until it is decided (owner 2026-10-09 held all
+ *    structured data for the SEO phase; W16.2 opened exactly these two).
  *
  * The private price-source names are refused in every public file by the source-name scan. Pure.
  */
@@ -64,6 +66,26 @@ export function mainTextBlocks(html: string): string[] {
     .filter(Boolean);
 }
 
+/** W16.2: the only schema.org types an article page may carry (its visible breadcrumb trail and FAQ). */
+export const ARTICLE_JSONLD_TYPES: ReadonlySet<string> = new Set(["BreadcrumbList", "ListItem", "FAQPage", "Question", "Answer"]);
+
+/** Every `@type` value in the page's JSON-LD blocks; an unparseable block yields "unparseable". */
+function jsonLdTypes(html: string): string[] {
+  const types: string[] = [];
+  const walk = (v: unknown): void => {
+    if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === "object") for (const [k, child] of Object.entries(v)) k === "@type" ? types.push(String(child)) : walk(child);
+  };
+  for (const m of html.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
+    try {
+      walk(JSON.parse(m[1]));
+    } catch {
+      types.push("unparseable");
+    }
+  }
+  return types;
+}
+
 export function scanArticlePages(files: ReadonlyArray<{ path: string; content: string }>, prices: readonly PublishedPriceRow[]): ArticleFinding[] {
   const findings: ArticleFinding[] = [];
   const names = [...new Set(prices.flatMap((p) => [p.factory_name_fa, p.location_fa]))];
@@ -76,7 +98,7 @@ export function scanArticlePages(files: ReadonlyArray<{ path: string; content: s
     if (locale === "ar") for (const match of arPlaceFindings([content], names)) findings.push({ file: path, kind: "article_place_on_ar", match });
     if (!path.endsWith(".html")) continue;
     for (const url of externalImages(content)) findings.push({ file: path, kind: "article_external_image", match: url });
-    if (/application\/ld\+json/i.test(content)) findings.push({ file: path, kind: "article_json_ld", match: "application/ld+json" });
+    for (const type of jsonLdTypes(content)) if (!ARTICLE_JSONLD_TYPES.has(type)) findings.push({ file: path, kind: "article_json_ld", match: type });
   }
   return findings;
 }
