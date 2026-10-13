@@ -3,6 +3,8 @@ export interface ImageVariantEntry {
   readonly width: number;
   readonly height: number;
   readonly widths: readonly number[];
+  /** JPEG fallbacks (the brand mark only). */
+  readonly jpegWidths?: readonly number[];
 }
 
 export const IMAGE_VARIANTS: Readonly<Record<string, ImageVariantEntry>> = {
@@ -33,4 +35,5 @@ export const IMAGE_VARIANTS: Readonly<Record<string, ImageVariantEntry>> = {
   "/images/products/u channel.jpg": { width: 800, height: 600, widths: [320, 480, 640, 800] },
   "/images/products/u-channel.png": { width: 1024, height: 768, widths: [320, 480, 640, 800, 960] },
   "/images/products/wire-rod.png": { width: 1024, height: 768, widths: [320, 480, 640, 800, 960] },
+  "/brand/ahan-asa-mark.jpg": { width: 4500, height: 4500, widths: [32, 64, 96], jpegWidths: [96, 512] },
 };

@@ -4,7 +4,8 @@
  *   node scripts/images/build-variants.ts
  *
  * Reads each original in lib/media/image-sources.ts#OPTIMIZED_IMAGE_SOURCES from
- * public/_originals/<public path>, writes <slug>-<w>w.{avif,webp} next to where the
+ * public/_originals/<public path>, writes <slug>-<w>w.{avif,webp} (plus the role's JPEG
+ * fallbacks, <slug>-<w>w.jpg) next to where the
  * original used to be under public/, removes variants no longer produced, and
  * regenerates lib/media/image-variants.generated.ts. Run it after adding or
  * replacing an original; commit the outputs. Fails if any variant exceeds its
@@ -13,7 +14,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import sharpModule from "sharp";
-import { IMAGE_BUDGET_BYTES, IMAGE_ENCODE, IMAGE_FORMATS, OPTIMIZED_IMAGE_SOURCES, ORIGINALS_DIR, publishedFrame, variantPath, variantWidths } from "../../lib/media/image-sources.ts";
+import { IMAGE_BUDGET_BYTES, IMAGE_ENCODE, IMAGE_FORMATS, IMAGE_JPEG_WIDTHS, OPTIMIZED_IMAGE_SOURCES, ORIGINALS_DIR, publishedFrame, variantPath, variantWidths } from "../../lib/media/image-sources.ts";
 
 // sharp 0.35's ESM typings resolve to `unknown` under this tsconfig (same as lib/articles/cover-raster.ts); the calls used here, typed.
 interface SharpPipeline {
@@ -22,14 +23,15 @@ interface SharpPipeline {
   resize(options: { width: number; height: number; fit: "cover"; position: "centre"; withoutEnlargement: boolean }): SharpPipeline;
   avif(options: object): SharpPipeline;
   webp(options: object): SharpPipeline;
+  jpeg(options: object): SharpPipeline;
   toBuffer(): Promise<Buffer>;
 }
 const sharp = sharpModule as unknown as (input: string, options?: { failOn: "none" }) => SharpPipeline;
 
 const repo = path.resolve(import.meta.dirname, "../..");
-const VARIANT_NAME = /-\d+w\.(avif|webp)$/;
+const VARIANT_NAME = /-\d+w\.(avif|webp|jpg)$/;
 
-const entries: Record<string, { width: number; height: number; widths: number[] }> = {};
+const entries: Record<string, { width: number; height: number; widths: number[]; jpegWidths: number[] }> = {};
 const written = new Set<string>();
 const overBudget: string[] = [];
 let total = 0;
@@ -42,21 +44,22 @@ for (const [src, role] of Object.entries(OPTIMIZED_IMAGE_SOURCES)) {
   // The published frame: the original, or its centred crop at the role's aspect (what object-cover showed).
   const { width, height } = publishedFrame(role, meta.width, meta.height);
   const widths = variantWidths(role, width);
-  for (const w of widths) {
-    for (const format of IMAGE_FORMATS) {
-      const pipeline = sharp(original, { failOn: "none" }).rotate().resize({ width: w, height: Math.round((w * height) / width), fit: "cover", position: "centre", withoutEnlargement: true });
-      const bytes = await (format === "avif" ? pipeline.avif(IMAGE_ENCODE[role].avif) : pipeline.webp(IMAGE_ENCODE[role].webp)).toBuffer();
-      const rel = variantPath(src, w, format);
-      const out = path.join(repo, "public", rel);
-      fs.mkdirSync(path.dirname(out), { recursive: true });
-      fs.writeFileSync(out, bytes);
-      written.add(out);
-      total += bytes.length;
-      if (bytes.length > IMAGE_BUDGET_BYTES[role][format]) overBudget.push(`${rel}: ${bytes.length} B > ${role} ${format} budget ${IMAGE_BUDGET_BYTES[role][format]} B`);
-    }
+  const jpegWidths = (IMAGE_JPEG_WIDTHS[role] ?? []).filter((w) => w <= width);
+  const jobs = [...widths.flatMap((w) => IMAGE_FORMATS.map((format) => [w, format] as const)), ...jpegWidths.map((w) => [w, "jpg"] as const)];
+  for (const [w, format] of jobs) {
+    const pipeline = sharp(original, { failOn: "none" }).rotate().resize({ width: w, height: Math.round((w * height) / width), fit: "cover", position: "centre", withoutEnlargement: true });
+    const encode = IMAGE_ENCODE[role];
+    const bytes = await (format === "avif" ? pipeline.avif(encode.avif) : format === "webp" ? pipeline.webp(encode.webp) : pipeline.jpeg(encode.jpg ?? {})).toBuffer();
+    const rel = variantPath(src, w, format);
+    const out = path.join(repo, "public", rel);
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(out, bytes);
+    written.add(out);
+    total += bytes.length;
+    if (bytes.length > IMAGE_BUDGET_BYTES[role][format]) overBudget.push(`${rel}: ${bytes.length} B > ${role} ${format} budget ${IMAGE_BUDGET_BYTES[role][format]} B`);
   }
-  entries[src] = { width, height, widths };
-  console.log(`${src} (${role}, ${meta.width}x${meta.height} -> ${width}x${height}) -> ${widths.join(", ")}`);
+  entries[src] = { width, height, widths, jpegWidths };
+  console.log(`${src} (${role}, ${meta.width}x${meta.height} -> ${width}x${height}) -> ${widths.join(", ")}${jpegWidths.length ? ` + jpg ${jpegWidths.join(", ")}` : ""}`);
 }
 
 // Remove variants of sources that were dropped or re-laddered.
@@ -71,12 +74,12 @@ for (const dir of new Set([...written].map((f) => path.dirname(f)))) {
 }
 
 const body = Object.entries(entries)
-  .map(([src, e]) => `  ${JSON.stringify(src)}: { width: ${e.width}, height: ${e.height}, widths: [${e.widths.join(", ")}] },`)
+  .map(([src, e]) => `  ${JSON.stringify(src)}: { width: ${e.width}, height: ${e.height}, widths: [${e.widths.join(", ")}]${e.jpegWidths.length ? `, jpegWidths: [${e.jpegWidths.join(", ")}]` : ""} },`)
   .join("\n");
 fs.writeFileSync(
   path.join(repo, "lib/media/image-variants.generated.ts"),
   `// GENERATED by scripts/images/build-variants.ts — do not edit. Published frame (the original, or its role crop) and the variant widths written to public/.\n` +
-    `export interface ImageVariantEntry {\n  readonly width: number;\n  readonly height: number;\n  readonly widths: readonly number[];\n}\n\n` +
+    `export interface ImageVariantEntry {\n  readonly width: number;\n  readonly height: number;\n  readonly widths: readonly number[];\n  /** JPEG fallbacks (the brand mark only). */\n  readonly jpegWidths?: readonly number[];\n}\n\n` +
     `export const IMAGE_VARIANTS: Readonly<Record<string, ImageVariantEntry>> = {\n${body}\n};\n`,
 );
 console.log(`${written.size} variant files, ${(total / 1024 / 1024).toFixed(2)} MB`);

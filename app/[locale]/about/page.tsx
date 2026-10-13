@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import Image from "@/components/ui/image";
 import { isLocale, localizedPath, type Locale } from "@/config/locales";
 import { buildPageMetadata } from "@/lib/metadata/resolve";
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";

@@ -17,6 +17,7 @@ import { variantPath, type ImageFormat } from "@/lib/media/image-sources";
  *   box is reserved before load; `fill` additionally covers the positioned parent.
  *
  * A `src` with no variants (the SVG placeholder) renders a plain `<img>`.
+ * Without `fill`, `sizes` defaults to the rendered width (`32px` for the footer mark).
  */
 type ImageProps = Omit<ComponentProps<"img">, "src" | "width" | "height" | "loading" | "srcSet"> & {
   src: string;
@@ -52,8 +53,9 @@ export default function Image({ src, alt, fill, width, height, sizes, priority, 
   const srcSet = (format: ImageFormat) => entry.widths.map((w) => `${variantPath(key, w, format)} ${w}w`).join(", ");
   const resolvedSizes = sizes ?? (fill ? "100vw" : `${width ?? entry.width}px`);
   const avif = srcSet("avif");
-  // Fallback for a browser that ignores both <source>s: the WebP closest to 960 wide.
+  // Fallback for a browser that ignores both <source>s: the role's smallest JPEG if it has one (the brand mark), else the WebP closest to 960 wide.
   const fallbackWidth = [...entry.widths].reverse().find((w) => w <= 960) ?? entry.widths[0];
+  const fallbackSrc = entry.jpegWidths?.length ? variantPath(key, entry.jpegWidths[0], "jpg") : variantPath(key, fallbackWidth, "webp");
 
   if (priority) preload(variantPath(key, fallbackWidth, "avif"), { as: "image", imageSrcSet: avif, imageSizes: resolvedSizes, type: "image/avif", fetchPriority: "high" });
 
@@ -62,7 +64,7 @@ export default function Image({ src, alt, fill, width, height, sizes, priority, 
       <source type="image/avif" srcSet={avif} sizes={resolvedSizes} />
       <source type="image/webp" srcSet={srcSet("webp")} sizes={resolvedSizes} />
       <img
-        src={variantPath(key, fallbackWidth, "webp")}
+        src={fallbackSrc}
         alt={alt}
         width={width ?? entry.width}
         height={height ?? (width ? Math.round((width * entry.height) / entry.width) : entry.height)}
