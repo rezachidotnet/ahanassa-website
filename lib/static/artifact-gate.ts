@@ -8,6 +8,7 @@ import { priceGateInput, scanPrices } from "./price-gate.ts";
 import { loadSourceNames, redactSourceNames, scanSourceNames } from "./source-name-scan.ts";
 import { scanArticlePages } from "./article-gate.ts";
 import { STATIC_TARGETS, TURNSTILE_ORIGIN } from "./targets.ts";
+import { checkStaticCacheRules } from "./static-rules.ts";
 import { checkIndexingPolicy, PRODUCTION_ORIGIN } from "./indexing-gate.ts";
 
 /**
@@ -144,6 +145,8 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
     const connect = /connect-src ([^;\n]*)/.exec(headers)?.[1]?.trim().split(/\s+/) ?? [];
     const expected = ["'self'", TURNSTILE_ORIGIN, origin];
     if (connect.length !== expected.length || expected.some((e) => !connect.includes(e))) failures.push(`_headers: CSP connect-src must be exactly ${expected.join(" ")} (got ${connect.join(" ") || "none"})`);
+    // W10.6: immutable caching names each /_next/static/ file; a wildcard would also cache a chunk's 404 for a year.
+    failures.push(...checkStaticCacheRules(headers, publicEntries.map((e) => e.path)));
     // The static /contact posts to that same origin, in every locale.
     for (const page of ["contact.html", "en/contact.html", "ar/contact.html"]) {
       if (publicPaths.has(page) && !readPublic(page).includes(`${origin}/api/rfqs`)) failures.push(`${page}: RFQ endpoint is not ${origin}/api/rfqs`);

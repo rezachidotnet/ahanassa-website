@@ -130,3 +130,33 @@ test("rfq_submit.v1 check: unknown keys (order, nesting) and seeded random multi
     assertSame(body, `random #${i}`);
   }
 });
+
+test("rfq_submit.v1 check: attachments (D-RFQ-FILE) field x value battery, shapes and array sizes give zod's issues", () => {
+  const file = { name: "list.xlsx", size: 1024 };
+  for (const value of BATTERY) {
+    assertSame({ ...valid(), attachments: value === undefined ? undefined : roundTrip(value) }, "attachments");
+    for (const key of ["name", "size", "extra"]) {
+      const a: Record<string, unknown> = { ...file };
+      if (value === undefined) delete a[key];
+      else a[key] = roundTrip(value);
+      assertSame({ ...valid(), attachments: [a, file] }, `attachment ${key}`);
+    }
+  }
+  for (const attachments of [[], [file], [null], ["x"], {}, Array.from({ length: 5 }, () => file), Array.from({ length: 6 }, () => file), [{ name: "", size: 0 }], [{ name: "a.pdf", size: 15 * 1024 * 1024 }], [{ name: "a.pdf", size: 15 * 1024 * 1024 + 1 }], [{ name: "a.pdf", size: 1.5 }]]) {
+    assertSame({ ...valid(), attachments }, `attachments ${JSON.stringify(attachments).slice(0, 40)}`);
+  }
+  assert.equal(checkRfqSubmitRequest({ ...valid(), attachments: [file] }).success, true);
+});
+
+test("rfq_submit.v1 check: file-only RFQ — no item rows is valid only with at least one declared file, in both", () => {
+  const file = [{ name: "list.xlsx", size: 100 }];
+  for (const [items, attachments, ok] of [[[], file, true], [[], [], false], [[], undefined, false]] as const) {
+    const input = { ...valid(), items, ...(attachments === undefined ? {} : { attachments }) };
+    assertSame(input, `items=[] attachments=${JSON.stringify(attachments)}`);
+    assert.equal(checkRfqSubmitRequest(input).success, ok);
+  }
+  // with other errors: zod 4 still reports it after continuable issues, and skips it after aborting ones — so does the check
+  for (const extra of [{ fullName: "" }, { fullName: 5 }, { locale: "de" }, { zzz: 1 }, { email: "x" }, { fullName: s(101) }, { attachments: "x" }, { attachments: [{ name: "", size: 1 }] }]) {
+    assertSame({ ...valid(), items: [], ...extra }, `items=[] + ${JSON.stringify(extra).slice(0, 40)}`);
+  }
+});

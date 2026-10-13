@@ -266,7 +266,12 @@ function validateItem(raw: unknown, index: number, errors: Record<string, string
   };
 }
 
-export function validateRfqSubmission(input: unknown): ValidationResult {
+/**
+ * `allowFileOnly` (RFQ Worker only): an RFQ without item rows is valid when it
+ * declares files (owner decision 2026-10-13). The legacy SSR route keeps the
+ * default and never takes files, so it still requires a row.
+ */
+export function validateRfqSubmission(input: unknown, options: { allowFileOnly?: boolean } = {}): ValidationResult {
   const errors: Record<string, string[]> = {};
 
   if (typeof input !== "object" || input === null) {
@@ -349,7 +354,9 @@ export function validateRfqSubmission(input: unknown): ValidationResult {
   }
 
   const itemsRaw = Array.isArray(body.items) ? body.items : [];
-  if (itemsRaw.length === 0) {
+  // File-only RFQ: no rows only when files are declared (the RFQ Worker checks the files themselves).
+  const hasFiles = Boolean(options.allowFileOnly) && Array.isArray(body.attachments) && body.attachments.length > 0;
+  if (itemsRaw.length === 0 && !hasFiles) {
     pushError(errors, "items", "required");
   } else if (itemsRaw.length > MAX_ITEMS) {
     pushError(errors, "items", "too_many");

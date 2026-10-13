@@ -3,19 +3,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Script from "next/script";
 import { Plus, ChevronDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { controlClass, labelClass, textareaClass } from "@/components/ui/form-control";
 import type { Locale } from "@/config/locales";
 import type { RfqItemInput } from "@/lib/rfq/types";
-import type { RfqCatalogSelection } from "@/lib/catalog/editorial-repository";
-import type { RfqRowPrefill } from "@/lib/rfq/rfq-prefill";
 import { createIdempotencyKeyLifecycle } from "@/lib/rfq/idempotency-key-lifecycle";
 import { TURNSTILE_RFQ_ACTION } from "@/lib/security/turnstile-action";
-import { findCatalogItemByXid, groupCatalogItemsForSelector, type PublicRfqCatalogItem } from "@/lib/rfq/catalog-selector";
+import { groupCatalogItemsForSelector, type PublicRfqCatalogItem } from "@/lib/rfq/catalog-selector";
 import {
   buildRfqItemInput,
-  createCatalogRowFromSelection,
   createEmptyCatalogRow,
+  isRfqRowEmpty,
   validateRfqRow,
   MAX_ITEMS,
   type RfqRow,
@@ -27,6 +25,10 @@ import { getDefaultPhoneCountry, getCountryLabel, PHONE_COUNTRIES } from "@/lib/
 import { normalizeDigits } from "@/lib/rfq/quantity";
 import { submitRfqWithRetry } from "@/lib/rfq/submit-with-retry";
 import { RfqSuccessPanel, RFQ_SUBMITTED_ATTR } from "@/components/contact/rfq-success-panel";
+import { clearRfqBasket, writeRfqBasket, EMPTY_RFQ_CUSTOMER, type RfqBasketAddOutcome, type RfqBasketCustomer } from "@/lib/rfq/rfq-basket";
+import { RfqFilesField, type RfqFileError } from "@/components/contact/rfq-files-field";
+import { checkDeclaredFile, checkFileBytes, MAX_RFQ_FILES, sanitizeFilename, type RfqFileRejection } from "@/lib/rfq/attachment-policy";
+import { uploadRfqFiles } from "@/lib/rfq/upload-files";
 
 /**
  * Multi-item RFQ / purchase-list form (docs/RFQ_MULTI_ITEM_FORM.md).
@@ -36,10 +38,12 @@ import { RfqSuccessPanel, RFQ_SUBMITTED_ATTR } from "@/components/contact/rfq-su
  * that prior implementation; only the items array is now data-driven and
  * user-editable instead of a fixed one-item shape.
  *
- * Deliberately has no file upload — attachment handling stays disabled
- * until a scanning pipeline is selected (PROJECT_OVERRIDES.md §8 item 8);
- * this task's own instruction is explicit: never render a fake/accepting
- * upload control.
+ * D-RFQ-FILE (docs/RFQ_FILE_UPLOAD.md): an optional «بارگذاری لیست اقلام»
+ * card (components/contact/rfq-files-field.tsx), shown only when
+ * `filesEndpoint` is set — i.e. the RFQ Worker reported upload as enabled.
+ * Files are checked in the browser with the server's own policy, declared
+ * (name + size) in the RFQ, and sent one by one only after the RFQ is
+ * accepted; the success panel still shows only the tracking number.
  */
 
 interface TurnstileRenderOptions {
@@ -94,6 +98,9 @@ const copy: Record<
     requiredMark: string;
     phoneRequired: string; phoneInvalid: string;
     turnstileVerifying: string; turnstileInteractive: string; turnstileFailed: string;
+    continueBrowsing: string;
+    basketNotice: Record<RfqBasketAddOutcome, string>;
+    uploadingFiles: (done: number, total: number) => string;
   }
 > = {
   fa: {
@@ -129,6 +136,13 @@ const copy: Record<
     turnstileVerifying: "در حال انجام تأیید امنیتی…",
     turnstileInteractive: "برای فعال شدن ارسال درخواست، تأیید امنیتی را تکمیل کنید.",
     turnstileFailed: "تأیید امنیتی کامل نشد. لطفاً دوباره تلاش کنید.",
+    continueBrowsing: "ادامه انتخاب محصول",
+    uploadingFiles: (done, total) => `در حال ارسال فایل‌ها (${done} از ${total})…`,
+    basketNotice: {
+      added: "محصول به لیست درخواست شما اضافه شد.",
+      existing: "این محصول از قبل در لیست درخواست شما هست.",
+      full: "لیست به حداکثر ۲۰ ردیف رسیده است؛ این محصول اضافه نشد.",
+    },
   },
   en: {
     customerInfoTitle: "Your information",
@@ -163,6 +177,13 @@ const copy: Record<
     turnstileVerifying: "Running security verification…",
     turnstileInteractive: "Complete the security verification to enable sending your request.",
     turnstileFailed: "Security verification did not complete. Please try again.",
+    continueBrowsing: "Continue browsing",
+    uploadingFiles: (done, total) => `Uploading files (${done} of ${total})…`,
+    basketNotice: {
+      added: "The product was added to your request list.",
+      existing: "This product is already in your request list.",
+      full: "Your list already has the maximum of 20 rows; this product was not added.",
+    },
   },
   ar: {
     customerInfoTitle: "معلوماتك",
@@ -197,6 +218,13 @@ const copy: Record<
     turnstileVerifying: "جارٍ إجراء التحقق الأمني…",
     turnstileInteractive: "أكمل التحقق الأمني لتفعيل إرسال الطلب.",
     turnstileFailed: "لم يكتمل التحقق الأمني. يرجى المحاولة مرة أخرى.",
+    continueBrowsing: "متابعة اختيار المنتجات",
+    uploadingFiles: (done, total) => `جارٍ رفع الملفات (${done} من ${total})…`,
+    basketNotice: {
+      added: "تمت إضافة المنتج إلى قائمة طلبك.",
+      existing: "هذا المنتج موجود بالفعل في قائمة طلبك.",
+      full: "وصلت القائمة إلى الحد الأقصى (20 صفًا)؛ لم تتم إضافة هذا المنتج.",
+    },
   },
 };
 
@@ -222,7 +250,7 @@ function RequiredMark({ srLabel }: { srLabel: string }) {
   );
 }
 
-type Status = "idle" | "submitting" | "success" | "error";
+type Status = "idle" | "submitting" | "uploading" | "success" | "error";
 
 function generateIdempotencyKey(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -232,27 +260,46 @@ function generateIdempotencyKey(): string {
 export function EnquiryForm({
   locale,
   turnstileSiteKey,
-  catalogPreselection = null,
+  initialRows,
+  initialCustomer,
+  focusRowId = null,
+  basketNotice = null,
+  persistBasket = false,
+  continueBrowsingHref,
   catalogPreselectionInvalid = false,
-  catalogPreselectionPrefill,
   catalogItems = [],
   catalogSnapshotVersion = null,
   rfqEndpoint = "/api/rfqs",
+  filesEndpoint = null,
 }: {
   locale: Locale;
   turnstileSiteKey?: string;
-  /** The `?variant=` value resolved against `catalogItems` (StaticEnquiryForm) — only ever a Variant from that published list, never a raw URL value (docs/CATALOG_RFQ_INTEGRATION.md). The server re-validates every submitted variant. */
-  catalogPreselection?: Pick<RfqCatalogSelection, "variantXid" | "templateXid"> | null;
+  /**
+   * W10.5 basket (lib/rfq/rfq-basket.ts): the rows to start with — the visitor's stored rows plus the
+   * `?variant=` item (resolved against `catalogItems` only, never a raw URL value), built by
+   * StaticEnquiryForm. Without it the form starts with one blank row. The server re-validates every variant.
+   */
+  initialRows?: RfqRow[];
+  /** The customer fields the visitor already typed in this tab (sessionStorage). */
+  initialCustomer?: RfqBasketCustomer;
+  /** The row the `?variant=` hand-off added or found (same variant → no duplicate): scrolled to and focused on mount. */
+  focusRowId?: string | null;
+  /** Shown when the hand-off joined an existing list ("added"), matched a row ("existing") or hit MAX_ITEMS ("full"). */
+  basketNotice?: RfqBasketAddOutcome | null;
+  /** Keep rows + customer fields in sessionStorage. Off until StaticEnquiryForm has restored the stored basket, so the first render can never overwrite it. */
+  persistBasket?: boolean;
+  /** «ادامه انتخاب محصول»: the safe same-origin page the visitor came from, else /products (resolveContinueBrowsingHref). */
+  continueBrowsingHref?: string;
   /** True when a `?variant=` was present in the URL but did not resolve to a real, currently RFQ-eligible Variant. */
   catalogPreselectionInvalid?: boolean;
-  /** Quantity/unit/length for the preselected row (`?qty=&unit=&length=`, the weight calculator hand-off), already validated by lib/rfq/rfq-prefill.ts against the Variant's group policy — the same row fields a visitor types; nothing new is submitted. */
-  catalogPreselectionPrefill?: RfqRowPrefill;
   /** Every RFQ-selectable Catalog Variant for this locale (`/data/rfq-catalog.<locale>.json`), loaded once and shared across every Catalog row's selects — never re-fetched per row (docs/RFQ_MULTI_ITEM_FORM.md "Performance"). */
   catalogItems?: PublicRfqCatalogItem[];
   /** snapshot.v1 version of the deployed static catalog (manifest.public.json); null on the legacy SSR runtime. */
   catalogSnapshotVersion?: string | null;
   /** rfq_submit.v1 endpoint: the RFQ Worker origin + /api/rfqs on the static site; same-origin /api/rfqs on the legacy SSR runtime. */
   rfqEndpoint?: string;
+  /** D-RFQ-FILE: `<rfqEndpoint>/files` when the RFQ Worker reports upload as enabled; null = no file field. */
+  filesEndpoint?: string | null;
 }) {
   const [status, setStatus] = useState<Status>("idle");
   const [reference, setReference] = useState<string | null>(null);
@@ -261,16 +308,7 @@ export function EnquiryForm({
   const [turnstileScriptLoaded, setTurnstileScriptLoaded] = useState(false);
   /** UI-only status for explaining the disabled Submit button while Turnstile hasn't produced a token yet — never affects whether Submit is actually enabled (that remains solely `Boolean(turnstileToken)`, unchanged). */
   const [turnstileStatus, setTurnstileStatus] = useState<"verifying" | "interactive" | "failed" | "success">("verifying");
-  const [rows, setRows] = useState<RfqRow[]>(() => [
-    catalogPreselection
-      ? createCatalogRowFromSelection({
-          // The selector groups by public category; the preselected Variant is always in `catalogItems` (same eligibility predicate), so its group is read from there — no extra query.
-          categoryCode: findCatalogItemByXid(catalogItems, catalogPreselection.variantXid)?.publicCategoryCode ?? null,
-          templateXid: catalogPreselection.templateXid,
-          variantXid: catalogPreselection.variantXid,
-        }, catalogPreselectionPrefill)
-      : createEmptyCatalogRow(),
-  ]);
+  const [rows, setRows] = useState<RfqRow[]>(() => (initialRows && initialRows.length > 0 ? initialRows : [createEmptyCatalogRow()]));
   const [rowErrors, setRowErrors] = useState<Record<string, RfqRowFieldKey[]>>({});
   const idempotencyKeyRef = useRef(createIdempotencyKeyLifecycle(generateIdempotencyKey));
   const formRenderedAtRef = useRef(Date.now());
@@ -278,8 +316,22 @@ export function EnquiryForm({
   const turnstileWidgetIdRef = useRef<string | null>(null);
   const rowElementRefs = useRef<Record<string, HTMLElement | null>>({});
   const t = copy[locale];
-  const [phoneCountry, setPhoneCountry] = useState<string>(() => getDefaultPhoneCountry(locale)?.iso2 ?? "");
-  const [phoneLocal, setPhoneLocal] = useState("");
+  const [phoneCountry, setPhoneCountry] = useState<string>(() =>
+    initialCustomer?.phoneCountry && PHONE_COUNTRIES.some((c) => c.iso2 === initialCustomer.phoneCountry) ? initialCustomer.phoneCountry : (getDefaultPhoneCountry(locale)?.iso2 ?? ""),
+  );
+  const [phoneLocal, setPhoneLocal] = useState(() => normalizeDigits(initialCustomer?.phoneLocal ?? "").replace(/[^\d]/g, ""));
+  // Controlled since W10.5 so they can be kept in the basket; the submitted values are unchanged (still read via FormData).
+  const [customerText, setCustomerText] = useState(() => ({
+    name: initialCustomer?.name ?? "",
+    company: initialCustomer?.company ?? "",
+    email: initialCustomer?.email ?? "",
+    message: initialCustomer?.message ?? "",
+  }));
+  const [notice, setNotice] = useState<RfqBasketAddOutcome | null>(basketNotice);
+  // D-RFQ-FILE: chosen files (memory only — never stored) and the reasons any were refused.
+  const [files, setFiles] = useState<File[]>([]);
+  const [fileErrors, setFileErrors] = useState<RfqFileError[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const [referenceCopied, setReferenceCopied] = useState(false);
   const successHeadingRef = useRef<HTMLHeadingElement>(null);
   const succeeded = status === "success" && reference !== null;
@@ -305,6 +357,18 @@ export function EnquiryForm({
       () => setReferenceCopied(false),
     );
   }, [reference]);
+
+  // W10.5 basket: keep rows + customer fields in this tab only (sessionStorage) — never sent anywhere before submit.
+  useEffect(() => {
+    if (!persistBasket || status === "success") return;
+    writeRfqBasket(locale, { rows: rows.map((r) => r.fields), customer: { ...EMPTY_RFQ_CUSTOMER, ...customerText, phoneCountry, phoneLocal } });
+  }, [persistBasket, status, locale, rows, customerText, phoneCountry, phoneLocal]);
+
+  // The `?variant=` hand-off's row (new, or the existing one for the same variant): bring it into view once.
+  useEffect(() => {
+    if (focusRowId) scrollToRow(focusRowId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const catalogGroups = useMemo(() => groupCatalogItemsForSelector(catalogItems, locale), [catalogItems, locale]);
 
@@ -422,6 +486,11 @@ export function EnquiryForm({
     });
   }
 
+  function updateCustomerText(key: keyof typeof customerText, value: string) {
+    regenerateIdempotencyKey();
+    setCustomerText((prev) => ({ ...prev, [key]: value }));
+  }
+
   function addRow() {
     regenerateIdempotencyKey();
     setRows((prev) => (prev.length >= MAX_ITEMS ? prev : [...prev, createEmptyCatalogRow()]));
@@ -436,6 +505,44 @@ export function EnquiryForm({
       delete next[id];
       return next;
     });
+  }
+
+  /** Same checks as the RFQ Worker (lib/rfq/attachment-policy.ts), so a refused file is explained before anything is sent. */
+  async function addFiles(picked: File[]) {
+    regenerateIdempotencyKey();
+    const next = [...files];
+    const errors: RfqFileError[] = [];
+    for (const file of picked) {
+      if (next.some((f) => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified)) continue;
+      if (next.length >= MAX_RFQ_FILES) {
+        errors.push({ name: file.name, reason: "too_many_files" });
+        continue;
+      }
+      const declared = checkDeclaredFile(file);
+      if (!declared.ok) {
+        errors.push({ name: file.name, reason: declared.reason });
+        continue;
+      }
+      try {
+        const verdict = checkFileBytes(new Uint8Array(await file.arrayBuffer()), file.name);
+        if (!verdict.ok) {
+          errors.push({ name: file.name, reason: verdict.reason });
+          continue;
+        }
+      } catch {
+        errors.push({ name: file.name, reason: "read_error" });
+        continue;
+      }
+      next.push(file);
+    }
+    setFiles(next);
+    setFileErrors(errors);
+  }
+
+  function removeFile(index: number) {
+    regenerateIdempotencyKey();
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+    setFileErrors([]);
   }
 
   function scrollToRow(id: string) {
@@ -459,7 +566,11 @@ export function EnquiryForm({
     // rather than a generic error.
     const nextRowErrors: Record<string, RfqRowFieldKey[]> = {};
     let firstInvalidId: string | null = null;
+    // File-only RFQ (owner decision 2026-10-13): with at least one accepted file, untouched rows are
+    // simply not sent; a row the customer started must still be complete.
+    const fileOnlyAllowed = Boolean(filesEndpoint) && files.length > 0;
     for (const row of rows) {
+      if (fileOnlyAllowed && isRfqRowEmpty(row.fields)) continue;
       const errs = validateRfqRow(row.fields);
       if (errs.length > 0) {
         nextRowErrors[row.id] = errs;
@@ -476,8 +587,10 @@ export function EnquiryForm({
 
     const items: RfqItemInput[] = rows.map((row) => buildRfqItemInput(row.fields, locale)).filter((item): item is RfqItemInput => item !== null);
 
+    const idempotencyKey = idempotencyKeyRef.current.current();
+    const sendFiles = filesEndpoint ? files : [];
     const payload = {
-      idempotencyKey: idempotencyKeyRef.current.current(),
+      idempotencyKey,
       locale,
       fullName: String(data.get("name") ?? ""),
       companyName: String(data.get("company") ?? ""),
@@ -490,10 +603,13 @@ export function EnquiryForm({
       formRenderedAt: formRenderedAtRef.current,
       turnstileToken: turnstileToken ?? undefined,
       catalogSnapshotVersion,
+      // Declared with the RFQ (part of its fingerprint); the bytes follow once it is accepted.
+      attachments: sendFiles.length ? sendFiles.map((f) => ({ name: sanitizeFilename(f.name), size: f.size })) : undefined,
     };
 
     setStatus("submitting");
     setErrorMessage(null);
+    setFileErrors([]);
 
     try {
       // Network error / 5xx: up to 2 retries with the SAME body (same idempotencyKey);
@@ -501,6 +617,17 @@ export function EnquiryForm({
       const { body } = await submitRfqWithRetry(rfqEndpoint, payload);
 
       if (body?.ok) {
+        // D-RFQ-FILE: the RFQ is saved; now its files. Whatever happens to them, the visitor gets the
+        // tracking number (W10.3) — a file that did not arrive is flagged to staff in Odoo.
+        if (filesEndpoint && sendFiles.length) {
+          setStatus("uploading");
+          setUploadProgress({ done: 0, total: sendFiles.length });
+          await uploadRfqFiles(filesEndpoint, body.reference, idempotencyKey, sendFiles, { onProgress: (done, total) => setUploadProgress({ done, total }) });
+          setUploadProgress(null);
+          setFiles([]);
+        }
+        // W10.5: the request is in — the basket and the typed fields are not kept.
+        clearRfqBasket(locale);
         setReference(body.reference);
         setStatus("success");
         return;
@@ -514,6 +641,13 @@ export function EnquiryForm({
         setErrorMessage(t.serviceUnavailable);
       } else if (body?.code === "VALIDATION_ERROR") {
         setErrorMessage(t.validationError);
+        // A refused declared file (e.g. upload switched off meanwhile): say which, in the files card.
+        const refused = Object.entries(body.fieldErrors ?? {}).flatMap(([key, codes]): RfqFileError[] => {
+          if (key === "attachments") return [{ name: "", reason: "uploads_disabled" }];
+          const index = /^attachments\[(\d+)\]/.exec(key)?.[1];
+          return index === undefined ? [] : [{ name: sendFiles[Number(index)]?.name ?? "", reason: (codes[0] as RfqFileRejection) ?? "extension_not_allowed" }];
+        });
+        if (refused.length) setFileErrors(refused);
       } else {
         setErrorMessage(t.networkError);
       }
@@ -538,7 +672,11 @@ export function EnquiryForm({
     setRowErrors({});
     setPhoneCountry(getDefaultPhoneCountry(locale)?.iso2 ?? "");
     setPhoneLocal("");
+    setCustomerText({ name: "", company: "", email: "", message: "" });
+    setNotice(null);
     setReferenceCopied(false);
+    setFiles([]);
+    setFileErrors([]);
     resetTurnstile();
   }
 
@@ -546,7 +684,7 @@ export function EnquiryForm({
     return <RfqSuccessPanel locale={locale} reference={reference} copied={referenceCopied} onCopy={copyReference} headingRef={successHeadingRef} />;
   }
 
-  const submitting = status === "submitting";
+  const submitting = status === "submitting" || status === "uploading";
   const turnstileBlocking = Boolean(turnstileSiteKey) && !turnstileToken;
   const errorRowEntries = Object.entries(rowErrors);
   const rowIndexById = new Map(rows.map((r, i) => [r.id, i]));
@@ -577,20 +715,20 @@ export function EnquiryForm({
               {t.name}
               <RequiredMark srLabel={t.requiredMark} />
             </label>
-            <input id="name" name="name" required aria-required="true" autoComplete="name" placeholder={t.namePlaceholder} disabled={submitting} onChange={regenerateIdempotencyKey} className={field} />
+            <input id="name" name="name" required aria-required="true" autoComplete="name" placeholder={t.namePlaceholder} disabled={submitting} value={customerText.name} onChange={(e) => updateCustomerText("name", e.target.value)} className={field} />
           </div>
           <div className="grid gap-2">
             <label className={label} htmlFor="company">
               {t.company} <span className="text-muted-foreground font-normal normal-case tracking-normal">({t.companyOptionalSuffix})</span>
             </label>
-            <input id="company" name="company" autoComplete="organization" placeholder={t.companyPlaceholder} disabled={submitting} onChange={regenerateIdempotencyKey} className={field} />
+            <input id="company" name="company" autoComplete="organization" placeholder={t.companyPlaceholder} disabled={submitting} value={customerText.company} onChange={(e) => updateCustomerText("company", e.target.value)} className={field} />
           </div>
           <div className="grid gap-2">
             <label className={label} htmlFor="email">
               {t.email}
               <RequiredMark srLabel={t.requiredMark} />
             </label>
-            <input id="email" name="email" type="email" required aria-required="true" autoComplete="email" placeholder={t.emailPlaceholder} disabled={submitting} onChange={regenerateIdempotencyKey} className={field} />
+            <input id="email" name="email" type="email" required aria-required="true" autoComplete="email" placeholder={t.emailPlaceholder} disabled={submitting} value={customerText.email} onChange={(e) => updateCustomerText("email", e.target.value)} className={field} />
           </div>
           {/* A nested <fieldset>/<legend> (not just a <label>) so assistive
               tech announces "Mobile number" as shared context for BOTH the
@@ -668,7 +806,7 @@ export function EnquiryForm({
           </fieldset>
           <div className="grid gap-2 sm:col-span-2">
             <label className={label} htmlFor="message">{t.message}</label>
-            <textarea id="message" name="message" rows={3} placeholder={t.messagePlaceholder} disabled={submitting} onChange={regenerateIdempotencyKey} className={textareaClass} />
+            <textarea id="message" name="message" rows={3} placeholder={t.messagePlaceholder} disabled={submitting} value={customerText.message} onChange={(e) => updateCustomerText("message", e.target.value)} className={textareaClass} />
           </div>
         </div>
       </fieldset>
@@ -693,6 +831,12 @@ export function EnquiryForm({
             {t.counter(rows.length, MAX_ITEMS)}
           </span>
         </div>
+
+        {notice && (
+          <p role="status" className="border-border bg-[var(--aa-color-bg-subtle)] text-navy mt-4 rounded-[var(--aa-radius-control)] border px-4 py-2.5 text-sm">
+            {t.basketNotice[notice]}
+          </p>
+        )}
 
         {/* Desktop table. table-layout:fixed + an explicit <colgroup> gives
             every column (Quantity in particular) a guaranteed reserved
@@ -775,6 +919,12 @@ export function EnquiryForm({
             <Plus className="size-4" aria-hidden="true" />
             {t.addRow}
           </Button>
+          {/* W10.5: back to the page the visitor came from (safe same-origin referrer, else /products); the basket stays in this tab. */}
+          {continueBrowsingHref && (
+            <ButtonLink href={continueBrowsingHref} variant="secondary" data-rfq-continue-browsing="">
+              {t.continueBrowsing}
+            </ButtonLink>
+          )}
           {rows.length >= MAX_ITEMS && <p className="text-muted-foreground text-xs">{t.maxReached}</p>}
         </div>
 
@@ -805,6 +955,8 @@ export function EnquiryForm({
           </div>
         )}
       </div>
+
+      {filesEndpoint && <RfqFilesField locale={locale} files={files} errors={fileErrors} disabled={submitting} onAdd={(picked) => void addFiles(picked)} onRemove={removeFile} />}
 
       {turnstileSiteKey && (
         <div className="grid gap-2">
@@ -845,7 +997,7 @@ export function EnquiryForm({
             {t.clearForm}
           </Button>
           <Button type="submit" size="lg" disabled={submitting || turnstileBlocking} loading={submitting}>
-            {submitting ? t.submitting : t.submit}
+            {status === "uploading" && uploadProgress ? t.uploadingFiles(uploadProgress.done, uploadProgress.total) : submitting ? t.submitting : t.submit}
           </Button>
         </div>
       </div>

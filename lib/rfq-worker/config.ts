@@ -35,7 +35,14 @@ export interface RfqWorkerEnv {
   TEST_HOOKS?: string;
   /** "1" = Turnstile test path (staging entry only; measurement windows). */
   TURNSTILE_TEST_MODE?: string;
+  /** D-RFQ-FILE: PRIVATE R2 bucket for RFQ files (no public access, no custom domain). */
+  RFQ_FILES?: R2Bucket;
+  /** "1" = the form offers file upload and the Worker accepts files. Needs RFQ_FILES too. */
+  RFQ_FILES_ENABLED?: string;
 }
+
+/** File upload is on only with BOTH the bucket binding and the flag (docs/RFQ_FILE_UPLOAD.md). */
+export const filesEnabled = (env: RfqWorkerEnv): env is RfqWorkerEnv & { RFQ_FILES: R2Bucket } => Boolean(env.RFQ_FILES) && env.RFQ_FILES_ENABLED === "1";
 
 export const csv = (value: string | undefined): string[] =>
   (value ?? "")

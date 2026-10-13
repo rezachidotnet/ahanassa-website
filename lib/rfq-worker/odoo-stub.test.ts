@@ -53,3 +53,19 @@ test("stub: control forces 500/503/429 for the next N calls, then normal", async
   assert.equal(stats.rfqs.length, 1);
   assert.equal((await stub.fetch(new Request("https://stub/__stats"), e)).status, 404, "control endpoints need the control token");
 });
+
+test("stub: contract v1.2 `attachments` — refused like an Odoo with v1.1 only (exact message, drives the website fallback) unless STUB_CONTRACT=1.2", async () => {
+  const files = [{ key: "rfq-files/AA-RFQ-K3QW9T2H/1.xlsx", filename: "list.xlsx", size: 10, sha256: "a".repeat(64), content_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }];
+  const v11 = env();
+  const refused = await call(v11, payload({ attachments: files }));
+  assert.equal(refused.status, 400);
+  assert.deepEqual((await jsonOf(refused)).error, { code: "invalid_payload", message: "payload contains unsupported fields" });
+  // nothing was stored: the same key is free for the notes payload
+  assert.equal((await call(v11, payload({ notes: "files in notes" }))).status, 201);
+
+  const v12 = { ...env(), STUB_CONTRACT: "1.2" };
+  assert.equal((await call(v12, payload({ attachments: files }))).status, 201);
+  assert.equal((await call(v12, payload({ attachments: files }))).status, 200);
+  assert.equal((await call(v12, payload({ attachments: [{ ...files[0], size: 11 }] }))).status, 409);
+  assert.equal((await call(v12, payload({ attachments: [{ ...files[0], key: "other/x.xlsx" }] }), { "idempotency-key": "k-bad" })).status, 400);
+});

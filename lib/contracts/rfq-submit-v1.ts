@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RFQ_SUBMIT_LIMITS as L } from "./rfq-submit-v1-check.ts";
+import { hasRowsOrFiles, RFQ_SUBMIT_LIMITS as L } from "./rfq-submit-v1-check.ts";
 
 /**
  * rfq_submit.v1 — browser -> RFQ Worker (`POST https://api.ahanassa.com/api/rfqs`,
@@ -28,6 +28,14 @@ export const rfqSubmitItem = z
   })
   .strict();
 
+/** D-RFQ-FILE: one declared file (name + size); its bytes follow to PUT /api/rfqs/files/<reference>/<slot>. */
+export const rfqSubmitAttachment = z
+  .object({
+    name: z.string().min(L.attachment.name.min).max(L.attachment.name.max),
+    size: z.number().int().positive().max(L.attachment.size.max),
+  })
+  .strict();
+
 export const rfqSubmitRequest = z
   .object({
     /** Browser-generated, stable for one "new request"; the server stores only SHA-256(key). */
@@ -48,8 +56,14 @@ export const rfqSubmitRequest = z
     turnstileToken: z.string().min(L.turnstileToken.min).max(L.turnstileToken.max),
     /** snapshot.v1 version of the static catalog JSON the selector was built from (null on the SSR runtime). */
     catalogSnapshotVersion: z.string().regex(L.catalogSnapshotVersion.pattern).nullable().optional(),
+    /** Optional files (D-RFQ-FILE); extension/size policy re-checked by the Worker, bytes checked on upload. */
+    attachments: z.array(rfqSubmitAttachment).max(L.attachments.max).optional(),
   })
-  .strict();
+  .strict()
+  // File-only RFQ (owner decision 2026-10-13): no item rows only when files are declared.
+  .superRefine((b, ctx) => {
+    if (!hasRowsOrFiles(b)) ctx.addIssue({ code: "too_small", origin: "array", minimum: 1, inclusive: true, path: ["items"], input: b.items, message: "at least one item row or one file is required" });
+  });
 export type RfqSubmitRequest = z.infer<typeof rfqSubmitRequest>;
 
 export { RFQ_SUBMIT_MAX_BODY_BYTES } from "./rfq-submit-v1-check.ts";

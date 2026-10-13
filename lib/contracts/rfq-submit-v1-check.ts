@@ -2,6 +2,7 @@ import { MAX_ITEMS } from "../rfq/item-row-validation.ts";
 import { MAX_BODY_BYTES, MAX_LENGTH_MM } from "../rfq/validation.ts";
 import { RFQ_UOM_CODES } from "../rfq/uom.ts";
 import { SNAPSHOT_VERSION_PATTERN } from "./snapshot-version.ts";
+import { MAX_RFQ_FILES, MAX_RFQ_FILE_BYTES } from "../rfq/attachment-policy.ts";
 
 /**
  * rfq_submit.v1 strict check WITHOUT zod — the RFQ Worker's copy of
@@ -30,7 +31,8 @@ export const RFQ_SUBMIT_LIMITS = {
   phoneLocal: { min: 1, max: 20 },
   deliveryLocation: { max: 200 },
   message: { max: 3000 },
-  items: { min: 1, max: MAX_ITEMS },
+  /** min 0: a file-only RFQ (owner decision 2026-10-13) has no rows; without files at least one row is required (`itemsOrFiles`). */
+  items: { min: 0, max: MAX_ITEMS },
   website: { max: 0 },
   turnstileToken: { min: 1, max: 2048 },
   catalogSnapshotVersion: { pattern: SNAPSHOT_VERSION_PATTERN },
@@ -44,6 +46,12 @@ export const RFQ_SUBMIT_LIMITS = {
     units: RFQ_UOM_CODES,
     description: { max: 1000 },
     lengthMm: { max: MAX_LENGTH_MM },
+  },
+  /** D-RFQ-FILE: files declared with the request; their bytes follow to /api/rfqs/files (docs/RFQ_FILE_UPLOAD.md). */
+  attachments: { max: MAX_RFQ_FILES },
+  attachment: {
+    name: { min: 1, max: 255 },
+    size: { max: MAX_RFQ_FILE_BYTES },
   },
 } as const;
 
@@ -104,7 +112,8 @@ function unknownKeys(obj: Record<string, unknown>, known: readonly string[], pat
 }
 
 const ITEM_KEYS = ["catalogVariantXid", "productSlug", "freeformTitle", "categoryLabel", "gradeOrStandard", "quantityText", "unit", "description", "lengthMm"] as const;
-const REQUEST_KEYS = ["idempotencyKey", "locale", "fullName", "companyName", "email", "phoneCountry", "phoneLocal", "deliveryLocation", "message", "items", "website", "formRenderedAt", "turnstileToken", "catalogSnapshotVersion"] as const;
+const ATTACHMENT_KEYS = ["name", "size"] as const;
+const REQUEST_KEYS = ["idempotencyKey", "locale", "fullName", "companyName", "email", "phoneCountry", "phoneLocal", "deliveryLocation", "message", "items", "website", "formRenderedAt", "turnstileToken", "catalogSnapshotVersion", "attachments"] as const;
 
 function checkItem(item: unknown, path: Path, out: ContractIssue[]): void {
   if (!isPlainObject(item)) return void out.push({ path, code: "invalid_type" });
@@ -121,6 +130,17 @@ function checkItem(item: unknown, path: Path, out: ContractIssue[]): void {
   if (item.lengthMm !== undefined && item.lengthMm !== null) int(item.lengthMm, { positive: true, max: L.lengthMm.max }, [...path, "lengthMm"], out);
   unknownKeys(item, ITEM_KEYS, path, out);
 }
+
+function checkAttachment(attachment: unknown, path: Path, out: ContractIssue[]): void {
+  if (!isPlainObject(attachment)) return void out.push({ path, code: "invalid_type" });
+  const L = RFQ_SUBMIT_LIMITS.attachment;
+  str(attachment.name, L.name, [...path, "name"], out);
+  int(attachment.size, { positive: true, max: L.size.max }, [...path, "size"], out);
+  unknownKeys(attachment, ATTACHMENT_KEYS, path, out);
+}
+
+/** At least one item row, or (file-only RFQ, owner decision 2026-10-13) at least one declared file. */
+export const hasRowsOrFiles = (body: { items?: unknown; attachments?: unknown }) => (Array.isArray(body.items) && body.items.length > 0) || (Array.isArray(body.attachments) && body.attachments.length > 0);
 
 /** Same verdict and issues as `rfqSubmitRequest.safeParse(body)`; `data` is the input (the schema is strict and transforms nothing). */
 export function checkRfqSubmitRequest(body: unknown): RfqSubmitCheck {
@@ -145,6 +165,15 @@ export function checkRfqSubmitRequest(body: unknown): RfqSubmitCheck {
   if (body.formRenderedAt !== undefined) int(body.formRenderedAt, {}, ["formRenderedAt"], out);
   str(body.turnstileToken, L.turnstileToken, ["turnstileToken"], out);
   if (body.catalogSnapshotVersion !== undefined && body.catalogSnapshotVersion !== null) str(body.catalogSnapshotVersion, L.catalogSnapshotVersion, ["catalogSnapshotVersion"], out);
+  if (body.attachments !== undefined) {
+    const attachments = body.attachments;
+    if (!Array.isArray(attachments)) out.push({ path: ["attachments"], code: "invalid_type" });
+    else attachments.forEach((a, i) => checkAttachment(a, ["attachments", i], out));
+    lengthChecks(attachments, L.attachments, ["attachments"], out);
+  }
   unknownKeys(body, REQUEST_KEYS, [], out);
+  // File-only RFQ: no item rows only when files are declared. Like zod 4's refinement, it is skipped once an
+  // aborting issue (invalid_type / invalid_value) was found, and runs after continuable ones (lengths, formats, keys).
+  if (!out.some((i) => i.code === "invalid_type" || i.code === "invalid_value") && !hasRowsOrFiles(body)) out.push({ path: ["items"], code: "too_small" });
   return out.length ? { success: false, issues: out } : { success: true, data: body };
 }
