@@ -212,7 +212,8 @@ const read = (rel: string) => readFileSync(new URL(rel, ROOT), "utf8");
 
 test("form: success clears the basket inside the ok branch; storage is written only after restore and never in the success state", () => {
   const form = read("components/contact/enquiry-form.tsx");
-  assert.match(form, /if \(body\?\.ok\) \{\n(\s*\/\/.*\n)?\s*clearRfqBasket\(locale\);\n\s*setReference\(body\.reference\);/);
+  // D-RFQ-FILE: the file uploads (only when files were chosen) run first, still inside the ok branch.
+  assert.match(form, /if \(body\?\.ok\) \{\n(?:\s*\/\/.*\n)*(?:\s*if \(filesEndpoint && sendFiles\.length\) \{\n[\s\S]*?\n {8}\}\n)?(?:\s*\/\/.*\n)?\s*clearRfqBasket\(locale\);\n\s*setReference\(body\.reference\);/);
   assert.match(form, /if \(!persistBasket \|\| status === "success"\) return;\n\s*writeRfqBasket\(locale,/);
   assert.match(form, /<ButtonLink href=\{continueBrowsingHref\} variant="secondary"/);
   const wrapper = read("components/contact/static-enquiry-form.tsx");

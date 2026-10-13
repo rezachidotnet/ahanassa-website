@@ -15,6 +15,7 @@ import {
   type RfqBasketAddOutcome,
   type RfqBasketCustomer,
 } from "@/lib/rfq/rfq-basket";
+import { fetchFilesCapability, filesEndpointFor } from "@/lib/rfq/upload-files";
 
 interface LoadedCatalog {
   items: PublicRfqCatalogItem[];
@@ -53,6 +54,11 @@ const HANDOFF_PARAMS = ["variant", ...Object.values(RFQ_PREFILL_PARAMS)];
  * address bar, so a reload does not add the item again. The form mounts
  * once more with that state; the first (prerendered) instance never writes
  * storage, so it cannot overwrite the basket.
+ *
+ * D-RFQ-FILE: the RFQ Worker is asked once (GET <rfqEndpoint>/files) whether
+ * it accepts files; only then does the form show «بارگذاری لیست اقلام». The
+ * prerendered HTML never has the field, so the staging and production pages
+ * stay byte-identical (r4) while upload is on in one and off in the other.
  */
 export function StaticEnquiryForm({ locale, turnstileSiteKey, rfqEndpoint }: { locale: Locale; turnstileSiteKey?: string; rfqEndpoint?: string }) {
   const [catalog, setCatalog] = useState<LoadedCatalog | null>(null);
@@ -63,6 +69,7 @@ export function StaticEnquiryForm({ locale, turnstileSiteKey, rfqEndpoint }: { l
   const [ready, setReady] = useState<ReadyForm | null>(null);
   // The prerendered href is the fallback; the referrer is only known in the browser.
   const [continueHref, setContinueHref] = useState(() => localizedPath(locale, "/products"));
+  const [filesEndpoint, setFilesEndpoint] = useState<string | null>(null);
 
   useEffect(() => {
     setContinueHref(resolveContinueBrowsingHref(locale, document.referrer, window.location.origin));
@@ -78,6 +85,12 @@ export function StaticEnquiryForm({ locale, turnstileSiteKey, rfqEndpoint }: { l
       .finally(() => {
         if (!cancelled) setCatalogSettled(true);
       });
+    if (rfqEndpoint) {
+      const endpoint = filesEndpointFor(rfqEndpoint);
+      void fetchFilesCapability(endpoint).then((capability) => {
+        if (!cancelled && capability) setFilesEndpoint(endpoint);
+      });
+    }
     fetch(PUBLIC_MANIFEST_PATH)
       .then((response) => (response.ok ? (response.json() as Promise<{ snapshot_version?: unknown }>) : null))
       .then((manifest) => {
@@ -89,7 +102,7 @@ export function StaticEnquiryForm({ locale, turnstileSiteKey, rfqEndpoint }: { l
     return () => {
       cancelled = true;
     };
-  }, [locale]);
+  }, [locale, rfqEndpoint]);
 
   // Runs once, after the catalog request settles (loaded or failed).
   useEffect(() => {
@@ -143,6 +156,7 @@ export function StaticEnquiryForm({ locale, turnstileSiteKey, rfqEndpoint }: { l
       catalogItems={catalog?.items ?? []}
       catalogSnapshotVersion={snapshotVersion}
       rfqEndpoint={rfqEndpoint}
+      filesEndpoint={filesEndpoint}
     />
   );
 }

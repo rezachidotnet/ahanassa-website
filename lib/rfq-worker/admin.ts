@@ -10,6 +10,10 @@ import type { RfqWorkerEnv } from "./config.ts";
  *   POST /__admin/manual-review/retry   {"rfqId": "...", "reason": "..."}
  *   POST /__admin/manual-review/close   {"rfqId": "...", "reason": "..."}
  *   POST /__admin/reconcile             {"reason": "..."}
+ *   GET  /__admin/attachments?reference=AA-RFQ-…   the files of one RFQ (metadata only)
+ *   GET  /__admin/attachments/<id>      download one file from the private R2 bucket
+ *                                       (D-RFQ-FILE; every download is written to
+ *                                       rfq_attachment_access_log)
  *
  * Bearer ADMIN_TOKEN (a separate Worker secret per environment), compared in
  * constant time; a missing/wrong bearer gets the same 404 as an unknown path.
@@ -124,6 +128,65 @@ async function manualReconcile(env: RfqWorkerEnv, reason: string, actor: string)
   return json(200, { ok: true, ...outcome });
 }
 
+const ATTACHMENT_PATH = /^\/__admin\/attachments\/([0-9A-HJKMNP-TV-Z]{26})$/;
+const REFERENCE = /^AA-RFQ-[0-9A-HJKMNP-TV-Z]{1,40}$/;
+
+async function listAttachments(env: RfqWorkerEnv, url: URL): Promise<Response> {
+  const reference = url.searchParams.get("reference") ?? "";
+  if (!REFERENCE.test(reference)) return json(400, { ok: false, error: "reference=AA-RFQ-… required" });
+  const { results } = await env.DB_OPS.prepare(
+    `SELECT a.id, a.slot, a.original_filename, a.extension, a.byte_size, a.upload_status, a.failure_code, a.scan_status, a.object_key, a.uploaded_at,
+            a.checksum_sha256, a.odoo_confirmed_at, a.retention_until, a.deleted_at, r.attachments_channel
+     FROM rfq_attachments a JOIN rfqs r ON r.id = a.rfq_id WHERE r.reference_number = ? ORDER BY a.slot ASC`,
+  )
+    .bind(reference)
+    .all();
+  return json(200, { ok: true, reference, count: results.length, attachments: results });
+}
+
+/**
+ * Staff download. Always `application/octet-stream` + `attachment` +
+ * `nosniff`, so a browser saves the file and never renders it; the filename is
+ * the sanitized original (RFC 5987) with an ASCII fallback.
+ */
+async function downloadAttachment(env: RfqWorkerEnv, id: string, actor: string): Promise<Response> {
+  const row = await env.DB_OPS.prepare(`SELECT id, rfq_id, slot, original_filename, extension, object_key, upload_status, deleted_at FROM rfq_attachments WHERE id = ?`)
+    .bind(id)
+    .first<{ id: string; rfq_id: string; slot: number; original_filename: string; extension: string; object_key: string; upload_status: string; deleted_at: string | null }>();
+  const log = (result: string) =>
+    env.DB_OPS.prepare(`INSERT INTO rfq_attachment_access_log (id, attachment_id, rfq_id, actor, result, created_at) VALUES (?, ?, ?, ?, ?, ?)`)
+      .bind(ulid(), id, row?.rfq_id ?? "", actor, result, new Date().toISOString())
+      .run();
+  // Past its retention (lib/rfq-worker/file-retention.ts): Odoo holds the copy.
+  if (row?.deleted_at) {
+    await log("deleted");
+    return json(410, { ok: false, error: "file deleted after its retention period; open it in Odoo" });
+  }
+  if (!row || row.upload_status !== "uploaded" || !env.RFQ_FILES) {
+    if (row) await log("unavailable");
+    return json(404, { ok: false, error: "file not available" });
+  }
+  const object = await env.RFQ_FILES.get(row.object_key);
+  if (!object) {
+    await log("missing_object");
+    return json(404, { ok: false, error: "file not available" });
+  }
+  await log("ok");
+  logAction({ action: "attachment_download", rfqId: row.rfq_id, attachmentId: row.id, actor });
+  const fallback = `${row.slot}.${row.extension}`;
+  const name = row.original_filename || fallback;
+  return new Response(object.body, {
+    status: 200,
+    headers: {
+      "content-type": "application/octet-stream",
+      "content-disposition": `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(name)}`,
+      "x-content-type-options": "nosniff",
+      "cache-control": "no-store",
+      "content-security-policy": "default-src 'none'; sandbox",
+    },
+  });
+}
+
 export async function handleAdmin(request: Request, env: RfqWorkerEnv, url: URL, extension?: AdminExtension): Promise<Response> {
   if (!(await bearerMatches(request.headers.get("authorization"), env.ADMIN_TOKEN))) return json(404, { ok: false });
   const actorHeader = request.headers.get("x-admin-actor") ?? "";
@@ -142,6 +205,15 @@ export async function handleAdmin(request: Request, env: RfqWorkerEnv, url: URL,
     if (!isRetry && !isClose) return manualReconcile(env, input.reason, actor);
     if (!input.rfqId) return json(400, { ok: false, error: "rfqId required" });
     return transition(env, isRetry ? "retry" : "close", input.rfqId, input.reason, actor);
+  }
+  if (url.pathname === "/__admin/attachments") {
+    if (request.method !== "GET") return json(405, { ok: false });
+    return listAttachments(env, url);
+  }
+  const attachment = ATTACHMENT_PATH.exec(url.pathname);
+  if (attachment) {
+    if (request.method !== "GET") return json(405, { ok: false });
+    return downloadAttachment(env, attachment[1], actor);
   }
   return (await extension?.(request, env, url)) ?? json(404, { ok: false });
 }

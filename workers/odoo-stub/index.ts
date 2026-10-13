@@ -11,17 +11,31 @@
  * forces the next `remaining` intake calls; GET /__stats returns what was stored.
  * State lives in a tiny D1 (STUB_DB) so behaviour is deterministic across isolates.
  * It stores only test payload metadata (key, fingerprint, reference, received_at), never bodies.
+ *
+ * Contract v1.2 (`attachments`, W13.1): by default the stub is an Odoo WITHOUT
+ * ahanassa_rfq_file_intake — an unknown top-level key gets Odoo's exact
+ * `400 invalid_payload` "payload contains unsupported fields", which drives the
+ * website's notes fallback. With the var STUB_CONTRACT = "1.2" it accepts
+ * `attachments` (validated like Odoo; part of the fingerprint). It never
+ * downloads a file.
  */
+import { rfqIntakeAttachments } from "../../lib/contracts/rfq-intake-v1-2-schema.ts";
+import { V11_UNSUPPORTED_FIELDS_MESSAGE } from "../../lib/contracts/rfq-intake-v1-2.ts";
 import { canonicalReceivedAt, IDEMPOTENCY_KEY_PATTERN, intakeFingerprint, RECEIVED_AT_FLOOR, RECEIVED_AT_MAX_FUTURE_MS, rfqIntakeRequest } from "../../lib/contracts/rfq-intake-v1-1.ts";
 
 interface StubEnv {
   STUB_DB: D1Database;
   STUB_BEARER?: string;
+  /** "1.2" = accept contract v1.2 `attachments`; anything else = an Odoo with v1.1 only. */
+  STUB_CONTRACT?: string;
   CONTROL_TOKEN?: string;
 }
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } });
 const error = (status: number, code: string, message: string, headers: Record<string, string> = {}) => json(status, { error: { code, message } }, headers);
+
+/** Odoo ahanassa_marketplace `_TOP_KEYS` (contract v1.1). */
+const V11_TOP_KEYS = new Set(["locale", "customer", "items", "notes", "consent", "source", "received_at", "website_reference"]);
 
 async function forcedMode(env: StubEnv): Promise<string> {
   const row = await env.STUB_DB.prepare(`SELECT mode, remaining FROM stub_control WHERE id = 1`).first<{ mode: string; remaining: number }>();
@@ -56,6 +70,17 @@ async function intake(request: Request, env: StubEnv): Promise<Response> {
   } catch {
     return error(400, "invalid_payload", "invalid JSON");
   }
+  // Odoo `_validate`: a top-level key outside v1.1 (`attachments` too, unless v1.2 is on) gets this exact answer.
+  let attachments: unknown = null;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const { attachments: sent, ...rest } = raw as Record<string, unknown>;
+    if (sent !== undefined && env.STUB_CONTRACT === "1.2") {
+      if (sent !== null && !rfqIntakeAttachments.safeParse(sent).success) return error(400, "invalid_payload", "attachments are invalid");
+      attachments = sent;
+      raw = rest;
+    }
+    if (Object.keys(raw as object).some((k) => !V11_TOP_KEYS.has(k))) return error(400, "invalid_payload", V11_UNSUPPORTED_FIELDS_MESSAGE);
+  }
   const parsed = rfqIntakeRequest.safeParse(raw);
   if (!parsed.success) return error(400, "invalid_payload", "payload does not match contract v1.1");
   const payload = parsed.data;
@@ -67,7 +92,8 @@ async function intake(request: Request, env: StubEnv): Promise<Response> {
       return error(400, "invalid_received_at", "received_at outside the accepted window");
     }
   }
-  const fingerprint = await intakeFingerprint(payload);
+  // v1.2: the file list joins the fingerprint (not Odoo's exact canonical form — the stub only needs replay vs conflict).
+  const fingerprint = attachments ? `${await intakeFingerprint(payload)}:${JSON.stringify(attachments)}` : await intakeFingerprint(payload);
   const lookup = () => env.STUB_DB.prepare(`SELECT fingerprint, reference FROM stub_rfqs WHERE idempotency_key = ?`).bind(key).first<{ fingerprint: string; reference: string }>();
   const replayOrConflict = async (existing: { fingerprint: string; reference: string }) => {
     const status = existing.fingerprint === fingerprint ? 200 : 409;

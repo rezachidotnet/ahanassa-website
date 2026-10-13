@@ -4,17 +4,20 @@
  * lib/security, lib/odoo payload mapping only.
  *
  *   OPTIONS/POST /api/rfqs     rfq_submit.v1 intake (CORS: exact allow-list)
+ *   GET/OPTIONS/PUT /api/rfqs/files[/<reference>/<slot>]  RFQ file upload (D-RFQ-FILE, lib/rfq-worker/attachments.ts)
  *   GET          /healthz      liveness (no D1)
  *   /__admin/*                 §15 manual-review tool + reconcile trigger (lib/rfq-worker/admin.ts)
  *   queue                      one message = one RFQ (max_batch_size 1)
- *   scheduled                  cron reconciler: one due RFQ per run
+ *   scheduled                  cron reconciler: one due RFQ per run; then the RFQ-file R2 retention sweep
  *
  * Two entries build from this factory: index.ts (production — no test code)
  * and index.staging.ts (adds the staging test routes). W3, C1.
  */
 import { handleRfqSubmit } from "../../lib/rfq-worker/submit.ts";
 import { preflightResponse } from "../../lib/rfq-worker/cors.ts";
+import { filesCapability, filesPreflight, handleFileUpload, isFilesPath, FILES_PATH } from "../../lib/rfq-worker/attachments.ts";
 import { consumeOne, reconcileOnce, type QueueMessageLike } from "../../lib/rfq-worker/runners.ts";
+import { sweepRfqFiles } from "../../lib/rfq-worker/file-retention.ts";
 import { handleAdmin, type AdminExtension } from "../../lib/rfq-worker/admin.ts";
 import { csv, type RfqWorkerEnv } from "../../lib/rfq-worker/config.ts";
 import type { OdooSyncEvent } from "../../lib/queue/types.ts";
@@ -60,6 +63,11 @@ export function createRfqWorker(options: RfqWorkerOptions = {}) {
           },
         });
       }
+      if (isFilesPath(url.pathname)) {
+        if (request.method === "OPTIONS") return filesPreflight(request, csv(env.ALLOWED_ORIGINS));
+        if (url.pathname === FILES_PATH && request.method === "GET") return filesCapability(request, env);
+        return handleFileUpload(request, env, url);
+      }
       if (url.pathname === "/healthz" && request.method === "GET") return json(200, { ok: true });
       if (url.pathname.startsWith("/__admin/")) return handleAdmin(request, env, url, options.adminExtension);
       return json(404, { ok: false });
@@ -87,6 +95,12 @@ export function createRfqWorker(options: RfqWorkerOptions = {}) {
     async scheduled(_event: ScheduledController, env: RfqWorkerEnv): Promise<void> {
       const outcome = await reconcileOnce(env);
       if (outcome.picked) console.log(JSON.stringify({ operation: "rfq.reconcile", ...outcome, result: outcome.result?.status === "done" ? outcome.result.classification : outcome.result?.status ?? null }));
+      // RFQ files past their retention (lib/rfq-worker/file-retention.ts); never blocks the reconciler.
+      try {
+        await sweepRfqFiles(env, new Date());
+      } catch (err) {
+        console.error(JSON.stringify({ operation: "rfq.file_retention", result: "error", errorClass: err instanceof Error ? err.name : "unknown" }));
+      }
     },
   };
 }

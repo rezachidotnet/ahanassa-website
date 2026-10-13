@@ -5,13 +5,14 @@ import { buildCatalogItemRecord, buildFreeformItemRecord } from "../rfq/catalog-
 import { RFQ_UOM_LABELS } from "../rfq/uom.ts";
 import { isUomAllowedForCatalogGroup } from "../rfq/uom-policy.ts";
 import type { RfqItemRecord, RfqSubmissionRecord } from "../rfq/types.ts";
-import { persistRfq, type PersistRfqResult } from "../rfq/intake-store.ts";
+import { persistRfq, type DeclaredAttachment, type PersistRfqResult } from "../rfq/intake-store.ts";
+import { checkDeclaredFile, RFQ_FILE_TYPES, sanitizeFilename } from "../rfq/attachment-policy.ts";
 import { verifyTurnstileToken } from "../security/turnstile.ts";
 import { getClientIp, hashRateLimitKey } from "../security/rate-limit.ts";
 import { ulid } from "../rfq/ulid.ts";
 import { corsHeaders, isAllowedOrigin } from "./cors.ts";
 import { resolveVariantsFromIndex } from "./variant-index.ts";
-import { csv, type RfqWorkerEnv } from "./config.ts";
+import { csv, filesEnabled, type RfqWorkerEnv } from "./config.ts";
 import type { OdooSyncEvent } from "../queue/types.ts";
 
 /**
@@ -36,6 +37,10 @@ import type { OdooSyncEvent } from "../queue/types.ts";
  * The response is sent only after the D1 commit; the optional Queue send
  * happens after it (ctx.waitUntil) and never changes the answer.
  * W3.2: idempotency lookup moved before Turnstile so replays skip token consumption.
+ * D-RFQ-FILE: declared `attachments` (name + size) are policy-checked with
+ * step 6 (422 `attachments[i].name`), stored as `pending` rows in the step-12
+ * batch and are part of the fingerprint; the bytes follow to
+ * PUT /api/rfqs/files/<reference>/<slot> (lib/rfq-worker/attachments.ts).
  */
 
 const MIN_COMPLETION_MS = 1500;
@@ -154,17 +159,33 @@ export async function handleRfqSubmit(request: Request, env: RfqWorkerEnv, deps:
   if (!contract.success) return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors: contractFieldErrors(contract.issues) }, cors);
 
   // 6. full validation early (to compute fingerprint before Turnstile).
-  const validated = validateRfqSubmission(body);
+  const validated = validateRfqSubmission(body, { allowFileOnly: true });
   if (!validated.ok || !validated.value) return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors: validated.fieldErrors }, cors);
   const now = deps.now?.() ?? new Date();
   if (typeof body.formRenderedAt === "number" && now.getTime() - body.formRenderedAt < MIN_COMPLETION_MS) {
     return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors: { _: ["rejected"] } }, cors);
   }
 
+  // 6b. declared files: upload switched on, allow-listed extension, size limit (bytes are checked on upload).
+  const declared = (contract.data.attachments as { name: string; size: number }[] | undefined) ?? [];
+  const attachments: DeclaredAttachment[] = [];
+  if (declared.length) {
+    if (!filesEnabled(env)) return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors: { attachments: ["uploads_disabled"] } }, cors);
+    const fileErrors: Record<string, string[]> = {};
+    declared.forEach((file, i) => {
+      const verdict = checkDeclaredFile(file);
+      if (!verdict.ok) fileErrors[`attachments[${i}].name`] = [verdict.reason];
+      else attachments.push({ slot: i + 1, originalFilename: sanitizeFilename(file.name), extension: verdict.ext, mimeDeclared: RFQ_FILE_TYPES[verdict.ext].mime, byteSize: file.size });
+    });
+    if (Object.keys(fileErrors).length) return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors: fileErrors }, cors);
+  }
+
   // Compute fingerprint and do early idempotency check (before Turnstile).
   const { idempotencyKey, ...normalized } = validated.value;
   const snapshotVersion = (contract.data.catalogSnapshotVersion as string | null | undefined) ?? null;
-  const payloadFingerprint = await sha256Hex(stableStringify({ ...normalized, catalogSnapshotVersion: snapshotVersion }));
+  // Files join the fingerprint only when present, so a request without files keeps its pre-D-RFQ-FILE fingerprint.
+  const fingerprintFiles = attachments.length ? { attachments: attachments.map((a) => ({ name: a.originalFilename, size: a.byteSize })) } : {};
+  const payloadFingerprint = await sha256Hex(stableStringify({ ...normalized, catalogSnapshotVersion: snapshotVersion, ...fingerprintFiles }));
   const idempotencyKeyHash = await hashIdempotencyKey(idempotencyKey);
   const idempotencyCheck = await checkIdempotencyEarly(env.DB_OPS, idempotencyKeyHash, payloadFingerprint);
 
@@ -240,12 +261,13 @@ export async function handleRfqSubmit(request: Request, env: RfqWorkerEnv, deps:
   const record: RfqSubmissionRecord = { ...validated.value, items: records };
   let result: PersistRfqResult;
   try {
-    result = await persistRfq(env.DB_OPS, record, idempotencyKeyHash, correlationId, { payloadFingerprint, catalogSnapshotVersion: snapshotVersion, unpublishedLineIndexes: unpublished }, () => now);
+    result = await persistRfq(env.DB_OPS, record, idempotencyKeyHash, correlationId, { payloadFingerprint, catalogSnapshotVersion: snapshotVersion, unpublishedLineIndexes: unpublished, attachments }, () => now);
   } catch (err) {
     console.error(JSON.stringify({ operation: "rfq.submit", correlationId, result: "error", errorClass: err instanceof Error ? err.name : "unknown" }));
     return json(503, { ok: false, code: "SERVICE_UNAVAILABLE" }, { ...cors, "Retry-After": "10" });
   }
   if (result.conflict) return json(409, { ok: false, code: "IDEMPOTENCY_CONFLICT" }, cors);
-  if (result.created && result.event && deps.afterCommit) void deps.afterCommit(result.event);
+  // An RFQ with files waits for them (outbox available_at): no Queue fast path, the reconciler delivers it.
+  if (result.created && result.event && deps.afterCommit && !attachments.length) void deps.afterCommit(result.event);
   return json(result.created ? 201 : 200, { ok: true, reference: result.reference, status: "received" }, cors);
 }

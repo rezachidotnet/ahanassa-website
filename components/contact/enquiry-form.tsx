@@ -13,6 +13,7 @@ import { groupCatalogItemsForSelector, type PublicRfqCatalogItem } from "@/lib/r
 import {
   buildRfqItemInput,
   createEmptyCatalogRow,
+  isRfqRowEmpty,
   validateRfqRow,
   MAX_ITEMS,
   type RfqRow,
@@ -25,6 +26,9 @@ import { normalizeDigits } from "@/lib/rfq/quantity";
 import { submitRfqWithRetry } from "@/lib/rfq/submit-with-retry";
 import { RfqSuccessPanel, RFQ_SUBMITTED_ATTR } from "@/components/contact/rfq-success-panel";
 import { clearRfqBasket, writeRfqBasket, EMPTY_RFQ_CUSTOMER, type RfqBasketAddOutcome, type RfqBasketCustomer } from "@/lib/rfq/rfq-basket";
+import { RfqFilesField, type RfqFileError } from "@/components/contact/rfq-files-field";
+import { checkDeclaredFile, checkFileBytes, MAX_RFQ_FILES, sanitizeFilename, type RfqFileRejection } from "@/lib/rfq/attachment-policy";
+import { uploadRfqFiles } from "@/lib/rfq/upload-files";
 
 /**
  * Multi-item RFQ / purchase-list form (docs/RFQ_MULTI_ITEM_FORM.md).
@@ -34,10 +38,12 @@ import { clearRfqBasket, writeRfqBasket, EMPTY_RFQ_CUSTOMER, type RfqBasketAddOu
  * that prior implementation; only the items array is now data-driven and
  * user-editable instead of a fixed one-item shape.
  *
- * Deliberately has no file upload — attachment handling stays disabled
- * until a scanning pipeline is selected (PROJECT_OVERRIDES.md §8 item 8);
- * this task's own instruction is explicit: never render a fake/accepting
- * upload control.
+ * D-RFQ-FILE (docs/RFQ_FILE_UPLOAD.md): an optional «بارگذاری لیست اقلام»
+ * card (components/contact/rfq-files-field.tsx), shown only when
+ * `filesEndpoint` is set — i.e. the RFQ Worker reported upload as enabled.
+ * Files are checked in the browser with the server's own policy, declared
+ * (name + size) in the RFQ, and sent one by one only after the RFQ is
+ * accepted; the success panel still shows only the tracking number.
  */
 
 interface TurnstileRenderOptions {
@@ -94,6 +100,7 @@ const copy: Record<
     turnstileVerifying: string; turnstileInteractive: string; turnstileFailed: string;
     continueBrowsing: string;
     basketNotice: Record<RfqBasketAddOutcome, string>;
+    uploadingFiles: (done: number, total: number) => string;
   }
 > = {
   fa: {
@@ -130,6 +137,7 @@ const copy: Record<
     turnstileInteractive: "برای فعال شدن ارسال درخواست، تأیید امنیتی را تکمیل کنید.",
     turnstileFailed: "تأیید امنیتی کامل نشد. لطفاً دوباره تلاش کنید.",
     continueBrowsing: "ادامه انتخاب محصول",
+    uploadingFiles: (done, total) => `در حال ارسال فایل‌ها (${done} از ${total})…`,
     basketNotice: {
       added: "محصول به لیست درخواست شما اضافه شد.",
       existing: "این محصول از قبل در لیست درخواست شما هست.",
@@ -170,6 +178,7 @@ const copy: Record<
     turnstileInteractive: "Complete the security verification to enable sending your request.",
     turnstileFailed: "Security verification did not complete. Please try again.",
     continueBrowsing: "Continue browsing",
+    uploadingFiles: (done, total) => `Uploading files (${done} of ${total})…`,
     basketNotice: {
       added: "The product was added to your request list.",
       existing: "This product is already in your request list.",
@@ -210,6 +219,7 @@ const copy: Record<
     turnstileInteractive: "أكمل التحقق الأمني لتفعيل إرسال الطلب.",
     turnstileFailed: "لم يكتمل التحقق الأمني. يرجى المحاولة مرة أخرى.",
     continueBrowsing: "متابعة اختيار المنتجات",
+    uploadingFiles: (done, total) => `جارٍ رفع الملفات (${done} من ${total})…`,
     basketNotice: {
       added: "تمت إضافة المنتج إلى قائمة طلبك.",
       existing: "هذا المنتج موجود بالفعل في قائمة طلبك.",
@@ -240,7 +250,7 @@ function RequiredMark({ srLabel }: { srLabel: string }) {
   );
 }
 
-type Status = "idle" | "submitting" | "success" | "error";
+type Status = "idle" | "submitting" | "uploading" | "success" | "error";
 
 function generateIdempotencyKey(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -260,6 +270,7 @@ export function EnquiryForm({
   catalogItems = [],
   catalogSnapshotVersion = null,
   rfqEndpoint = "/api/rfqs",
+  filesEndpoint = null,
 }: {
   locale: Locale;
   turnstileSiteKey?: string;
@@ -287,6 +298,8 @@ export function EnquiryForm({
   catalogSnapshotVersion?: string | null;
   /** rfq_submit.v1 endpoint: the RFQ Worker origin + /api/rfqs on the static site; same-origin /api/rfqs on the legacy SSR runtime. */
   rfqEndpoint?: string;
+  /** D-RFQ-FILE: `<rfqEndpoint>/files` when the RFQ Worker reports upload as enabled; null = no file field. */
+  filesEndpoint?: string | null;
 }) {
   const [status, setStatus] = useState<Status>("idle");
   const [reference, setReference] = useState<string | null>(null);
@@ -315,6 +328,10 @@ export function EnquiryForm({
     message: initialCustomer?.message ?? "",
   }));
   const [notice, setNotice] = useState<RfqBasketAddOutcome | null>(basketNotice);
+  // D-RFQ-FILE: chosen files (memory only — never stored) and the reasons any were refused.
+  const [files, setFiles] = useState<File[]>([]);
+  const [fileErrors, setFileErrors] = useState<RfqFileError[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const [referenceCopied, setReferenceCopied] = useState(false);
   const successHeadingRef = useRef<HTMLHeadingElement>(null);
   const succeeded = status === "success" && reference !== null;
@@ -490,6 +507,44 @@ export function EnquiryForm({
     });
   }
 
+  /** Same checks as the RFQ Worker (lib/rfq/attachment-policy.ts), so a refused file is explained before anything is sent. */
+  async function addFiles(picked: File[]) {
+    regenerateIdempotencyKey();
+    const next = [...files];
+    const errors: RfqFileError[] = [];
+    for (const file of picked) {
+      if (next.some((f) => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified)) continue;
+      if (next.length >= MAX_RFQ_FILES) {
+        errors.push({ name: file.name, reason: "too_many_files" });
+        continue;
+      }
+      const declared = checkDeclaredFile(file);
+      if (!declared.ok) {
+        errors.push({ name: file.name, reason: declared.reason });
+        continue;
+      }
+      try {
+        const verdict = checkFileBytes(new Uint8Array(await file.arrayBuffer()), file.name);
+        if (!verdict.ok) {
+          errors.push({ name: file.name, reason: verdict.reason });
+          continue;
+        }
+      } catch {
+        errors.push({ name: file.name, reason: "read_error" });
+        continue;
+      }
+      next.push(file);
+    }
+    setFiles(next);
+    setFileErrors(errors);
+  }
+
+  function removeFile(index: number) {
+    regenerateIdempotencyKey();
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+    setFileErrors([]);
+  }
+
   function scrollToRow(id: string) {
     const el = rowElementRefs.current[`table-${id}`]?.offsetParent ? rowElementRefs.current[`table-${id}`] : rowElementRefs.current[`card-${id}`];
     if (!el) return;
@@ -511,7 +566,11 @@ export function EnquiryForm({
     // rather than a generic error.
     const nextRowErrors: Record<string, RfqRowFieldKey[]> = {};
     let firstInvalidId: string | null = null;
+    // File-only RFQ (owner decision 2026-10-13): with at least one accepted file, untouched rows are
+    // simply not sent; a row the customer started must still be complete.
+    const fileOnlyAllowed = Boolean(filesEndpoint) && files.length > 0;
     for (const row of rows) {
+      if (fileOnlyAllowed && isRfqRowEmpty(row.fields)) continue;
       const errs = validateRfqRow(row.fields);
       if (errs.length > 0) {
         nextRowErrors[row.id] = errs;
@@ -528,8 +587,10 @@ export function EnquiryForm({
 
     const items: RfqItemInput[] = rows.map((row) => buildRfqItemInput(row.fields, locale)).filter((item): item is RfqItemInput => item !== null);
 
+    const idempotencyKey = idempotencyKeyRef.current.current();
+    const sendFiles = filesEndpoint ? files : [];
     const payload = {
-      idempotencyKey: idempotencyKeyRef.current.current(),
+      idempotencyKey,
       locale,
       fullName: String(data.get("name") ?? ""),
       companyName: String(data.get("company") ?? ""),
@@ -542,10 +603,13 @@ export function EnquiryForm({
       formRenderedAt: formRenderedAtRef.current,
       turnstileToken: turnstileToken ?? undefined,
       catalogSnapshotVersion,
+      // Declared with the RFQ (part of its fingerprint); the bytes follow once it is accepted.
+      attachments: sendFiles.length ? sendFiles.map((f) => ({ name: sanitizeFilename(f.name), size: f.size })) : undefined,
     };
 
     setStatus("submitting");
     setErrorMessage(null);
+    setFileErrors([]);
 
     try {
       // Network error / 5xx: up to 2 retries with the SAME body (same idempotencyKey);
@@ -553,6 +617,15 @@ export function EnquiryForm({
       const { body } = await submitRfqWithRetry(rfqEndpoint, payload);
 
       if (body?.ok) {
+        // D-RFQ-FILE: the RFQ is saved; now its files. Whatever happens to them, the visitor gets the
+        // tracking number (W10.3) — a file that did not arrive is flagged to staff in Odoo.
+        if (filesEndpoint && sendFiles.length) {
+          setStatus("uploading");
+          setUploadProgress({ done: 0, total: sendFiles.length });
+          await uploadRfqFiles(filesEndpoint, body.reference, idempotencyKey, sendFiles, { onProgress: (done, total) => setUploadProgress({ done, total }) });
+          setUploadProgress(null);
+          setFiles([]);
+        }
         // W10.5: the request is in — the basket and the typed fields are not kept.
         clearRfqBasket(locale);
         setReference(body.reference);
@@ -568,6 +641,13 @@ export function EnquiryForm({
         setErrorMessage(t.serviceUnavailable);
       } else if (body?.code === "VALIDATION_ERROR") {
         setErrorMessage(t.validationError);
+        // A refused declared file (e.g. upload switched off meanwhile): say which, in the files card.
+        const refused = Object.entries(body.fieldErrors ?? {}).flatMap(([key, codes]): RfqFileError[] => {
+          if (key === "attachments") return [{ name: "", reason: "uploads_disabled" }];
+          const index = /^attachments\[(\d+)\]/.exec(key)?.[1];
+          return index === undefined ? [] : [{ name: sendFiles[Number(index)]?.name ?? "", reason: (codes[0] as RfqFileRejection) ?? "extension_not_allowed" }];
+        });
+        if (refused.length) setFileErrors(refused);
       } else {
         setErrorMessage(t.networkError);
       }
@@ -595,6 +675,8 @@ export function EnquiryForm({
     setCustomerText({ name: "", company: "", email: "", message: "" });
     setNotice(null);
     setReferenceCopied(false);
+    setFiles([]);
+    setFileErrors([]);
     resetTurnstile();
   }
 
@@ -602,7 +684,7 @@ export function EnquiryForm({
     return <RfqSuccessPanel locale={locale} reference={reference} copied={referenceCopied} onCopy={copyReference} headingRef={successHeadingRef} />;
   }
 
-  const submitting = status === "submitting";
+  const submitting = status === "submitting" || status === "uploading";
   const turnstileBlocking = Boolean(turnstileSiteKey) && !turnstileToken;
   const errorRowEntries = Object.entries(rowErrors);
   const rowIndexById = new Map(rows.map((r, i) => [r.id, i]));
@@ -874,6 +956,8 @@ export function EnquiryForm({
         )}
       </div>
 
+      {filesEndpoint && <RfqFilesField locale={locale} files={files} errors={fileErrors} disabled={submitting} onAdd={(picked) => void addFiles(picked)} onRemove={removeFile} />}
+
       {turnstileSiteKey && (
         <div className="grid gap-2">
           <div ref={turnstileContainerRef} />
@@ -913,7 +997,7 @@ export function EnquiryForm({
             {t.clearForm}
           </Button>
           <Button type="submit" size="lg" disabled={submitting || turnstileBlocking} loading={submitting}>
-            {submitting ? t.submitting : t.submit}
+            {status === "uploading" && uploadProgress ? t.uploadingFiles(uploadProgress.done, uploadProgress.total) : submitting ? t.submitting : t.submit}
           </Button>
         </div>
       </div>
