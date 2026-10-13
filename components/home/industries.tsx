@@ -1,4 +1,4 @@
-import Image from "next/image";
+import Image from "@/components/ui/image";
 import { homepageCopy } from "@/lib/content/homepage";
 import { isIndustriesCopyComplete, resolveIndustrySectorImages } from "@/lib/content/industries";
 import type { Locale } from "@/config/locales";
@@ -166,7 +166,7 @@ const HEADING_ID = "home-industries-heading";
  * IMAGES (§8), for when assets land. Common 4:3 via `aspect-4/3` on a wrapper
  * that reserves the geometry BEFORE loading, so there is no CLS; `object-cover`
  * with `fill`; a modest `rounded-xl` (12px) radius; responsive `sizes`; and no
- * `priority`, because the section is below the fold and next/image lazy-loads
+ * `priority`, because the section is below the fold and the image component lazy-loads
  * by default. The wrapper carries `bg-surface-2`, which IS the §8 runtime
  * fallback: if an image request fails, the reserved box stays exactly the same
  * size and shows a quiet neutral tone — the text beside it remains fully

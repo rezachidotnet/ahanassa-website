@@ -4,6 +4,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { INDUSTRY_SECTORS } from "../content/industries.ts";
+import { IMAGE_VARIANTS } from "./image-variants.generated.ts";
+import { ORIGINALS_DIR } from "./image-sources.ts";
 import { MEDIA_PROVENANCE_REGISTRY, effectiveTruthClass, findIndustrySectorMedia, findMediaRecord, isPublishable, type MediaProvenanceRecord } from "./provenance-registry.ts";
 
 /**
@@ -76,8 +78,10 @@ test("no Industries asset claims to be evidence of real Ahan Asa work (§8, MEDI
 
 test("the declared dimensions and 4:3 ratio are true of the real files on disk (§8)", () => {
   for (const record of INDUSTRIES_RECORDS) {
-    const absolute = path.join(REPO_ROOT, "public", record.src);
-    assert.ok(existsSync(absolute), `${record.id}: ${record.src} must exist in public/`);
+    // W16.5: the original lives in public/_originals/, which no build publishes; public/ serves its AVIF/WebP variants.
+    const absolute = path.join(REPO_ROOT, ORIGINALS_DIR, record.src);
+    assert.ok(existsSync(absolute), `${record.id}: ${record.src} must exist in ${ORIGINALS_DIR}/`);
+    assert.ok(IMAGE_VARIANTS[record.src], `${record.id}: ${record.src} must have published variants`);
     const actual = pngDimensions(absolute);
     assert.equal(actual.width, record.width, `${record.id}: recorded width must match the file`);
     assert.equal(actual.height, record.height, `${record.id}: recorded height must match the file`);

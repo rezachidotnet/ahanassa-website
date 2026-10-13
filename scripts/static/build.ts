@@ -56,7 +56,8 @@ log(`snapshot ${snapshot.snapshot_version} (${snapshot.source.kind}); target ${e
 const buildRoot = path.join(repo, ".static-build");
 fs.rmSync(buildRoot, { recursive: true, force: true });
 fs.mkdirSync(buildRoot);
-const EXCLUDED = new Set(["app/api", "app/data"]);
+// W16.5: public/_originals holds the image originals; only their AVIF/WebP variants are published.
+const EXCLUDED = new Set(["app/api", "app/data", "public/_originals"]);
 for (const entry of ["app", "components", "config", "lib", "public", "styles", "migrations_public", "package.json", "tsconfig.json", "postcss.config.mjs"]) {
   if (!fs.existsSync(path.join(repo, entry))) continue;
   fs.cpSync(path.join(repo, entry), path.join(buildRoot, entry), {

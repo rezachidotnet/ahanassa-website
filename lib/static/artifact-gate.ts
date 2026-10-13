@@ -66,6 +66,7 @@ export function forbiddenPublicPath(p: string): string | null {
   if (p.split("/").includes(".vite")) return ".vite build metadata";
   if (p.split("/").includes(PRIVATE_DIR)) return "private-snapshot path";
   if (p === "manifest.json" || p.endsWith("/manifest.json")) return "private manifest";
+  if (p.startsWith("_originals/")) return "image original (W16.5: only its AVIF/WebP variants are published)";
   return null;
 }
 
