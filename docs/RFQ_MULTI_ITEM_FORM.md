@@ -79,6 +79,18 @@ Live-verified against a real published local Variant: navigating to `/contact?va
 
 ---
 
+### 5.1 W10.5 — the RFQ basket (owner, 2026-10-11)
+
+The `?variant=` hand-off (with `&qty=&unit=&length=` and the fa `&factory=` note) now **adds** its item to the rows the visitor already has, instead of starting a new list. `lib/rfq/rfq-basket.ts`, wired by `components/contact/static-enquiry-form.tsx`:
+
+- **Add / dedupe.** A new variant is appended (an untouched blank row is dropped first). If the same variant is already in a row, no row is added: that row is scrolled to and focused, and only its empty quantity/length/notes are filled. A short status line says "added" / "already in your list" / "list full (MAX_ITEMS)". The first item on an empty form shows no message.
+- **Kept in this tab only.** Rows and the customer fields live in `sessionStorage` (`ahanassa.rfq-basket.v1.<locale>`, one basket per locale). Nothing is stored on a server before submit. Every storage access is in try/catch: with storage blocked, the form works exactly as before. A stored value is sanitized on read, and stored catalog rows are re-resolved against the locale's published list (an unpublished variant is cleared; quantity and notes stay).
+- **The URL is cleaned.** After the item is merged, the hand-off parameters are removed from the address bar (`history.replaceState`), so a reload does not add it again.
+- **«ادامه انتخاب محصول» / «متابعة اختيار المنتجات» / "Continue browsing"** sits next to "Add row". It goes to the same-origin referrer, unless that is the form itself. Otherwise it uses the page remembered in this tab, and then `/{locale}/products`.
+- **Success clears the basket.** After a successful submit (the W10.3 success panel), the basket, the typed fields and the remembered back page are removed. «پاک‌کردن فرم» now also clears name/company/email/notes, because they are controlled fields since this change.
+- **Header badge.** «سبد استعلام (n)» / «سلة الاستعلام (n)» / "Inquiry basket (n)" links to the form. `n` is the number of filled rows. It shows only when n > 0 and never on the form page (`components/layout/rfq-basket-badge.tsx`). Below `lg` it is a pill in the top bar. At `lg+` it is a tab hanging under the header's end edge, so the desktop bar keeps its width. It shows only at the top of the page and fades out (`invisible`, not focusable) once the header switches to its scrolled state, so it never covers content (owner, 2026-10-11). Approved 2026-10-11, including the en label "Inquiry basket".
+- **Unchanged:** the RFQ Worker, its API, and the submitted wire shape (`buildRfqItemInput`). The server still re-validates every variant.
+
 ## 6. Quantity / UOM
 
 **Superseded in part by `docs/RFQ_LAUNCH_UOM_ALIGNMENT.md` (2026-09-02).** At the time this document was first written, the wire contract sent only one freeform `quantityText` string, and every one of the 8 Odoo-contract UOM codes was offered on every row regardless of product. That is no longer accurate — kept below as the historical record of the original design, with the current behavior stated after it.

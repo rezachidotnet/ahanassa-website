@@ -13,6 +13,7 @@ import { HeaderNavDisclosure } from "@/components/layout/header-nav-disclosure";
 import { HeaderLanguageSelector } from "@/components/layout/header-language-selector";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { BrandMark } from "@/components/layout/brand-mark";
+import { RfqBasketBadge } from "@/components/layout/rfq-basket-badge";
 import { ButtonLink } from "@/components/ui/button";
 import type { HeaderProductFamilyShortcut } from "@/lib/catalog/editorial-repository";
 import type { PublicProcessingGroup } from "@/lib/processing/public-repository";
@@ -235,6 +236,8 @@ export function SiteHeader({
                 (Nav/Phone-text/Language/CTA) — using a different breakpoint
                 for phone/language than for nav/CTA/hamburger would leave a
                 broken overlapping state in the tablet range. */}
+            {/* W10.5 RFQ basket (< lg): renders nothing while the basket is empty. */}
+            <RfqBasketBadge locale={locale} variant="bar" className="lg:hidden" />
             <a
               href={`tel:${CONTACT_PHONE_E164}`}
               aria-label={headerPhoneLabel[locale].srLabel}
@@ -282,6 +285,19 @@ export function SiteHeader({
             >
               <Menu className="size-5" aria-hidden="true" />
             </button>
+          </div>
+        </div>
+        {/* W10.5 RFQ basket (≥ lg): a tab under the header's end edge, outside the bar's flex row so it takes no bar width.
+            Shown only at the top of the page: once scrolled it would cover content under the sticky header (owner, 2026-10-11),
+            so it fades out — `invisible` also takes it out of the tab order and the accessibility tree. */}
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-x-0 top-full hidden transition-[opacity,visibility] duration-[180ms] motion-reduce:transition-none lg:block",
+            scrolled && "invisible opacity-0",
+          )}
+        >
+          <div className="container-x flex justify-end">
+            <RfqBasketBadge locale={locale} variant="tab" className="pointer-events-auto" />
           </div>
         </div>
       </header>

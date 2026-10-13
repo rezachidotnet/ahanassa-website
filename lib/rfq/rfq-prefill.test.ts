@@ -50,8 +50,8 @@ test("the pre-filled row is the same row model and produces the same existing wi
 
 test("the static /contact form pre-fills only the resolved preselection, through parseRfqRowPrefill", () => {
   const src = fs.readFileSync(path.join(ROOT, "components/contact/static-enquiry-form.tsx"), "utf8");
-  assert.match(src, /const prefill = preselection && query \? parseRfqRowPrefill\(query, preselection\.groupCode, locale\) : undefined;/);
-  assert.match(src, /catalogPreselectionPrefill=\{prefill\}/);
-  const form = fs.readFileSync(path.join(ROOT, "components/contact/enquiry-form.tsx"), "utf8");
-  assert.match(form, /\}, catalogPreselectionPrefill\)\n\s*: createEmptyCatalogRow\(\),/);
+  // W10.5: the resolved preselection is ADDED to the basket rows (lib/rfq/rfq-basket.ts), with its pre-fill.
+  assert.match(src, /const preselection = variantXid \? findCatalogItemByXid\(items, variantXid\) : null;\n\s*if \(preselection\) \{/);
+  assert.match(src, /addCatalogItemToRows\([^]*?parseRfqRowPrefill\(query, preselection\.groupCode, locale\),\n\s*\);/);
+  assert.equal((src.match(/parseRfqRowPrefill\(/g) ?? []).length, 1, "pre-fill is parsed only for the resolved preselection");
 });

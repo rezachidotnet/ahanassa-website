@@ -1,15 +1,35 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Locale } from "@/config/locales";
+import { localizedPath, type Locale } from "@/config/locales";
 import { EnquiryForm } from "@/components/contact/enquiry-form";
 import { findCatalogItemByXid, type PublicRfqCatalogItem } from "@/lib/rfq/catalog-selector";
 import { publicRfqCatalogPath, PUBLIC_MANIFEST_PATH } from "@/lib/contracts/public-paths";
-import { parseRfqRowPrefill } from "@/lib/rfq/rfq-prefill";
+import { parseRfqRowPrefill, RFQ_PREFILL_PARAMS } from "@/lib/rfq/rfq-prefill";
+import { isRfqRowEmpty, type RfqRow } from "@/lib/rfq/item-row-validation";
+import {
+  addCatalogItemToRows,
+  readRfqBasket,
+  resolveContinueBrowsingHref,
+  restoreRfqBasketRows,
+  type RfqBasketAddOutcome,
+  type RfqBasketCustomer,
+} from "@/lib/rfq/rfq-basket";
 
 interface LoadedCatalog {
   items: PublicRfqCatalogItem[];
 }
+
+interface ReadyForm {
+  rows: RfqRow[];
+  customer: RfqBasketCustomer | undefined;
+  focusRowId: string | null;
+  notice: RfqBasketAddOutcome | null;
+  preselectionInvalid: boolean;
+}
+
+/** The hand-off parameters a «استعلام قیمت» / calculator link carries (lib/pricing/price-rfq.ts, lib/rfq/rfq-prefill.ts). */
+const HANDOFF_PARAMS = ["variant", ...Object.values(RFQ_PREFILL_PARAMS)];
 
 /**
  * The /contact form on a static page (architecture V1.1 §4.2). The page HTML
@@ -22,22 +42,30 @@ interface LoadedCatalog {
  * submitted variant server-side.
  *
  * `?qty=&unit=&length=` (the weight calculator's «استعلام برای همین مقدار»,
- * W10.1) pre-fills that preselected row only, each value checked against the
- * resolved Variant's group policy (lib/rfq/rfq-prefill.ts); an invalid value
- * is dropped and the row starts empty, as with a plain `?variant=`.
+ * W10.1) pre-fills that row only, each value checked against the resolved
+ * Variant's group policy (lib/rfq/rfq-prefill.ts); an invalid value is
+ * dropped and the row starts empty, as with a plain `?variant=`.
+ *
+ * W10.5 basket (lib/rfq/rfq-basket.ts): once the catalog request settles,
+ * the visitor's rows and fields from this tab's sessionStorage are restored
+ * and the `?variant=` item is ADDED to them (same variant → that row is
+ * focused, no duplicate). The hand-off parameters are then removed from the
+ * address bar, so a reload does not add the item again. The form mounts
+ * once more with that state; the first (prerendered) instance never writes
+ * storage, so it cannot overwrite the basket.
  */
 export function StaticEnquiryForm({ locale, turnstileSiteKey, rfqEndpoint }: { locale: Locale; turnstileSiteKey?: string; rfqEndpoint?: string }) {
   const [catalog, setCatalog] = useState<LoadedCatalog | null>(null);
+  const [catalogSettled, setCatalogSettled] = useState(false);
   // The deployed artifact's snapshot version (manifest.public.json) travels with the RFQ so the
   // Worker validates variants against the snapshot the visitor actually saw (architecture §6.1 step 1).
   const [snapshotVersion, setSnapshotVersion] = useState<string | null>(null);
-  const [variantXid, setVariantXid] = useState<string | null>(null);
-  const [query, setQuery] = useState<URLSearchParams | null>(null);
+  const [ready, setReady] = useState<ReadyForm | null>(null);
+  // The prerendered href is the fallback; the referrer is only known in the browser.
+  const [continueHref, setContinueHref] = useState(() => localizedPath(locale, "/products"));
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setQuery(params);
-    setVariantXid(params.get("variant"));
+    setContinueHref(resolveContinueBrowsingHref(locale, document.referrer, window.location.origin));
     let cancelled = false;
     fetch(publicRfqCatalogPath(locale))
       .then((response) => (response.ok ? (response.json() as Promise<LoadedCatalog>) : null))
@@ -46,6 +74,9 @@ export function StaticEnquiryForm({ locale, turnstileSiteKey, rfqEndpoint }: { l
       })
       .catch(() => {
         // The form still works for free-form items without the catalog list.
+      })
+      .finally(() => {
+        if (!cancelled) setCatalogSettled(true);
       });
     fetch(PUBLIC_MANIFEST_PATH)
       .then((response) => (response.ok ? (response.json() as Promise<{ snapshot_version?: unknown }>) : null))
@@ -60,20 +91,56 @@ export function StaticEnquiryForm({ locale, turnstileSiteKey, rfqEndpoint }: { l
     };
   }, [locale]);
 
-  const items = catalog?.items ?? [];
-  const preselection = variantXid ? findCatalogItemByXid(items, variantXid) : null;
-  const prefill = preselection && query ? parseRfqRowPrefill(query, preselection.groupCode, locale) : undefined;
+  // Runs once, after the catalog request settles (loaded or failed).
+  useEffect(() => {
+    if (!catalogSettled || ready) return;
+    const items = catalog?.items ?? [];
+    const query = new URLSearchParams(window.location.search);
+    const variantXid = query.get("variant");
+    const stored = readRfqBasket(locale);
+    let rows = restoreRfqBasketRows(stored?.rows ?? [], items);
+    let focusRowId: string | null = null;
+    let notice: RfqBasketAddOutcome | null = null;
+    const preselection = variantXid ? findCatalogItemByXid(items, variantXid) : null;
+    if (preselection) {
+      const hadItems = rows.some((r) => !isRfqRowEmpty(r.fields));
+      const result = addCatalogItemToRows(
+        rows,
+        // The selector groups by public category; the Variant comes from `items`, so its category is read from there — no extra query.
+        { categoryCode: preselection.publicCategoryCode, templateXid: preselection.templateXid, variantXid: preselection.variantXid },
+        parseRfqRowPrefill(query, preselection.groupCode, locale),
+      );
+      rows = result.rows;
+      focusRowId = result.rowId;
+      // A first item on an empty form needs no message; joining a list, a duplicate or a full list does.
+      notice = result.outcome === "added" && !hadItems ? null : result.outcome;
+    }
+    if (variantXid) {
+      for (const name of HANDOFF_PARAMS) query.delete(name);
+      const search = query.toString();
+      try {
+        window.history.replaceState(window.history.state, "", `${window.location.pathname}${search ? `?${search}` : ""}${window.location.hash}`);
+      } catch {
+        // The address bar keeps the parameters; a reload finds the same variant and adds no duplicate.
+      }
+    }
+    setReady({ rows, customer: stored?.customer, focusRowId, notice, preselectionInvalid: Boolean(catalog && variantXid && !preselection) });
+  }, [catalogSettled, catalog, locale, ready]);
 
   return (
     <EnquiryForm
-      // Remount once the catalog arrives so the initial row picks up the preselection.
-      key={catalog ? `ready:${variantXid ?? ""}` : "loading"}
+      // Remount once the basket is restored so the initial rows/fields pick it up.
+      key={ready ? "ready" : "loading"}
       locale={locale}
       turnstileSiteKey={turnstileSiteKey}
-      catalogPreselection={preselection}
-      catalogPreselectionInvalid={Boolean(catalog && variantXid && !preselection)}
-      catalogPreselectionPrefill={prefill}
-      catalogItems={items}
+      initialRows={ready?.rows}
+      initialCustomer={ready?.customer}
+      focusRowId={ready?.focusRowId ?? null}
+      basketNotice={ready?.notice ?? null}
+      persistBasket={Boolean(ready)}
+      continueBrowsingHref={continueHref}
+      catalogPreselectionInvalid={ready?.preselectionInvalid ?? false}
+      catalogItems={catalog?.items ?? []}
       catalogSnapshotVersion={snapshotVersion}
       rfqEndpoint={rfqEndpoint}
     />
