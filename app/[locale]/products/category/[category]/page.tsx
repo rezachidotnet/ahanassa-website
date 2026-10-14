@@ -5,7 +5,7 @@ import { buildPageMetadata } from "@/lib/metadata/resolve";
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";
 import { listPublicCatalogCategories } from "@/lib/catalog/editorial-repository";
 import { categoryListingPath, categoryPathSegment, findCategoryByPathSegment } from "@/lib/catalog/public-categories";
-import { CATEGORY_LINK_COPY, categorySeo } from "@/lib/content/category-seo";
+import { CATEGORIES_WITHOUT_CALCULATOR, CATEGORY_LINK_COPY, categorySeo } from "@/lib/content/category-seo";
 import { listPublishedHubFamilies } from "@/lib/pricing/price-page-data";
 import { priceHubPath } from "@/lib/pricing/price-hubs";
 import { isWeightCalculatorPublished, WEIGHT_CALCULATOR_ROUTE } from "@/lib/weight-calculator/publication";
@@ -61,7 +61,7 @@ async function CategoryIntro({ locale, code, name, intro }: { locale: Locale; co
   await Promise.resolve();
   const hub = await hasPriceHub(locale, code);
   const t = CATEGORY_LINK_COPY[locale];
-  const calculator = isWeightCalculatorPublished(locale);
+  const calculator = isWeightCalculatorPublished(locale) && !CATEGORIES_WITHOUT_CALCULATOR.has(code);
   return (
     <section aria-label={t.heading} className="container-x pt-10">
       <p className="text-muted-foreground max-w-3xl leading-relaxed">{intro}</p>

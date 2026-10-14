@@ -5,6 +5,7 @@ import { isLocale, localizedPath, type Locale } from "@/config/locales";
 import { buildPageMetadata, buildLanguageAlternatesFromEntries } from "@/lib/metadata/resolve";
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";
 import { getPublishedCatalogTemplateBySlug, listPublicCatalogCategories, listPublishedCatalogTemplates, listPublishedLocalesForProduct } from "@/lib/catalog/editorial-repository";
+import { findCategoryForVariant } from "@/lib/catalog/public-categories";
 import { resolveRouteRedirect } from "@/lib/catalog/route-redirects";
 import { PageHero } from "@/components/ui/page-hero";
 import { VariantSpecTable, variantRowAnchorId, variantSelectedLabel } from "@/components/products/variant-spec-table";
@@ -126,9 +127,9 @@ async function ProductSpecs({ locale, variants, title }: { locale: Locale; varia
  * `data-product-family` marker for rfq_cta_click (components/analytics/analytics-runtime.tsx). Its own async
  * boundary (as ProductSpecs), so the page row that carries the target-specific robots value is unchanged.
  */
-async function ProductAnalytics({ locale, slug, groupCode }: { locale: Locale; slug: string; groupCode: string | null }) {
+async function ProductAnalytics({ locale, slug, groupCode, formCode }: { locale: Locale; slug: string; groupCode: string | null; formCode: string | null }) {
   await Promise.resolve();
-  const family = groupCode ? ((await listPublicCatalogCategories(locale)).find((c) => c.groupCodes.includes(groupCode))?.code ?? null) : null;
+  const family = groupCode ? (findCategoryForVariant(await listPublicCatalogCategories(locale), groupCode, formCode)?.code ?? null) : null;
   return (
     <>
       {family && <span hidden data-product-family={family} />}
@@ -223,7 +224,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       </section>
 
       {/* W16.3 (D-SEO): category, sibling grades, price hub, calculator, articles (components/products/product-related-links.tsx). */}
-      <ProductRelatedLinks locale={locale} templateXid={product.templateXid} slug={slug} groupCode={variants[0]?.group.code ?? null} />
+      <ProductRelatedLinks locale={locale} templateXid={product.templateXid} slug={slug} groupCode={variants[0]?.group.code ?? null} formCode={variants[0]?.form.code ?? null} />
 
       {/* W16.6: «خدمات مکمل گروه» on beam, box/profile and coated-sheet products only (lib/content/company.ts). */}
       {showGroupServices(variants.flatMap((v) => [v.family.code, v.group.code, v.form.code, v.group.name, v.form.name])) && (
@@ -233,7 +234,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       )}
 
       <CtaBand locale={locale} />
-      <ProductAnalytics locale={locale} slug={slug} groupCode={variants[0]?.group.code ?? null} />
+      <ProductAnalytics locale={locale} slug={slug} groupCode={variants[0]?.group.code ?? null} formCode={variants[0]?.form.code ?? null} />
     </>
   );
 }

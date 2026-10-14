@@ -26,7 +26,7 @@ const SNAPSHOT: Record<Loc, Array<[string, string, string[]]>> = {
   ar: [["REBAR", "حديد التسليح", ["REBAR"]], ["BEAM", "كمرات فولاذية", ["BEAMS"]], ["ANGLE", "زوايا فولاذية", ["ANGLE"]], ["CHANNEL", "مقاطع U فولاذية", ["CHANNEL"]], ["BOX_SECTION", "مقاطع صندوقية", ["RHS", "SHS"]], ["SHEET_PLATE", "صفائح وألواح فولاذية", ["SHEET_PLATE"]], ["PIPE", "أنابيب فولاذية", ["SEAMLESS_PIPE"]]],
 };
 const categories = (loc: Loc): PublicCatalogCategory[] =>
-  SNAPSHOT[loc].map(([code, name, groupCodes], i) => ({ code, name, sequence: (i + 1) * 10, groupCodes, templateCount: 0, variantCount: 0 }));
+  SNAPSHOT[loc].map(([code, name, groupCodes], i) => ({ code, name, sequence: (i + 1) * 10, groupCodes, formCodes: [], templateCount: 0, variantCount: 0 }));
 
 // The staging variant distribution (256 active public variants) with the
 // Persian-only family names the sync actually stores.
@@ -113,7 +113,7 @@ test("BEAMS resolves to BEAM and SEAMLESS_PIPE resolves to PIPE through the snap
 });
 
 test("the mapping is read from the snapshot, not hard-coded: a different snapshot yields a different grouping", () => {
-  const custom: PublicCatalogCategory[] = [{ code: "HOLLOW", name: "Hollow", sequence: 1, groupCodes: ["RHS"], templateCount: 0, variantCount: 0 }];
+  const custom: PublicCatalogCategory[] = [{ code: "HOLLOW", name: "Hollow", sequence: 1, groupCodes: ["RHS"], formCodes: [], templateCount: 0, variantCount: 0 }];
   const index = indexPublicCategoriesByGroupCode(custom);
   assert.equal(resolveRfqPublicCategory(index, "en", "RHS", null).code, "HOLLOW");
   assert.equal(resolveRfqPublicCategory(index, "en", "SHS", null).resolved, false);
@@ -200,7 +200,7 @@ test("fa and en selector data cannot be served to each other: per-locale JSON pa
   const body = fn.slice(0, fn.indexOf("\n}\n"));
   assert.match(body, /listPublicCatalogCategories\(locale\)/, "the category snapshot is read for the requested locale");
   assert.match(body, /\.bind\(locale\)/, "the variant/editorial read is bound to the requested locale");
-  assert.match(body, /attachRfqPublicCategories\(selections, categories, locale\)/);
+  assert.match(body, /attachRfqPublicCategories\(selections, categories, locale, formCodes\)/);
   assert.ok(!/new Map|WeakMap|globalThis/.test(body), "no module-level memo that could leak one locale's result into another");
 
   // And the pure step is a function of the locale's snapshot only.

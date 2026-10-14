@@ -9,6 +9,8 @@ import type { Locale } from "../../config/locales.ts";
  * uses the Iraqi trade words of §3.5 next to the formal term and never a factory; en never a price word.
  * Facts are the catalog's own: the grades, forms and standards of the published variants (no size ranges,
  * which change with the catalog). A category without an entry here keeps the generic listing copy.
+ * W17.4: the four W9.8 flat categories do state their thickness and width ranges (owner instruction
+ * 2026-10-14) — taken from the Odoo catalog source (ahanassa_catalog_flat_raw tools/build_catalog.py).
  */
 export interface CategorySeoCopy {
   title: string;
@@ -226,7 +228,129 @@ export const CATEGORY_SEO: Record<string, Record<Locale, CategoryEntry>> = {
         "Seamless pipe is used in fluid lines, industrial plants and structures. The pipe in this category is ASTM A106 Grade B, with outside diameter and wall thickness to ASME B36.10M, schedule 40. The nominal weights per metre and per length are on the product page. Send the diameter, schedule, length and quantity you need and Ahan Asa reviews the sourcing options.",
     },
   },
+  // W17.4 — the W9.8 flat categories (Odoo ahanassa_catalog_flat_raw). Facts are the catalog's own: grade,
+  // standard, thickness and width ranges of the six templates (tools/build_catalog.py); coils are sold by
+  // actual weight. Market words next to the formal term: رول/کلاف، شیت، ST37، ST12، روغنی. No price hub yet,
+  // so the fa title is the unpriced one until a hub is added (lib/pricing/price-hubs.ts).
+  GALVANIZED_SHEET: {
+    fa: {
+      name: "ورق گالوانیزه",
+      pricedTitle: "ورق گالوانیزه رول و شیت DX51D+Z: ضخامت و قیمت روز",
+      pricedDescription: "ورق گالوانیزه گرم رول (کلاف) و شیت با گرید DX51D+Z طبق EN 10346، ضخامت ۰٫۴ تا ۳ میلی‌متر، عرض ۱۰۰۰ و ۱۲۵۰، با قیمت روز ورق گالوانیزه رول.",
+      title: "ورق گالوانیزه رول و شیت DX51D+Z: ضخامت و ابعاد",
+      h1: "ورق گالوانیزه",
+      description: "ورق گالوانیزه گرم رول (کلاف) و شیت با گرید DX51D+Z طبق EN 10346، ضخامت ۰٫۴ تا ۳ میلی‌متر و عرض ۱۰۰۰ یا ۱۲۵۰. برای خرید ورق گالوانیزه استعلام بگیرید.",
+      intro:
+        "ورق گالوانیزه ورق فولادی با پوشش روی است که به روش غوطه‌وری گرم تولید می‌شود و در کانال کولر، سقف و دیوار سوله، لوازم خانگی و قطعات صنعتی به کار می‌رود. این گروه ورق گالوانیزه رول (کلاف) و ورق گالوانیزه شیت (برش‌خورده) با گرید DX51D+Z طبق استاندارد EN 10346 را دربرمی‌گیرد؛ ضخامت از ۰٫۴ تا ۳ میلی‌متر، عرض رول ۱۰۰۰ یا ۱۲۵۰ میلی‌متر و ابعاد شیت ۱۰۰۰×۲۰۰۰ یا ۱۲۵۰×۲۵۰۰ میلی‌متر است. رول بر اساس وزن واقعی (باسکول) فروخته می‌شود. ضخامت، عرض یا ابعاد، وزن پوشش و مقدار را بفرستید.",
+    },
+    ar: {
+      name: "الصاج المجلفن",
+      title: "الصاج المجلفن لفائف وألواح DX51D+Z: السماكات",
+      h1: "الصاج المجلفن",
+      description: "صاج مجلفن بالغمس الساخن، لفائف وألواح مقطوعة بدرجة DX51D+Z وفق EN 10346، بسماكة من 0.4 إلى 3 مم وعرض 1000 أو 1250 مم. أرسل قائمة الشراء لطلب عرض.",
+      intro:
+        "الصاج المجلفن صاج فولاذي مطلي بالزنك بطريقة الغمس الساخن، ويُستخدم في مجاري التكييف وأسقف وجدران الهناجر والأجهزة المنزلية والقطع الصناعية. تضم هذه الفئة لفائف الصاج المجلفن والألواح المقطوعة بدرجة DX51D+Z وفق المعيار EN 10346، بسماكة من 0.4 إلى 3 مم، وعرض اللفّ 1000 أو 1250 مم، ومقاس الألواح 1000×2000 أو 1250×2500 مم. تُباع اللفائف حسب الوزن الفعلي على الميزان. أرسل السماكة والعرض أو المقاس وكتلة الطلاء والكمية ليراجع آهن آسا خيارات التوريد.",
+    },
+    en: {
+      name: "galvanized steel",
+      title: "Galvanized Steel Coil & Sheet DX51D+Z — EN 10346",
+      h1: "Galvanized steel",
+      description: "Hot-dip galvanized steel coil and cut sheet, grade DX51D+Z to EN 10346, 0.4 to 3 mm thick, 1000 or 1250 mm wide. Send your list to request a quote.",
+      intro:
+        "Galvanized steel is zinc-coated by hot dipping and is used for air ducts, shed roofing and cladding, household appliances and fabricated parts. This category covers galvanized coil and cut-to-length sheet in grade DX51D+Z to EN 10346, 0.4 to 3 mm thick; coils are 1000 or 1250 mm wide and sheets 1000×2000 or 1250×2500 mm. Coils are sold by actual weighbridge weight. Send thickness, width or sheet size, coating mass and quantity and Ahan Asa reviews the sourcing options.",
+    },
+  },
+  PREPAINTED_SHEET: {
+    fa: {
+      name: "ورق رنگی",
+      pricedTitle: "ورق رنگی (PPGI) رول پایه DX51D+Z: رنگ‌ها و قیمت روز",
+      pricedDescription: "ورق رنگی پیش‌رنگ‌شده (PPGI) رول با پایه گالوانیزه DX51D+Z و رنگ طبق EN 10169، ضخامت ۰٫۴ تا ۰٫۷ میلی‌متر و عرض ۱۲۵۰، با قیمت روز.",
+      title: "ورق رنگی (PPGI) رول پایه DX51D+Z: ضخامت و رنگ‌ها",
+      h1: "ورق رنگی (PPGI)",
+      description: "ورق رنگی پیش‌رنگ‌شده (PPGI) رول با پایه گالوانیزه DX51D+Z طبق EN 10346 و رنگ طبق EN 10169، ضخامت ۰٫۴ تا ۰٫۷ میلی‌متر و عرض ۱۲۵۰. استعلام قیمت بگیرید.",
+      intro:
+        "ورق رنگی یا ورق پیش‌رنگ‌شده (PPGI) ورق گالوانیزه‌ای است که در کارخانه رنگ می‌شود و در سقف و دیوار سوله، ساندویچ پانل، کانکس و لوازم خانگی به کار می‌رود. این گروه ورق رنگی رول (کلاف) با پایه گالوانیزه DX51D+Z طبق EN 10346 و سیستم رنگ طبق EN 10169 را دربرمی‌گیرد؛ ضخامت ۰٫۴ تا ۰٫۷ میلی‌متر، عرض ۱۲۵۰ میلی‌متر و شش رنگ: آبی، سفید، سفید یخچالی، قرمز، نارنجی و قهوه‌ای. فروش بر اساس وزن واقعی است. رنگ، عرض یا نوع رنگ دیگر را در درخواست بنویسید.",
+    },
+    ar: {
+      name: "الصاج المطلي",
+      title: "الصاج المطلي مسبقاً (PPGI) لفائف DX51D+Z: الألوان",
+      h1: "الصاج المطلي مسبقاً (PPGI)",
+      description: "لفائف صاج مجلفن مطلي مسبقاً (PPGI) بأساس DX51D+Z وفق EN 10346 وطلاء وفق EN 10169، بسماكة من 0.4 إلى 0.7 مم وعرض 1250 مم. أرسل قائمة الشراء لطلب عرض.",
+      intro:
+        "الصاج المطلي مسبقاً (PPGI) صاج مجلفن يُطلى في المصنع، ويُستخدم في أسقف وجدران الهناجر والألواح المعزولة (ساندويتش بانل) والكرفانات والأجهزة المنزلية. تضم هذه الفئة لفائف الصاج المطلي بأساس مجلفن بدرجة DX51D+Z وفق EN 10346 ونظام طلاء وفق EN 10169، بسماكة من 0.4 إلى 0.7 مم وعرض 1250 مم، بستة ألوان: الأزرق والأبيض وأبيض الأجهزة والأحمر والبرتقالي والبني. تُباع حسب الوزن الفعلي. اذكر في طلبك أي لون أو عرض أو نظام طلاء آخر ليراجع آهن آسا خيارات التوريد.",
+    },
+    en: {
+      name: "pre-painted steel",
+      title: "Pre-Painted Galvanized Steel Coil (PPGI) — DX51D+Z",
+      h1: "Pre-painted steel (PPGI)",
+      description: "Pre-painted galvanized steel coil (PPGI), DX51D+Z base to EN 10346, paint system to EN 10169, 0.4 to 0.7 mm thick, 1250 mm wide. Request a quote.",
+      intro:
+        "Pre-painted galvanized steel (PPGI) is galvanized coil painted at the mill, used for shed roofing and cladding, sandwich panels, portable cabins and household appliances. This category covers PPGI coil on a DX51D+Z galvanized base to EN 10346 with a paint system to EN 10169, 0.4 to 0.7 mm thick and 1250 mm wide, in six colours: blue, white, appliance white, red, orange and brown. It is sold by actual weight. Name any other colour, width or paint system in your request and Ahan Asa reviews the sourcing options.",
+    },
+  },
+  HOT_ROLLED_COIL: {
+    fa: {
+      name: "ورق سیاه رول",
+      pricedTitle: "ورق سیاه رول (کلاف گرم) ST37: ضخامت، عرض و قیمت روز",
+      pricedDescription: "ورق سیاه رول یا کلاف گرم با گرید S235JR (ST37) و تلرانس طبق EN 10051، ضخامت ۲ تا ۱۵ میلی‌متر، عرض ۱۰۰۰، ۱۲۵۰ و ۱۵۰۰، با قیمت روز.",
+      title: "ورق سیاه رول (کلاف گرم) S235JR (ST37): ضخامت و عرض",
+      h1: "ورق سیاه رول (کلاف گرم)",
+      description: "ورق سیاه رول یا کلاف گرم‌نورد با گرید S235JR (ST37) و تلرانس طبق EN 10051، ضخامت ۲ تا ۱۵ میلی‌متر، عرض ۱۰۰۰، ۱۲۵۰ یا ۱۵۰۰. استعلام قیمت بگیرید.",
+      intro:
+        "ورق سیاه رول یا کلاف گرم، ورق فولادی گرم‌نوردی است که به‌صورت کلاف عرضه می‌شود و برای لوله‌سازی، پروفیل‌سازی، برش به ورق و ساخت قطعات صنعتی به کار می‌رود. این گروه کلاف گرم با گرید S235JR (معادل ST37) و تلرانس ابعادی طبق EN 10051 را دربرمی‌گیرد؛ ضخامت از ۲ تا ۱۵ میلی‌متر و عرض ۱۰۰۰، ۱۲۵۰ یا ۱۵۰۰ میلی‌متر است. کلاف بر اساس وزن واقعی (باسکول) فروخته می‌شود و وزن هر کلاف معمولاً ۳ تا ۲۵ تن است. ضخامت، عرض، مقدار و کارخانه مورد نظر را بفرستید.",
+    },
+    ar: {
+      name: "لفائف الصاج الأسود",
+      title: "لفائف الصلب المدرفلة على الساخن S235JR (ST37)",
+      h1: "لفائف الصلب المدرفلة على الساخن",
+      description: "لفائف صلب مدرفلة على الساخن (HRC) بدرجة S235JR (ST37) وتفاوتات وفق EN 10051، بسماكة من 2 إلى 15 مم وعرض 1000 أو 1250 أو 1500 مم. أرسل قائمتك لطلب عرض.",
+      intro:
+        "لفائف الصلب المدرفلة على الساخن (HRC) صاج أسود يُورَّد على شكل لفائف، ويُستخدم في صناعة الأنابيب والمقاطع والتقطيع إلى ألواح وتصنيع القطع الصناعية. تضم هذه الفئة لفائف بدرجة S235JR (تعادل ST37) بتفاوتات أبعاد وفق EN 10051، بسماكة من 2 إلى 15 مم وعرض 1000 أو 1250 أو 1500 مم. تُباع اللفائف حسب الوزن الفعلي على الميزان، ويزن اللفّ عادةً من 3 إلى 25 طناً. أرسل السماكة والعرض والكمية والمصنع المفضل ليراجع آهن آسا خيارات التوريد.",
+    },
+    en: {
+      name: "hot-rolled coil",
+      title: "Hot-Rolled Steel Coil (HRC) S235JR — EN 10051",
+      h1: "Hot-rolled coil (HRC)",
+      description: "Hot-rolled steel coil (HRC) in grade S235JR (ST37), tolerances to EN 10051, 2 to 15 mm thick and 1000, 1250 or 1500 mm wide. Send your list to request a quote.",
+      intro:
+        "Hot-rolled coil is black steel strip supplied in coils, used for pipe and section making, cutting to sheet and fabricated parts. This category covers coil in grade S235JR (equivalent to ST37) with dimensional tolerances to EN 10051, 2 to 15 mm thick and 1000, 1250 or 1500 mm wide. Coils are sold by actual weighbridge weight; a coil usually weighs 3 to 25 tonnes. Send thickness, width, quantity and the preferred mill and Ahan Asa reviews the sourcing options.",
+    },
+  },
+  COLD_ROLLED: {
+    fa: {
+      name: "ورق روغنی",
+      pricedTitle: "ورق روغنی (نورد سرد) DC01 / ST12: رول، شیت و قیمت روز",
+      pricedDescription: "ورق روغنی سردنورد رول (کلاف) و شیت با گرید DC01 (ST12) طبق EN 10130، ضخامت ۰٫۴ تا ۲ میلی‌متر، عرض ۱۰۰۰ و ۱۲۵۰، با قیمت روز رول.",
+      title: "ورق روغنی (نورد سرد) DC01 / ST12: رول، شیت و ضخامت",
+      h1: "ورق روغنی (نورد سرد)",
+      description: "ورق روغنی سردنورد رول (کلاف) و شیت با گرید DC01 (معادل ST12) طبق EN 10130، ضخامت ۰٫۴ تا ۲ میلی‌متر و عرض ۱۰۰۰ یا ۱۲۵۰. استعلام قیمت بگیرید.",
+      intro:
+        "ورق روغنی یا ورق سردنورد، ورق فولادی نازک با سطح صاف است که پس از نورد سرد روغن‌کاری می‌شود و در لوازم خانگی، بدنه تابلو برق، قطعات خودرو و مبلمان فلزی به کار می‌رود. این گروه ورق روغنی رول (کلاف سرد) با ضخامت ۰٫۴ تا ۲ میلی‌متر و عرض ۱۰۰۰ یا ۱۲۵۰ میلی‌متر و ورق روغنی شیت با ضخامت ۰٫۵ تا ۲ میلی‌متر در ابعاد ۱۰۰۰×۲۰۰۰ یا ۱۲۵۰×۲۵۰۰ میلی‌متر را دربرمی‌گیرد؛ گرید DC01 (معادل ST12) طبق EN 10130. فروش بر اساس وزن واقعی است.",
+    },
+    ar: {
+      name: "الصاج المدرفل على البارد",
+      title: "الصاج المدرفل على البارد DC01 (ST12): لفائف وألواح",
+      h1: "الصاج المدرفل على البارد",
+      description: "صاج مدرفل على البارد ومزيّت، لفائف وألواح مقطوعة بدرجة DC01 (ST12) وفق EN 10130، بسماكة من 0.4 إلى 2 مم وعرض 1000 أو 1250 مم. أرسل قائمتك لطلب عرض.",
+      intro:
+        "الصاج المدرفل على البارد صاج فولاذي رقيق ذو سطح أملس يُزيَّت بعد الدرفلة الباردة، ويُستخدم في الأجهزة المنزلية وهياكل اللوحات الكهربائية وقطع السيارات والأثاث المعدني. تضم هذه الفئة لفائف بسماكة من 0.4 إلى 2 مم وعرض 1000 أو 1250 مم، وألواحاً مقطوعة بسماكة من 0.5 إلى 2 مم بمقاس 1000×2000 أو 1250×2500 مم، بدرجة DC01 (تعادل ST12) وفق EN 10130. تُباع حسب الوزن الفعلي. أرسل السماكة والعرض أو المقاس والكمية ليراجع آهن آسا خيارات التوريد.",
+    },
+    en: {
+      name: "cold-rolled steel",
+      title: "Cold-Rolled Steel Coil & Sheet DC01 (ST12) — EN 10130",
+      h1: "Cold-rolled steel (CRC)",
+      description: "Cold-rolled, oiled steel coil and cut sheet in grade DC01 (ST12) to EN 10130, 0.4 to 2 mm thick, 1000 or 1250 mm wide. Send your list to request a quote.",
+      intro:
+        "Cold-rolled steel is thin, smooth-surfaced sheet that is oiled after cold rolling, used for household appliances, electrical cabinets, automotive parts and metal furniture. This category covers coil 0.4 to 2 mm thick and 1000 or 1250 mm wide, and cut-to-length sheet 0.5 to 2 mm thick in 1000×2000 or 1250×2500 mm, in grade DC01 (equivalent to ST12) to EN 10130. It is sold by actual weight. Send thickness, width or sheet size and quantity and Ahan Asa reviews the sourcing options.",
+    },
+  },
 };
+
+/**
+ * W17.4: categories the weight calculator cannot compute (it has no coil or coated-sheet shape,
+ * lib/weight-calculator/model.ts FORM_SHAPES) — their pages never link to it as if it could.
+ */
+export const CATEGORIES_WITHOUT_CALCULATOR: ReadonlySet<string> = new Set(["GALVANIZED_SHEET", "PREPAINTED_SHEET", "HOT_ROLLED_COIL", "COLD_ROLLED"]);
 
 /** The page copy of a category in a locale; `priced` = the family has prices today (fa title/meta only). */
 export function categorySeo(code: string, locale: Locale, priced: boolean): (CategorySeoCopy & { name: string }) | null {

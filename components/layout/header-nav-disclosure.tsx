@@ -10,6 +10,8 @@ export interface NavDisclosureItem {
   code: string;
   name: string;
   path: string;
+  /** W17.4: a family entry («ورق») — rendered as a heading over its own links, never as a link or a nested disclosure. */
+  children?: NavDisclosureItem[];
 }
 
 /**
@@ -160,7 +162,23 @@ export function HeaderNavDisclosure({
 
       <div id={panelId} hidden={!open} className="border-border bg-background absolute start-0 top-full z-20 mt-1 w-64 border shadow-[0_8px_24px_-8px_rgba(11,37,69,0.18)]">
         <ul className="py-2">
-          {items.map((item) => (
+          {items.map((item) =>
+            item.children ? (
+              <li key={item.code}>
+                <span id={`${panelId}-${item.code}`} className="text-muted-foreground block px-4 pt-2.5 pb-1 text-xs font-bold">
+                  {item.name}
+                </span>
+                <ul aria-labelledby={`${panelId}-${item.code}`}>
+                  {item.children.map((child) => (
+                    <li key={child.code}>
+                      <Link href={child.path} className="text-navy hover:bg-surface focus-visible:bg-surface block py-2 ps-7 pe-4 text-sm transition-colors">
+                        {child.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ) : (
             <li key={item.code}>
               {/* No outline-none here (a prior version removed the global
                   copper focus-visible outline and replaced it with only a
@@ -174,7 +192,8 @@ export function HeaderNavDisclosure({
                 {item.name}
               </Link>
             </li>
-          ))}
+            ),
+          )}
         </ul>
         <div className="border-border border-t px-4 py-2.5">
           {/* See SiteHeader.tsx's own comment on this same hover-contrast

@@ -2,8 +2,9 @@ import { getPublicDb } from "../db/public.ts";
 import { ulid } from "../rfq/ulid.ts";
 import type { Locale } from "../../config/locales.ts";
 import { canPublish, canSubmitForReview, isValidContentStatusTransition } from "./editorial.ts";
-import { groupCodeSetClause, type CatalogFilterInput } from "./catalog-filters.ts";
+import { categorySetClause, type CatalogFilterInput } from "./catalog-filters.ts";
 import { parseCategoryRow, type CategoryRow } from "./public-categories.ts";
+import { groupProductFamilies, withMarketName } from "../content/category-nav.ts";
 import { resolveCatalogMedia, type ResolvedCatalogMedia } from "./media-registry.ts";
 import { formatCompactVariantSpecification } from "./specification-presenter.ts";
 import { attachRfqPublicCategories, type RfqSelectableCatalogItem } from "../rfq/catalog-selector.ts";
@@ -587,8 +588,8 @@ const TEMPLATE_SEO_COLUMNS = `s.id as seo_id, s.entity_type as seo_entity_type, 
 function filterConditions(filters: CatalogFilterInput, params: unknown[]): string[] {
   const clauses: string[] = [];
   // Selected public category: a template matches when any of its public
-  // variants carries one of the category's Odoo-supplied group codes.
-  const categoryClause = groupCodeSetClause(filters.groupCodes);
+  // variants is in the category's Odoo-supplied group/form set (W9.8).
+  const categoryClause = categorySetClause(filters);
   if (categoryClause) {
     params.push(...categoryClause.params);
     clauses.push(`EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = cp.id AND pv.is_active = 1 AND pv.is_public = 1 AND ${categoryClause.sql})`);
@@ -799,6 +800,7 @@ interface HomepageCandidateRow {
   seo_intro: string | null;
   rep_family_code: string | null;
   rep_group_code: string | null;
+  rep_form_code: string | null;
   hpr_base_priority: number | null;
   hpr_manual_boost: number | null;
   hpr_demand_score: number | null;
@@ -853,6 +855,7 @@ export async function listHomepageProductCandidates(locale: Locale, options: Hom
       `SELECT cp.id as id, cp.template_xid as template_xid, s.slug as seo_slug, s.h1 as seo_h1, s.intro as seo_intro,
               (SELECT pv.family_code FROM product_variants pv WHERE pv.product_id = cp.id AND pv.is_active = 1 AND pv.is_public = 1 ORDER BY pv.commercial_name ASC LIMIT 1) as rep_family_code,
               (SELECT pv.group_code FROM product_variants pv WHERE pv.product_id = cp.id AND pv.is_active = 1 AND pv.is_public = 1 ORDER BY pv.commercial_name ASC LIMIT 1) as rep_group_code,
+              (SELECT pv.form_code FROM product_variants pv WHERE pv.product_id = cp.id AND pv.is_active = 1 AND pv.is_public = 1 ORDER BY pv.commercial_name ASC LIMIT 1) as rep_form_code,
               hpr.base_priority as hpr_base_priority, hpr.manual_boost as hpr_manual_boost, hpr.demand_score as hpr_demand_score
        FROM catalog_products cp
        JOIN product_seo_contents s ON s.entity_type = 'product' AND s.entity_id = cp.id
@@ -881,7 +884,7 @@ export async function listHomepageProductCandidates(locale: Locale, options: Hom
     summary: row.seo_intro,
     familyCode: row.rep_family_code,
     groupCode: row.rep_group_code,
-    image: resolveCatalogMedia({ templateXid: row.template_xid, groupCode: row.rep_group_code, familyCode: row.rep_family_code }),
+    image: resolveCatalogMedia({ templateXid: row.template_xid, groupCode: row.rep_group_code, familyCode: row.rep_family_code, formCode: row.rep_form_code }),
     rank: index + 1,
     score,
   }));
@@ -932,7 +935,9 @@ export async function listPublicCatalogCategories(locale: Locale): Promise<Publi
   const db = getPublicDb();
   const result = await db
     .prepare(
-      `SELECT code, name, sequence, group_codes_json, template_count, variant_count
+      // `*`: form_codes_json (W9.8) is a build-only snapshot column (lib/contracts/snapshot-v1.ts) that the remote
+      // DB_PUBLIC does not have; a row without it parses as "no form mappings" (parseCategoryRow).
+      `SELECT *
        FROM catalog_public_categories
        WHERE locale = ?
        ORDER BY position ASC`,
@@ -940,7 +945,11 @@ export async function listPublicCatalogCategories(locale: Locale): Promise<Publi
     .bind(locale)
     .all<CategoryRow>();
 
-  return (result.results ?? []).map(parseCategoryRow).filter((c): c is PublicCatalogCategory => c !== null);
+  // W17.4: the owner-approved fa market names of the W9.8 flat categories (lib/content/category-nav.ts).
+  return (result.results ?? [])
+    .map(parseCategoryRow)
+    .filter((c): c is PublicCatalogCategory => c !== null)
+    .map((c) => withMarketName(c, locale));
 }
 
 // --- Header Product Family shortcuts (docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md §3-4) ---
@@ -950,6 +959,8 @@ export interface HeaderProductFamilyShortcut {
   code: string;
   /** Odoo's per-locale category name. */
   name: string;
+  /** W17.4: a family entry («ورق», lib/content/category-nav.ts) — no listing of its own; each child links to its category. */
+  children?: HeaderProductFamilyShortcut[];
 }
 
 /**
@@ -972,7 +983,8 @@ export const MAX_HEADER_PRODUCT_SHORTCUTS = 8;
  */
 export async function listHeaderProductFamilyShortcuts(locale: Locale): Promise<HeaderProductFamilyShortcut[]> {
   const categories = await listPublicCatalogCategories(locale);
-  return categories.map((c) => ({ code: c.code, name: c.name })).slice(0, MAX_HEADER_PRODUCT_SHORTCUTS);
+  // W17.4: the sheet categories collapse into one «ورق» entry (never re-sorted), then the frozen cap applies to entries.
+  return groupProductFamilies(categories.map((c) => ({ code: c.code, name: c.name })), locale).slice(0, MAX_HEADER_PRODUCT_SHORTCUTS);
 }
 
 // --- Sitemap boundary (docs/CATALOG_PUBLIC_ROUTES.md §Sitemap) ---
@@ -1094,7 +1106,7 @@ export async function listRfqSelectableCatalogItems(locale: Locale): Promise<Rfq
   });
   const [categories, result] = await Promise.all([categoriesRead, db
     .prepare(
-      `SELECT v.xid, v.sku, v.commercial_size, v.section_size, v.family_code, v.family_name, v.group_code, cp.template_xid, s.h1 as template_h1, s.slug as template_slug
+      `SELECT v.xid, v.sku, v.commercial_size, v.section_size, v.family_code, v.family_name, v.group_code, v.form_code, cp.template_xid, s.h1 as template_h1, s.slug as template_slug
        FROM product_variants v
        JOIN catalog_products cp ON cp.id = v.product_id
        JOIN product_seo_contents s ON s.entity_type = 'product' AND s.entity_id = cp.id
@@ -1104,7 +1116,7 @@ export async function listRfqSelectableCatalogItems(locale: Locale): Promise<Rfq
        ORDER BY v.family_name ASC, s.h1 ASC, v.commercial_size ASC`,
     )
     .bind(locale)
-    .all<{ xid: string; sku: string; commercial_size: string | null; section_size: string | null; family_code: string | null; family_name: string | null; group_code: string | null; template_xid: string; template_h1: string; template_slug: string }>()]);
+    .all<{ xid: string; sku: string; commercial_size: string | null; section_size: string | null; family_code: string | null; family_name: string | null; group_code: string | null; form_code: string | null; template_xid: string; template_h1: string; template_slug: string }>()]);
 
   const selections: RfqCatalogSelection[] = (result.results ?? []).map((row) => ({
     variantXid: row.xid,
@@ -1118,7 +1130,8 @@ export async function listRfqSelectableCatalogItems(locale: Locale): Promise<Rfq
     groupCode: row.group_code,
   }));
 
-  const { items, unresolvedGroupCodes } = attachRfqPublicCategories(selections, categories, locale);
+  const formCodes = Object.fromEntries((result.results ?? []).map((row) => [row.xid, row.form_code]));
+  const { items, unresolvedGroupCodes } = attachRfqPublicCategories(selections, categories, locale, formCodes);
   for (const groupCode of unresolvedGroupCodes) {
     console.warn("RFQ_SELECTOR_CATEGORY_UNRESOLVED", JSON.stringify({ locale, groupCode }));
   }

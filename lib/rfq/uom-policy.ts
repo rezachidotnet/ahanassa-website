@@ -29,11 +29,19 @@ import { type RfqUomCode } from "./uom.ts";
  * Sheet forms — a physical "sheet count" unit is equally meaningful for
  * both, and only the Plate form is published in production today). Never
  * keyed from a translated display name or a slug.
+ *
+ * W9.8 flat products (W17.4), from ahanassa_catalog_flat_raw (tools/build_catalog.py FLAT_UNITS /
+ * SHEET_UNITS, every variant settled by actual weight): coils are group FLAT_COILS (Forms GALVANIZED_COIL,
+ * PREPAINTED_COIL, HOT_ROLLED_COIL, COLD_ROLLED_COIL), allowed_commercial_units "kg, ton" — sold by
+ * weighbridge weight, never per coil (the "coil" unit stays blocked in Odoo and in LAUNCH_DEFERRED_UOMS).
+ * Galvanized and cold-rolled cut sheets are Forms GALVANIZED / COLD_ROLLED of SHEET_PLATE,
+ * allowed_commercial_units "kg, ton, sheet" — the existing SHEET_PLATE entry, unchanged.
  */
 
 export const LAUNCH_GROUP_UOM_POLICY: Readonly<Record<string, readonly RfqUomCode[]>> = {
   REBAR: ["kg", "ton", "branch"],
   SHEET_PLATE: ["kg", "ton", "sheet"],
+  FLAT_COILS: ["kg", "ton"],
   SHS: ["kg", "ton", "meter"],
   ANGLE: ["kg", "ton", "meter"],
   CHANNEL: ["kg", "ton", "meter"],

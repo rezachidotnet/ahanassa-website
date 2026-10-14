@@ -126,12 +126,20 @@ export interface CatalogMetaPayload {
  * the category covers (e.g. BOX_SECTION -> [RHS, SHS]) — the website never
  * re-derives that mapping itself. Not yet described in
  * docs/integrations/odoo/catalog-v1/ (documentation gap, reported).
+ *
+ * `form_codes` (W9.8, ahanassa_marketplace 19.0.53.0.0): the Forms a
+ * category's mappings name, e.g. GALVANIZED_SHEET -> group_codes
+ * [FLAT_COILS, SHEET_PLATE], form_codes [GALVANIZED, GALVANIZED_COIL]. Odoo
+ * shows a row under the most specific mapping, so SHEET_PLATE (no forms)
+ * keeps only the Forms no category claims. Optional: an Odoo without W9.8
+ * omits it, which means "no form mappings".
  */
 export interface CatalogApiCategory {
   code: string;
   name: string;
   sequence: number;
   group_codes: string[];
+  form_codes?: string[];
   template_count: number;
   variant_count: number;
 }
@@ -379,6 +387,7 @@ function isValidCategory(value: unknown): value is CatalogApiCategory {
     Array.isArray(c.group_codes) &&
     c.group_codes.length > 0 &&
     c.group_codes.every((g) => typeof g === "string" && g.length > 0) &&
+    (c.form_codes === undefined || (Array.isArray(c.form_codes) && c.form_codes.every((f) => typeof f === "string" && f.length > 0))) &&
     isNonNegativeInteger(c.template_count) &&
     isNonNegativeInteger(c.variant_count)
   );

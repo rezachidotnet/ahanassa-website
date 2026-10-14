@@ -30,6 +30,8 @@ export const catalogPublicCategoryRow = z
     position: z.number().int(),
     sequence: z.number().int(),
     group_codes_json: z.string(),
+    /** W9.8 build-only column (`BUILD_ONLY_SNAPSHOT_COLUMNS`): the category's Odoo `form_codes`, a JSON array; absent on pre-W9.8 snapshots. */
+    form_codes_json: z.string().optional(),
     template_count: z.number().int().nonnegative(),
     variant_count: z.number().int().nonnegative(),
     synced_at: isoText,
@@ -181,6 +183,17 @@ export const SNAPSHOT_TABLES = {
  */
 export const BUILD_ONLY_SNAPSHOT_TABLES: ReadonlySet<string> = new Set([PUBLISHED_PRICES_TABLE, PUBLISHED_PRICE_HISTORY_TABLE, PUBLISHED_ARTICLES_TABLE]);
 export type SnapshotTableName = keyof typeof SNAPSHOT_TABLES;
+/**
+ * W9.8: snapshot columns of a DB_PUBLIC table that exist only in the static build's in-memory database
+ * (added by `BUILD_ONLY_COLUMNS_DDL` after the migrations), never in the remote DB_PUBLIC — the daily
+ * publish neither selects them from D1 (`lib/content-pipeline/d1-source.ts`) nor writes them to the D1
+ * mirror (`lib/content-pipeline/publication-sql.ts`). Categories are re-fetched from Odoo on every run and
+ * the public site is static, so nothing reads them from D1 and no remote migration is needed.
+ */
+export const BUILD_ONLY_SNAPSHOT_COLUMNS: Readonly<Partial<Record<SnapshotTableName, readonly string[]>>> = {
+  catalog_public_categories: ["form_codes_json"],
+};
+export const BUILD_ONLY_COLUMNS_DDL = `ALTER TABLE catalog_public_categories ADD COLUMN form_codes_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(form_codes_json) AND json_type(form_codes_json) = 'array');`;
 export const REQUIRED_SNAPSHOT_TABLES: SnapshotTableName[] = ["catalog_public_categories", "catalog_products", "product_variants", "product_seo_contents", "public_processing_groups"];
 
 export const snapshotV1 = z

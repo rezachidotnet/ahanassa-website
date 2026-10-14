@@ -152,11 +152,11 @@ export interface PriceTableTemplateInput {
   slug: string;
   productName: string;
   /** Variants in display order (sortVariantsBySize). */
-  variants: ReadonlyArray<{ xid: string; size: string; groupCode: string | null; familyName: string | null; weight?: { label: string; value: string } | null }>;
+  variants: ReadonlyArray<{ xid: string; size: string; groupCode: string | null; /** W9.8: a Form-level category (GALVANIZED_SHEET) claims its Forms out of a shared group. */ formCode?: string | null; familyName: string | null; weight?: { label: string; value: string } | null }>;
 }
 
 export interface FamilyResolver {
-  (groupCode: string | null, familyName: string | null): { code: string; label: string; position: number };
+  (groupCode: string | null, familyName: string | null, formCode?: string | null): { code: string; label: string; position: number };
 }
 
 /**
@@ -170,7 +170,7 @@ export function buildPriceTableRows(locale: PriceLocale, templates: readonly Pri
     for (const v of t.variants) {
       const price = prices.get(v.xid);
       if (!price) continue;
-      const f = family(v.groupCode, v.familyName);
+      const f = family(v.groupCode, v.familyName, v.formCode ?? null);
       rows.push({
         xid: v.xid,
         productName: t.productName,

@@ -38,6 +38,8 @@ export interface CatalogMediaSubject {
   templateXid: string;
   groupCode: string | null;
   familyCode: string | null;
+  /** W9.8: the representative variant's Form — a group photo is used only for the Forms it shows (`GROUP_PHOTO_FORMS`). */
+  formCode?: string | null;
 }
 
 export type MediaResolutionSource = "override" | "group_default" | "family_default" | "generic_fallback";
@@ -64,6 +66,16 @@ const GROUP_DEFAULT_IMAGES: Record<string, string> = {
   SHEET_PLATE: `${PRODUCTS_DIR}/sheet-plate.jpg`,
   BEAMS: `${PRODUCTS_DIR}/beams.png`,
   SEAMLESS_PIPE: `${PRODUCTS_DIR}/pipe.png`,
+};
+
+/**
+ * W9.8: a group photo that shows only some Forms of its group. sheet-plate.jpg is black hot-rolled sheet and
+ * plate; galvanized, pre-painted and cold-rolled (oiled) cut sheets (Forms GALVANIZED, PREPAINTED_SHEET,
+ * COLD_ROLLED of SHEET_PLATE, W9.8) look different and fall back to the generic illustration until real
+ * photos exist — never another product's photo. A group not listed here uses its photo for every Form.
+ */
+const GROUP_PHOTO_FORMS: Record<string, readonly string[]> = {
+  SHEET_PLATE: ["HOT_ROLLED_PLATE", "HOT_ROLLED_SHEET"],
 };
 
 /** No family-level default is verified/needed yet — every currently-live family maps cleanly at the group tier above. Left empty rather than guessed. */
@@ -128,7 +140,9 @@ export function resolveCatalogMedia(subject: CatalogMediaSubject): ResolvedCatal
   const override = TEMPLATE_XID_IMAGE_OVERRIDES[subject.templateXid];
   if (override) return { src: override, source: "override" };
 
-  if (subject.groupCode && GROUP_DEFAULT_IMAGES[subject.groupCode]) {
+  const photoForms = subject.groupCode ? GROUP_PHOTO_FORMS[subject.groupCode] : undefined;
+  const groupPhotoFits = !photoForms || (!!subject.formCode && photoForms.includes(subject.formCode));
+  if (subject.groupCode && GROUP_DEFAULT_IMAGES[subject.groupCode] && groupPhotoFits) {
     return { src: GROUP_DEFAULT_IMAGES[subject.groupCode], source: "group_default" };
   }
 

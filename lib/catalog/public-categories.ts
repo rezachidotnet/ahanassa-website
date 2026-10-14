@@ -1,4 +1,5 @@
 import type { CatalogApiCategory } from "./odoo-api-client.ts";
+import type { CatalogFilterInput } from "./catalog-filters.ts";
 import type { PublicCatalogCategory } from "./types.ts";
 
 /**
@@ -32,6 +33,7 @@ export function toPublicCatalogCategory(row: CatalogApiCategory): PublicCatalogC
     name: row.name,
     sequence: row.sequence,
     groupCodes: [...row.group_codes],
+    formCodes: [...(row.form_codes ?? [])],
     templateCount: row.template_count,
     variantCount: row.variant_count,
   };
@@ -42,6 +44,8 @@ export interface CategoryRow {
   name: string;
   sequence: number;
   group_codes_json: string;
+  /** W9.8 build-only snapshot column (lib/contracts/snapshot-v1.ts); absent on a pre-W9.8 row = no form mappings. */
+  form_codes_json?: string | null;
   template_count: number;
   variant_count: number;
 }
@@ -53,17 +57,22 @@ export interface CategoryRow {
  */
 export function parseCategoryRow(row: CategoryRow): PublicCatalogCategory | null {
   let groupCodes: unknown;
+  let formCodes: unknown;
   try {
     groupCodes = JSON.parse(row.group_codes_json);
+    formCodes = JSON.parse(row.form_codes_json ?? "[]");
   } catch {
     return null;
   }
   if (!Array.isArray(groupCodes) || groupCodes.length === 0 || !groupCodes.every((g) => typeof g === "string" && g.length > 0)) return null;
+  // An unreadable form set would widen a form-level category to its whole groups — drop the row instead.
+  if (!Array.isArray(formCodes) || !formCodes.every((f) => typeof f === "string" && f.length > 0)) return null;
   return {
     code: row.code,
     name: row.name,
     sequence: Number(row.sequence),
     groupCodes: groupCodes as string[],
+    formCodes: formCodes as string[],
     templateCount: Number(row.template_count),
     variantCount: Number(row.variant_count),
   };
@@ -100,15 +109,47 @@ export function legacyCategoryQueryTarget(search: string): string | null {
 }
 
 /**
- * Resolves the technical `group_code` set a selected category filters on.
+ * W9.8 — Odoo's `steel.public.category._catalog_domain`, applied to one
+ * variant: the most specific mapping wins. A category with `formCodes`
+ * takes only those Forms of its groups; a group-level category takes its
+ * groups' rows except the Forms some category claims (so «ورق» SHEET_PLATE
+ * keeps black sheet and plate once GALVANIZED_SHEET claims GALVANIZED).
+ * The API reports a category's groups and forms as two flat lists, so a
+ * category mixing a group-level and a form-level mapping is read as
+ * form-level only (Odoo has none: every W9.8 flat category is form-level) —
+ * a product can then be missing from a listing, never listed under the
+ * wrong category.
+ */
+export function claimedFormCodes(categories: PublicCatalogCategory[]): Set<string> {
+  return new Set(categories.flatMap((c) => c.formCodes));
+}
+
+export function categoryContainsVariant(category: PublicCatalogCategory, claimed: ReadonlySet<string>, groupCode: string | null | undefined, formCode: string | null | undefined): boolean {
+  if (!groupCode || !category.groupCodes.includes(groupCode)) return false;
+  if (category.formCodes.length > 0) return !!formCode && category.formCodes.includes(formCode);
+  return !formCode || !claimed.has(formCode);
+}
+
+/** The first category (snapshot order) a variant belongs to — product page breadcrumb, related links, price-page family. */
+export function findCategoryForVariant(categories: PublicCatalogCategory[], groupCode: string | null | undefined, formCode: string | null | undefined): PublicCatalogCategory | undefined {
+  const claimed = claimedFormCodes(categories);
+  return categories.find((c) => categoryContainsVariant(c, claimed, groupCode, formCode));
+}
+
+/**
+ * The variant set a selected category filters on, as the listing SQL's
+ * input (`lib/catalog/catalog-filters.ts#categorySetClause`).
  * `undefined` = no category requested (no restriction). An unknown code
- * resolves to an empty set, which the repository turns into "matches
+ * resolves to an empty group set, which the repository turns into "matches
  * nothing" — a stale/removed category link shows the honest no-match
  * state, never the unfiltered catalog.
  */
-export function resolveCategoryGroupCodes(categories: PublicCatalogCategory[], code: string | undefined): string[] | undefined {
+export function resolveCategoryFilter(categories: PublicCatalogCategory[], code: string | undefined): Required<Pick<CatalogFilterInput, "groupCodes" | "formCodes" | "excludedFormCodes">> | undefined {
   if (!code) return undefined;
-  return findCategoryByCode(categories, code)?.groupCodes ?? [];
+  const category = findCategoryByCode(categories, code);
+  if (!category) return { groupCodes: [], formCodes: [], excludedFormCodes: [] };
+  if (category.formCodes.length > 0) return { groupCodes: [...category.groupCodes], formCodes: [...category.formCodes], excludedFormCodes: [] };
+  return { groupCodes: [...category.groupCodes], formCodes: [], excludedFormCodes: [...claimedFormCodes(categories)].sort() };
 }
 
 /**
@@ -129,17 +170,20 @@ export interface RfqPublicCategory {
   resolved: boolean;
 }
 
-export type PublicCategoryGroupIndex = Map<string, { category: PublicCatalogCategory; position: number }>;
+/** The locale's categories with the claimed-Form set, built once per list (W9.8 membership, `categoryContainsVariant`). */
+export interface PublicCategoryGroupIndex {
+  categories: PublicCatalogCategory[];
+  claimed: ReadonlySet<string>;
+}
 
-/** group_code -> (category, snapshot position). The first category listing a group wins, matching snapshot order. */
 export function indexPublicCategoriesByGroupCode(categories: PublicCatalogCategory[]): PublicCategoryGroupIndex {
-  const index: PublicCategoryGroupIndex = new Map();
-  categories.forEach((category, position) => {
-    for (const groupCode of category.groupCodes) {
-      if (!index.has(groupCode)) index.set(groupCode, { category, position });
-    }
-  });
-  return index;
+  return { categories, claimed: claimedFormCodes(categories) };
+}
+
+/** (category, snapshot position) of a variant: the first category in snapshot order that contains it. */
+function lookupCategory(index: PublicCategoryGroupIndex, groupCode: string | null, formCode: string | null): { category: PublicCatalogCategory; position: number } | undefined {
+  const position = index.categories.findIndex((c) => categoryContainsVariant(c, index.claimed, groupCode, formCode));
+  return position < 0 ? undefined : { category: index.categories[position], position };
 }
 
 /**
@@ -153,8 +197,9 @@ export function resolveRfqPublicCategory(
   locale: "fa" | "en" | "ar",
   groupCode: string | null,
   familyName: string | null,
+  formCode: string | null = null,
 ): RfqPublicCategory {
-  const hit = groupCode ? index.get(groupCode) : undefined;
+  const hit = groupCode ? lookupCategory(index, groupCode, formCode) : undefined;
   if (hit) return { code: hit.category.code, label: hit.category.name, position: hit.position, resolved: true };
   const label = locale === "fa" ? (familyName ?? groupCode) : groupCode;
   return { code: groupCode ? `group:${groupCode}` : null, label, position: Number.MAX_SAFE_INTEGER, resolved: false };

@@ -126,8 +126,8 @@ test("hub route: fa/ar only, from the published-family list, own Flight row for 
 
 // --- category pages -----------------------------------------------------------------------------------
 
-test("category copy: all 7 categories × 3 locales, unique titles/H1/metas (the 21 duplicates fixed)", () => {
-  const codes = ["REBAR", "BEAM", "ANGLE", "CHANNEL", "BOX_SECTION", "SHEET_PLATE", "PIPE"];
+test("category copy: all 11 categories × 3 locales, unique titles/H1/metas (the 21 duplicates fixed; W17.4 adds the four W9.8 flat categories)", () => {
+  const codes = ["REBAR", "BEAM", "ANGLE", "CHANNEL", "BOX_SECTION", "SHEET_PLATE", "PIPE", "GALVANIZED_SHEET", "PREPAINTED_SHEET", "HOT_ROLLED_COIL", "COLD_ROLLED"];
   assert.deepEqual(Object.keys(CATEGORY_SEO).sort(), [...codes].sort());
   for (const locale of locales) {
     for (const priced of [false, true]) {

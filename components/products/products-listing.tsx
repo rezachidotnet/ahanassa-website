@@ -1,6 +1,6 @@
 import type { Locale } from "@/config/locales";
 import { listPublicCatalogCategories, listPublishedCatalogTemplates } from "@/lib/catalog/editorial-repository";
-import { categoryListingPath, resolveCategoryGroupCodes } from "@/lib/catalog/public-categories";
+import { categoryListingPath, resolveCategoryFilter } from "@/lib/catalog/public-categories";
 import type { PublicCatalogCategory } from "@/lib/catalog/types";
 import { PageHero } from "@/components/ui/page-hero";
 import { CatalogFilterBar } from "@/components/products/catalog-filter-bar";
@@ -61,7 +61,7 @@ export async function ProductsListing({
     console.error("PRODUCTS_CATEGORY_LIST_READ_ERROR", JSON.stringify({ message: error instanceof Error ? error.message : String(error) }));
   }
 
-  const filters = category ? { categoryCode: category.code, groupCodes: resolveCategoryGroupCodes(categories, category.code) } : {};
+  const filters = category ? { categoryCode: category.code, ...resolveCategoryFilter(categories, category.code) } : {};
   const templates = await listPublishedCatalogTemplates(locale, filters);
   const t = productsHeroCopy[locale];
 

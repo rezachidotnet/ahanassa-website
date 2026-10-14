@@ -185,9 +185,13 @@ export function MobileNavDrawer({
                 // no per-group route yet (P6 §8) — every group links to the
                 // same real `href` (this item's own `/services` link),
                 // matching SiteHeader.tsx's identical desktop-dropdown choice.
-                const items: { code: string; name: string; href: string }[] =
+                // W17.4: a family entry («ورق») carries its member categories as `children` — shown as a plain
+                // heading over their links (no second accordion level).
+                type DrawerItem = { code: string; name: string; href: string; children?: DrawerItem[] };
+                const productItem = (f: HeaderProductFamilyShortcut): DrawerItem => ({ code: f.code, name: f.name, href: localizedPath(locale, categoryListingPath(f.code)), children: f.children?.map(productItem) });
+                const items: DrawerItem[] =
                   key === "products"
-                    ? productFamilies.map((f) => ({ code: f.code, name: f.name, href: localizedPath(locale, categoryListingPath(f.code)) })) // same shared builder as SiteHeader.tsx
+                    ? productFamilies.map(productItem) // same shared builder as SiteHeader.tsx
                     : serviceGroups.map((g) => ({ code: g.id, name: g.name, href }));
                 const isOpen = openAccordion === key;
                 return (
@@ -213,9 +217,24 @@ export function MobileNavDrawer({
                         <ul className="space-y-1">
                           {items.map((item) => (
                             <li key={item.code}>
-                              <Link href={item.href} className="text-muted-foreground hover:text-navy block py-2 text-sm">
-                                {item.name}
-                              </Link>
+                              {item.children ? (
+                                <>
+                                  <span className="text-navy block pt-2 pb-1 text-sm font-semibold">{item.name}</span>
+                                  <ul className="ps-4">
+                                    {item.children.map((child) => (
+                                      <li key={child.code}>
+                                        <Link href={child.href} className="text-muted-foreground hover:text-navy block py-2 text-sm">
+                                          {child.name}
+                                        </Link>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </>
+                              ) : (
+                                <Link href={item.href} className="text-muted-foreground hover:text-navy block py-2 text-sm">
+                                  {item.name}
+                                </Link>
+                              )}
                             </li>
                           ))}
                           <li>

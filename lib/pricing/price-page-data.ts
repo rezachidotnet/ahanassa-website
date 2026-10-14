@@ -43,8 +43,8 @@ async function readPriceTableRows(locale: PriceLocale): Promise<PriceTableRow[]>
   const templates = await listPublishedCatalogTemplates(locale);
   const details = await Promise.all(templates.map((t) => getPublishedCatalogTemplateBySlug(locale, t.seo.slug)));
   const categoryIndex = indexPublicCategoriesByGroupCode(await listPublicCatalogCategories(locale));
-  const family = (groupCode: string | null, familyName: string | null) => {
-    const c = resolveRfqPublicCategory(categoryIndex, locale, groupCode, familyName);
+  const family = (groupCode: string | null, familyName: string | null, formCode: string | null = null) => {
+    const c = resolveRfqPublicCategory(categoryIndex, locale, groupCode, familyName, formCode);
     return { code: c.code ?? "other", label: c.label ?? groupCode ?? "—", position: c.position };
   };
   return buildPriceTableRows(
@@ -59,6 +59,7 @@ async function readPriceTableRows(locale: PriceLocale): Promise<PriceTableRow[]>
                 xid: v.xid,
                 size: v.commercialSize ?? v.sectionSize ?? v.sku,
                 groupCode: v.group.code,
+                formCode: v.form.code,
                 familyName: v.family.name,
                 weight: preferredNominalWeight(v, locale),
               })),

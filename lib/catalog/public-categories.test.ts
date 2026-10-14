@@ -5,8 +5,8 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fetchCatalogCategories, type CatalogApiCategory } from "./odoo-api-client.ts";
 import { fetchPublicCategoriesForLocale } from "./category-sync.ts";
-import { categoryListingPath, categoryPathSegment, findCategoryByCode, findCategoryByPathSegment, legacyCategoryQueryTarget, parseCategoryRow, resolveCategoryGroupCodes, toPublicCatalogCategory } from "./public-categories.ts";
-import { groupCodeSetClause } from "./catalog-filters.ts";
+import { categoryListingPath, categoryPathSegment, findCategoryByCode, findCategoryByPathSegment, legacyCategoryQueryTarget, findCategoryForVariant, parseCategoryRow, resolveCategoryFilter, toPublicCatalogCategory } from "./public-categories.ts";
+import { categorySetClause, groupCodeSetClause } from "./catalog-filters.ts";
 import { CATEGORY_IMAGE_PATHS, resolveCategoryMedia } from "./media-registry.ts";
 import { IMAGE_VARIANTS } from "../media/image-variants.generated.ts";
 import { IMAGE_FORMATS, ORIGINALS_DIR, variantPath } from "../media/image-sources.ts";
@@ -107,6 +107,7 @@ test("every Odoo-owned field is carried through: code, name, sequence, group_cod
     name: "قوطی",
     sequence: 50,
     groupCodes: ["RHS", "SHS"],
+    formCodes: [],
     templateCount: 2,
     variantCount: 67,
   });
@@ -115,6 +116,7 @@ test("every Odoo-owned field is carried through: code, name, sequence, group_cod
 // --- 4-6: filtering uses Odoo's group_codes -----------------------------------
 
 const categories = LIVE.fa.map(toPublicCatalogCategory);
+const resolveCategoryGroupCodes = (list: typeof categories, code: string | undefined) => resolveCategoryFilter(list, code)?.groupCodes;
 
 test("BOX_SECTION filters both RHS and SHS", () => {
   assert.deepEqual(resolveCategoryGroupCodes(categories, "BOX_SECTION"), ["RHS", "SHS"]);
@@ -174,10 +176,10 @@ test("legacy ?category= links are forwarded to the static route; non-code values
 test("the listing SQL filters templates by an EXISTS over the selected category's group set, and the category route uses the snapshot", () => {
   const repo = readSource("lib/catalog/editorial-repository.ts");
   const fn = repo.slice(repo.indexOf("function filterConditions"), repo.indexOf("const TEMPLATE_PUBLICATION_WHERE_CONDITIONS"));
-  assert.match(fn, /groupCodeSetClause\(filters\.groupCodes\)/);
+  assert.match(fn, /categorySetClause\(filters\)/);
   assert.match(fn, /pv\.is_active = 1 AND pv\.is_public = 1 AND \$\{categoryClause\.sql\}/);
   const listing = readSource("components/products/products-listing.tsx");
-  assert.match(listing, /groupCodes: resolveCategoryGroupCodes\(categories, category\.code\)/, "a category listing must resolve its group set through the synced Odoo categories");
+  assert.match(listing, /\.\.\.resolveCategoryFilter\(categories, category\.code\)/, "a category listing must resolve its group/form set through the synced Odoo categories");
   const route = readSource("app/[locale]/products/category/[category]/page.tsx");
   assert.match(route, /generateStaticParams/);
   assert.match(route, /categoryPathSegment\(c\.code\)/);
@@ -328,4 +330,60 @@ test("React keys are the unique category code on every surface (the API rejects 
   assert.equal(new Set(categories.map((c) => c.code)).size, categories.length);
   assert.match(readSource("components/home/product-showcase.tsx"), /key=\{category\.code\}/);
   assert.match(readSource("components/products/catalog-filter-bar.tsx"), /key=\{category\.code\}/);
+});
+
+// --- W9.8: a category may name Forms of a group (ahanassa_marketplace 19.0.53.0.0) -------------------------
+// The Odoo addon ahanassa_catalog_flat_raw (data/public_category.xml) maps the four flat categories by Form;
+// SHEET_PLATE stays group-level and keeps the Forms nobody claims (black sheet and plate).
+
+const W98: CatalogApiCategory[] = [
+  ...LIVE.fa,
+  { code: "GALVANIZED_SHEET", name: "ورق گالوانیزه", sequence: 62, group_codes: ["FLAT_COILS", "SHEET_PLATE"], form_codes: ["GALVANIZED", "GALVANIZED_COIL"], template_count: 2, variant_count: 56 },
+  { code: "PREPAINTED_SHEET", name: "ورق رنگی (پیش‌رنگ‌شده)", sequence: 64, group_codes: ["FLAT_COILS"], form_codes: ["PREPAINTED_COIL"], template_count: 1, variant_count: 36 },
+  { code: "HOT_ROLLED_COIL", name: "ورق سیاه رول (کلاف گرم)", sequence: 66, group_codes: ["FLAT_COILS"], form_codes: ["HOT_ROLLED_COIL"], template_count: 1, variant_count: 24 },
+  { code: "COLD_ROLLED", name: "ورق روغنی (کلاف سرد)", sequence: 68, group_codes: ["FLAT_COILS", "SHEET_PLATE"], form_codes: ["COLD_ROLLED", "COLD_ROLLED_COIL"], template_count: 2, variant_count: 38 },
+].sort((a, b) => a.sequence - b.sequence);
+const w98 = W98.map(toPublicCatalogCategory);
+
+test("W9.8: a variant belongs to the most specific mapping — galvanized and cold-rolled cut sheets leave SHEET_PLATE", () => {
+  const of = (group: string, form: string | null) => findCategoryForVariant(w98, group, form)?.code;
+  assert.equal(of("SHEET_PLATE", "HOT_ROLLED_PLATE"), "SHEET_PLATE");
+  assert.equal(of("SHEET_PLATE", "HOT_ROLLED_SHEET"), "SHEET_PLATE");
+  assert.equal(of("SHEET_PLATE", null), "SHEET_PLATE", "a variant without a Form stays in its group-level category");
+  assert.equal(of("SHEET_PLATE", "GALVANIZED"), "GALVANIZED_SHEET");
+  assert.equal(of("FLAT_COILS", "GALVANIZED_COIL"), "GALVANIZED_SHEET");
+  assert.equal(of("FLAT_COILS", "PREPAINTED_COIL"), "PREPAINTED_SHEET");
+  assert.equal(of("FLAT_COILS", "HOT_ROLLED_COIL"), "HOT_ROLLED_COIL");
+  assert.equal(of("FLAT_COILS", "COLD_ROLLED_COIL"), "COLD_ROLLED");
+  assert.equal(of("SHEET_PLATE", "COLD_ROLLED"), "COLD_ROLLED");
+  assert.equal(of("FLAT_COILS", "SLIT_COIL"), undefined, "a coil Form no category names is in no category (never guessed)");
+  assert.equal(of("REBAR", "RIBBED_REBAR"), "REBAR");
+});
+
+test("W9.8: the listing filter narrows a Form-level category and excludes claimed Forms from the group-level one", () => {
+  assert.deepEqual(resolveCategoryFilter(w98, "GALVANIZED_SHEET"), { groupCodes: ["FLAT_COILS", "SHEET_PLATE"], formCodes: ["GALVANIZED", "GALVANIZED_COIL"], excludedFormCodes: [] });
+  assert.deepEqual(resolveCategoryFilter(w98, "SHEET_PLATE"), {
+    groupCodes: ["SHEET_PLATE"],
+    formCodes: [],
+    excludedFormCodes: ["COLD_ROLLED", "COLD_ROLLED_COIL", "GALVANIZED", "GALVANIZED_COIL", "HOT_ROLLED_COIL", "PREPAINTED_COIL"],
+  });
+  assert.deepEqual(resolveCategoryFilter(w98, "REBAR")?.groupCodes, ["REBAR"]);
+  assert.deepEqual(categorySetClause({ groupCodes: ["FLAT_COILS"], formCodes: ["HOT_ROLLED_COIL"] }), { sql: "pv.group_code IN (?) AND pv.form_code IN (?)", params: ["FLAT_COILS", "HOT_ROLLED_COIL"] });
+  assert.deepEqual(categorySetClause({ groupCodes: ["SHEET_PLATE"], excludedFormCodes: ["GALVANIZED"] }), { sql: "pv.group_code IN (?) AND (pv.form_code IS NULL OR pv.form_code NOT IN (?))", params: ["SHEET_PLATE", "GALVANIZED"] });
+  assert.deepEqual(categorySetClause({ groupCodes: [], formCodes: ["X"] }), { sql: "0 = 1", params: [] }, "an unknown category still matches nothing");
+  assert.equal(categorySetClause({}), null);
+});
+
+test("W9.8: without form_codes (a pre-W9.8 Odoo) every category is group-level, exactly as before", () => {
+  assert.deepEqual(w98.find((c) => c.code === "REBAR")?.formCodes, []);
+  assert.equal(findCategoryForVariant(categories, "SHEET_PLATE", "GALVANIZED")?.code, "SHEET_PLATE");
+  assert.deepEqual(resolveCategoryFilter(categories, "SHEET_PLATE"), { groupCodes: ["SHEET_PLATE"], formCodes: [], excludedFormCodes: [] });
+});
+
+test("W9.8: a stored row round-trips its form set; a missing column reads as none; an unreadable one drops the row", () => {
+  const row = { code: "COLD_ROLLED", name: "x", sequence: 68, group_codes_json: '["FLAT_COILS","SHEET_PLATE"]', template_count: 2, variant_count: 38 };
+  assert.deepEqual(parseCategoryRow({ ...row, form_codes_json: '["COLD_ROLLED","COLD_ROLLED_COIL"]' })?.formCodes, ["COLD_ROLLED", "COLD_ROLLED_COIL"]);
+  assert.deepEqual(parseCategoryRow(row)?.formCodes, []);
+  assert.equal(parseCategoryRow({ ...row, form_codes_json: "{" }), null);
+  assert.equal(parseCategoryRow({ ...row, form_codes_json: "[1]" }), null);
 });

@@ -2,8 +2,8 @@ import { localizedPath, type Locale } from "@/config/locales";
 import Link from "@/components/ui/link";
 import { cardVariants } from "@/components/ui/surface-variants";
 import { listPublicCatalogCategories, listPublishedCatalogTemplates } from "@/lib/catalog/editorial-repository";
-import { categoryListingPath } from "@/lib/catalog/public-categories";
-import { CATEGORY_SEO } from "@/lib/content/category-seo";
+import { categoryListingPath, findCategoryForVariant, resolveCategoryFilter } from "@/lib/catalog/public-categories";
+import { CATEGORIES_WITHOUT_CALCULATOR, CATEGORY_SEO } from "@/lib/content/category-seo";
 import { listPublishedHubFamilies } from "@/lib/pricing/price-page-data";
 import { priceHubPath } from "@/lib/pricing/price-hubs";
 import { isWeightCalculatorPublished, WEIGHT_CALCULATOR_ROUTE } from "@/lib/weight-calculator/publication";
@@ -27,20 +27,20 @@ const LINK = "text-navy hover:text-copper underline-offset-4 hover:underline";
  * Its own async boundary (as ProductSpecs): it reads the price snapshot, so its markup never shares the page
  * row that carries the target-specific robots value (lib/static/target-diff-gate.ts).
  */
-export async function ProductRelatedLinks({ locale, templateXid, slug, groupCode }: { locale: Locale; templateXid: string; slug: string; groupCode: string | null }) {
+export async function ProductRelatedLinks({ locale, templateXid, slug, groupCode, formCode }: { locale: Locale; templateXid: string; slug: string; groupCode: string | null; formCode: string | null }) {
   await Promise.resolve();
   const categories = await listPublicCatalogCategories(locale);
-  const category = groupCode ? categories.find((c) => c.groupCodes.includes(groupCode)) : undefined;
+  const category = groupCode ? findCategoryForVariant(categories, groupCode, formCode) : undefined;
   const t = COPY[locale];
   const name = category ? (CATEGORY_SEO[category.code]?.[locale]?.name ?? category.name) : null;
-  const siblings = category ? (await listPublishedCatalogTemplates(locale, { categoryCode: category.code, groupCodes: category.groupCodes })).filter((p) => p.seo.slug !== slug) : [];
+  const siblings = category ? (await listPublishedCatalogTemplates(locale, { categoryCode: category.code, ...resolveCategoryFilter(categories, category.code) })).filter((p) => p.seo.slug !== slug) : [];
   const hub = category && (await listPublishedHubFamilies(locale)).some((f) => f === category.code);
   const articles = await listArticlesForProduct(locale, templateXid);
 
   const links: { href: string; label: string }[] = [];
   if (category && name) links.push({ href: categoryListingPath(category.code), label: t.category(name) });
   if (hub && category && name) links.push({ href: priceHubPath(category.code), label: t.hub(name) });
-  if (isWeightCalculatorPublished(locale) && name) links.push({ href: WEIGHT_CALCULATOR_ROUTE, label: t.calculator(name) });
+  if (isWeightCalculatorPublished(locale) && name && !(category && CATEGORIES_WITHOUT_CALCULATOR.has(category.code))) links.push({ href: WEIGHT_CALCULATOR_ROUTE, label: t.calculator(name) });
   if (links.length === 0 && siblings.length === 0 && articles.length === 0) return null;
 
   return (
