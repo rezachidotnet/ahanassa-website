@@ -3,7 +3,7 @@ import { env } from "cloudflare:workers";
 import { isLocale, type Locale } from "@/config/locales";
 import { buildPageMetadata } from "@/lib/metadata/resolve";
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";
-import { organizationSchema, websiteSchema, jsonLdGraph } from "@/lib/seo/schema";
+import { organizationSchema, localBusinessSchema, websiteSchema, jsonLdGraph } from "@/lib/seo/schema";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { Hero } from "@/components/home/hero";
 import { PriceStrip } from "@/components/home/price-strip";
@@ -194,7 +194,7 @@ export default async function HomePage({ params }: PageProps) {
       <Industries locale={locale} />
       <FinalCta locale={locale} />
 
-      <JsonLd data={jsonLdGraph([organizationSchema(locale), websiteSchema()])} />
+      <JsonLd data={jsonLdGraph([organizationSchema(locale), localBusinessSchema(locale), websiteSchema()])} />
     </>
   );
 }

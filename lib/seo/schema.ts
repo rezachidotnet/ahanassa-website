@@ -1,7 +1,8 @@
-import { siteConfig } from "@/lib/metadata/site";
-import { CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
-import type { Locale } from "@/config/locales";
-import { BRAND_MARK_LOGO_PATH } from "@/lib/media/image-sources";
+import { siteConfig } from "../metadata/site.ts";
+import { CONTACT_PHONE_E164 } from "../content/contact-channels.ts";
+import { PARENT_ORGANIZATION, WORKING_HOURS } from "../content/company.ts";
+import type { Locale } from "../../config/locales.ts";
+import { BRAND_MARK_LOGO_PATH } from "../media/image-sources.ts";
 
 /**
  * The confirmed office address (PROJECT_OVERRIDES.md §7 item 6) in each
@@ -15,6 +16,20 @@ export const ORGANIZATION_ADDRESS: Record<Locale, { streetAddress: string; addre
   en: { streetAddress: "Hezar Jarib Street, Kooy Azadegan, No. 6", addressLocality: "Isfahan" },
   ar: { streetAddress: "شارع هزار جريب، حي آزادگان، رقم 6", addressLocality: "أصفهان" },
 };
+
+/**
+ * Decision D-COMPANY-INFO (owner, 2026-10-13): the Tehran coordination office — a second location of the
+ * same company, with its own postal code and no separate phone. Same wording /contact renders
+ * (app/[locale]/contact/page.tsx). Isfahan stays the official (LocalBusiness) address.
+ */
+export const TEHRAN_OFFICE: Record<Locale, { name: string; streetAddress: string; addressLocality: string; postalCode: string }> = {
+  fa: { name: "آهن آسا — دفتر هماهنگی تهران", streetAddress: "خیابان ستارخان، پلاک 660", addressLocality: "تهران", postalCode: "1454954166" },
+  en: { name: "Ahan Asa — Tehran coordination office", streetAddress: "Sattarkhan Street, No. 660", addressLocality: "Tehran", postalCode: "1454954166" },
+  ar: { name: "آهن آسا — مكتب التنسيق في طهران", streetAddress: "شارع ستارخان، رقم 660", addressLocality: "طهران", postalCode: "1454954166" },
+};
+
+/** D-COMPANY-INFO: Iran, plus export to Iraq as an approved business line (ISO 3166-1 codes). */
+export const AREA_SERVED = ["IR", "IQ"] as const;
 
 /**
  * Foundation-level structured data only: Organization, WebSite, BreadcrumbList.
@@ -44,6 +59,24 @@ export function websiteId(): string {
   return `${siteConfig.baseUrl}/#website`;
 }
 
+/**
+ * The parent group (owner, 2026-10-13; lib/content/company.ts, shown on /about). `url` is the group site's
+ * canonical host: https://www.fazasazeh.ir answers 301 to https://fazasazeh.ir.
+ */
+export function parentOrganizationSchema(locale: Locale = "fa") {
+  return {
+    "@type": "Organization",
+    name: PARENT_ORGANIZATION.name[locale],
+    url: PARENT_ORGANIZATION.url,
+    foundingDate: PARENT_ORGANIZATION.foundingDate,
+  };
+}
+
+/** Working hours (owner, 2026-10-13; lib/content/company.ts, shown on /contact and /about), Iran time. */
+export function openingHoursSchema() {
+  return WORKING_HOURS.map((h) => ({ "@type": "OpeningHoursSpecification", dayOfWeek: [...h.dayOfWeek], opens: h.opens, closes: h.closes }));
+}
+
 export function organizationSchema(locale: Locale = "fa") {
   return {
     "@type": "Organization",
@@ -51,6 +84,7 @@ export function organizationSchema(locale: Locale = "fa") {
     name: siteConfig.name,
     alternateName: siteConfig.alternateName,
     url: siteConfig.baseUrl,
+    parentOrganization: parentOrganizationSchema(locale),
     // The full brand mark (the former app/icon.jpg, which W10.2 replaced with sized favicons), as the
     // 512 px JPEG the image pipeline publishes (W16.5; the 4500 px original is no longer served).
     logo: `${siteConfig.baseUrl}${BRAND_MARK_LOGO_PATH}`,
@@ -66,8 +100,75 @@ export function organizationSchema(locale: Locale = "fa") {
       "@type": "ContactPoint",
       telephone: CONTACT_PHONE_E164,
       contactType: "sales",
-      areaServed: "IR",
+      areaServed: [...AREA_SERVED],
     },
+  };
+}
+
+export function localBusinessId(): string {
+  return `${siteConfig.baseUrl}/#localbusiness`;
+}
+
+/**
+ * W16.2 (D-SEO): the office as a `LocalBusiness` — the official address (PROJECT_OVERRIDES.md §7.1:
+ * Isfahan, no postal code confirmed for it) and the one verified phone, exactly as the footer and /contact
+ * render them, and the confirmed working hours. D-COMPANY-INFO: `withTehranOffice` adds the Tehran
+ * coordination office as a `department` (its own address and postal code, no separate phone) — only on
+ * /contact, the page that renders it. Its `parentOrganization` is Ahan Asa's Organization node, whose own
+ * parent is the group (parentOrganizationSchema). Never ratings, price range or geo coordinates (not
+ * confirmed, PROJECT_OVERRIDES.md §10).
+ */
+export function localBusinessSchema(locale: Locale = "fa", options: { withTehranOffice?: boolean } = {}) {
+  const { name: tehranName, ...tehranAddress } = TEHRAN_OFFICE[locale];
+  return {
+    "@type": "LocalBusiness",
+    "@id": localBusinessId(),
+    name: siteConfig.name,
+    alternateName: siteConfig.alternateName,
+    url: siteConfig.baseUrl,
+    image: `${siteConfig.baseUrl}/brand/ahan-asa-mark.jpg`,
+    telephone: CONTACT_PHONE_E164,
+    address: {
+      "@type": "PostalAddress",
+      ...ORGANIZATION_ADDRESS[locale],
+      addressCountry: "IR",
+    },
+    areaServed: [...AREA_SERVED],
+    openingHoursSpecification: openingHoursSchema(),
+    parentOrganization: { "@id": organizationId() },
+    ...(options.withTehranOffice
+      ? {
+          department: {
+            "@type": "LocalBusiness",
+            "@id": `${siteConfig.baseUrl}/#tehran-office`,
+            name: tehranName,
+            address: { "@type": "PostalAddress", ...tehranAddress, addressCountry: "IR" },
+          },
+        }
+      : {}),
+  };
+}
+
+/**
+ * A question or answer that talks money (a currency word). Prices in structured data are an open owner
+ * decision (D-SEO: no price in JSON-LD), so such an item stays visible on the page but out of the FAQPage.
+ */
+export const FAQ_PRICE_TALK = /تومان|ریال|ريال|درهم|دلار|دولار|\btoman|\brials?\b|\bIRR\b|\bUSD\b|\$/i;
+
+/**
+ * W16.2: `FAQPage` for a page that visibly renders these questions and answers (never hidden-only copy),
+ * minus any item that mentions a currency (FAQ_PRICE_TALK). null when nothing is left.
+ */
+export function faqPageSchema(items: readonly { q: string; a: string }[]) {
+  const kept = items.filter((item) => !FAQ_PRICE_TALK.test(`${item.q} ${item.a}`));
+  if (kept.length === 0) return null;
+  return {
+    "@type": "FAQPage",
+    mainEntity: kept.map((item) => ({
+      "@type": "Question",
+      name: item.q,
+      acceptedAnswer: { "@type": "Answer", text: item.a },
+    })),
   };
 }
 

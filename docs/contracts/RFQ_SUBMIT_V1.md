@@ -62,7 +62,9 @@ carries `Cache-Control: no-store`.
 - Allowed origins: production `https://www.ahanassa.com`; staging
   `https://ahanassa-v11-static-staging.nova-b1e6f0.workers.dev` (the v11 static staging site, W2).
   Any other `Origin` → 403.
-- The public page's CSP `connect-src` is exactly `'self'`, `https://challenges.cloudflare.com` and the
-  target's RFQ origin (`https://api.ahanassa.com` / `https://api-staging.ahanassa.com`), generated from
-  `lib/security/headers.ts` + `lib/static/targets.ts`; the artifact gate enforces it.
+- The public page's CSP `connect-src` is exactly `'self'`, `https://challenges.cloudflare.com`, the
+  target's RFQ origin (`https://api.ahanassa.com` / `https://api-staging.ahanassa.com`) and GA4's
+  collection origins (`https://*.google-analytics.com`, `https://*.analytics.google.com`,
+  `https://*.googletagmanager.com`; owner decision 2026-10-13, DAR-066). It is generated from
+  `lib/security/headers.ts` + `lib/static/targets.ts`, and the artifact gate enforces it.
 - Turnstile keys, rate limiter and `DB_OPS` are separate per environment.

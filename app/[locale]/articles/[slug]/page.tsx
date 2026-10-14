@@ -10,6 +10,9 @@ import { isLocale, localizedPath } from "@/config/locales";
 import { buildLanguageAlternatesFromEntries, buildPageMetadata, robotsMetaContent } from "@/lib/metadata/resolve";
 import { siteConfig } from "@/lib/metadata/site";
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";
+import { breadcrumbListSchema, faqPageSchema, jsonLdGraph } from "@/lib/seo/schema";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { ArticleAnalytics } from "@/components/analytics/article-analytics";
 import { listPublishedCatalogTemplates } from "@/lib/catalog/editorial-repository";
 import { ARTICLE_COPY, formatArticleDate } from "@/lib/articles/copy";
 import { categoryLabel, getArticle, listArticles, listRelatedArticles, type Article } from "@/lib/articles/repository";
@@ -59,7 +62,7 @@ const linkableSource = (url: string) => /^https?:\/\//i.test(url) && !/\/api\//i
 function RfqBox({ locale, className }: { locale: ArticleLocale; className?: string }) {
   const t = ARTICLE_COPY[locale];
   return (
-    <div className={cardVariants({ variant: "panel", tone: "subtle", className })}>
+    <div data-article-cta="bottom" className={cardVariants({ variant: "panel", tone: "subtle", className })}>
       <p className="text-navy font-bold">{t.rfq}</p>
       <p className="text-muted-foreground mt-2 text-sm leading-relaxed">{t.rfqBody}</p>
       <ButtonLink href={localizedPath(locale, "/contact")} variant="primary" className="mt-4 w-full">
@@ -72,7 +75,7 @@ function RfqBox({ locale, className }: { locale: ArticleLocale; className?: stri
 /**
  * W11.1 — one article (docs/ARTICLES.md): title, dates («به‌روزرسانی»), reading time, cover, table of
  * contents, body, FAQ, sources, related product cards (`related_products`), «استعلام قیمت», related
- * articles and the author line. No JSON-LD yet (SEO phase). Build-time snapshot only.
+ * articles and the author line. JSON-LD (W16.2): the visible breadcrumb trail + the visible FAQ. Build-time snapshot only.
  */
 export default async function ArticlePage({ params }: PageProps) {
   return <ArticleContent a={await load(params)} />;
@@ -92,18 +95,25 @@ async function ArticleContent({ a }: { a: Article }) {
   const products = a.relatedProducts.map((id) => published.find((p) => p.product.templateXid === id)).filter((p) => p !== undefined);
   const related = await listRelatedArticles(a);
 
+  const crumbs = [
+    { href: localizedPath(locale, "/"), label: HOME[locale] },
+    { href: localizedPath(locale, ARTICLES_ROUTE), label: t.nav },
+    { href: localizedPath(locale, articleListingPath(1, a.category)), label: category },
+  ];
+  const jsonLd = jsonLdGraph([
+    breadcrumbListSchema([...crumbs.map((c) => ({ name: c.label, url: `${siteConfig.baseUrl}${c.href}` })), { name: a.title, url: `${siteConfig.baseUrl}${localizedPath(locale, articlePath(a.slug))}` }]),
+    ...[faqPageSchema(a.faq)].filter((n) => n !== null),
+  ]);
+
   return (
-    <article>
+    <article data-analytics-scope="article">
+      <JsonLd data={jsonLd} />
       <header className="bg-navy on-inverse relative isolate overflow-hidden">
         <div className="hairline-grid absolute inset-0" aria-hidden="true" />
         <div className="container-x relative py-14 lg:py-20">
           <nav aria-label={HOME[locale]} className="mb-6">
             <ol className="text-on-inverse-muted flex flex-wrap items-center gap-x-1.5 text-xs">
-              {[
-                { href: localizedPath(locale, "/"), label: HOME[locale] },
-                { href: localizedPath(locale, ARTICLES_ROUTE), label: t.nav },
-                { href: localizedPath(locale, articleListingPath(1, a.category)), label: category },
-              ].map((c, i) => (
+              {crumbs.map((c, i) => (
                 <li key={c.href} className="flex items-center gap-1.5">
                   {i > 0 && <ChevronRight className="size-3.5 rtl:-scale-x-100" aria-hidden="true" />}
                   <Link href={c.href} className={CRUMB}>
@@ -167,8 +177,9 @@ async function ArticleContent({ a }: { a: Article }) {
               </details>
             )}
 
-            <div className="mt-10">
+            <div className="relative mt-10">
               <ArticleBody blocks={a.body.blocks} />
+              <ArticleAnalytics slug={a.slug} lang={locale} />
             </div>
 
             {a.faq.length > 0 && (
@@ -253,7 +264,7 @@ async function ArticleContent({ a }: { a: Article }) {
                 </li>
               ))}
             </ul>
-            <ButtonLink href={localizedPath(locale, "/contact")} variant="primary" className="mt-8">
+            <ButtonLink href={localizedPath(locale, "/contact")} variant="primary" className="mt-8" data-article-cta="product_card">
               {t.rfq}
             </ButtonLink>
           </div>

@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { cardVariants } from "@/components/ui/surface-variants";
 import { PriceCellContent } from "@/components/products/price-cell-content";
 import { PriceTableFilter } from "@/components/prices/price-table-filter";
+import { TrackOnView } from "@/components/analytics/track-on-view";
 
 interface PageProps {
   params: Promise<{ locale: string }>;
@@ -77,6 +78,7 @@ async function DailyPriceTable({ locale }: { locale: PriceLocale }) {
   return (
     // minmax(0,1fr): the table's min-w-max must not widen the grid track (that scrolled the whole page at 390 px).
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
+      <TrackOnView event="price_page_view" params={{ price_date: new Date(latest).toISOString().slice(0, 10) }} />
       <p className="text-neutral-700 text-sm font-semibold">
         {t.updated}{" "}
         {/* ar carries no timestamp (owner 2026-10-09). */}

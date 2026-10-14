@@ -24,6 +24,7 @@ import { RfqItemRow } from "@/components/contact/rfq-item-row";
 import { getDefaultPhoneCountry, getCountryLabel, PHONE_COUNTRIES } from "@/lib/rfq/phone-country-registry";
 import { normalizeDigits } from "@/lib/rfq/quantity";
 import { submitRfqWithRetry } from "@/lib/rfq/submit-with-retry";
+import { trackEvent } from "@/lib/analytics/events";
 import { RfqSuccessPanel, RFQ_SUBMITTED_ATTR } from "@/components/contact/rfq-success-panel";
 import { clearRfqBasket, writeRfqBasket, EMPTY_RFQ_CUSTOMER, type RfqBasketAddOutcome, type RfqBasketCustomer } from "@/lib/rfq/rfq-basket";
 import { RfqFilesField, type RfqFileError } from "@/components/contact/rfq-files-field";
@@ -31,7 +32,6 @@ import { checkDeclaredFile, checkFileBytes, MAX_RFQ_FILES, sanitizeFilename, typ
 import { uploadRfqFiles, type FilesCapability } from "@/lib/rfq/upload-files";
 import { useRfqListExtraction, fileKeyOf } from "@/components/contact/use-rfq-list-extraction";
 import { completeExtractedRow, composeItemNote, isEditedByCustomer, mergeExtractedRows, type RfqRowExtract } from "@/lib/rfq/extract/to-rows";
-import { trackExtractEvent } from "@/lib/rfq/extract/analytics";
 
 /**
  * Multi-item RFQ / purchase-list form (docs/RFQ_MULTI_ITEM_FORM.md).
@@ -574,14 +574,14 @@ export function EnquiryForm({
           errors.push({ name: file.name, reason: verdict.reason });
           continue;
         }
+        next.push(file);
+        accepted.push(file);
+        // W16.4: an accepted attachment — the count and the policy's allowlisted extension, never the file name.
+        trackEvent("file_upload", { file_count: next.length, file_type: verdict.ext });
       } catch {
         errors.push({ name: file.name, reason: "read_error" });
         continue;
       }
-      next.push(file);
-      accepted.push(file);
-      // Count and the policy's extension only — never the file name (W16.4 privacy rule).
-      trackExtractEvent("file_upload", { file_count: next.length, file_type: declared.ext });
     }
     setFiles(next);
     setFileErrors(errors);
@@ -711,6 +711,8 @@ export function EnquiryForm({
         clearRfqBasket(locale);
         setReference(body.reference);
         setStatus("success");
+        // W16.4: the tracking number only — never a name, phone, email, company or item (lib/analytics/events.ts).
+        trackEvent("rfq_submit", { rfq_tracking_number: body.reference });
         return;
       }
 

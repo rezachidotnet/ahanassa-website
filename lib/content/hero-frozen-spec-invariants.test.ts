@@ -135,7 +135,7 @@ test("Secondary CTA phone source is the centralized Central Verified Business Id
   // HP-CONTENT-P1 (2026-09-14): the owner-supplied number is a local
   // landline-style value, not E.164 — pin the exact approved value instead
   // of a generic international-format shape.
-  assert.equal(CONTACT_PHONE_E164, "03135134", "the shared constant must be the exact owner-approved phone number");
+  assert.equal(CONTACT_PHONE_E164, "+983135134", "the shared constant must be the exact owner-approved phone number (D-COMPANY-INFO: international form for tel:)");
   assert.ok(HERO_CODE.includes("CONTACT_PHONE_E164"), "hero.tsx must import the shared phone constant");
   assert.ok(!/tel:\+\d{6,15}/.test(HERO_CODE), "hero.tsx must not hardcode a raw tel: number — it must build the href from CONTACT_PHONE_E164");
 });

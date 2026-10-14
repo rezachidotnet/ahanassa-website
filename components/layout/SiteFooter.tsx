@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { localizedPath, type Locale } from "@/config/locales";
 import { siteConfig } from "@/lib/metadata/site";
 import { visibleNavLinks, headerPhoneLabel } from "@/lib/content/nav";
-import { CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
+import { CONTACT_PHONE_DISPLAY, CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 import { ABOUT_GROUP_ANCHOR, GROUP_FOOTER_COPY, PARENT_ORGANIZATION } from "@/lib/content/company";
 
 /**
@@ -126,7 +126,7 @@ export function SiteFooter({ locale, hasArticles = false }: { locale: Locale; ha
             aria-label={headerPhoneLabel[locale].srLabel}
             className={cn(FOOTER_LINK, "mt-3 text-sm")}
           >
-            {CONTACT_PHONE_E164}
+            {CONTACT_PHONE_DISPLAY}
           </a>
           <address className="mt-3 space-y-1 text-on-inverse-muted text-sm not-italic">
             {t.addressLines.map((line) => (

@@ -2,6 +2,9 @@ import Image from "@/components/ui/image";
 import Link from "@/components/ui/link";
 import { ChevronRight } from "lucide-react";
 import { localizedPath, type Locale } from "@/config/locales";
+import { siteConfig } from "@/lib/metadata/site";
+import { breadcrumbListSchema, jsonLdGraph } from "@/lib/seo/schema";
+import { JsonLd } from "@/components/seo/JsonLd";
 
 /** Breadcrumb links: 44px tall tap targets (W10.0 P1-4), underline on hover. */
 const CRUMB = "inline-flex min-h-11 items-center transition-colors hover:text-white hover:underline underline-offset-4";
@@ -20,6 +23,7 @@ export function PageHero({
   image,
   imageAlt = "",
   breadcrumb,
+  breadcrumbJsonLd = true,
 }: {
   locale: Locale;
   eyebrow: string;
@@ -28,6 +32,8 @@ export function PageHero({
   image?: string;
   imageAlt?: string;
   breadcrumb?: { path: string; label: string }[];
+  /** W16.2: the visible trail as BreadcrumbList JSON-LD (Home first). false where the page emits its own (product pages). */
+  breadcrumbJsonLd?: boolean;
 }) {
   return (
     <section className="bg-navy on-inverse relative isolate overflow-hidden">
@@ -51,6 +57,13 @@ export function PageHero({
       <div className="hairline-grid absolute inset-0" aria-hidden="true" />
 
       <div className="container-x relative py-16 lg:py-24">
+        {breadcrumb && breadcrumb.length > 0 && breadcrumbJsonLd && (
+          <JsonLd
+            data={jsonLdGraph([
+              breadcrumbListSchema([{ path: "/", label: homeLabel[locale] }, ...breadcrumb].map((b) => ({ name: b.label, url: `${siteConfig.baseUrl}${localizedPath(locale, b.path)}` }))),
+            ])}
+          />
+        )}
         {breadcrumb && breadcrumb.length > 0 && (
           <nav aria-label={homeLabel[locale]} className="mb-8">
             <ol className="text-on-inverse-muted flex flex-wrap items-center gap-x-1.5 text-xs">

@@ -12,6 +12,10 @@ import { FaqSection } from "@/components/contact/faq-section";
 import { getTurnstileSiteKey } from "@/lib/env";
 import { cardVariants } from "@/components/ui/surface-variants";
 import { WORKING_HOURS_TEXT } from "@/lib/content/company";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { faqPageSchema, jsonLdGraph, localBusinessSchema } from "@/lib/seo/schema";
+import { contactFaq } from "@/lib/content/pages";
+import { CONTACT_PHONE_DISPLAY, CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 
 export { generateLocaleStaticParams as generateStaticParams } from "@/lib/static/locale-params";
 
@@ -46,7 +50,7 @@ interface PageProps {
 
 const copy: Record<
   Locale,
-  { eyebrow: string; title: string; body: string; formEyebrow: string; formTitle: string; formBody: string; officeTitle: string; addressLines: string[]; nextTitle: string }
+  { eyebrow: string; title: string; body: string; formEyebrow: string; formTitle: string; formBody: string; officeTitle: string; addressLines: string[]; tehranTitle: string; tehranLines: string[]; phoneLabel: string; nextTitle: string }
 > = {
   fa: {
     eyebrow: "تماس با ما",
@@ -57,6 +61,9 @@ const copy: Record<
     formBody: "اطلاعات زیر برای شروع بررسی نیاز پروژه شما استفاده می‌شود.",
     officeTitle: "دفتر مرکزی",
     addressLines: ["اصفهان، خیابان هزارجریب، کوی آزادگان، پلاک 6"],
+    tehranTitle: "دفتر هماهنگی تهران",
+    tehranLines: ["تهران، خیابان ستارخان، پلاک 660", "کد پستی 1454954166"],
+    phoneLabel: "تلفن",
     nextTitle: "مراحل بعدی",
   },
   en: {
@@ -68,6 +75,9 @@ const copy: Record<
     formBody: "The information below is used to begin reviewing your project requirement.",
     officeTitle: "Head office",
     addressLines: ["Hezar Jarib Street, Kooy Azadegan, No. 6, Isfahan, Iran"],
+    tehranTitle: "Tehran coordination office",
+    tehranLines: ["Sattarkhan Street, No. 660, Tehran, Iran", "Postal code 1454954166"],
+    phoneLabel: "Phone",
     nextTitle: "Next steps",
   },
   ar: {
@@ -79,6 +89,9 @@ const copy: Record<
     formBody: "تُستخدم المعلومات أدناه لبدء مراجعة احتياج مشروعك.",
     officeTitle: "المكتب الرئيسي",
     addressLines: ["شارع هزار جريب، حي آزادگان، رقم 6، أصفهان، إيران"],
+    tehranTitle: "مكتب التنسيق في طهران",
+    tehranLines: ["شارع ستارخان، رقم 660، طهران، إيران", "الرمز البريدي 1454954166"],
+    phoneLabel: "الهاتف",
     nextTitle: "الخطوات التالية",
   },
 };
@@ -148,23 +161,41 @@ export default async function ContactPage({ params }: PageProps) {
         </div>
       </section>
 
+      {/* D-COMPANY-INFO: the official (Isfahan) office with the company phone, then the Tehran coordination office (no separate phone). */}
       <section className="border-border bg-background border-b py-12 lg:py-16" data-rfq-hide-on-success="">
         <div className="container-x">
-          <div className={cardVariants({ variant: "panel", tone: "subtle", className: "max-w-md" })}>
-            <h2 className="eyebrow text-navy">{t.officeTitle}</h2>
-            <address className="text-muted-foreground mt-5 text-sm leading-relaxed not-italic">
-              <span className="text-navy block font-bold">{siteConfig.name}</span>
-              {t.addressLines.map((line) => (
-                <span key={line} className="block">{line}</span>
-              ))}
-            </address>
-            {/* W16.3: working hours from the shared company facts (lib/content/company.ts), also on /about. */}
-            <h3 className="text-navy mt-5 text-sm font-bold">{WORKING_HOURS_TEXT[locale].label}</h3>
-            <ul className="text-muted-foreground mt-2 space-y-1 text-sm leading-relaxed">
-              {WORKING_HOURS_TEXT[locale].lines.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
+          <div className="grid max-w-4xl gap-6 md:grid-cols-2">
+            <div className={cardVariants({ variant: "panel", tone: "subtle" })}>
+              <h2 className="eyebrow text-navy">{t.officeTitle}</h2>
+              <address className="text-muted-foreground mt-5 text-sm leading-relaxed not-italic">
+                <span className="text-navy block font-bold">{siteConfig.name}</span>
+                {t.addressLines.map((line) => (
+                  <span key={line} className="block">{line}</span>
+                ))}
+                <span className="mt-3 block">
+                  {t.phoneLabel}:{" "}
+                  <a href={`tel:${CONTACT_PHONE_E164}`} dir="ltr" className="text-navy font-medium hover:underline">
+                    {CONTACT_PHONE_DISPLAY}
+                  </a>
+                </span>
+              </address>
+              {/* W16.3: working hours from the shared company facts (lib/content/company.ts), also on /about. */}
+              <h3 className="text-navy mt-5 text-sm font-bold">{WORKING_HOURS_TEXT[locale].label}</h3>
+              <ul className="text-muted-foreground mt-2 space-y-1 text-sm leading-relaxed">
+                {WORKING_HOURS_TEXT[locale].lines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </div>
+            <div className={cardVariants({ variant: "panel", tone: "subtle" })}>
+              <h2 className="eyebrow text-navy">{t.tehranTitle}</h2>
+              <address className="text-muted-foreground mt-5 text-sm leading-relaxed not-italic">
+                <span className="text-navy block font-bold">{siteConfig.name}</span>
+                {t.tehranLines.map((line) => (
+                  <span key={line} className="block">{line}</span>
+                ))}
+              </address>
+            </div>
           </div>
         </div>
       </section>
@@ -172,6 +203,9 @@ export default async function ContactPage({ params }: PageProps) {
       <div data-rfq-hide-on-success="">
         <FaqSection locale={locale} />
       </div>
+
+      {/* W16.2 (D-SEO): the offices (rendered above; D-COMPANY-INFO adds Tehran) and the FAQ (rendered above), word for word. */}
+      <JsonLd data={jsonLdGraph([localBusinessSchema(locale, { withTehranOffice: true }), faqPageSchema(contactFaq[locale].items)].filter((n) => n !== null))} />
     </>
   );
 }

@@ -11,6 +11,7 @@ import { scanArticlePages } from "./article-gate.ts";
 import { STATIC_TARGETS, TURNSTILE_ORIGIN } from "./targets.ts";
 import { checkStaticCacheRules } from "./static-rules.ts";
 import { checkIndexingPolicy, PRODUCTION_ORIGIN } from "./indexing-gate.ts";
+import { GA4_CONNECT_ORIGINS } from "../security/headers.ts";
 
 /**
  * artifact.v1 gate (architecture V1.1 §7.1 step 6, docs/contracts/ARTIFACT_V1.md).
@@ -142,10 +143,11 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
     const headers = readPublic("_headers");
     // Indexing (D6): staging never indexable; production exactly lib/seo/indexing-policy.ts.
     failures.push(...checkIndexingPolicy(parsed.data.environment, publicEntries.map((e) => e.path), readPublic));
-    // CSP connect-src: exactly 'self', Turnstile and this target's RFQ API origin (architecture §6.1).
+    // CSP connect-src: exactly 'self', Turnstile, this target's RFQ API origin (architecture §6.1) and
+    // GA4's collection endpoints (owner decision 2026-10-13, DAR-066).
     const origin = STATIC_TARGETS[parsed.data.environment].rfqApiOrigin;
     const connect = /connect-src ([^;\n]*)/.exec(headers)?.[1]?.trim().split(/\s+/) ?? [];
-    const expected = ["'self'", TURNSTILE_ORIGIN, origin];
+    const expected = ["'self'", TURNSTILE_ORIGIN, origin, ...GA4_CONNECT_ORIGINS];
     if (connect.length !== expected.length || expected.some((e) => !connect.includes(e))) failures.push(`_headers: CSP connect-src must be exactly ${expected.join(" ")} (got ${connect.join(" ") || "none"})`);
     // W10.6: immutable caching names each /_next/static/ file; a wildcard would also cache a chunk's 404 for a year.
     failures.push(...checkStaticCacheRules(headers, publicEntries.map((e) => e.path)));

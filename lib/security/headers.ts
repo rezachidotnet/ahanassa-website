@@ -17,6 +17,19 @@
  * target's RFQ API origin (architecture V1.1 §6.1: connect-src limited to
  * that host). The SSR Worker posts same-origin and passes none.
  */
+/**
+ * W16.4 (D-SEO): Google Tag Manager + GA4 (GA4 runs only as the Google tag inside GTM). No
+ * 'unsafe-inline'/'unsafe-eval': the site loads GTM from its own bundle (lib/analytics/gtm.ts).
+ * Owner decision 2026-10-13 (DAR-066 item 3, amends architecture V1.1 §6.1): `connect-src` also allows
+ * GA4's collection endpoints, so switching this policy from Report-Only to enforced does not stop
+ * analytics. The origins are Google's documented CSP for GTM + GA4 (Google signals stay off, so no
+ * doubleclick origin). GTM Preview's own UI (tagmanager.google.com) is not allowed: Preview is a
+ * debugging tool and works while the policy is Report-Only.
+ */
+export const GTM_SCRIPT_ORIGIN = "https://*.googletagmanager.com";
+export const GA4_IMG_ORIGINS = ["https://*.google-analytics.com", "https://*.googletagmanager.com"] as const;
+export const GA4_CONNECT_ORIGINS = ["https://*.google-analytics.com", "https://*.analytics.google.com", "https://*.googletagmanager.com"] as const;
+
 export function buildCspReportOnly(connectSrc: readonly string[] = []): string {
   return [
     "default-src 'self'",
@@ -27,11 +40,11 @@ export function buildCspReportOnly(connectSrc: readonly string[] = []): string {
     // Cloudflare Turnstile (RFQ form) requires its own script/frame/connect
     // origin — the narrowest addition that unblocks it, not a broad
     // relaxation (CLAUDE.md "CSP / Security Headers").
-    "script-src 'self' https://challenges.cloudflare.com",
+    `script-src 'self' https://challenges.cloudflare.com ${GTM_SCRIPT_ORIGIN}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data:",
+    ["img-src 'self' data:", ...GA4_IMG_ORIGINS].join(" "),
     "font-src 'self'",
-    ["connect-src 'self' https://challenges.cloudflare.com", ...connectSrc].join(" "),
+    ["connect-src 'self' https://challenges.cloudflare.com", ...connectSrc, ...GA4_CONNECT_ORIGINS].join(" "),
     "frame-src 'self' https://challenges.cloudflare.com",
     "upgrade-insecure-requests",
   ].join("; ");

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { isLocale, type Locale } from "@/config/locales";
 import { buildPageMetadata, buildLanguageAlternatesFromEntries } from "@/lib/metadata/resolve";
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";
-import { getPublishedCatalogTemplateBySlug, listPublishedCatalogTemplates } from "@/lib/catalog/editorial-repository";
+import { getPublishedCatalogTemplateBySlug, listPublicCatalogCategories, listPublishedCatalogTemplates } from "@/lib/catalog/editorial-repository";
 import { NOMINAL_WEIGHT_DISCLAIMER } from "@/lib/catalog/specification-presenter";
 import { buildCalculatorProducts } from "@/lib/weight-calculator/model";
 import { BASIS_LINES, BASIS_STANDARDS, WEIGHT_CALCULATOR_COPY } from "@/lib/weight-calculator/copy";
@@ -56,7 +56,9 @@ async function PricedWeightCalculator({ locale, products }: { locale: Locale; pr
     const map = await listProductPagePrices(products.flatMap((p) => p.variants.map((v) => v.xid)));
     prices = toCalculatorPrices(locale, map ? Object.fromEntries(map) : null);
   }
-  return <WeightCalculator locale={locale} products={products} prices={prices} />;
+  // The product funnel's `product_family` (rfq_cta_click): Odoo group code → public category code.
+  const families = Object.fromEntries((await listPublicCatalogCategories(locale)).flatMap((c) => c.groupCodes.map((g) => [g, c.code])));
+  return <WeightCalculator locale={locale} products={products} prices={prices} families={families} />;
 }
 
 /**

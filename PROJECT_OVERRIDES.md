@@ -134,6 +134,8 @@ SEO_MEASUREMENT_ARCHITECTURE_REQUIRED = true
 
 The implementation must support Google Tag Manager, Google Search Console, and SEO measurement architecture from the start (environment-driven GTM configuration, sitemap/index readiness for GSC, etc.). **Specific values remain configuration, not architecture, and remain pending:** the actual GTM container ID, GA4 property ID, and Search Console verification value are not yet supplied and must not be invented or hardcoded — treat them as environment variables to be populated when the owner provides them.
 
+**Update 2026-10-13 (owner, W16.2/W16.4 on PR #47):** the IDs are supplied: GTM container `GTM-TFN25VZQ`, GA4 measurement ID `G-C8MZB6DXPZ`. They live in `config/analytics.ts`: a committed config, not an env var, because of the r4 artifact-identity gate (`DOCUMENT_AUDIT_REPORT.md` DAR-066 item 1). GA4 loads **only** through the Google tag inside the GTM container. The site never adds a direct gtag.js snippet, so page views are not double-counted. The Search Console verification value is still pending (DNS TXT, done by the owner in Cloudflare).
+
 ---
 
 ## 6. Media and brand assets
@@ -181,7 +183,26 @@ ADDRESS_EN (reference translation)     = Hezar Jarib Street, Kooy Azadegan, No. 
 
 **Status:** OWNER-CONFIRMED 2026-08-26; plaque/unit number (پلاک 6) added 2026-09-14 (HP-CONTENT-P1, owner-approved) — same street/alley/city, no other detail invented. Use the Persian form as the primary source wording; the English form is a reference translation for the `en` locale. This closes the address portion of `DOCUMENT_AUDIT_REPORT.md` DAR-001 — the value was previously flagged only as an unverified candidate sourced from a design mockup; the owner has now confirmed it directly.
 
+**Second location, OWNER-CONFIRMED 2026-10-13 (decision D-COMPANY-INFO):** a Tehran coordination office. The Isfahan address above remains the official address (`LocalBusiness`).
+
+```text
+TEHRAN_OFFICE_FA = تهران، خیابان ستارخان، پلاک 660، کد پستی 1454954166
+TEHRAN_OFFICE_EN = Sattarkhan Street, No. 660, Tehran, Iran — postal code 1454954166 (reference translation)
+TEHRAN_OFFICE_PHONE = none (no separate phone; the company number in §7.2 applies)
+```
+
+It is rendered on `/contact` in fa/en/ar and emitted in that page's JSON-LD as the `LocalBusiness`'s `department` (`lib/seo/schema.ts` `TEHRAN_OFFICE`).
+
 ### 7.2 Phone — OWNER-CONFIRMED 2026-09-14 (superseding the 2026-09-02 mobile number)
+
+**Update 2026-10-13 (decision D-COMPANY-INFO, owner):** the number is confirmed as **031-35134**, i.e. area code 031 followed by 5 digits. The 2026-09-14 instruction not to reformat it is superseded by this explicit owner direction:
+
+```text
+CONTACT_PHONE_E164    = +983135134   (every tel: link and the JSON-LD telephone)
+CONTACT_PHONE_DISPLAY = 031-35134    (every visible rendering: header, footer, mobile menu, /contact; fa/en/ar)
+```
+
+Both constants are in `lib/content/contact-channels.ts`. The 2026-09-14 text below is kept as history.
 
 ```text
 CONTACT_PHONE_E164 = 03135134   (confirmed for production use, HP-CONTENT-P1)
@@ -193,7 +214,23 @@ CONTACT_PHONE_E164 = 03135134   (confirmed for production use, HP-CONTENT-P1)
 
 **Formerly-flagged historical candidate, now the confirmed value:** the number above was previously recorded here as `۰۳۱۳۵۱۳۴` (Eastern Arabic digits) and described as "a superseded historical candidate, never confirmed, never published... an 8-digit fragment (short for a standard Isfahan landline)." That characterization is now superseded by this section's direct 2026-09-14 owner confirmation of the identical digits (Latin form) as the live number — the owner's explicit, current instruction is the authority here, not the prior candidate-status note.
 
-**Single source of truth:** `lib/content/contact-channels.ts` (`CONTACT_PHONE_E164 = "03135134"`). Reused — never re-hardcoded — by Hero, Header, the mobile nav drawer, `FinalCta`, and `SiteFooter`. Import the constant; do not duplicate the value.
+**Single source of truth:** `lib/content/contact-channels.ts` (`CONTACT_PHONE_E164 = "03135134"`, since 2026-10-13 `"+983135134"` plus `CONTACT_PHONE_DISPLAY = "031-35134"`, see the update above). Reused — never re-hardcoded — by Hero, Header, the mobile nav drawer, `FinalCta`, and `SiteFooter`. Import the constant; do not duplicate the value.
+
+### 7.3 Business scope — OWNER-CONFIRMED 2026-10-13 (decision D-COMPANY-INFO)
+
+```text
+EXPORT_LINE = approved (export to Iraq and other countries)
+```
+
+Exporting steel to Iraq and other countries is an approved business line. The JSON-LD `areaServed` is `["IR", "IQ"]` (Organization `contactPoint` and `LocalBusiness`). Other countries are not named, so none is listed. Export prices, terms, volumes and partners are **not** confirmed (§10) and must not be invented in copy.
+
+### 7.4 Working hours, parent group and digit style — OWNER-CONFIRMED 2026-10-13
+
+- **Working hours:** Saturday–Wednesday 08:00–17:00 and Thursday 08:00–12:00, Iran time.
+- **Parent group:** «فضاسازه نقش جهان» (Fazasazeh Naghsh-e Jahan), founded 1376 SH / 1997. Its URL is `https://fazasazeh.ir`; `https://www.fazasazeh.ir` answers 301 to that host.
+- **Single source:** `lib/content/company.ts` (W16.3, PR #48). PR #47 emits these as JSON-LD: `openingHoursSpecification` on the `LocalBusiness`, and `parentOrganization` with `foundingDate` on the `Organization`.
+- **Digits:** addresses use Latin digits in every locale (پلاک 6, پلاک 660, کد پستی 1454954166), the same as the phone `031-35134`.
+- **Not needed:** Kuwait in `areaServed` (owner, 2026-10-13).
 
 ---
 
@@ -310,13 +347,13 @@ This override file controls only the decisions explicitly listed above. For ever
 
 The following remain genuinely unresolved after the 2026-08-26 owner sign-off round. Per `CLAUDE.md`, Claude Code must never invent business facts, contact data, or credentials for any of these:
 
-- Company email, WhatsApp, business hours (phone number is confirmed for production use — §7.2 — not listed here)
+- Company email, WhatsApp (the phone, §7.2, and the working hours and parent group, §7.4, are confirmed and not listed here)
 - Company legal entity name, registration/tax ID, invoicing identity
 - Board/leadership information
 - Odoo deployed version, installed modules, exact API protocol, exact model/field mapping (§3 — confirmed as an integration-phase gate, not a blocker, but the values themselves remain unknown)
 - Attachment-scanning provider/pipeline (§8 — confirmed as a pre-production gate, not a foundation blocker, but unselected)
 - Final Persian/Arabic font family licensing (font architecture itself needs redesign — see `DOCUMENT_AUDIT_REPORT.md` DAR-017)
-- Analytics provider specifics: GTM container ID, GA4 property ID, Search Console verification value (§5 — architecture confirmed required, values still pending)
+- Search Console verification value (§5: the GTM and GA4 IDs were supplied 2026-10-13)
 - Any customer testimonial, project case study, or evidence asset
 
 `01-sources/PROJECT_BRIEF.md` lists most of these as open `TBD` items requiring the owner. Treat every item above as unresolved until the project owner supplies it directly.

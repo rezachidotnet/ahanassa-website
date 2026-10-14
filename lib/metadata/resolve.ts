@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { locales, defaultLocale, localeConfig, localizedPath, type Locale } from "../../config/locales.ts";
 import { siteConfig } from "./site.ts";
+import { BRAND_MARK_LOGO_PATH } from "../media/image-sources.ts";
 
 /**
  * Foundation metadata resolver.
@@ -80,12 +81,20 @@ export function buildLanguageAlternatesFromEntries(entries: { locale: Locale; pa
   return languages;
 }
 
+/**
+ * W16.2 (D-SEO): the share image of every page without its own (an article has its cover): the brand
+ * mark, a 1200×1200 copy of public/brand/ahan-asa-mark.jpg. Square, so the Twitter card is `summary`.
+ */
+// The W16.5 image pipeline publishes the brand mark as a 512 px JPEG (the same file the Organization JSON-LD logo uses).
+export const DEFAULT_SHARE_IMAGE = { path: BRAND_MARK_LOGO_PATH, width: 512, height: 512 } as const;
+
 export function buildCanonicalUrl(locale: Locale, path: string): string {
   return `${siteConfig.baseUrl}${localizedPath(locale, path)}`;
 }
 
 export function buildPageMetadata(input: PageMetadataInput): Metadata {
   const canonical = buildCanonicalUrl(input.locale, input.path);
+  const image = input.image ?? { url: `${siteConfig.baseUrl}${DEFAULT_SHARE_IMAGE.path}`, width: DEFAULT_SHARE_IMAGE.width, height: DEFAULT_SHARE_IMAGE.height, alt: siteConfig.name };
 
   return {
     title: input.titleAbsolute ? { absolute: input.title } : input.title,
@@ -109,8 +118,8 @@ export function buildPageMetadata(input: PageMetadataInput): Metadata {
       siteName: siteConfig.name,
       locale: localeConfig[input.locale].languageTag,
       ...(input.article ? { type: "article" as const, publishedTime: input.article.publishedTime, modifiedTime: input.article.modifiedTime } : { type: "website" as const }),
-      ...(input.image ? { images: [input.image] } : {}),
+      images: [image],
     },
-    ...(input.image ? { twitter: { card: "summary_large_image" as const, title: input.title, description: input.description, images: [input.image.url] } } : {}),
+    twitter: { card: input.image ? ("summary_large_image" as const) : ("summary" as const), title: input.title, description: input.description, images: [image.url] },
   };
 }
