@@ -11,6 +11,8 @@ import { priceHubPath } from "@/lib/pricing/price-hubs";
 import { isWeightCalculatorPublished, WEIGHT_CALCULATOR_ROUTE } from "@/lib/weight-calculator/publication";
 import { ProductsListing, productsHeroCopy } from "@/components/products/products-listing";
 import Link from "@/components/ui/link";
+import { GroupServicesBox } from "@/components/group/group-services-box";
+import { showGroupServices } from "@/lib/content/company";
 
 interface PageProps {
   params: Promise<{ locale: string; category: string }>;
@@ -92,13 +94,16 @@ export default async function ProductCategoryPage({ params }: PageProps) {
   if (!category) notFound();
   // H1 and intro do not depend on prices (only the fa title/meta and the hub link do).
   const seo = categorySeo(category.code, locale, false);
-  if (!seo) return <ProductsListing locale={locale} category={category} />;
+  // W16.6: «خدمات مکمل گروه» on beam, box/profile and coated-sheet categories only.
+  const aside = showGroupServices([category.code, ...category.groupCodes, category.name]) ? <GroupServicesBox locale={locale} /> : undefined;
+  if (!seo) return <ProductsListing locale={locale} category={category} aside={aside} />;
   return (
     <ProductsListing
       locale={locale}
       category={category}
       hero={{ title: seo.h1 }}
       intro={<CategoryIntro locale={locale} code={category.code} name={seo.name} intro={seo.intro} />}
+      aside={aside}
     />
   );
 }
