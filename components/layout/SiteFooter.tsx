@@ -7,6 +7,7 @@ import { siteConfig } from "@/lib/metadata/site";
 import { visibleNavLinks, headerPhoneLabel } from "@/lib/content/nav";
 import { CONTACT_PHONE_DISPLAY, CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 import { ABOUT_GROUP_ANCHOR, GROUP_COMPANIES, GROUP_FOOTER_COPY, OFFICES, PARENT_ORGANIZATION } from "@/lib/content/company";
+import { fullCatalogPath } from "@/lib/downloads/paths";
 
 /**
  * Global footer — four-column composition matches
@@ -108,7 +109,8 @@ export function SiteFooter({ locale, hasArticles = false }: { locale: Locale; ha
           <h3 className="eyebrow text-accent-on-inverse">{t.productsNav}</h3>
           <ul className="mt-3 text-sm">
             <li>
-              <Link href={localizedPath(locale, "/products")} className={FOOTER_LINK}>
+              {/* W17.2: the catalog PDF of this page's locale (fa→fa, en→en, ar→ar), built from the catalog snapshot. */}
+              <Link href={fullCatalogPath(locale)} hrefLang={locale} type="application/pdf" className={FOOTER_LINK}>
                 {t.catalogueCta}
               </Link>
             </li>

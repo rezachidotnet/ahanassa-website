@@ -51,11 +51,13 @@ test("frozen routes: products/services/industries/about/contact resolve exactly 
     assert.ok(!byPath.has("/markets"), "the primary nav must no longer target /markets — superseded by /industries");
     // W9.6 (owner instruction 2026-10-09): «قیمت روز» → /prices on fa/ar only.
     // W11.1 (owner instruction 2026-10-09): «مقالات» → /articles in all three locales (shown only where the build has articles).
+    // W17.2 (owner instruction 2026-10-14): «مرکز دانلود» → /downloads in all three locales.
     // Nothing else.
-    const expected = locale === "en" ? 6 : 7;
+    const expected = locale === "en" ? 7 : 8;
     assert.equal(links.length, expected, "no new top-level navigation item may be introduced without a new approved architecture decision (§58.1)");
     assert.equal(byPath.has("/prices"), locale !== "en", "the price page item is fa/ar only (en has no prices)");
     assert.ok(byPath.has("/articles"), "the articles item exists in every locale (W11.1)");
+    assert.ok(byPath.has("/downloads"), "the download center item exists in every locale (W17.2)");
   }
 });
 
@@ -492,7 +494,9 @@ test("NAV-P1: the 5 frozen top-level items, their order, and the Products/Servic
     if (locale !== "en") assert.equal(all[1].path, "/prices");
     // W11.1: «مقالات» sits between Industries and About.
     assert.equal(all[all.findIndex((l) => l.path === "/industries") + 1].path, "/articles");
-    const links = all.filter((l) => l.path !== "/prices" && l.path !== "/articles");
+    // W17.2: «مرکز دانلود» sits right after «مقالات».
+    assert.equal(all[all.findIndex((l) => l.path === "/articles") + 1].path, "/downloads");
+    const links = all.filter((l) => l.path !== "/prices" && l.path !== "/articles" && l.path !== "/downloads");
     assert.equal(links.length, 5);
     assert.equal(links[0].path, "/products");
     assert.equal(links[1].path, "/services");

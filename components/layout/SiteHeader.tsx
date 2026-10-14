@@ -207,7 +207,7 @@ export function SiteHeader({
                   key={link.path}
                   href={href}
                   aria-current={isCurrentPage ? "page" : undefined}
-                  className={cn("group relative px-2 py-2 text-sm font-medium whitespace-nowrap transition-colors xl:px-3.5", isActiveSection ? "text-navy" : "text-muted-foreground hover:text-navy")}
+                  className={cn("group relative px-2 py-2 text-sm font-medium whitespace-nowrap transition-colors xl:px-3.5", isActiveSection ? "text-navy" : "text-muted-foreground hover:text-navy", link.desktopFrom === "xl" && "hidden xl:inline")}
                 >
                   {link.label}
                   {/* Hover/focus underline reuses the same reserved-space

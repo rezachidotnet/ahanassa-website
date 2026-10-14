@@ -160,7 +160,7 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
   // 5. Leak scan over every public text file.
   const leaks: LeakFinding[] = [];
   for (const e of publicEntries) {
-    if (!/\.(html|json|txt|xml|js|css|md)$/.test(e.path) && !e.path.startsWith("_") && e.path !== ".assetsignore") continue;
+    if (!/\.(html|json|txt|xml|js|css|md|svg|dxf)$/.test(e.path) && !e.path.startsWith("_") && e.path !== ".assetsignore") continue;
     leaks.push(...scanPublicFile(e.path, readPublic(e.path), options.companyPhones ?? []));
   }
   for (const l of leaks) failures.push(`leak ${l.kind} in ${l.file}: ${l.match}`);

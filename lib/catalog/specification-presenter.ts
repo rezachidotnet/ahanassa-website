@@ -187,3 +187,21 @@ export function sortVariantsBySize<T extends Pick<ProductVariant, "commercialSiz
   const label = (v: T) => v.commercialSize ?? v.sectionSize ?? v.sku;
   return [...variants].sort((a, b) => compareCommercialSize(label(a), label(b)) || (a.sku < b.sku ? -1 : a.sku > b.sku ? 1 : 0));
 }
+
+/** W17.2 (download center PDFs): a dimension key's column label with its unit, e.g. "Width (mm)". */
+export function dimensionColumnLabel(key: string, locale: Locale): string {
+  return `${DIMENSION_LABELS[key]?.[locale] ?? humanizeUnknownKey(key)}${key.endsWith("_mm") ? " (mm)" : ""}`;
+}
+
+/** W17.2: a nominal-weight key's column label with its unit, e.g. "Nominal weight (kg/m)". */
+export function weightColumnLabel(key: string, locale: Locale): string {
+  const label = WEIGHT_LABELS[key]?.[locale] ?? humanizeUnknownKey(key);
+  return label.includes("(") ? label : `${label} (kg)`;
+}
+
+/** W17.2: the keys of several variants' dimension/weight records, in display order. */
+export function orderedSpecKeys(records: ReadonlyArray<Record<string, number> | null>, kind: "dimensions" | "weight"): string[] {
+  const merged: Record<string, number> = {};
+  for (const r of records) Object.assign(merged, r ?? {});
+  return orderedEntries(merged, kind === "dimensions" ? DIMENSION_KEY_ORDER : WEIGHT_KEY_ORDER).map(([k]) => k);
+}
