@@ -4,12 +4,13 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { isLocale, localizedPath, type Locale } from "@/config/locales";
 import { buildPageMetadata, buildLanguageAlternatesFromEntries } from "@/lib/metadata/resolve";
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";
-import { getPublishedCatalogTemplateBySlug, listPublishedCatalogTemplates, listPublishedLocalesForProduct } from "@/lib/catalog/editorial-repository";
+import { getPublishedCatalogTemplateBySlug, listPublicCatalogCategories, listPublishedCatalogTemplates, listPublishedLocalesForProduct } from "@/lib/catalog/editorial-repository";
 import { resolveRouteRedirect } from "@/lib/catalog/route-redirects";
 import { PageHero } from "@/components/ui/page-hero";
 import { VariantSpecTable, variantRowAnchorId, variantSelectedLabel } from "@/components/products/variant-spec-table";
 import { VariantHighlightFromQuery } from "@/components/products/variant-highlight-from-query";
 import { CtaBand } from "@/components/ui/cta-band";
+import { TrackOnView } from "@/components/analytics/track-on-view";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { breadcrumbListSchema, jsonLdGraph, productSchema } from "@/lib/seo/schema";
 import { siteConfig } from "@/lib/metadata/site";
@@ -119,6 +120,22 @@ async function ProductSpecs({ locale, variants, title }: { locale: Locale; varia
 }
 
 /**
+ * D-ARTICLE-METRICS product funnel: product_view on every load, and the page's catalog family as a
+ * `data-product-family` marker for rfq_cta_click (components/analytics/analytics-runtime.tsx). Its own async
+ * boundary (as ProductSpecs), so the page row that carries the target-specific robots value is unchanged.
+ */
+async function ProductAnalytics({ locale, slug, groupCode }: { locale: Locale; slug: string; groupCode: string | null }) {
+  await Promise.resolve();
+  const family = groupCode ? ((await listPublicCatalogCategories(locale)).find((c) => c.groupCodes.includes(groupCode))?.code ?? null) : null;
+  return (
+    <>
+      {family && <span hidden data-product-family={family} />}
+      <TrackOnView event="product_view" params={{ product_family: family ?? undefined, product_slug: slug }} />
+    </>
+  );
+}
+
+/**
  * The real, DB_PUBLIC-backed Product/Template detail page
  * (docs/CATALOG_PUBLIC_ROUTES.md). `getPublishedCatalogTemplateBySlug` is
  * structurally unable to return an unpublished/inactive/editorially-
@@ -207,6 +224,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       <ProductRelatedLinks locale={locale} templateXid={product.templateXid} slug={slug} groupCode={variants[0]?.group.code ?? null} />
 
       <CtaBand locale={locale} />
+      <ProductAnalytics locale={locale} slug={slug} groupCode={variants[0]?.group.code ?? null} />
     </>
   );
 }

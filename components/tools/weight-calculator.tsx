@@ -10,7 +10,7 @@ import { badgeVariants, cardVariants } from "@/components/ui/surface-variants";
 import { WEIGHT_CALCULATOR_COPY } from "@/lib/weight-calculator/copy";
 import { DISPLAY_DECIMALS, formatInputValue, formatNumber, parseDecimalInput } from "@/lib/weight-calculator/format";
 import { rfqHandoffHref } from "@/lib/weight-calculator/handoff";
-import { trackEvent } from "@/lib/analytics/events";
+import { calculatorEntry, sameOriginReferrerPath, trackEvent } from "@/lib/analytics/events";
 import {
   beamTableKgPerMetre,
   computeWeight,
@@ -56,7 +56,7 @@ function Chevron() {
   return <ChevronDown aria-hidden="true" className="text-muted-foreground pointer-events-none absolute end-3.5 top-1/2 size-4 -translate-y-1/2" />;
 }
 
-export function WeightCalculator({ locale, products, prices }: { locale: Locale; products: CalculatorProduct[]; prices?: CalculatorPrices }) {
+export function WeightCalculator({ locale, products, prices, families }: { locale: Locale; products: CalculatorProduct[]; prices?: CalculatorPrices; families?: Record<string, string> }) {
   const t = WEIGHT_CALCULATOR_COPY[locale];
   const id = useId();
   const [productIndex, setProductIndex] = useState(0);
@@ -94,6 +94,11 @@ export function WeightCalculator({ locale, products, prices }: { locale: Locale;
     const variant = product.variants.find((v) => variantValue(v.xid) === value);
     setLengthText(formatInputValue(locale, defaultLengthM(product, variant)));
   }
+
+  // D-ARTICLE-METRICS: calculator_open once per page load; the entry comes from the same-origin referrer path only.
+  useEffect(() => {
+    trackEvent("calculator_open", { calculator_entry: calculatorEntry(sameOriginReferrerPath(document.referrer, window.location.origin)) });
+  }, []);
 
   // ?variant= preselection (product pages), after hydration so the static HTML stays the default.
   useEffect(() => {
@@ -147,7 +152,8 @@ export function WeightCalculator({ locale, products, prices }: { locale: Locale;
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start">
+    // data-product-family: the selected product's catalog family, for the layout's rfq_cta_click.
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start" data-product-family={(product.groupCode && families?.[product.groupCode]) || undefined}>
       <form className={cardVariants({ variant: "panel" })} aria-labelledby={label("form-title")} onSubmit={(e) => e.preventDefault()} onChange={markUsed} noValidate>
         <h2 id={label("form-title")} className="text-navy text-lg font-bold">
           {t.formTitle}

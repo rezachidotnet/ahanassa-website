@@ -1,13 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { ANALYTICS_EVENTS, buildEvent, clickEventFor, trackEvent } from "./events.ts";
+import { ANALYTICS_EVENTS, articleCtaLocation, basketAddSource, buildEvent, calculatorEntry, clickEventFor, familyFromPath, funnelPage, isRfqHref, rfqCtaLocation, sameOriginReferrerPath, trackEvent } from "./events.ts";
 import { gtmScriptUrl, shouldLoadGtm, startGtm } from "./gtm.ts";
 import { buildCspReportOnly } from "../security/headers.ts";
 import { GA4_MEASUREMENT_ID, GA4_MEASUREMENT_ID_PATTERN, GTM_CONTAINER_ID, gtmContainerId } from "../../config/analytics.ts";
 
-test("events: the seven D-SEO events, each with a fixed parameter allowlist", () => {
-  assert.deepEqual(Object.keys(ANALYTICS_EVENTS).sort(), ["basket_add", "calculator_use", "file_upload", "phone_click", "price_page_view", "rfq_submit", "whatsapp_click"]);
+test("events: the seven D-SEO events + the D-ARTICLE-METRICS article and product-funnel events, each with a fixed parameter allowlist", () => {
+  assert.deepEqual(Object.keys(ANALYTICS_EVENTS).sort(), ["article_cta_click", "article_read", "basket_add", "calculator_open", "calculator_use", "file_upload", "phone_click", "price_page_view", "product_view", "rfq_cta_click", "rfq_submit", "whatsapp_click"]);
+  assert.deepEqual(ANALYTICS_EVENTS.basket_add, ["basket_size", "product_family", "product_slug", "add_source"]);
+  assert.deepEqual(ANALYTICS_EVENTS.product_view, ["product_family", "product_slug"]);
+  assert.deepEqual(ANALYTICS_EVENTS.rfq_cta_click, ["cta_location", "product_family"]);
+  assert.deepEqual(ANALYTICS_EVENTS.calculator_open, ["calculator_entry"]);
+  assert.deepEqual(ANALYTICS_EVENTS.article_read, ["article_slug", "article_lang"]);
+  assert.deepEqual(ANALYTICS_EVENTS.article_cta_click, ["article_slug", "article_lang", "cta_location"]);
   assert.deepEqual(ANALYTICS_EVENTS.rfq_submit, ["rfq_tracking_number"], "rfq_submit carries the tracking number only");
 });
 
@@ -93,9 +99,16 @@ test("wiring: rfq_submit sends the tracking number only; the layout mounts the r
   // file_type is the attachment policy's allowlisted extension (checkFileBytes), never derived from the file name.
   assert.match(form, /const verdict = checkFileBytes\(/);
   const staticForm = fs.readFileSync(new URL("../../components/contact/static-enquiry-form.tsx", import.meta.url), "utf8");
-  const basketCalls = [...staticForm.matchAll(/trackEvent\(("[a-z_]+"), \{ ([a-z_]+):/g)].map((m) => `${m[1]} ${m[2]}`);
-  assert.deepEqual(basketCalls, ['"basket_add" basket_size'], "basket_add: the basket size only");
-  assert.match(staticForm, /if \(result\.outcome === "added"\) trackEvent\("basket_add"/, "only a real add counts (not a duplicate or a full list)");
+  const basketCall = /if \(result\.outcome === "added"\)\s*trackEvent\("basket_add", \{([^}]*)\}\);/.exec(staticForm);
+  assert.ok(basketCall, "only a real add counts (not a duplicate or a full list)");
+  assert.equal(staticForm.match(/trackEvent\(/g)?.length, 1);
+  // The keys and their only sources: the resolved catalog item (never a raw URL value) and the same-origin referrer path.
+  assert.deepEqual(basketCall[1].split("\n").map((l) => l.trim()).filter(Boolean), [
+    "basket_size: rows.filter((r) => !isRfqRowEmpty(r.fields)).length,",
+    "product_family: preselection.publicCategoryCode ?? undefined,",
+    "product_slug: preselection.templateSlug,",
+    "add_source: basketAddSource(sameOriginReferrerPath(document.referrer, window.location.origin)) ?? undefined,",
+  ]);
   const layout = fs.readFileSync(new URL("../../app/[locale]/layout.tsx", import.meta.url), "utf8");
   assert.equal(layout.match(/<AnalyticsRuntime /g)?.length, 1);
 });
@@ -106,4 +119,113 @@ test("CSP allows GTM and GA4 (script, image beacon, fetch/sendBeacon), so an enf
   for (const origin of ["https://*.google-analytics.com", "https://*.googletagmanager.com"]) assert.ok(csp["img-src"].includes(origin), origin);
   for (const origin of ["https://*.google-analytics.com", "https://*.analytics.google.com", "https://*.googletagmanager.com"]) assert.ok(csp["connect-src"].includes(origin), origin);
   assert.ok(!csp["script-src"].includes("'unsafe-inline'") && !csp["script-src"].includes("'unsafe-eval'"));
+});
+
+test("article events (D-ARTICLE-METRICS): the slug passes, a title never does", () => {
+  assert.deepEqual(buildEvent("article_read", { article_slug: "rebar-weight-table", article_lang: "fa" }), { event: "article_read", article_slug: "rebar-weight-table", article_lang: "fa" });
+  assert.deepEqual(buildEvent("article_cta_click", { article_slug: "rebar-weight-table", article_lang: "en", cta_location: "product_card" }), { event: "article_cta_click", article_slug: "rebar-weight-table", article_lang: "en", cta_location: "product_card" });
+  for (const title of ["جدول وزن میلگرد", "Rebar weight table", "x".repeat(65)]) assert.deepEqual(buildEvent("article_read", { article_slug: title, article_lang: "fa" }), { event: "article_read", article_lang: "fa" }, title);
+  const leaky = { article_slug: "a-b", article_lang: "fa", article_title: "x" } as Record<string, string>;
+  assert.deepEqual(buildEvent("article_read", leaky), { event: "article_read", article_slug: "a-b", article_lang: "fa" });
+});
+
+test("isRfqHref: /contact and /request in every locale, with a query or fragment; nothing else", () => {
+  for (const href of ["/contact", "/en/contact", "/ar/contact/", "/contact?product=REBAR#form", "/request", "/en/request", "https://www.ahanassa.com/contact", "https://ahanassa.com/ar/contact"]) assert.equal(isRfqHref(href), true, href);
+  for (const href of ["/contacts", "/products/rebar", "/articles/contact", "/en/contact-us", "https://evil.example/contact", "tel:+983135134", "#contact", ""]) assert.equal(isRfqHref(href), false, href);
+});
+
+test("articleCtaLocation: the nearest data-article-cta mark; an unmarked or unknown mark is inline", () => {
+  const link = (mark: string | null) => ({ closest: () => (mark === null ? null : { getAttribute: () => mark }) }) as unknown as Element;
+  assert.equal(articleCtaLocation(link("bottom")), "bottom");
+  assert.equal(articleCtaLocation(link("product_card")), "product_card");
+  assert.equal(articleCtaLocation(link(null)), "inline");
+  assert.equal(articleCtaLocation(link("sidebar")), "inline");
+});
+
+test("wiring: the article page marks its RFQ CTAs and mounts the 75% sentinel inside the body wrapper", () => {
+  const page = fs.readFileSync(new URL("../../app/[locale]/articles/[slug]/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /<div className="relative mt-10">\s*<ArticleBody blocks=\{a\.body\.blocks\} \/>\s*<ArticleAnalytics slug=\{a\.slug\} lang=\{locale\} \/>\s*<\/div>/, "the sentinel is positioned against the body only");
+  assert.equal(page.match(/<ArticleAnalytics /g)?.length, 1);
+  assert.match(page, /<div data-article-cta="bottom" className=\{cardVariants/, "the RFQ box is the bottom CTA");
+  assert.match(page, /<ButtonLink href=\{localizedPath\(locale, "\/contact"\)\}[^>]*data-article-cta="product_card">/, "the RFQ button under the product cards");
+  assert.equal(page.match(/data-article-cta=/g)?.length, 2, "body links stay unmarked (inline)");
+  const component = fs.readFileSync(new URL("../../components/analytics/article-analytics.tsx", import.meta.url), "utf8");
+  assert.match(component, /new IntersectionObserver\(/);
+  // A jump past the sentinel (End key, contents link) never shows it on screen: the root reaches far above the viewport.
+  assert.match(component, /const REACHED_MARGIN = "1000000px 0px 0px 0px";/);
+  assert.match(component, /\{ rootMargin: REACHED_MARGIN \}/);
+  assert.doesNotMatch(component, /"scroll"|onscroll|scrollY|pageYOffset/i, "no scroll listeners");
+  assert.match(component, /top-3\/4/, "the sentinel sits at 75% of the body");
+  assert.match(component, /export function ArticleAnalytics\(\{ slug, lang \}: \{ slug: string; lang: string \}\)/, "slug and language only: the title never reaches the component");
+});
+
+test("funnelPage: home, product, category (listing), price and calculator pages in every locale; nothing else", () => {
+  const cases: [string, string | null][] = [
+    ["/", "home"], ["/en", "home"], ["/ar/", "home"], ["/index.html", "home"], ["/fa", "home"],
+    ["/products/rebar-aj340", "product"], ["/en/products/ipe-beam.html", "product"],
+    ["/products", "category"], ["/products/category/box-section", "category"], ["/ar/products/category/rebar/", "category"],
+    ["/prices", "price"], ["/prices/rebar", "price"], ["/ar/prices", "price"],
+    ["/tools/weight-calculator", "calculator"], ["/en/tools/weight-calculator.html", "calculator"],
+    ["/contact", null], ["/articles/rebar-weight-table", null], ["/about", null], ["/products/a/b", null], ["/english", null],
+  ];
+  for (const [path, page] of cases) assert.equal(funnelPage(path), page, path);
+});
+
+test("referrer: the same-origin path only; basket add_source and calculator_entry from it", () => {
+  const origin = "https://www.ahanassa.com";
+  assert.equal(sameOriginReferrerPath("https://www.ahanassa.com/products/rebar-aj340?variant=CVAR-1#x", origin), "/products/rebar-aj340");
+  for (const ref of ["", "https://www.google.com/search?q=x", "https://staging.ahanassa.com/products/x", "not a url"]) assert.equal(sameOriginReferrerPath(ref, origin), null, ref);
+  assert.equal(basketAddSource("/products/rebar-aj340"), "product");
+  assert.equal(basketAddSource("/ar/prices/rebar"), "price");
+  assert.equal(basketAddSource("/en/tools/weight-calculator"), "calculator");
+  for (const p of [null, "/", "/contact", "/products/category/rebar", "/articles/x"]) assert.equal(basketAddSource(p), null, String(p));
+  assert.equal(calculatorEntry("/"), "home_cta");
+  assert.equal(calculatorEntry("/en"), "home_cta");
+  assert.equal(calculatorEntry("/products/category/rebar"), "category");
+  assert.equal(calculatorEntry("/products/rebar-aj340"), "product");
+  assert.equal(calculatorEntry("/prices"), "price");
+  for (const p of [null, "/about", "/tools/weight-calculator", "/articles/x"]) assert.equal(calculatorEntry(p), "direct", String(p));
+});
+
+test("familyFromPath: the category listing and price hub URLs name a family code; other URLs do not", () => {
+  assert.equal(familyFromPath("/products/category/box-section"), "BOX_SECTION");
+  assert.equal(familyFromPath("/ar/prices/rebar"), "REBAR");
+  assert.equal(familyFromPath("/en/products/category/sheet-plate.html"), "SHEET_PLATE");
+  for (const p of ["/prices", "/products", "/products/rebar-aj340", "/contact", "/prices/rebar/x"]) assert.equal(familyFromPath(p), null, p);
+});
+
+test("rfqCtaLocation: header and mobile menu → header; in <main> the page kind; footer or other pages → null", () => {
+  const link = (landmark: string | null) => ({ closest: (sel: string) => (landmark && sel.includes(landmark) ? {} : null) }) as unknown as Element;
+  assert.equal(rfqCtaLocation(link("header"), "/products/rebar-aj340"), "header");
+  assert.equal(rfqCtaLocation(link('[role="dialog"]'), "/"), "header");
+  assert.equal(rfqCtaLocation(link("main"), "/"), "home");
+  assert.equal(rfqCtaLocation(link("main"), "/en/products/rebar-aj340"), "product");
+  assert.equal(rfqCtaLocation(link("main"), "/prices/rebar"), "price");
+  assert.equal(rfqCtaLocation(link("main"), "/products/category/rebar"), "category");
+  assert.equal(rfqCtaLocation(link("main"), "/tools/weight-calculator"), "calculator");
+  assert.equal(rfqCtaLocation(link("main"), "/about"), null);
+  assert.equal(rfqCtaLocation(link("footer"), "/products/rebar-aj340"), null);
+});
+
+test("funnel events: codes, slugs and tokens pass; a Persian label or a product title never does", () => {
+  assert.deepEqual(buildEvent("product_view", { product_family: "REBAR", product_slug: "rebar-aj340" }), { event: "product_view", product_family: "REBAR", product_slug: "rebar-aj340" });
+  assert.deepEqual(buildEvent("basket_add", { basket_size: 2, product_family: "BEAM", product_slug: "ipe-beam", add_source: "calculator" }), { event: "basket_add", basket_size: 2, product_family: "BEAM", product_slug: "ipe-beam", add_source: "calculator" });
+  assert.deepEqual(buildEvent("product_view", { product_family: "میلگرد", product_slug: "میلگرد آجدار A3" }), { event: "product_view" });
+  assert.deepEqual(buildEvent("rfq_cta_click", { cta_location: "header", product_family: undefined }), { event: "rfq_cta_click", cta_location: "header" });
+  assert.deepEqual(buildEvent("calculator_open", { calculator_entry: "home_cta" }), { event: "calculator_open", calculator_entry: "home_cta" });
+});
+
+test("wiring: product_view on the product page, calculator_open + family on the calculator, rfq_cta_click in the runtime", () => {
+  const product = fs.readFileSync(new URL("../../app/[locale]/products/[slug]/page.tsx", import.meta.url), "utf8");
+  assert.match(product, /<TrackOnView event="product_view" params=\{\{ product_family: family \?\? undefined, product_slug: slug \}\} \/>/);
+  assert.match(product, /async function ProductAnalytics\([^)]*\) \{\n  await Promise\.resolve\(\);/, "its own Flight row (r4)");
+  assert.equal(product.match(/<ProductAnalytics /g)?.length, 1);
+  const calc = fs.readFileSync(new URL("../../components/tools/weight-calculator.tsx", import.meta.url), "utf8");
+  assert.match(calc, /trackEvent\("calculator_open", \{ calculator_entry: calculatorEntry\(sameOriginReferrerPath\(document\.referrer, window\.location\.origin\)\) \}\);\n  \}, \[\]\);/, "once per page load, from the referrer path only");
+  assert.match(calc, /data-product-family=\{\(product\.groupCode && families\?\.\[product\.groupCode\]\) \|\| undefined\}/);
+  const runtime = fs.readFileSync(new URL("../../components/analytics/analytics-runtime.tsx", import.meta.url), "utf8");
+  assert.match(runtime, /isRfqHref\(link\.getAttribute\("href"\) \?\? ""\) && !link\.closest\(ARTICLE_SCOPE\)/, "articles report article_cta_click instead");
+  assert.match(runtime, /const ARTICLE_SCOPE = '\[data-analytics-scope="article"\]';/);
+  const article = fs.readFileSync(new URL("../../app/[locale]/articles/[slug]/page.tsx", import.meta.url), "utf8");
+  assert.match(article, /<article data-analytics-scope="article">/);
 });

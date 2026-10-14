@@ -12,6 +12,7 @@ import { siteConfig } from "@/lib/metadata/site";
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";
 import { breadcrumbListSchema, faqPageSchema, jsonLdGraph } from "@/lib/seo/schema";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { ArticleAnalytics } from "@/components/analytics/article-analytics";
 import { listPublishedCatalogTemplates } from "@/lib/catalog/editorial-repository";
 import { ARTICLE_COPY, formatArticleDate } from "@/lib/articles/copy";
 import { categoryLabel, getArticle, listArticles, listRelatedArticles, type Article } from "@/lib/articles/repository";
@@ -61,7 +62,7 @@ const linkableSource = (url: string) => /^https?:\/\//i.test(url) && !/\/api\//i
 function RfqBox({ locale, className }: { locale: ArticleLocale; className?: string }) {
   const t = ARTICLE_COPY[locale];
   return (
-    <div className={cardVariants({ variant: "panel", tone: "subtle", className })}>
+    <div data-article-cta="bottom" className={cardVariants({ variant: "panel", tone: "subtle", className })}>
       <p className="text-navy font-bold">{t.rfq}</p>
       <p className="text-muted-foreground mt-2 text-sm leading-relaxed">{t.rfqBody}</p>
       <ButtonLink href={localizedPath(locale, "/contact")} variant="primary" className="mt-4 w-full">
@@ -105,7 +106,7 @@ async function ArticleContent({ a }: { a: Article }) {
   ]);
 
   return (
-    <article>
+    <article data-analytics-scope="article">
       <JsonLd data={jsonLd} />
       <header className="bg-navy on-inverse relative isolate overflow-hidden">
         <div className="hairline-grid absolute inset-0" aria-hidden="true" />
@@ -176,8 +177,9 @@ async function ArticleContent({ a }: { a: Article }) {
               </details>
             )}
 
-            <div className="mt-10">
+            <div className="relative mt-10">
               <ArticleBody blocks={a.body.blocks} />
+              <ArticleAnalytics slug={a.slug} lang={locale} />
             </div>
 
             {a.faq.length > 0 && (
@@ -262,7 +264,7 @@ async function ArticleContent({ a }: { a: Article }) {
                 </li>
               ))}
             </ul>
-            <ButtonLink href={localizedPath(locale, "/contact")} variant="primary" className="mt-8">
+            <ButtonLink href={localizedPath(locale, "/contact")} variant="primary" className="mt-8" data-article-cta="product_card">
               {t.rfq}
             </ButtonLink>
           </div>

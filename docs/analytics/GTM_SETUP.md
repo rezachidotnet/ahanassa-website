@@ -24,7 +24,8 @@ The site does three things, and only these:
 | Container ID and production hostname | `config/analytics.ts` |
 | Event names and their allowed parameters | `lib/analytics/events.ts` |
 | GTM loader (production hostname, or `?gtm_debug=`, after the page's `load` event) | `lib/analytics/gtm.ts` |
-| One component in the layout: `page_locale`, phone and WhatsApp clicks, GTM start | `components/analytics/analytics-runtime.tsx` |
+| One component in the layout: `page_locale`, phone and WhatsApp clicks, `rfq_cta_click`, GTM start | `components/analytics/analytics-runtime.tsx` |
+| The article page's `article_read` (75% sentinel) and `article_cta_click` | `components/analytics/article-analytics.tsx` |
 
 ### Performance
 
@@ -42,7 +43,7 @@ The staging and production builds are byte-identical except for robots, sitemap,
 **No personal data is ever sent.**
 - Each event has a fixed allowlist of parameters.
 - A string value must be a short token: letters, digits and `_ - . :`, with no spaces, `@` or `+`, and at most 64 characters. Anything else is dropped (`buildEvent`).
-- A name, email, phone number, message or file name can never pass.
+- A name, email, phone number, message, file name, article or product title, or any Persian/Arabic text can never pass. Articles and products are identified by their URL slug (ASCII) and the catalog family code only.
 
 | Event | Fires when | Parameters |
 |---|---|---|
@@ -51,8 +52,19 @@ The staging and production builds are byte-identical except for robots, sitemap,
 | `whatsapp_click` | Any `wa.me` / WhatsApp link is clicked | `link_location` |
 | `calculator_use` | The visitor's first change to the weight calculator on this page view | `calculator_product_group` (e.g. `REBAR`), `calculator_mode` |
 | `price_page_view` | `/prices` or `/ar/prices` is viewed (when it has prices) | `price_date` (the newest price date shown, `YYYY-MM-DD`) |
-| `basket_add` | A product joins the RFQ basket: the visitor arrives at `/contact` from a product, price or calculator link. A duplicate of a row already in the basket, a full list or a reload sends nothing | `basket_size` (filled rows after the add) |
+| `basket_add` | A product joins the RFQ basket: the visitor arrives at `/contact` from a product, price or calculator link. A duplicate of a row already in the basket, a full list or a reload sends nothing | `basket_size` (filled rows after the add), `product_family`, `product_slug`, `add_source`: `product` / `price` / `calculator` (the page the visitor came from; left out when it was another page or unknown) |
 | `file_upload` | A file passes the attachment checks and joins the RFQ (once per accepted file; refused files send nothing) | `file_count` (files attached after this one), `file_type` (the policy's extension, e.g. `pdf`; never the file name) |
+| `product_view` | A product page (`/products/<slug>`) loads | `product_family`, `product_slug` |
+| `rfq_cta_click` | Any RFQ link (to `/contact` or `/request`: «استعلام قیمت»/«ارسال لیست خرید» buttons, the header CTA, the basket badge) is clicked **outside an article** | `cta_location`: `header` (header or mobile menu) / `home` / `product` / `category` / `price` / `calculator` (the page it was on; left out in the footer and on other pages); `product_family` when the page or the calculator's selected product has one |
+| `calculator_open` | The weight calculator page loads | `calculator_entry`: `home_cta` / `category` / `product` / `price` (the previous page on this site) / `direct` (anything else: no referrer, another site, another page) |
+| `article_read` | The reader reaches 75% of an article's body (an invisible line at 75% of the body enters the screen; once per page view) | `article_slug`, `article_lang` (`fa` / `en` / `ar`) |
+| `article_cta_click` | An RFQ («استعلام قیمت») button or link **inside an article** is clicked | `article_slug`, `article_lang`, `cta_location`: `inline` (a link in the article text) / `product_card` (the button under the related products) / `bottom` (the «استعلام قیمت» box beside, or on mobile below, the article) |
+
+Values:
+- `product_family` is the catalog's public category code, the same code as the price hubs and category pages: `REBAR`, `BEAM` (IPE/INP), `ANGLE`, `CHANNEL`, `BOX_SECTION`, `SHEET_PLATE`, `PIPE`.
+- `product_slug` / `article_slug` are the page's URL slug, e.g. `rebar-aj340`. Never the title.
+- The page-of-origin values (`add_source`, `calculator_entry`) come only from the path of the previous page on this site (the browser's referrer). No query string, no other site's address.
+- An RFQ click inside an article sends only `article_cta_click`; a click anywhere else sends only `rfq_cta_click`. The header CTA on an article page is outside the article, so it is `rfq_cta_click` with `cta_location=header`.
 
 Every page also pushes `{ page_locale: "fa" | "en" | "ar" }` before any event.
 
@@ -89,10 +101,17 @@ Variables → User-Defined Variables → New. Create each of these as a **Data L
 | `DLV - basket_size` | `basket_size` |
 | `DLV - file_count` | `file_count` |
 | `DLV - file_type` | `file_type` |
+| `DLV - product_family` | `product_family` |
+| `DLV - product_slug` | `product_slug` |
+| `DLV - add_source` | `add_source` |
+| `DLV - cta_location` | `cta_location` |
+| `DLV - calculator_entry` | `calculator_entry` |
+| `DLV - article_slug` | `article_slug` |
+| `DLV - article_lang` | `article_lang` |
 
 ## 5. Step 3 — one trigger and one GA4 event tag per event
 
-Do this for each of the 7 events.
+Do this for each of the 12 events. (The D-ARTICLE-METRICS tags and triggers — `product_view`, `rfq_cta_click`, `calculator_open`, `article_read`, `article_cta_click` and the new `basket_add` parameters — were imported on 2026-10-14; check that they match the table.)
 
 **Trigger:** Triggers → New.
 - Type: **Custom Event**.
@@ -115,8 +134,13 @@ Do this for each of the 7 events.
 | `GA4 - whatsapp_click` | `whatsapp_click` | `link_location` = `{{DLV - link_location}}` |
 | `GA4 - calculator_use` | `calculator_use` | `calculator_product_group` = `{{DLV - calculator_product_group}}`, `calculator_mode` = `{{DLV - calculator_mode}}` |
 | `GA4 - price_page_view` | `price_page_view` | `price_date` = `{{DLV - price_date}}` |
-| `GA4 - basket_add` | `basket_add` | `basket_size` = `{{DLV - basket_size}}` |
+| `GA4 - basket_add` | `basket_add` | `basket_size` = `{{DLV - basket_size}}`, `product_family` = `{{DLV - product_family}}`, `product_slug` = `{{DLV - product_slug}}`, `add_source` = `{{DLV - add_source}}` |
 | `GA4 - file_upload` | `file_upload` | `file_count` = `{{DLV - file_count}}`, `file_type` = `{{DLV - file_type}}` |
+| `GA4 - product_view` | `product_view` | `product_family` = `{{DLV - product_family}}`, `product_slug` = `{{DLV - product_slug}}` |
+| `GA4 - rfq_cta_click` | `rfq_cta_click` | `cta_location` = `{{DLV - cta_location}}`, `product_family` = `{{DLV - product_family}}` |
+| `GA4 - calculator_open` | `calculator_open` | `calculator_entry` = `{{DLV - calculator_entry}}` |
+| `GA4 - article_read` | `article_read` | `article_slug` = `{{DLV - article_slug}}`, `article_lang` = `{{DLV - article_lang}}` |
+| `GA4 - article_cta_click` | `article_cta_click` | `article_slug` = `{{DLV - article_slug}}`, `article_lang` = `{{DLV - article_lang}}`, `cta_location` = `{{DLV - cta_location}}` |
 
 Do **not** add a Custom HTML tag. The site's CSP allows scripts only from the site itself, Turnstile and `*.googletagmanager.com`.
 
@@ -130,7 +154,7 @@ In analytics.google.com, open the property that owns `G-C8MZB6DXPZ`:
 2. Admin → Data collection: leave Google signals **off** unless you decide otherwise. The CSP has no doubleclick origin.
 3. Admin → Data retention: 14 months.
 4. Admin → Events. The events appear after they first fire, up to 24 hours later. Mark `rfq_submit` as a **key event**. Optionally also mark `phone_click` and `whatsapp_click`.
-5. Admin → Custom definitions → Create custom dimension (scope **Event**) for each of these: `page_locale`, `link_location`, `calculator_product_group`, `calculator_mode`, `price_date`, `file_type`. Then create a custom metric (unit: standard) for `basket_size` and `file_count`. `rfq_tracking_number` is optional; register it only if you want to find a single request in GA4.
+5. Admin → Custom definitions → Create custom dimension (scope **Event**) for each of these: `page_locale`, `link_location`, `calculator_product_group`, `calculator_mode`, `price_date`, `file_type`, `product_family`, `product_slug`, `add_source`, `cta_location`, `calculator_entry`, `article_slug`, `article_lang`. (`cta_location` is one dimension for both `rfq_cta_click` and `article_cta_click`; read it together with the event name.) Then create a custom metric (unit: standard) for `basket_size` and `file_count`. `rfq_tracking_number` is optional; register it only if you want to find a single request in GA4.
 
 ### CSP (DAR-066, resolved 2026-10-13)
 
@@ -154,7 +178,13 @@ GTM Preview's own panel (`tagmanager.google.com`) is not allowed. It is a debugg
    - Open `/prices`: `price_page_view`.
    - Open a product page and click «استعلام قیمت»: `basket_add`, `basket_size=1`. A second product: `basket_size=2`.
    - On staging, attach a PDF to the request form: `file_upload`, `file_count=1`, `file_type=pdf`.
-   - Send a test RFQ on staging: `rfq_submit` with only the tracking number. Check that the dataLayer has no name, phone, email or file name.
+   - Open a product page: `product_view` with `product_family` (e.g. `REBAR`) and `product_slug`.
+   - On that product page click «درخواست این قلم» in the size table: on `/contact`, `basket_add` also carries `product_family`, `product_slug` and `add_source=product`. From the calculator's «استعلام برای همین مقدار» button: `add_source=calculator`.
+   - Click the header's RFQ button: `rfq_cta_click`, `cta_location=header`. The home hero's: `cta_location=home`. A product page's main «استعلام قیمت» button: `cta_location=product` with `product_family`. `/prices`: `price`; `/products/category/rebar`: `category` + `REBAR`.
+   - Open `/tools/weight-calculator` from the home page's calculator button: `calculator_open`, `calculator_entry=home_cta`. Type the address directly: `direct`.
+   - Articles (only when `/articles` lists at least one; with none, there is nothing to test): open an article and scroll down. `article_read` fires **once**, when about three quarters of the text has passed, with `article_slug` and `article_lang`; scrolling back and forth does not repeat it.
+   - In the article, click a «استعلام قیمت» link in the text (`cta_location=inline`), the button under the related products (`product_card`) and the «استعلام قیمت» box (`bottom`): `article_cta_click` each time, and **no** `rfq_cta_click`.
+   - Send a test RFQ on staging: `rfq_submit` with only the tracking number. Check that the dataLayer has no name, phone, email, file name, title or Persian text.
 3. GA4 → Admin → DebugView shows the same events.
 
 ## 8. Step 6 — publish
