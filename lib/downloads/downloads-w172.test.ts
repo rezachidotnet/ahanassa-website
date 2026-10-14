@@ -235,13 +235,14 @@ test("generateDownloads: writes the drawings, a spec sheet per family and both c
 
 // --- locale wiring -----------------------------------------------------------------------------------------------
 
-test("locale wiring: footer 'Full catalog' and every catalog link open the PDF of the page's own locale", () => {
+test("locale wiring: the footer's catalog PDF link and every catalog link open the PDF of the page's own locale", () => {
   for (const l of locales) {
     assert.equal(fullCatalogPath(l), `/downloads/catalogs/ahanassa-catalog-steel-products-${l}.pdf`);
     assert.ok(rawMaterialsCatalogPath(l).endsWith(`-${l}.pdf`) && specSheetPath("rebar", l).endsWith(`-${l}.pdf`));
   }
   const footer = read("components/layout/SiteFooter.tsx");
   assert.match(footer, /<Link href=\{fullCatalogPath\(locale\)\}/);
+  assert.match(footer, /<Link href=\{localizedPath\(locale, "\/products"\)\}/, "the /products link stays");
   const page = read("app/[locale]/downloads/page.tsx");
   assert.match(page, /href=\{c\.href\(locale\)\}/, "the primary catalog link is the page's locale");
   assert.match(page, /href=\{specSheetPath\(c\.segment, locale\)\}/);

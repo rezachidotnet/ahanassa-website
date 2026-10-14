@@ -33,7 +33,7 @@ import { fullCatalogPath } from "@/lib/downloads/paths";
 const copy: Record<
   Locale,
   {
-    footerTitle: string; role: string; productsNav: string; catalogueCta: string; companyNav: string;
+    footerTitle: string; role: string; productsNav: string; catalogueCta: string; cataloguePdf: string; companyNav: string;
     incoterms: string; rights: string;
   }
 > = {
@@ -42,6 +42,7 @@ const copy: Record<
     role: "تامین فولاد پروژه شما",
     productsNav: "محصولات",
     catalogueCta: "کاتالوگ کامل",
+    cataloguePdf: "کاتالوگ PDF",
     companyNav: "شرکت",
     incoterms: "اینکوترمز",
     rights: "کلیه حقوق این وب‌سایت متعلق به",
@@ -51,6 +52,7 @@ const copy: Record<
     role: "Steel supply for your project.",
     productsNav: "Products",
     catalogueCta: "Full catalog",
+    cataloguePdf: "Catalog (PDF)",
     companyNav: "Company",
     incoterms: "Incoterms",
     rights: "All rights reserved,",
@@ -60,6 +62,7 @@ const copy: Record<
     role: "توريد الصلب لمشروعك.",
     productsNav: "المنتجات",
     catalogueCta: "الكتالوج الكامل",
+    cataloguePdf: "الكتالوج (PDF)",
     companyNav: "الشركة",
     incoterms: "شروط التجارة الدولية",
     rights: "جميع الحقوق محفوظة لـ",
@@ -109,9 +112,14 @@ export function SiteFooter({ locale, hasArticles = false }: { locale: Locale; ha
           <h3 className="eyebrow text-accent-on-inverse">{t.productsNav}</h3>
           <ul className="mt-3 text-sm">
             <li>
+              <Link href={localizedPath(locale, "/products")} className={FOOTER_LINK}>
+                {t.catalogueCta}
+              </Link>
+            </li>
+            <li>
               {/* W17.2: the catalog PDF of this page's locale (fa→fa, en→en, ar→ar), built from the catalog snapshot. */}
               <Link href={fullCatalogPath(locale)} hrefLang={locale} type="application/pdf" className={FOOTER_LINK}>
-                {t.catalogueCta}
+                {t.cataloguePdf}
               </Link>
             </li>
           </ul>
