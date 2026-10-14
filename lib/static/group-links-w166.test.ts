@@ -28,11 +28,12 @@ test("group company URLs are the owner's (www for SiPanel and Aviz Sazeh) and re
   for (const f of outside) assert.ok(!/sipanelco\.com|avizsazeh\.com|aisanat\.ir|fazasazeh\.ir/.test(read(f)), `${f}: group URLs come from lib/content/company.ts only`);
 });
 
-test("footer: one group line — the group name links to fazasazeh.ir, «شرکت‌های گروه» to /about#group; no sister site links", () => {
+test("footer: one group line — the group name links to fazasazeh.ir, «شرکت‌های گروه» to /about#group", () => {
   const footer = code("components/layout/SiteFooter.tsx");
   assert.match(footer, /<a href=\{PARENT_ORGANIZATION\.url\}[^>]*>\s*\{PARENT_ORGANIZATION\.name\[locale\]\}/);
   assert.match(footer, /href=\{`\$\{localizedPath\(locale, "\/about"\)\}#\$\{ABOUT_GROUP_ANCHOR\}`\}/);
-  assert.ok(!/GROUP_COMPANIES|groupCompany|GroupServicesBox/.test(footer), "the four sister links are not site-wide");
+  // W17.1 (owner, 2026-10-14) supersedes "no sister links site-wide": the footer lists them (site-fixes-w171.test.ts).
+  assert.ok(!/groupCompany|GroupServicesBox/.test(footer), "no contextual services box in the footer");
   assert.ok(!/target=/.test(footer), "same tab");
   assert.equal(`${GROUP_FOOTER_COPY.fa.before}${PARENT_ORGANIZATION.name.fa}${GROUP_FOOTER_COPY.fa.after}`, "آهن آسا، عضو گروه فضاسازه نقش جهان");
   assert.equal(GROUP_FOOTER_COPY.fa.companies, "شرکت‌های گروه");
@@ -41,7 +42,7 @@ test("footer: one group line — the group name links to fazasazeh.ir, «شرک�
   assert.deepEqual(languageFindings("en", [...Object.values(GROUP_FOOTER_COPY.en), PARENT_ORGANIZATION.name.en]), []);
 });
 
-test("/about carries the #group anchor on the group section, and stays the only page that links AiSanat", () => {
+test("/about carries the #group anchor on the group section; AiSanat stays out of the services box", () => {
   assert.equal(ABOUT_GROUP_ANCHOR, "group");
   assert.match(read("app/[locale]/about/page.tsx"), /<section id=\{ABOUT_GROUP_ANCHOR\} aria-labelledby="about-group"/);
   assert.ok(!/aisanat/.test(GROUP_SERVICES_COPY.fa.text + GROUP_SERVICES_COPY.en.text + GROUP_SERVICES_COPY.ar.text));

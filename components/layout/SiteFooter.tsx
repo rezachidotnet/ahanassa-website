@@ -6,7 +6,7 @@ import { localizedPath, type Locale } from "@/config/locales";
 import { siteConfig } from "@/lib/metadata/site";
 import { visibleNavLinks, headerPhoneLabel } from "@/lib/content/nav";
 import { CONTACT_PHONE_DISPLAY, CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
-import { ABOUT_GROUP_ANCHOR, GROUP_FOOTER_COPY, PARENT_ORGANIZATION } from "@/lib/content/company";
+import { ABOUT_GROUP_ANCHOR, GROUP_COMPANIES, GROUP_FOOTER_COPY, OFFICES, PARENT_ORGANIZATION } from "@/lib/content/company";
 
 /**
  * Global footer — four-column composition matches
@@ -25,12 +25,14 @@ import { ABOUT_GROUP_ANCHOR, GROUP_FOOTER_COPY, PARENT_ORGANIZATION } from "@/li
  * mapping; only the truthful "full catalog" destination remains. Incoterms
  * are standard published trade terms, not a company-specific claim, so the
  * tag row is kept. W16.6: one group line in the bottom bar (the parent group's site and /about#group, from
- * lib/content/company.ts) — the sister companies' own sites are never linked site-wide.
+ * lib/content/company.ts). W17.1 (owner): the Tehran coordination office under the head office, and a short
+ * «شرکت‌های گروه» list linking every sister company with a site — both from lib/content/company.ts (OFFICES,
+ * GROUP_COMPANIES), the same names as /about; this supersedes W16.6's "no sister links site-wide".
  */
 const copy: Record<
   Locale,
   {
-    footerTitle: string; role: string; productsNav: string; catalogueCta: string; companyNav: string; office: string; addressLines: string[];
+    footerTitle: string; role: string; productsNav: string; catalogueCta: string; companyNav: string;
     incoterms: string; rights: string;
   }
 > = {
@@ -40,8 +42,6 @@ const copy: Record<
     productsNav: "محصولات",
     catalogueCta: "کاتالوگ کامل",
     companyNav: "شرکت",
-    office: "دفتر مرکزی",
-    addressLines: ["اصفهان، خیابان هزارجریب، کوی آزادگان، پلاک 6"],
     incoterms: "اینکوترمز",
     rights: "کلیه حقوق این وب‌سایت متعلق به",
   },
@@ -51,8 +51,6 @@ const copy: Record<
     productsNav: "Products",
     catalogueCta: "Full catalog",
     companyNav: "Company",
-    office: "Head office",
-    addressLines: ["Hezar Jarib Street, Kooy Azadegan, No. 6, Isfahan, Iran"],
     incoterms: "Incoterms",
     rights: "All rights reserved,",
   },
@@ -62,8 +60,6 @@ const copy: Record<
     productsNav: "المنتجات",
     catalogueCta: "الكتالوج الكامل",
     companyNav: "الشركة",
-    office: "المكتب الرئيسي",
-    addressLines: ["شارع هزار جريب، حي آزادگان، رقم 6، أصفهان، إيران"],
     incoterms: "شروط التجارة الدولية",
     rights: "جميع الحقوق محفوظة لـ",
   },
@@ -78,6 +74,8 @@ export function SiteFooter({ locale, hasArticles = false }: { locale: Locale; ha
   const t = copy[locale];
   const links = visibleNavLinks(locale, hasArticles);
   const group = GROUP_FOOTER_COPY[locale];
+  const offices = OFFICES[locale];
+  const sisters = GROUP_COMPANIES.filter((c) => c.url !== null);
 
   return (
     <footer aria-labelledby="site-footer-title" className="bg-navy on-inverse text-white">
@@ -92,6 +90,18 @@ export function SiteFooter({ locale, hasArticles = false }: { locale: Locale; ha
           </div>
           <p className="mt-6 max-w-xs text-on-inverse-muted text-sm leading-relaxed">{t.role}</p>
           <p className="text-accent-on-inverse mt-4 text-sm font-medium">{siteConfig.tagline}</p>
+          <nav className="mt-8" aria-label={group.companies}>
+            <h3 className="eyebrow text-accent-on-inverse">{group.companies}</h3>
+            <ul className="mt-2 flex flex-wrap gap-x-5 text-sm">
+              {sisters.map((c) => (
+                <li key={c.id}>
+                  <a href={c.url!} className={FOOTER_LINK}>
+                    {c.name[locale]}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
         </div>
 
         <nav className="lg:col-span-3" aria-label={t.productsNav}>
@@ -119,7 +129,7 @@ export function SiteFooter({ locale, hasArticles = false }: { locale: Locale; ha
         </nav>
 
         <div className="lg:col-span-3">
-          <h3 className="eyebrow text-accent-on-inverse">{t.office}</h3>
+          <h3 className="eyebrow text-accent-on-inverse">{offices.head.label}</h3>
           <a
             href={`tel:${CONTACT_PHONE_E164}`}
             dir="ltr"
@@ -128,10 +138,10 @@ export function SiteFooter({ locale, hasArticles = false }: { locale: Locale; ha
           >
             {CONTACT_PHONE_DISPLAY}
           </a>
-          <address className="mt-3 space-y-1 text-on-inverse-muted text-sm not-italic">
-            {t.addressLines.map((line) => (
-              <p key={line}>{line}</p>
-            ))}
+          <address className="mt-3 text-on-inverse-muted text-sm leading-relaxed not-italic">
+            <p>{offices.head.address}</p>
+            <p className="mt-4 font-semibold text-white">{offices.tehran.label}</p>
+            <p className="mt-1">{offices.tehran.address}</p>
           </address>
 
           <h3 className="eyebrow text-accent-on-inverse mt-8">{t.incoterms}</h3>

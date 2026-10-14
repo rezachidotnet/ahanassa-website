@@ -4,7 +4,7 @@ import { isLocale, localizedPath, type Locale } from "@/config/locales";
 import { buildPageMetadata } from "@/lib/metadata/resolve";
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";
 import { ABOUT_COPY, ABOUT_PHOTOS } from "@/lib/content/about";
-import { ABOUT_GROUP_ANCHOR, companyPhoneDisplay, GROUP_COMPANIES, OFFICES, sinceLabel, WORKING_HOURS_TEXT } from "@/lib/content/company";
+import { ABOUT_GROUP_ANCHOR, companyPhoneDisplay, GROUP_CARD_COPY, GROUP_COMPANIES, OFFICES, sinceLabel, WORKING_HOURS_TEXT } from "@/lib/content/company";
 import { CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 import { RAW_MATERIALS_ROUTE } from "@/lib/content/raw-materials";
 import { EXPORT_ROUTE, isExportPublished } from "@/lib/content/export";
@@ -14,6 +14,7 @@ import { ButtonLink } from "@/components/ui/button";
 import Link from "@/components/ui/link";
 import { cardVariants } from "@/components/ui/surface-variants";
 import { CtaBand } from "@/components/ui/cta-band";
+import { cn } from "@/lib/utils";
 
 export { generateLocaleStaticParams as generateStaticParams } from "@/lib/static/locale-params";
 
@@ -32,6 +33,52 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 const H2 = "text-navy text-2xl font-extrabold";
 const LINK = "text-navy hover:text-copper underline underline-offset-4";
 
+/** Logo: grey until the card is hovered or focused (no transition under reduced motion); Ahan Asa's own card stays in colour. */
+// mix-blend-multiply drops the logos' own off-white backgrounds onto the white card; max-w keeps wide wordmarks in scale.
+const LOGO = "h-auto max-h-14 w-auto max-w-44 object-contain mix-blend-multiply";
+const LOGO_MUTED = "grayscale opacity-80 transition-[filter,opacity] duration-200 group-hover:grayscale-0 group-hover:opacity-100 group-focus-visible:grayscale-0 group-focus-visible:opacity-100 motion-reduce:transition-none";
+
+/**
+ * W17.1 — one group company: logo (lib/content/company.ts, WebP with a PNG fallback, explicit width/height), name,
+ * field and founding year. A sister company is one whole-card link (new tab, rel="noopener"); Ahan Asa is not a link.
+ */
+function GroupCompanyCard({ locale, company }: { locale: Locale; company: (typeof GROUP_COMPANIES)[number] }) {
+  const name = company.name[locale];
+  const copy = GROUP_CARD_COPY[locale];
+  const body = (
+    <>
+      <div className="flex h-16 items-center">
+        {company.logo ? (
+          <picture>
+            <source srcSet={company.logo.webp} type="image/webp" />
+            <img src={company.logo.png} alt={copy.logoAlt(name)} width={company.logo.width} height={company.logo.height} loading="lazy" decoding="async" className={cn(LOGO, company.url && LOGO_MUTED)} />
+          </picture>
+        ) : (
+          <span aria-hidden="true" className="text-navy text-2xl font-extrabold">
+            {name}
+          </span>
+        )}
+      </div>
+      {/* No logo: the name in the logo frame is the wordmark, so the heading is for assistive tech only. */}
+      <h3 className={company.logo ? "text-navy mt-5 text-base font-extrabold" : "sr-only"}>{name}</h3>
+      <p className={cn("text-muted-foreground flex-1 text-sm leading-relaxed", company.logo ? "mt-2" : "mt-5")}>{company.field[locale]}</p>
+      <p className="text-tertiary mt-4 flex items-center justify-between gap-3 text-xs font-semibold">
+        <span>{sinceLabel(locale, company.sinceSolar)}</span>
+        <span dir="ltr" className={cn(company.url && "group-hover:text-copper underline underline-offset-4")}>
+          {company.domain}
+        </span>
+      </p>
+    </>
+  );
+  if (!company.url) return <div className={cn(cardVariants(), "flex h-full flex-col p-6")}>{body}</div>;
+  return (
+    <a href={company.url} target="_blank" rel="noopener" className={cn(cardVariants({ variant: "interactive" }), "group h-full p-6")}>
+      {body}
+      <span className="sr-only"> {copy.newTab}</span>
+    </a>
+  );
+}
+
 /**
  * W16.3 — the About page: the owner-approved text (lib/content/about.ts) and the shared company facts
  * (lib/content/company.ts: group, offices, phone, working hours). No price amount on any locale. Photos render
@@ -43,7 +90,6 @@ export default async function AboutPage({ params }: PageProps) {
   const t = ABOUT_COPY[locale];
   const offices = OFFICES[locale];
   const hours = WORKING_HOURS_TEXT[locale];
-  const sep = locale === "en" ? ", " : "، ";
 
   return (
     <>
@@ -54,8 +100,11 @@ export default async function AboutPage({ params }: PageProps) {
           <h2 id="about-intro" className={H2}>
             {t.introTitle}
           </h2>
+          {/* W17.1 (owner): the intro is justified, last line at the reading start (styles/theme-extensions.css). */}
           {t.intro.map((p) => (
-            <p key={p}>{p}</p>
+            <p key={p} className="text-justified">
+              {p}
+            </p>
           ))}
         </div>
         {ABOUT_PHOTOS.length > 0 && (
@@ -152,38 +201,27 @@ export default async function AboutPage({ params }: PageProps) {
       </section>
 
       <section id={ABOUT_GROUP_ANCHOR} aria-labelledby="about-group" className="border-border bg-background border-b section-y">
-        <div className="container-x grid gap-10 lg:grid-cols-2">
-          <div>
+        <div className="container-x">
+          <div className="max-w-3xl">
             <h2 id="about-group" className={H2}>
               {t.groupTitle}
             </h2>
             <p className="text-muted-foreground mt-4 leading-relaxed">{t.groupIntro}</p>
-            <ul className="mt-5 space-y-3 text-sm leading-relaxed">
-              {GROUP_COMPANIES.map((c) => (
-                <li key={c.id} className="text-muted-foreground">
-                  <strong className="text-navy font-bold">{c.name[locale]}</strong>{" "}
-                  (
-                  {c.url ? (
-                    <a href={c.url} className={LINK} dir="ltr">
-                      {c.domain}
-                    </a>
-                  ) : (
-                    <span dir="ltr">{c.domain}</span>
-                  )}
-                  ): {c.field[locale]}
-                  {sep}
-                  {sinceLabel(locale, c.sinceSolar)}
-                </li>
-              ))}
-            </ul>
           </div>
-          <div>
+          {/* W17.1: one equal-height card per company (auto-rows-fr), logo in a fixed 64px frame; sister sites open in a new tab. */}
+          <ul className="mt-8 grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {GROUP_COMPANIES.map((c) => (
+              <li key={c.id} className="h-full">
+                <GroupCompanyCard locale={locale} company={c} />
+              </li>
+            ))}
+          </ul>
+          <div className="mt-12 max-w-3xl">
             <h2 className={H2}>{t.leadershipTitle}</h2>
             <ul className="mt-5 space-y-3 text-sm leading-relaxed">
               {t.leadership.map((person) => (
                 <li key={person.role} className="text-muted-foreground">
                   <strong className="text-navy font-bold">{person.role}:</strong> {person.name}
-                  {person.note ? `${sep}${person.note}` : ""}
                 </li>
               ))}
             </ul>

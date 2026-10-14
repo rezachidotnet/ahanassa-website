@@ -287,7 +287,7 @@ test("about: the approved fa facts, translated 1:1 to en/ar; no amount or curren
   assert.equal(fa.h1, "درباره آهن آسا");
   assert.equal(fa.metaTitle, "درباره آهن آسا؛ مدیر خرید فولاد شما", "keyword map §7.1");
   assert.deepEqual(fa.timeline.map((r) => r.year), ["۱۳۷۶", "۱۳۸۸", "۱۳۹۴", "۱۴۰۰", "۱۴۰۳", "۱۴۰۴", "۱۴۰۵"]);
-  assert.deepEqual(fa.leadership.map((p) => p.name), ["خانم فاطمه زاهدی", "آقای امیرموسی طالقانی"]);
+  assert.deepEqual(fa.leadership.map((p) => p.name), ["امیرموسی طالقانی", "فاطمه زاهدی"]);
   for (const l of ["en", "ar"] as const) {
     const t = ABOUT_COPY[l];
     for (const key of ["intro", "timeline", "supply", "why", "leadership"] as const) assert.equal(t[key].length, fa[key].length, `${l} ${key}: same items as fa`);

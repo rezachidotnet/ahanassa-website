@@ -178,7 +178,7 @@ test("price page rows: every priced variant once, grouped by family in catalog o
   const fa = buildPriceTableRows("fa", templates, prices, family);
   assert.deepEqual(fa.map((r) => r.xid), ["CVAR-1", "CVAR-2", "CVAR-9"], "family order, then size order; unpriced CVAR-3 left out");
   assert.equal(fa[0].productPath, "/products/rebar?variant=CVAR-1");
-  assert.deepEqual(filterOptions(fa), { families: [{ value: "REBAR", label: "میلگرد" }, { value: "BEAMS", label: "تیرآهن" }], factories: ["کارخانه آزمایشی الف", "کارخانه ب"] });
+  assert.deepEqual(filterOptions(fa), { families: [{ value: "REBAR", label: "میلگرد" }, { value: "BEAMS", label: "تیرآهن" }], factories: ["کارخانه آزمایشی الف", "کارخانه ب"], factoriesByFamily: { REBAR: ["کارخانه آزمایشی الف", "کارخانه ب"], BEAMS: ["کارخانه آزمایشی الف"] } });
   assert.equal(latestPricedAt(fa), "2026-10-09T07:00:00Z");
   const ar = buildPriceTableRows("ar", templates, prices, family);
   assert.ok(ar.every((r) => r.factory === null), "ar rows never carry the factory");
