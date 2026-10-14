@@ -26,7 +26,7 @@ GitHub Actions schedule (every 15 min, best-effort)                         — 
   3. Settings → Notifications → *System* → *Actions*: **Email** ticked and **Only notify for failed workflows** selected.
   4. If the cron line is ever edited by another account, the e-mails go to that account instead. Re-check after any such edit.
 - **Subject.** GitHub sets it, not us: `[rezachidotnet/ahanassa-website] Run failed: Ops health (staging) - <branch> (<short sha>)`.
-  - The body lists the failed job and its annotations, e.g. `ALERT: cron silent — ahanassa-v11-rfq-staging: 19.3 min (last …) (threshold: last scheduled run ≤ 15 min ago)`.
+  - The body lists the failed job and its annotations, e.g. `ALERT: cron silent — ahanassa-v11-rfq-staging: 19.3 min (last …) (threshold: last scheduled run ≤ 20 min ago)`.
   - The exact form observed in the W6 alert test is recorded in the W6 report.
 - **The same channel covers the other workflows.** A failed `content-publish` run (step failure, decrease-gate block, automatic rollback) carries `ALERT: content <step> failed` / `ALERT: content publish rolled back`. A red `rfq-ci-reconciler` run (RFQ undelivered > 30 min) also e-mails.
 - **Repeats.** An unresolved ALERT fails every run, so expect one e-mail per run (about every 15 min) until it clears. A green run does not e-mail.
@@ -92,7 +92,7 @@ All thresholds live in `scripts/ops/health/config.ts`.
 
 | Check | Source | ALERT when |
 |---|---|---|
-| cron silent (per v11 Worker with a cron) | GraphQL `workersInvocationsScheduled` (24 h lookback) | last scheduled run > **15 min** ago, or none in 24 h |
+| cron silent (per v11 Worker with a cron) | GraphQL `workersInvocationsScheduled` (24 h lookback) | last scheduled run > **20 min** ago (W17.3; was 15), or none in 24 h |
 | RFQ undelivered | D1 `DB_OPS` (count/min only) | oldest pending/queued/syncing/retry RFQ > **45 min** |
 | RFQ in terminal failure | D1 `DB_OPS` | any `manual_review`, or `failed` not closed by an admin (`CLOSED_BY_ADMIN` is reported, not alerted) |
 | exceededCpu / 1102 | GraphQL `workersInvocationsAdaptive` status `exceededCpu`/`exceededResources` + scheduled runs | **> 0** in the window |
@@ -100,7 +100,7 @@ All thresholds live in `scripts/ops/health/config.ts`.
 | intake 5xx | GraphQL `httpRequestsAdaptiveGroups` by API host | **> 0** in the window |
 | intake 400/422 | same, `POST /api/rfqs` | **> 10** in the window |
 | content publish stale | GitHub API: newest run whose `publish` job succeeded (dry runs do not count) + `DB_PUBLIC` `active_version` | > **30 h** |
-| Odoo unreachable | `GET https://odoo.ahanassa.com/api/v1/catalog/meta` | not 200 within **10 s** |
+| Odoo unreachable | `GET https://odoo.ahanassa.com/api/v1/catalog/meta` | not 200 within **10 s** on **2 checks in a row** (W17.3). The first failed check is **WATCH** (warning, job green). The count is the `consecutive failed checks: N` of the previous completed run's annotation; if that cannot be read, the failure ALERTs at once |
 | published prices stale (W9.4, **off**: `priceStaleCheck` in config, production only) | `GET https://odoo.ahanassa.com/api/v1/pricing/current` (`published_at_utc` only) | newest published price > **5 days** old (no price at all = INFO) |
 | CI reconciler last run | GitHub API | INFO only |
 
@@ -114,7 +114,7 @@ Local commands assume a checkout of `feat/v11-static-site` with `npx wrangler lo
 
 ### cron silent
 
-**Meaning:** Cloudflare has not run the Worker's cron for over 15 minutes. RFQs then wait for the hourly CI reconciler.
+**Meaning:** Cloudflare has not run the Worker's cron for over 20 minutes (W17.3: 15 raised false alerts). RFQs then wait for the hourly CI reconciler.
 
 **Seen before:** 2026-10-03 17:55Z → 2026-10-04 07:16Z. Triggers looked correct, but no runs happened until the triggers were re-applied.
 
@@ -190,7 +190,7 @@ Local commands assume a checkout of `feat/v11-static-site` with `npx wrangler lo
 
 ### Odoo unreachable
 
-**Meaning:** `GET /api/v1/catalog/meta` did not return 200 within 10 s from GitHub's runners.
+**Meaning:** `GET /api/v1/catalog/meta` did not return 200 within 10 s from GitHub's runners on two checks in a row (W17.3). A single failed check is a WATCH: one blip no longer e-mails.
 
 - **Effects:**
   - the public site stays up (static);
@@ -244,6 +244,7 @@ Run Actions → *Ops health (staging)* → *Run workflow* with `test_force_alert
 | RFQ state, active_version | `POST /accounts/{id}/d1/database/{uuid}/query`, one `SELECT` (enforced in `sources.ts`) | Account › D1 › Read |
 | content publish, window, reconciler | GitHub REST | `GITHUB_TOKEN` with `actions: read` |
 | Odoo | public GET | none |
+| Odoo counter (W17.3): the previous job's annotations | GitHub REST `GET /check-runs/{job_id}/annotations` | `GITHUB_TOKEN` with `checks: read` (`ops-health.yml` on `main`). Without it the lookup fails and a failed Odoo check ALERTs at once, as before |
 
 ## 6. Production (W8)
 
