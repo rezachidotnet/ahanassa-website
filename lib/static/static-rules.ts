@@ -91,7 +91,7 @@ export function buildRedirectsFile(): string {
 }
 
 /** `.assetsignore`: defence in depth — these must never be uploaded even if present (the artifact gate also rejects them). */
-export const ASSETS_IGNORE_PATTERNS = [".vite/", "*.rsc", "*.sql", "private-snapshot/", "manifest.json"] as const;
+export const ASSETS_IGNORE_PATTERNS = [".vite/", "*.rsc", "*.sql", "private-snapshot/", "manifest.json", "_originals/"] as const;
 export function buildAssetsIgnoreFile(): string {
   return `${ASSETS_IGNORE_PATTERNS.join("\n")}\n`;
 }

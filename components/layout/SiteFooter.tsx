@@ -1,4 +1,5 @@
-import Image from "next/image";
+import Image from "@/components/ui/image";
+import { BRAND_MARK_SRC } from "@/lib/media/image-sources";
 import Link from "@/components/ui/link";
 import { cn } from "@/lib/utils";
 import { localizedPath, type Locale } from "@/config/locales";
@@ -83,7 +84,7 @@ export function SiteFooter({ locale, hasArticles = false }: { locale: Locale; ha
       <div className="container-x grid gap-12 py-16 md:grid-cols-2 lg:grid-cols-12 lg:py-20">
         <div className="lg:col-span-4">
           <div className="flex items-center gap-2.5">
-            <Image src="/brand/ahan-asa-mark.jpg" alt="" aria-hidden="true" width={32} height={32} className="rounded-[var(--aa-radius-xs)]" />
+            <Image src={BRAND_MARK_SRC} alt="" aria-hidden="true" width={32} height={32} className="rounded-[var(--aa-radius-xs)]" />
             <span className="text-[15px] font-extrabold tracking-[0.06em] text-white">{siteConfig.name}</span>
           </div>
           <p className="mt-6 max-w-xs text-on-inverse-muted text-sm leading-relaxed">{t.role}</p>

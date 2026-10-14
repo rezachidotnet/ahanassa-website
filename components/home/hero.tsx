@@ -1,4 +1,4 @@
-import Image from "next/image";
+import Image from "@/components/ui/image";
 import { ArrowRight } from "lucide-react";
 import { localizedPath, type Locale } from "@/config/locales";
 import { homepageCopy } from "@/lib/content/homepage";

@@ -6,6 +6,8 @@ import path from "node:path";
 import { homepageCopy } from "./homepage.ts";
 import { INDUSTRIES_SECTOR_COUNT, INDUSTRY_SECTORS, INDUSTRY_SECTOR_IMAGES, isIndustriesCopyComplete, resolveIndustrySectorImages, type IndustrySectorImage } from "./industries.ts";
 import { findMediaRecord, isPublishable } from "../media/provenance-registry.ts";
+import { IMAGE_VARIANTS } from "../media/image-variants.generated.ts";
+import { ORIGINALS_DIR, variantPath } from "../media/image-sources.ts";
 
 /**
  * docs/industries/AHANASSA_INDUSTRIES_USE_CASES_COMPONENT_FREEZE_V1.0.md
@@ -334,7 +336,8 @@ test("the image geometry is 4:3, reserved before load, cover-fit with a 12px rad
 });
 
 test("images use the existing next/image pipeline, lazily, with responsive sizes (§8)", () => {
-  assert.match(readSource(COMPONENT_PATH), /^import Image from "next\/image";$/m, "§8: reuse the established image component — no new library");
+  // W16.5: the established image component is now the project's own <picture> wrapper (components/ui/image.tsx) — same props, no new library.
+  assert.match(readSource(COMPONENT_PATH), /^import Image from "@\/components\/ui\/image";$/m, "§8: reuse the established image component — no new library");
   assert.match(COMPONENT, /\bfill\b/, "fill inside the reserved aspect-ratio box");
   assert.match(COMPONENT, /sizes="\(min-width: 1024px\) 31vw, 100vw"/, "responsive sizes matching the 3-column desktop architecture");
   assert.ok(!/\bpriority\b/.test(COMPONENT), "§8: below-fold images lazy-load; priority would be wrong");
@@ -403,7 +406,10 @@ test("every published Industries asset is a local file that really exists on dis
   for (const image of INDUSTRY_SECTOR_IMAGES) {
     assert.ok(typeof image.src === "string" && image.src.startsWith("/images/industries/"), `${image.sector}: must be a local public asset under the Industries media directory`);
     assert.ok(!image.src!.startsWith("//") && !/https?:/.test(image.src!), `${image.sector}: §8 forbids an external host`);
-    assert.ok(existsSync(path.join(REPO_ROOT, "public", image.src!)), `${image.sector}: ${image.src} must exist in public/`);
+    // W16.5: the original is kept outside the build; what is published is its AVIF/WebP variant set.
+    assert.ok(existsSync(path.join(REPO_ROOT, ORIGINALS_DIR, image.src!)), `${image.sector}: ${image.src} must exist in ${ORIGINALS_DIR}/`);
+    for (const w of IMAGE_VARIANTS[image.src!]?.widths ?? []) assert.ok(existsSync(path.join(REPO_ROOT, "public", variantPath(image.src!, w, "avif"))), `${image.sector}: ${w}w variant must exist in public/`);
+    assert.ok(IMAGE_VARIANTS[image.src!], `${image.sector}: ${image.src} must have published variants`);
   }
 });
 
@@ -488,7 +494,7 @@ test("Industries has ZERO Odoo, DB_PUBLIC, Evidence, projection or client-fetch 
   // required for this component. The Evidence threshold applies only to
   // Evidence." Proven structurally by pinning the complete import list.
   const imports = [...readSource(COMPONENT_PATH).matchAll(/^import .*? from "(.+?)";$/gm)].map((m) => m[1]);
-  assert.deepEqual(imports.sort(), ["@/config/locales", "@/lib/content/homepage", "@/lib/content/industries", "next/image"], "a pure server component over localized editorial content and a static asset manifest");
+  assert.deepEqual(imports.sort(), ["@/components/ui/image", "@/config/locales", "@/lib/content/homepage", "@/lib/content/industries"], "a pure server component over localized editorial content and a static asset manifest");
 
   for (const source of [COMPONENT, GATE]) {
     for (const forbidden of ["cloudflare:workers", "DB_PUBLIC", "DB_OPS", "odoo", "Odoo", "evidence", "Evidence", "fetch(", "useEffect", "listHomepageProductCandidates", "catalog", "priceStrip", "migrations_public"]) {

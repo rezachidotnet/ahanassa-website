@@ -91,7 +91,7 @@ test("_redirects keeps fa unprefixed and /request on /contact; .assetsignore exc
   assert.ok(r.split("\n").includes("/export / 302"));
   assert.ok(!r.includes("/en/export ") && !r.includes("/ar/export "));
   const ignore = buildAssetsIgnoreFile();
-  for (const p of [".vite/", "*.rsc", "*.sql", "private-snapshot/", "manifest.json"]) assert.ok(ignore.split("\n").includes(p), p);
+  for (const p of [".vite/", "*.rsc", "*.sql", "private-snapshot/", "manifest.json", "_originals/"]) assert.ok(ignore.split("\n").includes(p), p);
 });
 
 test("robots.txt / sitemap.xml render the app's own metadata-route results", () => {
@@ -294,7 +294,7 @@ test("A6: the public RFQ catalog item drops categoryLabel and nothing else", () 
 
 test("static build: generated build root excludes Worker-only code and uses no Cloudflare plugin (V1/V3)", () => {
   const build = read("scripts/static/build.ts");
-  assert.match(build, /const EXCLUDED = new Set\(\["app\/api", "app\/data"\]\)/);
+  assert.match(build, /const EXCLUDED = new Set\(\["app\/api", "app\/data", "public\/_originals"\]\)/); // W16.5: image originals are never published
   for (const notCopied of ["wrangler.jsonc", "proxy.ts", "workers"]) assert.doesNotMatch(build.slice(build.indexOf("for (const entry of ["), build.indexOf("])", build.indexOf("for (const entry of ["))), new RegExp(`"${notCopied}"`));
   const vite = readCode("scripts/static/vite.config.static.ts");
   assert.doesNotMatch(vite, /@cloudflare\/vite-plugin|cdnAdapter|imagesOptimizer/);
