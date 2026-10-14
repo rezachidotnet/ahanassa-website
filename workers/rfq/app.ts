@@ -5,6 +5,7 @@
  *
  *   OPTIONS/POST /api/rfqs     rfq_submit.v1 intake (CORS: exact allow-list)
  *   GET/OPTIONS/PUT /api/rfqs/files[/<reference>/<slot>]  RFQ file upload (D-RFQ-FILE, lib/rfq-worker/attachments.ts)
+ *   OPTIONS/POST /api/rfqs/extract  read a picture/PDF list into draft rows before submit (W13.3, lib/rfq-worker/extract.ts)
  *   GET          /healthz      liveness (no D1)
  *   /__admin/*                 §15 manual-review tool + reconcile trigger (lib/rfq-worker/admin.ts)
  *   queue                      one message = one RFQ (max_batch_size 1)
@@ -17,6 +18,7 @@ import { handleRfqSubmit } from "../../lib/rfq-worker/submit.ts";
 import { preflightResponse } from "../../lib/rfq-worker/cors.ts";
 import { filesCapability, filesPreflight, handleFileUpload, isFilesPath, FILES_PATH } from "../../lib/rfq-worker/attachments.ts";
 import { consumeOne, reconcileOnce, type QueueMessageLike } from "../../lib/rfq-worker/runners.ts";
+import { EXTRACT_PATH, extractPreflight, handleExtract } from "../../lib/rfq-worker/extract.ts";
 import { sweepRfqFiles } from "../../lib/rfq-worker/file-retention.ts";
 import { handleAdmin, type AdminExtension } from "../../lib/rfq-worker/admin.ts";
 import { csv, type RfqWorkerEnv } from "../../lib/rfq-worker/config.ts";
@@ -47,6 +49,8 @@ export interface RfqWorkerOptions {
   adminExtension?: AdminExtension;
   /** Staging only: may swap the Turnstile verification (test path) for one request. */
   prepareSubmit?: (env: RfqWorkerEnv) => { env: RfqWorkerEnv; fetchImpl?: typeof fetch };
+  /** Staging only: the same for POST /api/rfqs/extract (W13.3). */
+  prepareExtract?: (env: RfqWorkerEnv) => { env: RfqWorkerEnv; fetchImpl?: typeof fetch };
 }
 
 export function createRfqWorker(options: RfqWorkerOptions = {}) {
@@ -62,6 +66,11 @@ export function createRfqWorker(options: RfqWorkerOptions = {}) {
             ctx.waitUntil(queueHandoff(env, event));
           },
         });
+      }
+      if (url.pathname === EXTRACT_PATH) {
+        if (request.method === "OPTIONS") return extractPreflight(request, csv(env.ALLOWED_ORIGINS));
+        const prepared = options.prepareExtract?.(env) ?? { env };
+        return handleExtract(request, prepared.env, { fetchImpl: prepared.fetchImpl });
       }
       if (isFilesPath(url.pathname)) {
         if (request.method === "OPTIONS") return filesPreflight(request, csv(env.ALLOWED_ORIGINS));

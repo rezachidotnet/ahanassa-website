@@ -85,7 +85,8 @@ file that still arrives (for example picked from Files) is accepted; Odoo cannot
 
 The filename is kept for staff only, in D1 and in Odoo (the v1.2 `filename`, or `notes`). Before it is stored, the path, control
 characters and bidi controls are removed, and it is cut to 120 characters. The filename is never used in
-a storage key or in a public response. **No file content is ever rendered back on the site.**
+a storage key or in a public response. **No file content is ever rendered back on the site** — except, since W13.3, the rows read
+from a list, shown to the person who attached it in their own form (`docs/RFQ_INSTANT_EXTRACT.md`).
 
 **Known limit:** an Excel 4.0 (XLM) macro sheet inside a legacy `.xls` has no storage of its own, so the
 scan does not see it. Staff should open files from customers with macros disabled. These checks are the

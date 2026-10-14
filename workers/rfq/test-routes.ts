@@ -13,6 +13,7 @@
 import { deliverOne } from "../../lib/rfq-worker/delivery.ts";
 import { deliveryConfigFromEnv } from "../../lib/rfq-worker/runners.ts";
 import { flag, type RfqWorkerEnv } from "../../lib/rfq-worker/config.ts";
+import { TURNSTILE_EXTRACT_ACTION, TURNSTILE_RFQ_ACTION } from "../../lib/security/turnstile-action.ts";
 
 /** The only real Odoo host the 401 probe may call — unauthenticated, so nothing can be created there. */
 const REAL_ODOO_BASE_URL = "https://odoo.ahanassa.com";
@@ -51,17 +52,21 @@ const SITEVERIFY = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
  * STAGING ONLY, TURNSTILE_TEST_MODE=1: verify with the test secret against the
  * REAL Siteverify endpoint, and accept only a response Cloudflare flags as
  * `metadata.result_with_testing_key`, completing it with our expected
- * hostname and the rfq_submit action. Every other intake step is unchanged.
+ * hostname and the endpoint's action (rfq_submit, or rfq_extract for W13.3
+ * POST /api/rfqs/extract). Every other intake step is unchanged.
  */
-export function stagingTurnstileTestPath(env: RfqWorkerEnv): { env: RfqWorkerEnv; fetchImpl?: typeof fetch } {
+export function stagingTurnstileTestPath(env: RfqWorkerEnv, action: string = TURNSTILE_RFQ_ACTION): { env: RfqWorkerEnv; fetchImpl?: typeof fetch } {
   if (!flag(env.TURNSTILE_TEST_MODE)) return { env };
   const hostname = (env.TURNSTILE_EXPECTED_HOSTNAMES ?? "").split(",")[0]?.trim() ?? "";
   const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const response = await fetch(input, init);
     if (String(input) !== SITEVERIFY || !response.ok) return response;
     const body = (await response.json()) as { success?: boolean; metadata?: { result_with_testing_key?: boolean } } & Record<string, unknown>;
-    if (body.success === true && body.metadata?.result_with_testing_key === true) return Response.json({ ...body, hostname, action: "rfq_submit" });
+    if (body.success === true && body.metadata?.result_with_testing_key === true) return Response.json({ ...body, hostname, action });
     return Response.json({ ...body, success: false });
   }) as typeof fetch;
   return { env: { ...env, TURNSTILE_SECRET_KEY: TURNSTILE_TEST_SECRET }, fetchImpl };
 }
+
+/** The same STAGING test path for W13.3 POST /api/rfqs/extract (action rfq_extract). */
+export const stagingTurnstileExtractTestPath = (env: RfqWorkerEnv) => stagingTurnstileTestPath(env, TURNSTILE_EXTRACT_ACTION);

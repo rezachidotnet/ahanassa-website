@@ -15,7 +15,7 @@ import {
   type RfqBasketAddOutcome,
   type RfqBasketCustomer,
 } from "@/lib/rfq/rfq-basket";
-import { fetchFilesCapability, filesEndpointFor } from "@/lib/rfq/upload-files";
+import { fetchFilesCapability, filesEndpointFor, type FilesCapability } from "@/lib/rfq/upload-files";
 
 interface LoadedCatalog {
   items: PublicRfqCatalogItem[];
@@ -59,6 +59,7 @@ const HANDOFF_PARAMS = ["variant", ...Object.values(RFQ_PREFILL_PARAMS)];
  * it accepts files; only then does the form show «بارگذاری لیست اقلام». The
  * prerendered HTML never has the field, so the staging and production pages
  * stay byte-identical (r4) while upload is on in one and off in the other.
+ * The same answer says whether an attached list is read into rows (W13.3).
  */
 export function StaticEnquiryForm({ locale, turnstileSiteKey, rfqEndpoint }: { locale: Locale; turnstileSiteKey?: string; rfqEndpoint?: string }) {
   const [catalog, setCatalog] = useState<LoadedCatalog | null>(null);
@@ -70,6 +71,7 @@ export function StaticEnquiryForm({ locale, turnstileSiteKey, rfqEndpoint }: { l
   // The prerendered href is the fallback; the referrer is only known in the browser.
   const [continueHref, setContinueHref] = useState(() => localizedPath(locale, "/products"));
   const [filesEndpoint, setFilesEndpoint] = useState<string | null>(null);
+  const [extractCapability, setExtractCapability] = useState<FilesCapability["extract"] | null>(null);
 
   useEffect(() => {
     setContinueHref(resolveContinueBrowsingHref(locale, document.referrer, window.location.origin));
@@ -88,7 +90,10 @@ export function StaticEnquiryForm({ locale, turnstileSiteKey, rfqEndpoint }: { l
     if (rfqEndpoint) {
       const endpoint = filesEndpointFor(rfqEndpoint);
       void fetchFilesCapability(endpoint).then((capability) => {
-        if (!cancelled && capability) setFilesEndpoint(endpoint);
+        if (!cancelled && capability) {
+          setFilesEndpoint(endpoint);
+          setExtractCapability(capability.extract);
+        }
       });
     }
     fetch(PUBLIC_MANIFEST_PATH)
@@ -157,6 +162,7 @@ export function StaticEnquiryForm({ locale, turnstileSiteKey, rfqEndpoint }: { l
       catalogSnapshotVersion={snapshotVersion}
       rfqEndpoint={rfqEndpoint}
       filesEndpoint={filesEndpoint}
+      extractCapability={extractCapability}
     />
   );
 }

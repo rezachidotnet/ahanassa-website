@@ -1,6 +1,7 @@
 "use client";
 
-import { Trash2, ChevronDown } from "lucide-react";
+import { Fragment } from "react";
+import { Trash2, ChevronDown, FileText, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { controlClass, selectClass } from "@/components/ui/form-control";
@@ -10,6 +11,7 @@ import { CUSTOM_ITEM_LAUNCH_UOMS, getAllowedUomsForCatalogGroup } from "@/lib/rf
 import { isLengthMmSupportedForGroup } from "@/lib/rfq/length-policy";
 import { isValidLengthMmValue, type RfqRowFieldKey, type RfqRowFields } from "@/lib/rfq/item-row-validation";
 import type { CatalogCategoryGroup } from "@/lib/rfq/catalog-selector";
+import type { ExtractReviewReason } from "@/lib/rfq/extract/to-rows";
 
 /**
  * One RFQ line — rendered twice by the parent (`enquiry-form.tsx`), once as
@@ -123,6 +125,86 @@ const copy: Record<Locale, RowCopy> = {
   },
 };
 
+/**
+ * W13.3: a row the form filled from the customer's attached list. Shows where it came from, the
+ * customer's own text (plain text, only to the person who attached the file) and, when unsure,
+ * «لطفاً بررسی کنید» with what to check.
+ */
+export interface RfqRowFromFile {
+  rawText: string;
+  review: boolean;
+  reasons: ExtractReviewReason[];
+  /** Read from a picture: its numbers always need checking. */
+  picture: boolean;
+}
+
+const fromFileCopy: Record<Locale, { chip: string; review: string; inFile: string; picture: string; reasons: Record<ExtractReviewReason, string> }> = {
+  fa: {
+    chip: "از فایل شما",
+    review: "لطفاً بررسی کنید",
+    inFile: "در فایل شما:",
+    picture: "اعداد خوانده‌شده از عکس را با فایل خود مقایسه کنید.",
+    reasons: {
+      check_product: "محصول یا سایز دقیق را از فهرست انتخاب کنید.",
+      not_in_catalog: "در فهرست محصولات ما نبود؛ به‌صورت کالای سفارشی ثبت شد.",
+      quantity_missing: "مقدار را وارد کنید.",
+      unit_missing: "واحد را بررسی کنید.",
+      unit_not_offered: "این واحد برای این ردیف در فهرست نیست؛ مقدار را با یکی از واحدهای فهرست وارد کنید.",
+    },
+  },
+  en: {
+    chip: "From your file",
+    review: "Please check",
+    inFile: "In your file:",
+    picture: "Compare the numbers read from the picture with your file.",
+    reasons: {
+      check_product: "Choose the exact product or size from the list.",
+      not_in_catalog: "Not in our product list — kept as a custom item.",
+      quantity_missing: "Enter the quantity.",
+      unit_missing: "Check the unit.",
+      unit_not_offered: "That unit is not offered for this row; enter the quantity in one of the listed units.",
+    },
+  },
+  ar: {
+    chip: "من ملفك",
+    review: "يرجى المراجعة",
+    inFile: "في ملفك:",
+    picture: "قارن الأرقام المقروءة من الصورة بملفك.",
+    reasons: {
+      check_product: "اختر المنتج أو المقاس بدقة من القائمة.",
+      not_in_catalog: "غير موجود في قائمة منتجاتنا؛ أُضيف كصنف مخصص.",
+      quantity_missing: "أدخل الكمية.",
+      unit_missing: "تحقق من الوحدة.",
+      unit_not_offered: "هذه الوحدة غير متاحة لهذا الصف؛ أدخل الكمية بإحدى الوحدات المتاحة.",
+    },
+  },
+};
+
+function FromFileNote({ fromFile, locale, id }: { fromFile: RfqRowFromFile; locale: Locale; id: string }) {
+  const t = fromFileCopy[locale];
+  const hints = [...fromFile.reasons.map((r) => t.reasons[r]), ...(fromFile.picture ? [t.picture] : [])];
+  return (
+    <div id={id} className="grid gap-1 text-xs leading-relaxed" data-rfq-from-file={fromFile.review ? "review" : ""}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="border-border text-navy inline-flex items-center gap-1 rounded-[var(--aa-radius-badge)] border bg-white px-2 py-0.5 font-semibold">
+          <FileText className="text-copper size-3.5" aria-hidden="true" />
+          {t.chip}
+        </span>
+        {fromFile.review && (
+          <span className="inline-flex items-center gap-1 rounded-[var(--aa-radius-badge)] bg-[var(--aa-color-warning-800)] px-2 py-0.5 font-bold text-white">
+            <AlertTriangle className="size-3.5" aria-hidden="true" />
+            {t.review}
+          </span>
+        )}
+        {hints.length > 0 && <span className="text-[var(--aa-color-warning-800)]">{hints.join(" ")}</span>}
+      </div>
+      <p className="text-muted-foreground min-w-0 break-words">
+        {t.inFile} <bdi dir="auto" className="text-navy">{fromFile.rawText}</bdi>
+      </p>
+    </div>
+  );
+}
+
 // Shared control styles (components/ui/form-control.ts, W10.2) — the same 48px / 8px / 3:1-border controls as the customer fields.
 const cellInput = controlClass;
 
@@ -166,13 +248,15 @@ export interface RfqItemRowProps {
   disabled: boolean;
   errors: RfqRowFieldKey[];
   catalogGroups: CatalogCategoryGroup[];
+  /** W13.3: set when the row was filled from an attached list. */
+  fromFile?: RfqRowFromFile | null;
   onChange: (fields: RfqRowFields) => void;
   onRemove: () => void;
   canRemove: boolean;
   rowRef?: (el: HTMLTableRowElement | HTMLDivElement | null) => void;
 }
 
-export function RfqItemRow({ layout, index, fields, locale, disabled, errors, catalogGroups, onChange, onRemove, canRemove, rowRef }: RfqItemRowProps) {
+export function RfqItemRow({ layout, index, fields, locale, disabled, errors, catalogGroups, fromFile = null, onChange, onRemove, canRemove, rowRef }: RfqItemRowProps) {
   const t = copy[locale];
   const hasProductError = errors.includes("product");
   const hasQuantityError = errors.includes("quantity");
@@ -464,9 +548,18 @@ export function RfqItemRow({ layout, index, fields, locale, disabled, errors, ca
     </Button>
   );
 
+  const hasError = hasProductError || hasQuantityError || hasLengthError;
+  const review = Boolean(fromFile?.review);
+  const fromFileId = `${idPrefix}-from-file`;
+
   if (layout === "table") {
     return (
-      <tr ref={rowRef as (el: HTMLTableRowElement | null) => void} className={cn("border-border border-b align-top", (hasProductError || hasQuantityError || hasLengthError) && "bg-[var(--aa-color-danger-50)]/40")}>
+      <Fragment>
+      <tr
+        ref={rowRef as (el: HTMLTableRowElement | null) => void}
+        aria-describedby={fromFile ? fromFileId : undefined}
+        className={cn("align-top", fromFile ? "" : "border-border border-b", hasError ? "bg-[var(--aa-color-danger-50)]/40" : review && "bg-[var(--aa-color-warning-50)]")}
+      >
         <td className="text-muted-foreground px-3 py-3 text-center text-sm font-semibold">{index + 1}</td>
         <td className="px-2 py-3">{categorySelect}</td>
         <td className="px-2 py-3">{productCell}</td>
@@ -476,13 +569,27 @@ export function RfqItemRow({ layout, index, fields, locale, disabled, errors, ca
         <td className="px-2 py-3">{notesInput}</td>
         <td className="px-2 py-3 text-center">{removeButton}</td>
       </tr>
+      {fromFile && (
+        <tr className={cn("border-border border-b", hasError ? "bg-[var(--aa-color-danger-50)]/40" : review && "bg-[var(--aa-color-warning-50)]")}>
+          <td />
+          <td colSpan={7} className="px-2 pb-3">
+            <FromFileNote fromFile={fromFile} locale={locale} id={fromFileId} />
+          </td>
+        </tr>
+      )}
+      </Fragment>
     );
   }
 
   return (
     <div
       ref={rowRef as (el: HTMLDivElement | null) => void}
-      className={cn("border-border grid gap-3 rounded-[var(--aa-radius-md)] border bg-white p-4 shadow-[var(--aa-shadow-xs)]", (hasProductError || hasQuantityError || hasLengthError) && "border-[var(--aa-color-danger-700)]")}
+      aria-describedby={fromFile ? fromFileId : undefined}
+      className={cn(
+        "border-border grid gap-3 rounded-[var(--aa-radius-md)] border bg-white p-4 shadow-[var(--aa-shadow-xs)]",
+        review && "border-[var(--aa-color-warning-800)] border-s-4 bg-[var(--aa-color-warning-50)]",
+        hasError && "border-[var(--aa-color-danger-700)]",
+      )}
     >
       <div className="flex items-center justify-between">
         <span className="text-copper text-xs font-bold uppercase tracking-wide">
@@ -498,6 +605,7 @@ export function RfqItemRow({ layout, index, fields, locale, disabled, errors, ca
         {unitSelect}
       </div>
       {notesInput}
+      {fromFile && <FromFileNote fromFile={fromFile} locale={locale} id={fromFileId} />}
     </div>
   );
 }

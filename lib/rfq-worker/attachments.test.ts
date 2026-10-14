@@ -164,7 +164,7 @@ async function deliver(env: RfqWorkerEnv, ops: SqliteD1, at = new Date(Date.now(
 
 test("capability: enabled only with BOTH the R2 binding and RFQ_FILES_ENABLED=1; preflight allows PUT + X-RFQ-Key", async () => {
   const req = new Request("https://api.example/api/rfqs/files", { headers: { origin: ORIGIN } });
-  assert.deepEqual(await jsonOf(filesCapability(req, setup().env)), { ok: true, enabled: true, maxFiles: 5, maxFileBytes: MAX_RFQ_FILE_BYTES, extensions: ["jpg", "jpeg", "png", "webp", "heic", "pdf", "xlsx", "xls", "csv", "docx", "txt"] });
+  assert.deepEqual(await jsonOf(filesCapability(req, setup().env)), { ok: true, enabled: true, maxFiles: 5, maxFileBytes: MAX_RFQ_FILE_BYTES, extensions: ["jpg", "jpeg", "png", "webp", "heic", "pdf", "xlsx", "xls", "csv", "docx", "txt"], extract: { lists: false, pictures: false } });
   assert.deepEqual(await jsonOf(filesCapability(req, setup({ RFQ_FILES_ENABLED: "0" }).env)), { ok: true, enabled: false });
   assert.deepEqual(await jsonOf(filesCapability(req, setup({ RFQ_FILES: undefined }).env)), { ok: true, enabled: false });
   const pre = filesPreflight(new Request("https://api.example/api/rfqs/files/AA-RFQ-X/1", { method: "OPTIONS", headers: { origin: ORIGIN } }), [ORIGIN]);

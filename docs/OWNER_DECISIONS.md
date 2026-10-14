@@ -73,6 +73,12 @@ D-DAR-063 and D-SCHEDULE are implemented now (W9.1). D-PRICE and D-ARTICLES are 
 | **D-RFQ-FILE-5** | **File-only RFQ allowed:** no item row required when at least one file was accepted. | Contract, validator, form. Odoo still requires one line, so the delivery sends one marked placeholder line (`FILE_ONLY_PLACEHOLDER`, 1 ton, "not the customer's quantity"). |
 | **D-RFQ-FILE-6** | **HEIC:** set the input's accept list so iPhone Safari uploads JPEG; if HEIC still arrives, accept it (Odoo marks it manual-reading). | `RFQ_FILE_ACCEPT` no longer lists HEIC; the server allow-list still does. |
 
+## Decisions of 2026-10-13 (W13.3 instant item extraction)
+
+| # | Decision (as given) | Effect |
+|---|---|---|
+| **D-RFQ-EXTRACT** | **When a customer attaches a photo/PDF/Excel/CSV of their list, the form fills the item rows within seconds; the customer reviews/edits and submits. The original file is still uploaded (W13.1, private R2) and sent to Odoo with the RFQ.** Turnstile + per-IP limit, same file checks as W13.1; Excel/CSV read deterministically; photo/PDF via Workers AI with strict JSON validated server-side; lines matched to the published catalog; low-confidence rows marked «لطفاً بررسی کنید», not-in-catalog rows kept as free text; failure never blocks submit; provenance in the existing item note («از فایل: …», "edited by customer") — no contract change; no prices; `file_upload` + `rfq_extract` events. Code + PR only; production stays off. | `docs/RFQ_INSTANT_EXTRACT.md` (PR for W13.3). Amends D-RFQ-FILE's "no file content is ever rendered back": the rows read from a file are shown **to the person who attached it**, in their own form, as plain text — nowhere else. Design choices made in W13.3 and listed there for the owner's review: typed lists are read in the browser; the Worker returns a picture's transcript and the browser parses it (Workers Free CPU), the text model only for prose; every row read from a picture is marked for review (measured digit misreads). |
+
 ## Decisions of 2026-10-12 (W13.1 RFQ file upload)
 
 | # | Decision (as given) | Effect |
