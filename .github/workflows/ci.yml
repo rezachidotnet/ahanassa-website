@@ -19,14 +19,14 @@ permissions:
 jobs:
   verify:
     name: verify
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "24"
           cache: npm
@@ -46,23 +46,61 @@ jobs:
   # Architecture V1.1 §7.1 steps 4–6 (website W1): build the static site from
   # the committed snapshot.v1 fixture, run the artifact.v1 gate (separation,
   # checksums, SEO, leak/Persian scan) and the hydration/no-RSC check on every
-  # page in headless Chrome. Build-only: no deploy, no credentials, no D1.
+  # page in headless Chrome. Build-only: no deploy, no Cloudflare credentials, no D1.
+  # W9.7: the gate also refuses price-source names (lib/static/source-name-scan.ts). The list comes from the
+  # repository secret AHANASSA_PRICE_SOURCE_NAMES, written to a 0600 file under $RUNNER_TEMP (outside the
+  # checkout); the tracked tree is scanned with the same rules by main's .github/scripts/v11-source-names.mjs.
+  # Neither prints a name. A pull request from a fork gets no secret: the scan then reports "not run".
   static-export:
     name: static-export
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "24"
           cache: npm
 
       - name: Install dependencies (immutable)
         run: npm ci
+
+      - name: Price-source name list (secret -> private temp file; never printed)
+        env:
+          NAMES: ${{ secrets.AHANASSA_PRICE_SOURCE_NAMES }}
+        run: |
+          set -euo pipefail
+          if [ -z "$NAMES" ]; then
+            echo "::warning title=price-source name scan not configured::repository secret AHANASSA_PRICE_SOURCE_NAMES is not available to this run"
+            exit 0
+          fi
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$NAMES" > "$RUNNER_TEMP/private/source-names.txt"
+          echo "AHANASSA_PRICE_SOURCE_NAMES_FILE=$RUNNER_TEMP/private/source-names.txt" >> "$GITHUB_ENV"
+
+      # The scanner lives on main (like the release scripts): this branch's own code is what it judges.
+      - name: Checkout the name scanner (main)
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          path: .ci-main
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: "Price-source names: none in the tracked tree (fails on a finding)"
+        run: |
+          set -euo pipefail
+          mv .ci-main "$RUNNER_TEMP/ci-main"
+          scanner="$RUNNER_TEMP/ci-main/.github/scripts/v11-source-names.mjs"
+          if [ ! -f "$scanner" ]; then
+            echo "::warning title=price-source name scan not run::main has no .github/scripts/v11-source-names.mjs yet (W9.7 main PR not merged)"
+            exit 0
+          fi
+          node "$scanner" scan-tree --app .
 
       - name: Static build (staging flags) + artifact gate
         run: npm run build:static -- --snapshot fixtures/snapshot/staging-2026-10-01.snapshot.json --target staging --out .artifact
