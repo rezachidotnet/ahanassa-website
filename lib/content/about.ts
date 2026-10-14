@@ -26,7 +26,8 @@ export interface AboutPageCopy {
   groupTitle: string;
   groupIntro: string;
   leadershipTitle: string;
-  leadership: { role: string; name: string; note?: string }[];
+  /** W17.1 (owner): shown exactly as «role: name» — chairman first, no honorific, no note. */
+  leadership: { role: string; name: string }[];
   contactTitle: string;
   phoneLabel: string;
   cta: string;
@@ -77,8 +78,8 @@ export const ABOUT_COPY: Record<Locale, AboutPageCopy> = {
     groupIntro: "آهن آسا عضوی از گروه فضاسازه نقش جهان (fazasazeh.ir) است و در کنار شرکت‌های هم‌گروه خود، زنجیرهٔ کاملی از خدمات صنعت ساخت را پوشش می‌دهد:",
     leadershipTitle: "مدیریت",
     leadership: [
-      { role: "مدیرعامل", name: "خانم فاطمه زاهدی" },
-      { role: "رئیس هیئت‌مدیره", name: "آقای امیرموسی طالقانی", note: "با حدود بیست سال سابقه در صنعت ساخت‌وساز کشور" },
+      { role: "رئیس هیئت‌مدیره", name: "امیرموسی طالقانی" },
+      { role: "مدیرعامل", name: "فاطمه زاهدی" },
     ],
     contactTitle: "ارتباط با ما",
     phoneLabel: "تلفن",
@@ -128,8 +129,8 @@ export const ABOUT_COPY: Record<Locale, AboutPageCopy> = {
     groupIntro: "Ahan Asa is a member of the Fazasazeh Naghsh-e Jahan group (fazasazeh.ir). Together with its sister companies it covers a complete chain of services for the construction industry:",
     leadershipTitle: "Management",
     leadership: [
-      { role: "Chief Executive Officer", name: "Ms Fatemeh Zahedi" },
-      { role: "Chairman of the Board", name: "Mr Amirmousa Taleghani", note: "with around twenty years of experience in Iran's construction industry" },
+      { role: "Chairman of the Board", name: "Amirmousa Taleghani" },
+      { role: "Chief Executive Officer", name: "Fatemeh Zahedi" },
     ],
     contactTitle: "Contact us",
     phoneLabel: "Phone",
@@ -179,8 +180,8 @@ export const ABOUT_COPY: Record<Locale, AboutPageCopy> = {
     groupIntro: "آهن آسا عضو في مجموعة فضاسازه نقش جهان (fazasazeh.ir)، وتغطي مع الشركات الشقيقة في المجموعة سلسلة متكاملة من خدمات قطاع البناء:",
     leadershipTitle: "الإدارة",
     leadership: [
-      { role: "المديرة التنفيذية", name: "السيدة فاطمة زاهدي" },
-      { role: "رئيس مجلس الإدارة", name: "السيد أمير موسى طالقاني", note: "بخبرة تقارب عشرين عامًا في قطاع البناء في إيران" },
+      { role: "رئيس مجلس الإدارة", name: "أمير موسى طالقاني" },
+      { role: "المديرة التنفيذية", name: "فاطمة زاهدي" },
     ],
     contactTitle: "تواصل معنا",
     phoneLabel: "الهاتف",

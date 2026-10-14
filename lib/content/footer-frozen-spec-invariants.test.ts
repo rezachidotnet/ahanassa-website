@@ -113,7 +113,8 @@ test("Exactly one <h2> exists (the hidden footer title) — group headings are d
   const h2Count = (FOOTER_SOURCE.match(/<h2\b/g) ?? []).length;
   const h3Count = (FOOTER_SOURCE.match(/<h3\b/g) ?? []).length;
   assert.equal(h2Count, 1, "expected exactly one <h2> (the hidden footer title)");
-  assert.equal(h3Count, 4, "expected the four visible group headings (Products/Company/Office/Incoterms) to be <h3>");
+  // W17.1 adds the «شرکت‌های گروه» list heading (owner).
+  assert.equal(h3Count, 5, "expected the five visible group headings (Group companies/Products/Company/Office/Incoterms) to be <h3>");
 });
 
 // --- No invented contact/legal channels ---

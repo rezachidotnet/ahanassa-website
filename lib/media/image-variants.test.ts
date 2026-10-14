@@ -87,8 +87,9 @@ test("About gallery: every ABOUT_PHOTOS entry is a gallery-role source whose wid
 test("originals stay out of the static artifact: the build does not copy them, its .assetsignore and the artifact gate reject them", () => {
   const rasters = walk("public/images").filter((f) => /\.(png|jpe?g)$/i.test(f));
   assert.deepEqual(rasters, [], `originals belong in ${ORIGINALS_DIR}/; run scripts/images/build-variants.ts`);
-  const brand = walk("public/brand").filter((f) => !/-\d+w\.(avif|webp|jpg)$/.test(f));
-  assert.deepEqual(brand, [], "public/brand holds only generated variants of the mark");
+  // W17.1: public/brand/group/ holds the group logos (small, pre-optimized; lib/static/site-fixes-w171.test.ts checks them).
+  const brand = walk("public/brand").filter((f) => !/-\d+w\.(avif|webp|jpg)$/.test(f) && !/^public\/brand\/group\/[a-z]+\.(webp|png)$/.test(f));
+  assert.deepEqual(brand, [], "public/brand holds only generated variants of the mark (and the group logos)");
   assert.ok(read("scripts/static/build.ts").includes('"public/_originals"'), "the static build must not copy the originals");
   assert.ok(ASSETS_IGNORE_PATTERNS.includes(ORIGINALS_ASSET_PREFIX), "static artifact .assetsignore");
   assert.match(forbiddenPublicPath(`${ORIGINALS_ASSET_PREFIX}images/products/rebar.png`) ?? "", /image original/, "the artifact gate rejects a published original");

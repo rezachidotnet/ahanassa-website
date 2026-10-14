@@ -92,6 +92,20 @@
  * `in-[.on-inverse]:` classes). Same mechanism final-cta.tsx already uses
  * for its own subtree.
  */
+/*
+ * Justified body copy (W17.1, /about intro). Both edges flush in RTL and LTR; the last line keeps the
+ * reading start. Gaps on a narrow column: en hyphenates (lang="en" on <html>); fa/ar have no hyphenation,
+ * so they spread only between words (inter-word, never between letters, which would break Arabic joining).
+ */
+@utility text-justified {
+  text-align: justify;
+  text-justify: inter-word;
+  text-align-last: start;
+  &:lang(en) {
+    hyphens: auto;
+  }
+}
+
 @utility on-inverse {
   --aa-color-focus-ring: var(--aa-color-focus-ring-inverse);
 }

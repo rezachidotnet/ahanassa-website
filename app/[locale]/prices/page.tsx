@@ -84,7 +84,7 @@ async function DailyPriceTable({ locale }: { locale: PriceLocale }) {
         {/* ar carries no timestamp (owner 2026-10-09). */}
         {locale === "fa" ? <time dateTime={new Date(latest).toISOString()}>{formatPersianDate(new Date(latest))}</time> : formatArabicDate(new Date(latest))}
       </p>
-      <PriceTableFilter tableId={TABLE_ID} families={options.families} factories={options.factories} digitsLocale={locale === "fa" ? "fa-IR" : "ar-EG"} copy={{ family: t.family, factory: t.factory, all: t.all, countTemplate: t.count("{n}"), noMatch: t.noMatch }} />
+      <PriceTableFilter tableId={TABLE_ID} options={options} digitsLocale={locale === "fa" ? "fa-IR" : "ar-EG"} copy={{ family: t.family, factory: t.factory, all: t.all, countTemplate: t.count("{n}"), noMatch: t.noMatch }} />
       <div>
         <p className="text-tertiary mb-2 text-xs md:hidden" aria-hidden="true">
           {t.swipe}

@@ -20,13 +20,30 @@ export const PARENT_ORGANIZATION = {
   foundingDate: "1997",
 } as const;
 
-/** The group's companies, in the owner's order, with the solar year each started. `url` null = this site (no link). */
-export const GROUP_COMPANIES: ReadonlyArray<{ id: string; url: string | null; domain: string; sinceSolar: number; name: Record<Locale, string>; field: Record<Locale, string> }> = [
-  { id: "fazasazeh", url: "https://fazasazeh.ir", domain: "fazasazeh.ir", sinceSolar: 1376, name: { fa: "فضاسازه نقش جهان", en: "Fazasazeh Naghsh-e Jahan", ar: "فضاسازه نقش جهان" }, field: { fa: "طراحی و اجرای سازه‌های فلزی", en: "Design and erection of steel structures", ar: "تصميم الهياكل المعدنية وتنفيذها" } },
-  { id: "sipanel", url: "https://www.sipanelco.com", domain: "sipanelco.com", sinceSolar: 1394, name: { fa: "سی‌پانل", en: "SiPanel", ar: "سي بانل" }, field: { fa: "پوشش سالن‌های صنعتی", en: "Cladding of industrial halls", ar: "تغطية الصالات الصناعية" } },
-  { id: "avizsazeh", url: "https://www.avizsazeh.com", domain: "avizsazeh.com", sinceSolar: 1400, name: { fa: "آویز سازه", en: "Aviz Sazeh", ar: "آويز سازه" }, field: { fa: "سقف کاذب سالن‌ها", en: "Suspended ceilings for halls", ar: "الأسقف المعلقة للصالات" } },
-  { id: "ahanassa", url: null, domain: "ahanassa.com", sinceSolar: 1403, name: { fa: "آهن آسا", en: "Ahan Asa", ar: "آهن آسا" }, field: { fa: "تأمین فولاد ساختمان و صنعت", en: "Steel supply for construction and industry", ar: "توريد الحديد للبناء والصناعة" } },
-  { id: "aisanat", url: "https://aisanat.ir", domain: "aisanat.ir", sinceSolar: 1405, name: { fa: "آی‌صنعت", en: "AiSanat", ar: "آي صنعت" }, field: { fa: "خدمات فناوری اطلاعات ویژهٔ این صنعت", en: "IT services for this industry", ar: "خدمات تقنية المعلومات لهذا القطاع" } },
+/**
+ * A group logo (W17.1): `/brand/group/<id>.webp` with a `.png` fallback, trimmed and at most 400×160, made from
+ * the owner's files (~/claude-reports/ahanassa/group-logos/, 2026-10-14; all raster, so no SVG). width/height are
+ * the files' own, so the box is reserved before load.
+ */
+export interface GroupLogo {
+  webp: string;
+  png: string;
+  width: number;
+  height: number;
+}
+
+const groupLogo = (id: string, width: number, height: number): GroupLogo => ({ webp: `/brand/group/${id}.webp`, png: `/brand/group/${id}.png`, width, height });
+
+/**
+ * The group's companies, in the owner's order, with the solar year each started. `url` null = this site (no link).
+ * `logo` null = no logo supplied (AiSanat: the file named aisanat.jpg shows another brand, so it is not used).
+ */
+export const GROUP_COMPANIES: ReadonlyArray<{ id: string; url: string | null; domain: string; sinceSolar: number; name: Record<Locale, string>; field: Record<Locale, string>; logo: GroupLogo | null }> = [
+  { id: "fazasazeh", url: "https://fazasazeh.ir", domain: "fazasazeh.ir", sinceSolar: 1376, name: { fa: "فضاسازه نقش جهان", en: "Fazasazeh Naghsh-e Jahan", ar: "فضاسازه نقش جهان" }, field: { fa: "طراحی و اجرای سازه‌های فلزی", en: "Design and erection of steel structures", ar: "تصميم الهياكل المعدنية وتنفيذها" }, logo: groupLogo("fazasazeh", 191, 160) },
+  { id: "sipanel", url: "https://www.sipanelco.com", domain: "sipanelco.com", sinceSolar: 1394, name: { fa: "سی‌پانل", en: "SiPanel", ar: "سي بانل" }, field: { fa: "پوشش سالن‌های صنعتی", en: "Cladding of industrial halls", ar: "تغطية الصالات الصناعية" }, logo: groupLogo("sipanel", 400, 77) },
+  { id: "avizsazeh", url: "https://www.avizsazeh.com", domain: "avizsazeh.com", sinceSolar: 1400, name: { fa: "آویز سازه", en: "Aviz Sazeh", ar: "آويز سازه" }, field: { fa: "سقف کاذب سالن‌ها", en: "Suspended ceilings for halls", ar: "الأسقف المعلقة للصالات" }, logo: groupLogo("avizsazeh", 319, 160) },
+  { id: "ahanassa", url: null, domain: "ahanassa.com", sinceSolar: 1403, name: { fa: "آهن آسا", en: "Ahan Asa", ar: "آهن آسا" }, field: { fa: "تأمین فولاد ساختمان و صنعت", en: "Steel supply for construction and industry", ar: "توريد الحديد للبناء والصناعة" }, logo: groupLogo("ahanassa", 149, 160) },
+  { id: "aisanat", url: "https://aisanat.ir", domain: "aisanat.ir", sinceSolar: 1405, name: { fa: "آی‌صنعت", en: "AiSanat", ar: "آي صنعت" }, field: { fa: "خدمات فناوری اطلاعات ویژهٔ این صنعت", en: "IT services for this industry", ar: "خدمات تقنية المعلومات لهذا القطاع" }, logo: null },
 ];
 
 /** A group company by id (throws on an unknown id, so a renamed entry fails the build, not the page). */
@@ -110,18 +127,25 @@ export function companyPhoneDisplay(stored: string = CONTACT_PHONE_E164): string
   return `${local.slice(0, 3)}-${local.slice(3)}`;
 }
 
-/** Offices (D-COMPANY-INFO): Isfahan head office, Tehran office (no separate phone). Addresses use Latin digits in every locale, like the phone (owner, 2026-10-13). */
+/** Offices (D-COMPANY-INFO): Isfahan head office, Tehran coordination office (no separate phone); read by /about, /contact and the footer. Addresses use Latin digits in every locale, like the phone (owner, 2026-10-13). */
 export const OFFICES: Record<Locale, { head: { label: string; address: string }; tehran: { label: string; address: string } }> = {
   fa: {
     head: { label: "دفتر مرکزی", address: "اصفهان، خیابان هزارجریب، کوی آزادگان، پلاک 6" },
-    tehran: { label: "دفتر تهران", address: "تهران، خیابان ستارخان، پلاک 660، کد پستی 1454954166" },
+    tehran: { label: "دفتر هماهنگی تهران", address: "تهران، خیابان ستارخان، پلاک 660، کد پستی 1454954166" },
   },
   en: {
     head: { label: "Head office", address: "Hezar Jarib Street, Kooy Azadegan, No. 6, Isfahan, Iran" },
-    tehran: { label: "Tehran office", address: "Sattarkhan Street, No. 660, Tehran, Iran — postal code 1454954166" },
+    tehran: { label: "Tehran coordination office", address: "Sattarkhan Street, No. 660, Tehran, Iran — postal code 1454954166" },
   },
   ar: {
     head: { label: "المكتب الرئيسي", address: "شارع هزار جريب، حي آزادگان، رقم 6، أصفهان، إيران" },
-    tehran: { label: "مكتب طهران", address: "شارع ستارخان، رقم 660، طهران، إيران — الرمز البريدي 1454954166" },
+    tehran: { label: "مكتب التنسيق في طهران", address: "شارع ستارخان، رقم 660، طهران، إيران — الرمز البريدي 1454954166" },
   },
+};
+
+/** W17.1 — the /about group logo cards: the logo's alt text and the hidden note on a link that opens a new tab. */
+export const GROUP_CARD_COPY: Record<Locale, { logoAlt: (name: string) => string; newTab: string }> = {
+  fa: { logoAlt: (name) => `لوگوی ${name}`, newTab: "(در زبانهٔ جدید باز می‌شود)" },
+  en: { logoAlt: (name) => `${name} logo`, newTab: "(opens in a new tab)" },
+  ar: { logoAlt: (name) => `شعار ${name}`, newTab: "(يُفتح في علامة تبويب جديدة)" },
 };

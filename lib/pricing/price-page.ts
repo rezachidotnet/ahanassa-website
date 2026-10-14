@@ -191,15 +191,69 @@ export function buildPriceTableRows(locale: PriceLocale, templates: readonly Pri
   return rows.map(({ position: _p, order: _o, ...row }) => row);
 }
 
+/** Options of the price page filter. `factoriesByFamily`: per family, the factories with rows of it (table order). */
+export interface PriceFilterOptions {
+  families: { value: string; label: string }[];
+  factories: string[];
+  factoriesByFamily: Record<string, string[]>;
+}
+
 /** Filter options, in first-seen (table) order, without duplicates. */
-export function filterOptions(rows: readonly PriceTableRow[]): { families: { value: string; label: string }[]; factories: string[] } {
+export function filterOptions(rows: readonly PriceTableRow[]): PriceFilterOptions {
   const families = new Map<string, string>();
   const factories = new Set<string>();
+  const byFamily = new Map<string, Set<string>>();
   for (const r of rows) {
     if (!families.has(r.familyCode)) families.set(r.familyCode, r.familyLabel);
-    if (r.factory) factories.add(r.factory);
+    const familyFactories = byFamily.get(r.familyCode) ?? byFamily.set(r.familyCode, new Set()).get(r.familyCode)!;
+    if (r.factory) {
+      factories.add(r.factory);
+      familyFactories.add(r.factory);
+    }
   }
-  return { families: [...families].map(([value, label]) => ({ value, label })), factories: [...factories] };
+  return {
+    families: [...families].map(([value, label]) => ({ value, label })),
+    factories: [...factories],
+    factoriesByFamily: Object.fromEntries([...byFamily].map(([code, set]) => [code, [...set]])),
+  };
+}
+
+/** The price page filter's state; "" = همه / all. */
+export interface PriceFilterState {
+  family: string;
+  factory: string;
+}
+
+/** W17.1 — the factories the factory select offers: all of them for no family, else only those with rows of that family. */
+export function factoriesForFamily(options: PriceFilterOptions, family: string): string[] {
+  return family ? (options.factoriesByFamily[family] ?? []) : options.factories;
+}
+
+/** A valid state: an unknown family becomes all, and a factory with no rows of the chosen family is reset to all. */
+export function reconcilePriceFilter(options: PriceFilterOptions, state: PriceFilterState): PriceFilterState {
+  const family = options.families.some((f) => f.value === state.family) ? state.family : "";
+  const factory = factoriesForFamily(options, family).includes(state.factory) ? state.factory : "";
+  return { family, factory };
+}
+
+/** Query keys of the filter (`/prices?family=REBAR&factory=…`). robots.txt disallows `/*?`, so these never index. */
+export const PRICE_FILTER_QUERY = { family: "family", factory: "factory" } as const;
+
+/** The filter state a `location.search` asks for, reconciled (a stale or hand-edited link falls back to all). */
+export function parsePriceFilterQuery(search: string, options: PriceFilterOptions): PriceFilterState {
+  const q = new URLSearchParams(search);
+  return reconcilePriceFilter(options, { family: q.get(PRICE_FILTER_QUERY.family) ?? "", factory: q.get(PRICE_FILTER_QUERY.factory) ?? "" });
+}
+
+/** `search` with the filter keys written from `state` (all = key removed), other keys kept; "" or "?…". */
+export function priceFilterSearch(search: string, state: PriceFilterState): string {
+  const q = new URLSearchParams(search);
+  for (const key of ["family", "factory"] as const) {
+    if (state[key]) q.set(PRICE_FILTER_QUERY[key], state[key]);
+    else q.delete(PRICE_FILTER_QUERY[key]);
+  }
+  const out = q.toString();
+  return out ? `?${out}` : "";
 }
 
 /** The newest price time of the table (the page's «آخرین به‌روزرسانی»), or null when empty. */
