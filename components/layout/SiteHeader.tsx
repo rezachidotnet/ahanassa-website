@@ -145,7 +145,7 @@ export function SiteHeader({
         <div className={cn("container-x flex items-center justify-between gap-3 xl:gap-4 transition-[height] duration-[180ms] motion-reduce:transition-none", "h-[72px] lg:h-20", scrolled && "lg:h-[68px]")}>
           <Link href={localizedPath(locale, "/")} aria-label={siteConfig.name} className="relative flex shrink-0 items-center gap-2 after:absolute after:-inset-0.5 after:content-[''] lg:gap-1.5 xl:gap-2.5">
             {/* No official horizontal lockup asset exists in this repository yet
-                (verified: only a square mark, public/brand/ahan-asa-mark.jpg —
+                (verified: only a square mark, public/_originals/brand/ahan-asa-mark.jpg —
                 identical files under logo/ confirm no separate wordmark
                 lockup exists either) — the frozen spec's §46.4/§58.5 exact
                 horizontal-lockup width targets (~140px/~128px) could not be

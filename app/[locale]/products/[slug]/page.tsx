@@ -22,6 +22,8 @@ import { sparklineSeries, tehranDay } from "@/lib/pricing/price-history";
 import { PRICE_RFQ_COPY, priceRfqHref } from "@/lib/pricing/price-rfq";
 import { PriceSparkline } from "@/components/products/price-sparkline";
 import { ProductRelatedLinks } from "@/components/products/product-related-links";
+import { GroupServicesBox } from "@/components/group/group-services-box";
+import { showGroupServices } from "@/lib/content/company";
 import { sortVariantsBySize } from "@/lib/catalog/specification-presenter";
 import type { ProductVariant } from "@/lib/catalog/types";
 
@@ -222,6 +224,13 @@ export default async function ProductDetailPage({ params }: PageProps) {
 
       {/* W16.3 (D-SEO): category, sibling grades, price hub, calculator, articles (components/products/product-related-links.tsx). */}
       <ProductRelatedLinks locale={locale} templateXid={product.templateXid} slug={slug} groupCode={variants[0]?.group.code ?? null} />
+
+      {/* W16.6: «خدمات مکمل گروه» on beam, box/profile and coated-sheet products only (lib/content/company.ts). */}
+      {showGroupServices(variants.flatMap((v) => [v.family.code, v.group.code, v.form.code, v.group.name, v.form.name])) && (
+        <section className="border-border bg-background border-b section-y">
+          <GroupServicesBox locale={locale} className="container-x" />
+        </section>
+      )}
 
       <CtaBand locale={locale} />
       <ProductAnalytics locale={locale} slug={slug} groupCode={variants[0]?.group.code ?? null} />

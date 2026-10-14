@@ -45,6 +45,8 @@ export interface VerifyTurnstileOptions {
   expectedHostnames?: readonly string[];
   /** RFQ Worker: an absent `action` is rejected, not only a wrong one. Default false (legacy route). */
   requireAction?: boolean;
+  /** The widget action this endpoint accepts. Default TURNSTILE_RFQ_ACTION (rfq_submit); W13.3 extract uses TURNSTILE_EXTRACT_ACTION. */
+  expectedAction?: string;
 }
 
 export async function verifyTurnstileToken(token: unknown, options: VerifyTurnstileOptions = {}): Promise<TurnstileOutcome> {
@@ -83,10 +85,11 @@ export async function verifyTurnstileToken(token: unknown, options: VerifyTurnst
     if (data.success !== true) {
       return { ok: false, reason: "invalid" };
     }
-    if (data.action !== undefined && data.action !== TURNSTILE_RFQ_ACTION) {
+    const expectedAction = options.expectedAction ?? TURNSTILE_RFQ_ACTION;
+    if (data.action !== undefined && data.action !== expectedAction) {
       return { ok: false, reason: "invalid" };
     }
-    if (options.requireAction && data.action !== TURNSTILE_RFQ_ACTION) {
+    if (options.requireAction && data.action !== expectedAction) {
       return { ok: false, reason: "invalid" };
     }
     if (options.expectedHostnames && (typeof data.hostname !== "string" || !options.expectedHostnames.includes(data.hostname))) {

@@ -31,7 +31,7 @@ GitHub Actions schedule (every 15 min, best-effort)                         — 
 - **The same channel covers the other workflows.** A failed `content-publish` run (step failure, decrease-gate block, automatic rollback) carries `ALERT: content <step> failed` / `ALERT: content publish rolled back`. A red `rfq-ci-reconciler` run (RFQ undelivered > 30 min) also e-mails.
 - **Repeats.** An unresolved ALERT fails every run, so expect one e-mail per run (about every 15 min) until it clears. A green run does not e-mail.
 - **Caveats** (GitHub, not this repo):
-  - **Schedules are best-effort.** Runs can be delayed or dropped under load. On 2026-10-03/04 the hourly reconciler ran at 21:23, 00:43 and 07:00 only. The check window therefore starts at the previous run's start (minus 5 min), up to 24 h, so a late run still covers the gap. A run that never happens is caught by the dead-man's switch (§1a).
+  - **Schedules are best-effort.** Runs can be delayed or dropped under load. On 2026-10-03/04 the hourly reconciler ran at 21:23, 00:43 and 07:00 only. The check window therefore starts at the start of the previous completed run of the same job (minus 5 min), up to 24 h, so a late run still covers the gap. Since W9.7 that run is found job by job over every page of runs (a run whose other job was cancelled or held still counts), and with none in the last 24 h the window is the full 24 h — never the 15-minute minimum. A run that never happens is caught by the dead-man's switch (§1a).
   - **Public repositories:** GitHub disables scheduled workflows after 60 days without repository activity. It e-mails a warning first. Re-enable in Actions → workflow → *Enable workflow*.
 
 ## 1a. Reliable dispatch and dead-man's switch (W6.1)

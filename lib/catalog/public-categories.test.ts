@@ -8,6 +8,8 @@ import { fetchPublicCategoriesForLocale } from "./category-sync.ts";
 import { categoryListingPath, categoryPathSegment, findCategoryByCode, findCategoryByPathSegment, legacyCategoryQueryTarget, parseCategoryRow, resolveCategoryGroupCodes, toPublicCatalogCategory } from "./public-categories.ts";
 import { groupCodeSetClause } from "./catalog-filters.ts";
 import { CATEGORY_IMAGE_PATHS, resolveCategoryMedia } from "./media-registry.ts";
+import { IMAGE_VARIANTS } from "../media/image-variants.generated.ts";
+import { IMAGE_FORMATS, ORIGINALS_DIR, variantPath } from "../media/image-sources.ts";
 import { buildReplaceCatalogPublicCategoriesSql } from "./sync-sql.ts";
 import { getDirection, localizedPath } from "../../config/locales.ts";
 
@@ -225,10 +227,15 @@ test("a category Odoo adds later without an approved photo gets the neutral fall
 
 test("every mapped image exists on disk, is readable and non-empty; src is URL-safe", () => {
   assert.equal(CATEGORY_IMAGE_PATHS.length, 7);
+  // W16.5: a raster photo's original lives in public/_originals/ (never published) and public/ serves its AVIF/WebP variants; the SVG is served as-is.
   for (const p of [...CATEGORY_IMAGE_PATHS, "/images/products/steel-placeholder.svg"]) {
-    const file = resolve(ROOT, "public", `.${p}`);
-    accessSync(file, constants.R_OK);
-    assert.ok(statSync(file).size > 0, `${p} must not be empty`);
+    const variants = IMAGE_VARIANTS[p];
+    const files = variants ? [resolve(ROOT, ORIGINALS_DIR, `.${p}`), ...variants.widths.flatMap((w) => IMAGE_FORMATS.map((f) => resolve(ROOT, "public", `.${variantPath(p, w, f)}`)))] : [resolve(ROOT, "public", `.${p}`)];
+    assert.ok(variants || p.endsWith(".svg"), `${p}: a raster photo must have published variants`);
+    for (const file of files) {
+      accessSync(file, constants.R_OK);
+      assert.ok(statSync(file).size > 0, `${file} must not be empty`);
+    }
   }
   assert.equal(resolveCategoryMedia("ANGLE").src, "/images/products/angle%20inventory.jpg");
   assert.equal(resolveCategoryMedia("CHANNEL").src, "/images/products/u%20channel.jpg");

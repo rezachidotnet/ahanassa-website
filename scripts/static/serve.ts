@@ -3,13 +3,17 @@
  * semantics that matter for tests (html_handling "auto-trailing-slash",
  * not_found_handling "404-page"): /x -> x.html or x/index.html; unknown ->
  * nearest 404.html with status 404. Query strings are ignored, like the
- * real asset router. Test/CI tooling only.
+ * real asset router. Test/CI tooling only. W16.7: a request with
+ * `Accept: text/markdown` gets the page's `.md` mirror, as the zone's URL
+ * rewrite rules do in production (lib/static/markdown-mirror.ts); every
+ * response says `Vary: Accept`.
  */
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import { MARKDOWN_CONTENT_TYPE, markdownRequestPath } from "../../lib/static/markdown-mirror.ts";
 
-const TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".txt": "text/plain", ".xml": "application/xml", ".webp": "image/webp", ".ico": "image/x-icon" };
+const TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".txt": "text/plain", ".xml": "application/xml", ".webp": "image/webp", ".ico": "image/x-icon", ".md": MARKDOWN_CONTENT_TYPE };
 
 export function resolveAsset(root: string, urlPath: string): { file: string; status: number } {
   const clean = decodeURIComponent(urlPath.split("?")[0]).replace(/\/+$/, "") || "/";
@@ -30,12 +34,15 @@ export function resolveAsset(root: string, urlPath: string): { file: string; sta
 export function startStaticServer(root: string, port = 0): Promise<{ url: string; close: () => void }> {
   const absRoot = path.resolve(root);
   const server = http.createServer((req, res) => {
-    const { file, status } = resolveAsset(absRoot, req.url ?? "/");
+    const raw = req.url ?? "/";
+    const q = raw.indexOf("?");
+    const served = markdownRequestPath(q === -1 ? raw : raw.slice(0, q), req.headers.accept);
+    const { file, status } = resolveAsset(absRoot, served);
     if (!file) {
       res.writeHead(404).end("Not Found");
       return;
     }
-    res.writeHead(status, { "content-type": TYPES[path.extname(file)] ?? "application/octet-stream" });
+    res.writeHead(status, { "content-type": TYPES[path.extname(file)] ?? "application/octet-stream", vary: "Accept" });
     fs.createReadStream(file).pipe(res);
   });
   return new Promise((resolve) => server.listen(port, "127.0.0.1", () => resolve({ url: `http://127.0.0.1:${(server.address() as { port: number }).port}`, close: () => server.close() })));

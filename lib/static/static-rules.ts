@@ -32,8 +32,14 @@ export type StaticEnvironment = "staging" | "production";
 export const IMMUTABLE_CACHE_CONTROL = "public, max-age=31536000, immutable";
 /** Cloudflare's limit on rules in one `_headers` file (Workers static assets). */
 export const MAX_HEADER_RULES = 100;
+/**
+ * W16.7 (owner decision: allow all three): the Content Signals policy (contentsignals.org), sent as a response
+ * header on every path and as a `Content-Signal:` line in each robots.txt group. `Vary: Accept` because a request
+ * with `Accept: text/markdown` is answered from the page's `.md` mirror (lib/static/markdown-mirror.ts).
+ */
+export const CONTENT_SIGNAL = "search=yes, ai-input=yes, ai-train=yes";
 export function buildHeadersFile(env: StaticEnvironment, rfqApiOrigin: string, staticAssetPaths: readonly string[] = []): string {
-  const lines = ["/*", ...buildSecurityHeaders([rfqApiOrigin]).map(([name, value]) => `  ${name}: ${value}`)];
+  const lines = ["/*", ...buildSecurityHeaders([rfqApiOrigin]).map(([name, value]) => `  ${name}: ${value}`), `  Content-Signal: ${CONTENT_SIGNAL}`, "  Vary: Accept"];
   if (env === "staging") lines.push("  X-Robots-Tag: noindex, nofollow");
   const noindex = new Set<string>(env === "production" ? PRODUCTION_NOINDEX_HEADER_PATHS : []);
   for (const p of [...staticAssetPaths].sort()) {
@@ -125,7 +131,7 @@ export function buildRedirectsFile(routeRedirects: readonly RouteRedirectInput[]
 }
 
 /** `.assetsignore`: defence in depth — these must never be uploaded even if present (the artifact gate also rejects them). */
-export const ASSETS_IGNORE_PATTERNS = [".vite/", "*.rsc", "*.sql", "private-snapshot/", "manifest.json"] as const;
+export const ASSETS_IGNORE_PATTERNS = [".vite/", "*.rsc", "*.sql", "private-snapshot/", "manifest.json", "_originals/"] as const;
 export function buildAssetsIgnoreFile(): string {
   return `${ASSETS_IGNORE_PATTERNS.join("\n")}\n`;
 }
@@ -144,7 +150,7 @@ export interface RobotsInput {
 export function renderRobotsTxt(robots: RobotsInput): string {
   const list = (v: string | string[] | undefined) => (v === undefined ? [] : Array.isArray(v) ? v : [v]);
   const blocks = (Array.isArray(robots.rules) ? robots.rules : [robots.rules]).map((rule) =>
-    [...list(rule.userAgent ?? "*").map((ua) => `User-Agent: ${ua}`), ...list(rule.allow).map((a) => `Allow: ${a}`), ...list(rule.disallow).map((d) => `Disallow: ${d}`)].join("\n"),
+    [...list(rule.userAgent ?? "*").map((ua) => `User-Agent: ${ua}`), `Content-Signal: ${CONTENT_SIGNAL}`, ...list(rule.allow).map((a) => `Allow: ${a}`), ...list(rule.disallow).map((d) => `Disallow: ${d}`)].join("\n"),
   );
   const sitemaps = list(robots.sitemap).map((s) => `Sitemap: ${s}`);
   return `${[blocks.join("\n\n"), ...(sitemaps.length ? [sitemaps.join("\n")] : [])].join("\n\n")}\n`;

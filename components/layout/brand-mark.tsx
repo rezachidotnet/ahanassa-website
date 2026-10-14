@@ -2,7 +2,7 @@
  * The Ahan Asa logo mark as inline SVG — the same two polygons and colours
  * W10.2 traced from logo/AhanAsa logo-13.jpg for the favicon (pixel IoU
  * navy 0.994, copper 0.996), with the viewBox cropped to the mark itself
- * (90 × 70). The square JPEG (public/brand/ahan-asa-mark.jpg) carries the
+ * (90 × 70). The square JPEG (original: public/_originals/brand/ahan-asa-mark.jpg) carries the
  * mark at only 57% of its width inside white padding, so at the same box
  * size this SVG shows the mark ~1.75× larger (W10.4). Size it by width;
  * the height follows the 9:7 aspect ratio.

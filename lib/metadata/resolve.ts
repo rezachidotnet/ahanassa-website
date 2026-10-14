@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { locales, defaultLocale, localeConfig, localizedPath, type Locale } from "../../config/locales.ts";
 import { siteConfig } from "./site.ts";
+import { BRAND_MARK_LOGO_PATH } from "../media/image-sources.ts";
 
 /**
  * Foundation metadata resolver.
@@ -84,7 +85,8 @@ export function buildLanguageAlternatesFromEntries(entries: { locale: Locale; pa
  * W16.2 (D-SEO): the share image of every page without its own (an article has its cover): the brand
  * mark, a 1200×1200 copy of public/brand/ahan-asa-mark.jpg. Square, so the Twitter card is `summary`.
  */
-export const DEFAULT_SHARE_IMAGE = { path: "/brand/ahan-asa-mark-1200.jpg", width: 1200, height: 1200 } as const;
+// The W16.5 image pipeline publishes the brand mark as a 512 px JPEG (the same file the Organization JSON-LD logo uses).
+export const DEFAULT_SHARE_IMAGE = { path: BRAND_MARK_LOGO_PATH, width: 512, height: 512 } as const;
 
 export function buildCanonicalUrl(locale: Locale, path: string): string {
   return `${siteConfig.baseUrl}${localizedPath(locale, path)}`;

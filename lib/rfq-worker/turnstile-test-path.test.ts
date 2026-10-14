@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stagingTurnstileTestPath } from "../../workers/rfq/test-routes.ts";
+import { stagingTurnstileExtractTestPath, stagingTurnstileTestPath } from "../../workers/rfq/test-routes.ts";
 import type { RfqWorkerEnv } from "./config.ts";
 
 const SITEVERIFY = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
@@ -22,6 +22,11 @@ test("staging Turnstile test path: off unless TURNSTILE_TEST_MODE=1; accepts ONL
     assert.deepEqual(await (await p.fetchImpl!(SITEVERIFY, { method: "POST", body: "x" })).json(), { ...next, hostname: "static.example", action: "rfq_submit" });
     next = { success: true, hostname: "static.example", action: "rfq_submit" }; // a real-key result is NOT accepted on this path
     assert.equal(((await (await p.fetchImpl!(SITEVERIFY, { method: "POST" })).json()) as { success: boolean }).success, false);
+    // W13.3: the extract endpoint's test path completes the result with ITS action.
+    next = { success: true, hostname: "example.com", metadata: { result_with_testing_key: true } };
+    const extract = stagingTurnstileExtractTestPath({ ...env, TURNSTILE_TEST_MODE: "1" });
+    assert.equal(((await (await extract.fetchImpl!(SITEVERIFY, { method: "POST" })).json()) as { action: string }).action, "rfq_extract");
+    assert.deepEqual(stagingTurnstileExtractTestPath(env), { env });
     next = { success: false, metadata: { result_with_testing_key: true } };
     assert.equal(((await (await p.fetchImpl!(SITEVERIFY, { method: "POST" })).json()) as { success: boolean }).success, false);
   } finally {

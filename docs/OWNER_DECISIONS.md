@@ -73,6 +73,12 @@ D-DAR-063 and D-SCHEDULE are implemented now (W9.1). D-PRICE and D-ARTICLES are 
 | **D-RFQ-FILE-5** | **File-only RFQ allowed:** no item row required when at least one file was accepted. | Contract, validator, form. Odoo still requires one line, so the delivery sends one marked placeholder line (`FILE_ONLY_PLACEHOLDER`, 1 ton, "not the customer's quantity"). |
 | **D-RFQ-FILE-6** | **HEIC:** set the input's accept list so iPhone Safari uploads JPEG; if HEIC still arrives, accept it (Odoo marks it manual-reading). | `RFQ_FILE_ACCEPT` no longer lists HEIC; the server allow-list still does. |
 
+## Decisions of 2026-10-13 (W13.3 instant item extraction)
+
+| # | Decision (as given) | Effect |
+|---|---|---|
+| **D-RFQ-EXTRACT** | **When a customer attaches a photo/PDF/Excel/CSV of their list, the form fills the item rows within seconds; the customer reviews/edits and submits. The original file is still uploaded (W13.1, private R2) and sent to Odoo with the RFQ.** Turnstile + per-IP limit, same file checks as W13.1; Excel/CSV read deterministically; photo/PDF via Workers AI with strict JSON validated server-side; lines matched to the published catalog; low-confidence rows marked «لطفاً بررسی کنید», not-in-catalog rows kept as free text; failure never blocks submit; provenance in the existing item note («از فایل: …», "edited by customer") — no contract change; no prices; `file_upload` + `rfq_extract` events. Code + PR only; production stays off. | `docs/RFQ_INSTANT_EXTRACT.md` (PR for W13.3). Amends D-RFQ-FILE's "no file content is ever rendered back": the rows read from a file are shown **to the person who attached it**, in their own form, as plain text — nowhere else. Design choices made in W13.3 and listed there for the owner's review: typed lists are read in the browser; the Worker returns a picture's transcript and the browser parses it (Workers Free CPU), the text model only for prose; every row read from a picture is marked for review (measured digit misreads). |
+
 ## Decisions of 2026-10-12 (W13.1 RFQ file upload)
 
 | # | Decision (as given) | Effect |
@@ -98,6 +104,16 @@ Answers to the five owner decisions of the W10.0 design review. Implemented in W
 | **D-W10-3** | **Keep Estedad.** | No font change (`lib/fonts/estedad.ts`). |
 | **D-W10-4** | **Build the Price block now as a component wired to a typed prop, but render it on no page yet** (pricing data arrives in a later task). Persian pages only. Shows: price in Toman per kg; «شامل ارزش افزوده» (always true); the factory name; the delivery location (e.g. «درب کارخانه» / «انبار تهران»); the date and age; the change since the last price (only when present); the fixed line «برای قیمت روز استعلام بگیرید»; an RFQ CTA. Never an empty value, never the source website, never JSON-LD offers. A "missing price" variant shows only «استعلام قیمت» + the RFQ CTA. | `components/products/price-block.tsx` + `lib/pricing/price-block-presentation.ts` (typed `PriceBlockData`, which has no source field). Incomplete data falls back to the missing-price variant. The age is computed in the browser (`price-age.tsx`). Change is shown in neutral colours. Not imported by any page (a test enforces it until the pricing task wires it). |
 | **D-W10-5** | **Calculator URL `/tools/weight-calculator`.** Build only the home-page CTA block component now, not rendered until the calculator ships. | `components/home/calculator-cta.tsx` (`WEIGHT_CALCULATOR_PATH`), fa/en/ar, no price in the block, not rendered (a test enforces it). The task that ships the calculator places it after the Hero and adds the section-order note to `docs/HOMEPAGE_RANKING.md`. |
+
+## Decisions of 2026-10-09 (W9.7 release simplification)
+
+| # | Decision (as given) | Effect |
+|---|---|---|
+| **D-W97-1** | **Owner routine: Claude opens a PR → the owner merges → staging builds automatically → the owner taps Approve (phone) → www.** No terminal command. | `content-publish.yml` on `main` starts on a successful `CI` push run of `feat/v11-static-site` (`workflow_run`), publishes staging, then `publish-production` waits in `production-v11` (required reviewer unchanged). Still startable by hand (`target=production-prep`). The 02:17 nightly is unchanged. `RELEASE_POLICY.md` §20.1, §20.7. |
+| **D-W97-2** | **Risk classes: LOW = only styles/CSS, images/icons, copy/message files (explicit allowlist); anything else = HIGH.** LOW: no blocking 24 h observation; automatic rollback (previous Worker version + publication pointer) if ops-health production ALERTs within 24 h. HIGH: the §20 path. | `.github/scripts/v11-release-risk.mjs` (on `main`), `v11-release-watch.yml`. `RELEASE_POLICY.md` §20.1a, §20.8. |
+| **D-W97-3** | **The 08:00 UTC content publish builds the code LIVE on www, never the older STABLE_100; it never downgrades code.** Nobody disables `content-publish.yml` during an observation. | `.github/scripts/v11-live-release.mjs` (production publish state = `v11-live-release` artifacts). `RELEASE_POLICY.md` §19 (update), §20.5. |
+| **D-W97-4** | **STABLE_100 appended automatically (bot PR) after 24 h without a production ALERT; ROLLED_BACK row on an automatic rollback.** | `v11-release-watch.yml` job `ledger`; the owner's merge of the PR is the §12 attestation. `RELEASE_POLICY.md` §20.3, §20.8. |
+| **D-W97-5** | **Price-source names: a CI secret list; the scan fails the build on a finding and never prints a name.** **01-sources override (this cleanup only):** the files naming sources are copied to the private content repository and the names removed here; git history is not rewritten. | Secret `AHANASSA_PRICE_SOURCE_NAMES` → `AHANASSA_PRICE_SOURCE_NAMES_FILE` (artifact gate) + tracked-tree scan. `RELEASE_POLICY.md` §20.9. |
 
 ## Architecture §19 — status of every owner decision
 

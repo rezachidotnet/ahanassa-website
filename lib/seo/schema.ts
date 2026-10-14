@@ -2,6 +2,7 @@ import { siteConfig } from "../metadata/site.ts";
 import { CONTACT_PHONE_E164 } from "../content/contact-channels.ts";
 import { PARENT_ORGANIZATION, WORKING_HOURS } from "../content/company.ts";
 import type { Locale } from "../../config/locales.ts";
+import { BRAND_MARK_LOGO_PATH } from "../media/image-sources.ts";
 
 /**
  * The confirmed office address (PROJECT_OVERRIDES.md §7 item 6) in each
@@ -84,8 +85,9 @@ export function organizationSchema(locale: Locale = "fa") {
     alternateName: siteConfig.alternateName,
     url: siteConfig.baseUrl,
     parentOrganization: parentOrganizationSchema(locale),
-    // The full brand mark (byte-identical to the former app/icon.jpg, which W10.2 replaced with sized favicons).
-    logo: `${siteConfig.baseUrl}/brand/ahan-asa-mark.jpg`,
+    // The full brand mark (the former app/icon.jpg, which W10.2 replaced with sized favicons), as the
+    // 512 px JPEG the image pipeline publishes (W16.5; the 4500 px original is no longer served).
+    logo: `${siteConfig.baseUrl}${BRAND_MARK_LOGO_PATH}`,
     // Confirmed address (PROJECT_OVERRIDES.md §7 item 6), now rendered in
     // the footer and contact page — safe to add per this file's own rule.
     address: {

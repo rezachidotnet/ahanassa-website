@@ -19,3 +19,13 @@ Every price-showing block (hubs, `/prices` sections, category/product hub checks
 **Open:**
 - The RFQ form has no raw-material option. Raw-material pages link to `/contact`, and the buyer describes the material in the list or notes.
 - Footer links (calculator, raw materials) were left out, to keep away from the footer/header PRs.
+
+## Group links (W16.6)
+
+| What | Where |
+|---|---|
+| Footer, every page and locale: one line «آهن آسا، عضو گروه فضاسازه نقش جهان · شرکت‌های گروه». The group name links to fazasazeh.ir; «شرکت‌های گروه» links to `/about#group`. The sister sites are not linked site-wide | `components/layout/SiteFooter.tsx` |
+| «خدمات مکمل گروه» box, linking SiPanel (hall/shed cladding) and Aviz Sazeh (hall suspended ceilings) by brand name: beam and box/profile category and product pages, and coated sheet (galvanized, PPGI) once the catalog has it | `components/group/group-services-box.tsx`, `showGroupServices` |
+| AiSanat: linked only from `/about` | `app/[locale]/about/page.tsx` |
+
+Names, URLs, copy and the page rule live in `lib/content/company.ts`; tests in `lib/static/group-links-w166.test.ts`.

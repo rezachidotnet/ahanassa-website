@@ -191,7 +191,11 @@ export const ABOUT_COPY: Record<Locale, AboutPageCopy> = {
 
 /**
  * Photo slots (owner brief: ~/claude-reports/ahanassa/about-photos/ was empty on 2026-10-13, so none ship).
- * Add WebP files under public/images/about/ (≤ 1600 px wide, < 200 KB, provenance per PROJECT_OVERRIDES §6.2)
- * with an alt text per locale; the page renders the gallery only when this list is non-empty.
+ * To add one (W16.5 image pipeline, docs/performance/IMAGE_PIPELINE.md): put the original under
+ * public/_originals/images/about/ (provenance per PROJECT_OVERRIDES §6.2), list its public path
+ * (/images/about/<name>.jpg) in lib/media/image-sources.ts#OPTIMIZED_IMAGE_SOURCES with role "gallery", run
+ * scripts/images/build-variants.ts, and add it here with the generated width/height and an alt text per locale.
+ * The page renders it through components/ui/image.tsx (AVIF/WebP srcset, lazy) and only when this list is
+ * non-empty; lib/media/image-variants.test.ts fails on a src with no variants.
  */
 export const ABOUT_PHOTOS: ReadonlyArray<{ src: string; width: number; height: number; alt: Record<Locale, string> }> = [];

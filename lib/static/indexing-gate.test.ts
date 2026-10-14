@@ -37,9 +37,9 @@ function site(env: "staging" | "production") {
 
 test("D6 policy: robots disallows only the technical paths; every non-indexable class has a reason", () => {
   assert.deepEqual([...PRODUCTION_ROBOTS_DISALLOW], ["/api/", "/static-404", "/*?"]);
-  assert.equal(PRODUCTION_ROBOTS_TXT, "User-Agent: *\nAllow: /\nDisallow: /api/\nDisallow: /static-404\nDisallow: /*?\n\nSitemap: https://www.ahanassa.com/sitemap.xml\n");
+  assert.equal(PRODUCTION_ROBOTS_TXT, "User-Agent: *\nContent-Signal: search=yes, ai-input=yes, ai-train=yes\nAllow: /\nDisallow: /api/\nDisallow: /static-404\nDisallow: /*?\n\nSitemap: https://www.ahanassa.com/sitemap.xml\n");
   for (const n of NON_INDEXABLE) assert.ok(n.what && n.how && n.why);
-  assert.equal(STAGING_ROBOTS_TXT, "User-Agent: *\nDisallow: /\n");
+  assert.equal(STAGING_ROBOTS_TXT, "User-Agent: *\nContent-Signal: search=yes, ai-input=yes, ai-train=yes\nDisallow: /\n");
 });
 
 test("pageUrl maps files to public URLs and excludes the 404 pages", () => {

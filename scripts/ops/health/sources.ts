@@ -125,11 +125,37 @@ interface Run {
   created_at: string;
 }
 
-/** Start of this workflow's previous run (any outcome but cancelled/skipped), excluding the current run. */
-export async function previousRunStart(auth: GitHubAuth, workflow: string, currentRunId: string | undefined): Promise<string | null> {
-  const { workflow_runs } = await gh<{ workflow_runs: Run[] }>(auth, `/actions/workflows/${workflow}/runs?per_page=10`);
-  const prev = workflow_runs.find((r) => String(r.id) !== currentRunId && r.status === "completed" && r.conclusion !== "cancelled" && r.conclusion !== "skipped");
-  return prev?.run_started_at ?? null;
+interface RunJob {
+  name: string;
+  status: string;
+  conclusion: string | null;
+  started_at: string | null;
+}
+
+/**
+ * Start of the previous run of THIS target's job (`jobName`) that completed with success or failure, excluding the
+ * current run; null when there is none since `notBefore` (the caller then checks the full maximum window).
+ *
+ * W9.7 fix (W9.1c finding): the old lookup read only the last 10 runs of the workflow and skipped every run that
+ * was not "completed" — 10 runs cancelled or held behind a stuck staging job collapsed the window to 15 min, and
+ * hours of analytics were never evaluated. Now: newest first, page by page back to `notBefore`; a successful run
+ * counts as is; any other run is read job by job (per-job concurrency: this job can finish while the other job of
+ * the same run is still waiting, or was cancelled).
+ */
+export async function previousJobStart(auth: GitHubAuth, workflow: string, jobName: string, currentRunId: string | undefined, notBefore: Date, maxPages = 10): Promise<string | null> {
+  for (let page = 1; page <= maxPages; page++) {
+    const { workflow_runs } = await gh<{ workflow_runs: Run[] }>(auth, `/actions/workflows/${workflow}/runs?per_page=100&page=${page}`);
+    for (const r of workflow_runs) {
+      if (String(r.id) === currentRunId) continue;
+      if (Date.parse(r.run_started_at) < notBefore.getTime()) return null;
+      if (r.status === "completed" && r.conclusion === "success") return r.run_started_at;
+      const { jobs } = await gh<{ jobs: RunJob[] }>(auth, `/actions/runs/${r.id}/jobs?per_page=20`);
+      const job = jobs.find((j) => j.name === jobName);
+      if (job?.status === "completed" && (job.conclusion === "success" || job.conclusion === "failure") && job.started_at) return job.started_at;
+    }
+    if (workflow_runs.length < 100) return null;
+  }
+  return null;
 }
 
 export interface JobStep {

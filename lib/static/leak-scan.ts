@@ -71,9 +71,9 @@ export interface LeakFinding {
 }
 
 export function fileLocale(path: string): "fa" | "en" | "ar" | null {
-  if (/^\/?en(\/|\.html$|$)/.test(path) || /\.en\.json$/.test(path)) return "en";
-  if (/^\/?ar(\/|\.html$|$)/.test(path) || /\.ar\.json$/.test(path)) return "ar";
-  if (/\.(html|json)$/.test(path)) return "fa";
+  if (/^\/?en(\/|\.(html|md)$|$)/.test(path) || /\.en\.json$/.test(path)) return "en";
+  if (/^\/?ar(\/|\.(html|md)$|$)/.test(path) || /\.ar\.json$/.test(path)) return "ar";
+  if (/\.(html|json|md)$/.test(path)) return "fa";
   return null;
 }
 

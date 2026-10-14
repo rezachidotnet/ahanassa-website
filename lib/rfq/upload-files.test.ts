@@ -7,7 +7,10 @@ const noSleep = async () => {};
 test("filesEndpointFor + capability: enabled only on a well-formed enabled:true answer; errors and 404 mean no upload field", async () => {
   assert.equal(filesEndpointFor("https://api.ahanassa.com/api/rfqs"), "https://api.ahanassa.com/api/rfqs/files");
   const on = (async () => Response.json({ ok: true, enabled: true, maxFiles: 5, maxFileBytes: 15728640, extensions: [] })) as typeof fetch;
-  assert.deepEqual(await fetchFilesCapability("x", on), { enabled: true, maxFiles: 5, maxFileBytes: 15728640 });
+  // An older Worker without `extract`: nothing is read, files are only attached.
+  assert.deepEqual(await fetchFilesCapability("x", on), { enabled: true, maxFiles: 5, maxFileBytes: 15728640, extract: { lists: false, pictures: false } });
+  const reading = (async () => Response.json({ ok: true, enabled: true, maxFiles: 5, maxFileBytes: 15728640, extensions: [], extract: { lists: true, pictures: "yes" } })) as typeof fetch;
+  assert.deepEqual((await fetchFilesCapability("x", reading))?.extract, { lists: true, pictures: false }, "only a literal true switches reading on");
   assert.equal(await fetchFilesCapability("x", (async () => Response.json({ ok: true, enabled: false })) as typeof fetch), null);
   assert.equal(await fetchFilesCapability("x", (async () => new Response("no", { status: 404 })) as typeof fetch), null);
   assert.equal(await fetchFilesCapability("x", (async () => { throw new TypeError("offline"); }) as typeof fetch), null);

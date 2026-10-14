@@ -1,10 +1,12 @@
-import Image from "next/image";
+import Image from "@/components/ui/image";
+import { BRAND_MARK_SRC } from "@/lib/media/image-sources";
 import Link from "@/components/ui/link";
 import { cn } from "@/lib/utils";
 import { localizedPath, type Locale } from "@/config/locales";
 import { siteConfig } from "@/lib/metadata/site";
 import { visibleNavLinks, headerPhoneLabel } from "@/lib/content/nav";
 import { CONTACT_PHONE_DISPLAY, CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
+import { ABOUT_GROUP_ANCHOR, GROUP_FOOTER_COPY, PARENT_ORGANIZATION } from "@/lib/content/company";
 
 /**
  * Global footer — four-column composition matches
@@ -22,7 +24,8 @@ import { CONTACT_PHONE_DISPLAY, CONTACT_PHONE_E164 } from "@/lib/content/contact
  * use, so those links were removed rather than rewired to a guessed
  * mapping; only the truthful "full catalog" destination remains. Incoterms
  * are standard published trade terms, not a company-specific claim, so the
- * tag row is kept.
+ * tag row is kept. W16.6: one group line in the bottom bar (the parent group's site and /about#group, from
+ * lib/content/company.ts) — the sister companies' own sites are never linked site-wide.
  */
 const copy: Record<
   Locale,
@@ -74,6 +77,7 @@ const incotermCodes = ["FOB", "CFR", "CIF", "FCA", "DAP", "EXW"];
 export function SiteFooter({ locale, hasArticles = false }: { locale: Locale; hasArticles?: boolean }) {
   const t = copy[locale];
   const links = visibleNavLinks(locale, hasArticles);
+  const group = GROUP_FOOTER_COPY[locale];
 
   return (
     <footer aria-labelledby="site-footer-title" className="bg-navy on-inverse text-white">
@@ -83,7 +87,7 @@ export function SiteFooter({ locale, hasArticles = false }: { locale: Locale; ha
       <div className="container-x grid gap-12 py-16 md:grid-cols-2 lg:grid-cols-12 lg:py-20">
         <div className="lg:col-span-4">
           <div className="flex items-center gap-2.5">
-            <Image src="/brand/ahan-asa-mark.jpg" alt="" aria-hidden="true" width={32} height={32} className="rounded-[var(--aa-radius-xs)]" />
+            <Image src={BRAND_MARK_SRC} alt="" aria-hidden="true" width={32} height={32} className="rounded-[var(--aa-radius-xs)]" />
             <span className="text-[15px] font-extrabold tracking-[0.06em] text-white">{siteConfig.name}</span>
           </div>
           <p className="mt-6 max-w-xs text-on-inverse-muted text-sm leading-relaxed">{t.role}</p>
@@ -145,6 +149,17 @@ export function SiteFooter({ locale, hasArticles = false }: { locale: Locale; ha
         <div className="container-x flex flex-col gap-3 py-6 text-on-inverse-muted text-xs sm:flex-row sm:items-center sm:justify-between">
           <p>
             &copy; {new Date().getFullYear()} {t.rights} {siteConfig.name} ({siteConfig.legalOwner})
+          </p>
+          <p data-footer-group="">
+            {group.before}
+            <a href={PARENT_ORGANIZATION.url} className="hover:text-white underline underline-offset-4">
+              {PARENT_ORGANIZATION.name[locale]}
+            </a>
+            {group.after}
+            {" · "}
+            <Link href={`${localizedPath(locale, "/about")}#${ABOUT_GROUP_ANCHOR}`} className="hover:text-white underline underline-offset-4">
+              {group.companies}
+            </Link>
           </p>
         </div>
       </div>

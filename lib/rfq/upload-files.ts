@@ -13,6 +13,8 @@ export interface FilesCapability {
   enabled: boolean;
   maxFiles: number;
   maxFileBytes: number;
+  /** W13.3: whether the form reads an attached list into rows (typed lists in the browser; pictures/PDFs via /api/rfqs/extract). */
+  extract: { lists: boolean; pictures: boolean };
 }
 
 export type UploadOutcome = "received" | "rejected" | "failed";
@@ -35,7 +37,9 @@ export async function fetchFilesCapability(filesEndpoint: string, fetchImpl: typ
     if (!res.ok) return null;
     const body = (await res.json()) as Partial<FilesCapability> & { ok?: boolean };
     if (body.enabled !== true || typeof body.maxFiles !== "number" || typeof body.maxFileBytes !== "number") return null;
-    return { enabled: true, maxFiles: body.maxFiles, maxFileBytes: body.maxFileBytes };
+    // An older Worker sends no `extract`: nothing is read, the files are only attached (W13.1).
+    const extract = { lists: body.extract?.lists === true, pictures: body.extract?.pictures === true };
+    return { enabled: true, maxFiles: body.maxFiles, maxFileBytes: body.maxFileBytes, extract };
   } catch {
     return null;
   }
