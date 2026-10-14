@@ -144,7 +144,9 @@ export function categoryReplaceBatches(tables: SnapshotV1["tables"], maxBytes = 
   for (const locale of ["fa", "en", "ar"] as const) {
     const rows = tables.catalog_public_categories.filter((c) => c.locale === locale);
     if (!rows.length) continue;
-    const batch = batchStatements([`DELETE FROM catalog_public_categories WHERE locale = ${sqlLiteral(locale)}`, ...rows.map((r) => insert("catalog_public_categories", r as unknown as Record<string, SqlParam>))], maxBytes);
+    // W9.8: form_codes_json is build-only (BUILD_ONLY_SNAPSHOT_COLUMNS) — DB_PUBLIC has no such column.
+    const d1Row = ({ form_codes_json: _buildOnly, ...r }: (typeof rows)[number]) => r as unknown as Record<string, SqlParam>;
+    const batch = batchStatements([`DELETE FROM catalog_public_categories WHERE locale = ${sqlLiteral(locale)}`, ...rows.map((r) => insert("catalog_public_categories", d1Row(r)))], maxBytes);
     if (batch.length !== 1) throw new Error(`categories ${locale} do not fit one atomic batch`);
     out.push(batch[0]);
   }

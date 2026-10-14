@@ -57,6 +57,11 @@ export const EXPORT_COPY: Record<ExportLocale, ExportCopy> = {
       BOX_SECTION: "Square and rectangular hollow sections",
       SHEET_PLATE: "Hot-rolled sheet and plate",
       PIPE: "Seamless pipe ASTM A106",
+      // W17.4: the W9.8 flat categories (listed only once Odoo publishes them).
+      GALVANIZED_SHEET: "Galvanized steel coil and sheet DX51D+Z",
+      PREPAINTED_SHEET: "Pre-painted galvanized coil (PPGI)",
+      HOT_ROLLED_COIL: "Hot-rolled coil S235JR",
+      COLD_ROLLED: "Cold-rolled coil and sheet DC01",
     },
     stepsTitle: "How to request",
     steps: [
@@ -92,6 +97,10 @@ export const EXPORT_COPY: Record<ExportLocale, ExportCopy> = {
       BOX_SECTION: "الحديد المربع والمستطيل (العلب)",
       SHEET_PLATE: "الصاج والألواح المدرفلة على الساخن",
       PIPE: "الأنابيب غير الملحومة ASTM A106",
+      GALVANIZED_SHEET: "الصاج المجلفن (لفائف وألواح DX51D+Z)",
+      PREPAINTED_SHEET: "الصاج المطلي مسبقاً (PPGI)",
+      HOT_ROLLED_COIL: "لفائف الصاج الأسود المدرفلة على الساخن S235JR",
+      COLD_ROLLED: "الصاج المدرفل على البارد (لفائف وألواح DC01)",
     },
     stepsTitle: "كيف تطلب",
     steps: [

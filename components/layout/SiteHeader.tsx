@@ -9,7 +9,7 @@ import { categoryListingPath } from "@/lib/catalog/public-categories";
 import { siteConfig } from "@/lib/metadata/site";
 import { visibleNavLinks, primaryCta, headerPhoneLabel, dropdownViewAllLabel, dropdownDisclosureAccessibleName } from "@/lib/content/nav";
 import { CONTACT_PHONE_DISPLAY, CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
-import { HeaderNavDisclosure } from "@/components/layout/header-nav-disclosure";
+import { HeaderNavDisclosure, type NavDisclosureItem } from "@/components/layout/header-nav-disclosure";
 import { HeaderLanguageSelector } from "@/components/layout/header-language-selector";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { BrandMark } from "@/components/layout/brand-mark";
@@ -116,7 +116,9 @@ export function SiteHeader({
   // `/products?category=` link (also used by the Homepage Showcase and the
   // mobile drawer), and /products resolves the code to Odoo's group_codes.
   // Locale-prefixed, so /en and /ar visitors stay in their own locale.
-  const productItems = productFamilies.map((f) => ({ code: f.code, name: f.name, path: localizedPath(locale, categoryListingPath(f.code)) }));
+  // W17.4: a family entry («ورق») has no listing of its own — only its children link (same builder, f.code).
+  const productItem = (f: HeaderProductFamilyShortcut): NavDisclosureItem => ({ code: f.code, name: f.name, path: localizedPath(locale, categoryListingPath(f.code)), children: f.children?.map(productItem) });
+  const productItems = productFamilies.map(productItem);
   // No `/services/<slug>` route exists yet (P6 §8, deliberately deferred —
   // do not fabricate one here); every group links to the same real,
   // existing `/services` destination (unprefixed — a pre-existing P6

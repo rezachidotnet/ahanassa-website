@@ -41,6 +41,8 @@ interface Family {
   code: string;
   groups: string[];
   words: string[];
+  /** W17.4: a family read from qualifier words, pooled by public category (its rows share SHEET_PLATE with black plate, so the group cannot tell them apart). */
+  categories?: string[];
 }
 
 // Word keys are compared after matchKey (no spaces, unified letters, آ → ا).
@@ -55,8 +57,42 @@ const FAMILIES: Family[] = [
 ];
 
 /** Steel the catalog does not carry, whatever the family word says. */
-const NOT_CARRIED_KEY = /(?:استیل|گالوانیزه|گالوانیز|الومینیوم|الومنیوم|مسی|برنجی|پلیاتیلن|رنگی|روغنی|سردنورد|اسیدشویی|هاش|بالپهن|کاروگیت|عرشه|ضدزنگ|ضدسایش)/u;
-const NOT_CARRIED_WORD = /(?<![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿0-9٠-٩۰-۹])(?:stainless|inox|ss\d{3}|galvani[sz]ed|galv|gi|alumin(?:i)?um|copper|brass|pvc|hdpe|ppgi|pre-?painted|cold[\s-]?rolled|crc|hea|heb|hem|wide[\s-]?flange|corrugated)(?![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿])/u;
+const NOT_CARRIED_KEY = /(?:استیل|الومینیوم|الومنیوم|مسی|برنجی|پلیاتیلن|اسیدشویی|هاش|بالپهن|کاروگیت|عرشه|ضدزنگ|ضدسایش)/u;
+const NOT_CARRIED_WORD = /(?<![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿0-9٠-٩۰-۹])(?:stainless|inox|ss\d{3}|alumin(?:i)?um|copper|brass|pvc|hdpe|hea|heb|hem|wide[\s-]?flange|corrugated)(?![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿])/u;
+
+/**
+ * W17.4 — the W9.8 flat lines (Odoo ahanassa_catalog_flat_raw), read from their qualifier words before the
+ * family word («ورق گالوانیزه» is galvanized, not black sheet). Order matters: pre-painted sheet is
+ * galvanized too. A qualifier on any other family («لوله گالوانیزه», «پروفیل رنگی») is still steel the
+ * catalog does not carry. A line of a flat category Odoo has not published finds an empty pool and stays
+ * `not_in_catalog`.
+ */
+const FLAT_FAMILIES: { family: Family; key: RegExp; word: RegExp }[] = [
+  { family: { code: "PREPAINTED_SHEET", groups: [], words: [], categories: ["PREPAINTED_SHEET"] }, key: /(?:رنگی|پیشرنگ|مطلی)/u, word: /(?<![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿0-9٠-٩۰-۹])(?:ppgi|pre-?painted|colou?r[\s-]?coated)(?![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿])/u },
+  { family: { code: "GALVANIZED_SHEET", groups: [], words: [], categories: ["GALVANIZED_SHEET"] }, key: /(?:گالوانیزه|گالوانیز|مجلفن)/u, word: /(?<![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿0-9٠-٩۰-۹])(?:galvani[sz]ed|galv|gi|dx51d(?:\+z)?)(?![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿])/u },
+  { family: { code: "COLD_ROLLED", groups: [], words: [], categories: ["COLD_ROLLED"] }, key: /(?:روغنی|سردنورد|نوردسرد|کلافسرد|علیالبارد)/u, word: /(?<![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿0-9٠-٩۰-۹])(?:cold[\s-]?rolled|crc|dc01|st\s?-?12)(?![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿])/u },
+];
+const HOT_ROLLED_COIL: Family = { code: "HOT_ROLLED_COIL", groups: [], words: [], categories: ["HOT_ROLLED_COIL"] };
+const COIL_KEY = /(?:کلاف|رول|لفائف|لفه)/u;
+const COIL_WORD = /(?<![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿0-9٠-٩۰-۹])(?:coils?|hrc)(?![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿])/u;
+const HOT_KEY = /(?:گرم|سیاه|ساخن)/u;
+const HOT_WORD = /(?<![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿0-9٠-٩۰-۹])(?:hot[\s-]?rolled|hrc)(?![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿])/u;
+const CUT_SHEET_KEY = /(?:شیت|برشخورده|الواحمقطوعه)/u;
+const CUT_SHEET_WORD = /(?<![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿0-9٠-٩۰-۹])(?:sheets?|cut[\s-]?to[\s-]?length)(?![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿])/u;
+/** The same qualifiers on a family that is not a flat line: coated or cold-rolled goods the catalog does not carry. */
+const COATED_OR_COLD_KEY = /(?:گالوانیزه|گالوانیز|رنگی|روغنی|سردنورد)/u;
+const COATED_OR_COLD_WORD = /(?<![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿0-9٠-٩۰-۹])(?:galvani[sz]ed|galv|gi|ppgi|pre-?painted|cold[\s-]?rolled|crc)(?![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿])/u;
+
+/** The flat line a sheet/coil line names, or null. Only a sheet line, or a line with no family word, can be one. */
+function flatFamilyOf(everything: string, base: Family | null): Family | null {
+  if (base && base.code !== "SHEET_PLATE") return null;
+  const key = matchKey(everything);
+  for (const f of FLAT_FAMILIES) if (f.key.test(key) || f.word.test(everything)) return f.family;
+  const coil = COIL_KEY.test(key) || COIL_WORD.test(everything);
+  // «ورق سیاه رول», «کلاف گرم», "HRC": a sheet line with a coil word, or a coil word with a hot-rolled word.
+  if (coil && (base !== null || HOT_KEY.test(key) || HOT_WORD.test(everything))) return HOT_ROLLED_COIL;
+  return null;
+}
 const SEAMLESS = /(?:مانیسمان|مانسمان|بدوندرز|seamless|smls|a106|sch\d|api5l)/u;
 
 /** Grade/type words → a token of the product's template slug (stable across locales). */
@@ -73,8 +109,8 @@ const SUBTYPES: { family: string; token: string; pattern: RegExp }[] = [
   { family: "SHEET_PLATE", token: "s355", pattern: /(?<![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿0-9٠-٩۰-۹])(?:s355(?:jr|j0|j2)?|st\s?-?52(?:-3)?)(?![0-9٠-٩۰-۹])/u },
 ];
 
-/** Grade/standard/schedule tokens whose digits are not sizes («A3», «ST37», «SCH40», «A106»). */
-const NON_SIZE_TOKENS = /(?<![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿0-9٠-٩۰-۹])(?:aj?\d{1,3}|aiii|aii|aiv|st\s?-?\d{2}(?:-\d)?|s\d{3}(?:jr|j0|j2)?|sch\s?\d{2,3}|a\d{3}(?:\s?gr\.?\s?[ab])?|api\s?5l|din\s?\d+|en\s?\d+|astm|grade\s?[ab]|گرید\s?[ab])(?![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿0-9٠-٩۰-۹])/gu;
+/** Grade/standard/schedule tokens whose digits are not sizes («A3», «ST37», «SCH40», «A106», W17.4 «DX51D+Z», «DC01»). */
+const NON_SIZE_TOKENS = /(?<![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿0-9٠-٩۰-۹])(?:aj?\d{1,3}|aiii|aii|aiv|st\s?-?\d{2}(?:-\d)?|s\d{3}(?:jr|j0|j2)?|sch\s?\d{2,3}|a\d{3}(?:\s?gr\.?\s?[ab])?|api\s?5l|din\s?\d+|en\s?\d+|dx\d{2}d(?:\+z)?|dc0\d|astm|grade\s?[ab]|گرید\s?[ab])(?![A-Za-zÀ-ɏء-يٮ-ۓەۺ-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿0-9٠-٩۰-۹])/gu;
 
 /** Nominal pipe size (inch) → outside diameter, mm (ASME B36.10). */
 const NPS_OD: Record<string, number> = { "0.5": 21.3, "0.75": 26.7, "1": 33.4, "1.25": 42.2, "1.5": 48.3, "2": 60.3, "2.5": 73.0, "3": 88.9, "3.5": 101.6, "4": 114.3, "5": 141.3, "6": 168.3, "8": 219.1, "10": 273.1, "12": 323.9 };
@@ -192,12 +228,17 @@ export function matchLine(line: ExtractedLine, catalog: readonly PublicRfqCatalo
   const words = [line.product, line.size, line.grade, line.standard].filter(Boolean).join(" ") || line.rawText;
   const everything = normText(`${words} ${line.rawText}`);
   const none = (confidence: number, dims: number[] = []): LineMatch => ({ status: "not_in_catalog", variant: null, categoryCode: null, templateXid: null, dims, candidates: 0, confidence });
-  const family = familyOf(line.product ?? "") ?? familyOf(words) ?? familyOf(line.rawText);
+  const base = familyOf(line.product ?? "") ?? familyOf(words) ?? familyOf(line.rawText);
+  const flat = flatFamilyOf(everything, base);
+  const family = flat ?? base;
   if (!family) return none(0.6);
   if (NOT_CARRIED_KEY.test(matchKey(everything)) || NOT_CARRIED_WORD.test(everything)) return none(0.9);
+  if (!flat && (COATED_OR_COLD_KEY.test(matchKey(everything)) || COATED_OR_COLD_WORD.test(everything))) return none(0.9);
   if (family.code === "PIPE" && !SEAMLESS.test(matchKey(everything))) return none(0.8); // the catalog carries seamless pipe only
 
-  let pool = catalog.filter((item) => item.groupCode !== null && family.groups.includes(item.groupCode));
+  let pool = family.categories
+    ? catalog.filter((item) => item.publicCategoryCode !== null && family.categories!.includes(item.publicCategoryCode))
+    : catalog.filter((item) => item.groupCode !== null && family.groups.includes(item.groupCode));
   if (!pool.length) return none(0.9);
   const subtypes = SUBTYPES.filter((s) => s.family === family.code && s.pattern.test(everything));
   const subtypeStated = subtypes.length === 1;
@@ -206,6 +247,13 @@ export function matchLine(line: ExtractedLine, catalog: readonly PublicRfqCatalo
     if (!pool.length) return none(0.85);
   }
   const dims = lineDims(line, family.code);
+  if (flat) {
+    // W17.4: «رول/کلاف/coil» keeps the coils (FLAT_COILS), «شیت/sheet/برش» the cut sheets — when the category has both.
+    const key = matchKey(everything);
+    const want = COIL_KEY.test(key) || COIL_WORD.test(everything) ? "FLAT_COILS" : CUT_SHEET_KEY.test(key) || CUT_SHEET_WORD.test(everything) ? "SHEET_PLATE" : null;
+    const narrowed = want ? pool.filter((item) => item.groupCode === want) : [];
+    if (narrowed.length) pool = narrowed;
+  }
   if (family.code === "HOLLOW" && dims.length >= 2) {
     // «قوطی ۴۰×۴۰» is square (SHS), «قوطی ۶۰×۴۰» rectangular (RHS).
     const group = close(dims[0], dims[1]) ? "SHS" : "RHS";

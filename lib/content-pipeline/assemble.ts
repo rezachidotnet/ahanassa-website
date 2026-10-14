@@ -195,6 +195,7 @@ export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivat
         position,
         sequence: c.sequence,
         group_codes_json: JSON.stringify(c.group_codes),
+        form_codes_json: JSON.stringify(c.form_codes ?? []),
         template_count: c.template_count,
         variant_count: c.variant_count,
         synced_at: syncedAt,

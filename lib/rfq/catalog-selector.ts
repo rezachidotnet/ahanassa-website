@@ -46,11 +46,13 @@ export function attachRfqPublicCategories(
   items: RfqCatalogSelection[],
   categories: PublicCatalogCategory[],
   locale: "fa" | "en" | "ar",
+  /** W9.8: variantXid -> `product_variants.form_code`, so a Form-level category (e.g. GALVANIZED_SHEET) claims its rows out of SHEET_PLATE. Server-side only — never part of the selection or public JSON. */
+  formCodes: Readonly<Record<string, string | null>> = {},
 ): { items: RfqSelectableCatalogItem[]; unresolvedGroupCodes: string[] } {
   const index = indexPublicCategoriesByGroupCode(categories);
   const unresolved = new Set<string>();
   const withPosition = items.map((item) => {
-    const category = resolveRfqPublicCategory(index, locale, item.groupCode, item.categoryLabel);
+    const category = resolveRfqPublicCategory(index, locale, item.groupCode, item.categoryLabel, formCodes[item.variantXid] ?? null);
     if (!category.resolved) unresolved.add(item.groupCode ?? "(none)");
     return { position: category.position, item: { ...item, publicCategoryCode: category.code, publicCategoryLabel: category.label } };
   });

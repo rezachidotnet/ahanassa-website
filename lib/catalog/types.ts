@@ -210,12 +210,17 @@ export interface HomepageProductCandidate {
  * `code` is the stable website key (links, React keys, media lookup);
  * `groupCodes` is the set of `product_variants.group_code` values the
  * category covers, used verbatim for /products filtering.
+ * `formCodes` (W9.8, Odoo ahanassa_marketplace 19.0.53.0.0) narrows a
+ * category to those Forms of its groups — e.g. GALVANIZED_SHEET takes the
+ * GALVANIZED Form out of SHEET_PLATE — and is empty for a group-level
+ * category; `categoryContainsVariant` is the one membership rule.
  */
 export interface PublicCatalogCategory {
   code: string;
   name: string;
   sequence: number;
   groupCodes: string[];
+  formCodes: string[];
   templateCount: number;
   variantCount: number;
 }

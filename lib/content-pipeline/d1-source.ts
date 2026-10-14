@@ -1,4 +1,4 @@
-import { BUILD_ONLY_SNAPSHOT_TABLES, SNAPSHOT_TABLES, type SnapshotV1 } from "../contracts/snapshot-v1.ts";
+import { BUILD_ONLY_SNAPSHOT_COLUMNS, BUILD_ONLY_SNAPSHOT_TABLES, SNAPSHOT_TABLES, type SnapshotV1 } from "../contracts/snapshot-v1.ts";
 
 /**
  * The DB_PUBLIC side of a publish, read READ-ONLY before the build:
@@ -38,7 +38,9 @@ export interface D1Source {
 export const D1_SOURCE_TABLES = (Object.keys(SNAPSHOT_TABLES) as (keyof typeof SNAPSHOT_TABLES)[]).filter((t) => !BUILD_ONLY_SNAPSHOT_TABLES.has(t));
 
 export function selectTableSql(table: keyof typeof SNAPSHOT_TABLES): string {
-  const columns = Object.keys((SNAPSHOT_TABLES[table] as unknown as { shape: Record<string, unknown> }).shape);
+  // W9.8: a build-only column (e.g. categories' form_codes_json) has no DB_PUBLIC column to select.
+  const buildOnly = BUILD_ONLY_SNAPSHOT_COLUMNS[table] ?? [];
+  const columns = Object.keys((SNAPSHOT_TABLES[table] as unknown as { shape: Record<string, unknown> }).shape).filter((c) => !buildOnly.includes(c));
   return `SELECT ${columns.map((c) => `"${c}"`).join(", ")} FROM "${table}"`;
 }
 

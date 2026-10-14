@@ -29,6 +29,11 @@ the DB_PUBLIC load and the RFQ Worker's `rfq_variant_index`. Code twin: `lib/con
 - **Rows mirror DB_PUBLIC column for column** (migrations_public 0001–0011), so the build loads them
   into the real schema and the unchanged repository SQL renders the pages. Strict: an unknown column
   (e.g. `cost_price`) fails validation.
+- **Build-only column (W17.4):** `catalog_public_categories.form_codes_json` carries Odoo `form_codes`
+  (W9.8, ahanassa_marketplace 19.0.53.0.0: a category may take single Forms of a group, e.g.
+  GALVANIZED_SHEET takes GALVANIZED out of SHEET_PLATE). It exists only in the build's in-memory database
+  (`BUILD_ONLY_COLUMNS_DDL`), never in the remote DB_PUBLIC: the daily publish neither selects nor writes it
+  there (`BUILD_ONLY_SNAPSHOT_COLUMNS`), so no remote migration is needed. Absent = no form mappings.
 - **Required tables:** categories (fa/en/ar), products (templates), variants, SEO rows, processing groups.
   Optional (default `[]`): route redirects, homepage rank, group labels. Sync-state/lease tables are
   internal and never in a snapshot.
@@ -52,7 +57,7 @@ Row types (abridged; full in code):
 
 | Table | Key columns |
 |---|---|
-| `catalog_public_categories` | `code` (`[A-Z0-9_]`), `locale`, `name`, `position`, `sequence`, `group_codes_json`, `template_count`, `variant_count`, `synced_at` |
+| `catalog_public_categories` | `code` (`[A-Z0-9_]`), `locale`, `name`, `position`, `sequence`, `group_codes_json`, `form_codes_json` (optional, build-only — see below), `template_count`, `variant_count`, `synced_at` |
 | `catalog_products` | `id`, `template_xid` (CTMPL), `commercial_template_name`, `name_fa`, `slug_fa`, `is_active`, `is_public`, … |
 | `product_variants` | `id`, `product_id`, `xid` (CVAR), `sku`, sizes, family/group/form/grade/standard codes and names, `dimensions_json`, `nominal_weight_json`, `allowed_commercial_units`, flags, … |
 | `product_seo_contents` | `entity_type`, `entity_id`, `locale`, `slug`, `h1`, `intro`, `seo_title`, `seo_description`, `index_status`, `content_quality_status`, `published_at`, … |

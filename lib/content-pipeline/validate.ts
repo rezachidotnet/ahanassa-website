@@ -3,6 +3,7 @@ import { GATED_COUNTS, PIPELINE_CONFIG } from "./config.ts";
 import type { OdooSource } from "./odoo-source.ts";
 import { validatePricing, type PricingOutcome } from "./pricing.ts";
 import { validatePricingHistory } from "./pricing-history.ts";
+import { categoryContainsVariant, claimedFormCodes, toPublicCatalogCategory } from "../catalog/public-categories.ts";
 
 /**
  * Architecture V1.1 §7.1 step 2: schema, relations and counts of one full
@@ -89,35 +90,52 @@ export function validateSource(odoo: OdooSource, tables: Tables, previousCounts:
     for (const [kind, code] of refs) if (code && !metaCodes[kind].has(code)) errors.push(`products: ${p.sku}: ${kind} ${code} is not in /meta`);
   }
 
-  // Categories: same set, order and group mapping in every locale; counts consistent with the products.
+  // Categories: same set, order and group/form mapping in every locale; counts consistent with the products.
   const fa = odoo.categories.fa;
   for (const locale of LOCALES) {
     const rows = odoo.categories[locale];
     if (rows.length === 0) errors.push(`categories ${locale}: empty`);
-    const sig = (r: (typeof rows)[number]) => `${r.code}|${r.sequence}|${r.group_codes.join(",")}|${r.template_count}|${r.variant_count}`;
-    if (rows.map(sig).join(";") !== fa.map(sig).join(";")) errors.push(`categories ${locale}: code/sequence/group_codes/counts differ from fa`);
+    const sig = (r: (typeof rows)[number]) => `${r.code}|${r.sequence}|${r.group_codes.join(",")}|${(r.form_codes ?? []).join(",")}|${r.template_count}|${r.variant_count}`;
+    if (rows.map(sig).join(";") !== fa.map(sig).join(";")) errors.push(`categories ${locale}: code/sequence/group_codes/form_codes/counts differ from fa`);
     for (const r of rows) {
       if (!r.name.trim()) errors.push(`categories ${locale}: ${r.code}: empty name`);
       if (locale === "en" && ARABIC_SCRIPT.test(r.name)) errors.push(`categories en: ${r.code}: name "${r.name}" is not English (Persian/Arabic text on en)`);
       if (locale === "ar" && PERSIAN_SPECIFIC.test(r.name)) errors.push(`categories ar: ${r.code}: name "${r.name}" contains Persian-only letters`);
     }
   }
-  const categoryOfGroup = new Map<string, string>();
-  for (const c of fa) {
-    for (const g of c.group_codes) {
-      if (categoryOfGroup.has(g)) errors.push(`categories: group ${g} is in both ${categoryOfGroup.get(g)} and ${c.code}`);
-      categoryOfGroup.set(g, c.code);
+  // W9.8: a category may name Forms of a group (GALVANIZED_SHEET takes GALVANIZED out of SHEET_PLATE), so
+  // membership is the variant's (group, form) under the most-specific-mapping rule Odoo applies
+  // (lib/catalog/public-categories.ts#categoryContainsVariant) — the same rule the build renders with.
+  // Two group-level categories sharing a group, or two categories claiming one Form, stay errors.
+  const faCategories = fa.map(toPublicCatalogCategory);
+  const claimed = claimedFormCodes(faCategories);
+  const groupLevelOwner = new Map<string, string>();
+  const formOwner = new Map<string, string>();
+  for (const c of faCategories) {
+    for (const g of c.groupCodes) {
+      if (c.formCodes.length === 0) {
+        if (groupLevelOwner.has(g)) errors.push(`categories: group ${g} is in both ${groupLevelOwner.get(g)} and ${c.code}`);
+        groupLevelOwner.set(g, c.code);
+      }
       if (!metaCodes.group.has(g)) warnings.push(`categories: ${c.code} lists group ${g}, which has no active products in /meta`);
     }
-    const inCategory = odoo.products.filter((p) => p.classification.group.code && c.group_codes.includes(p.classification.group.code));
+    for (const f of c.formCodes) {
+      if (formOwner.has(f)) errors.push(`categories: form ${f} is in both ${formOwner.get(f)} and ${c.code}`);
+      formOwner.set(f, c.code);
+    }
+  }
+  const categoryOfProduct = (p: (typeof odoo.products)[number]) =>
+    faCategories.find((c) => categoryContainsVariant(c, claimed, p.classification.group.code, p.classification.form.code))?.code;
+  for (const c of faCategories) {
+    const inCategory = odoo.products.filter((p) => categoryContainsVariant(c, claimed, p.classification.group.code, p.classification.form.code));
     const templateCount = new Set(inCategory.map((p) => p.canonical_template_id)).size;
-    if (inCategory.length !== c.variant_count) errors.push(`categories: ${c.code}: Odoo says ${c.variant_count} variants, the fetched products give ${inCategory.length}`);
-    if (templateCount !== c.template_count) errors.push(`categories: ${c.code}: Odoo says ${c.template_count} templates, the fetched products give ${templateCount}`);
+    if (inCategory.length !== c.variantCount) errors.push(`categories: ${c.code}: Odoo says ${c.variantCount} variants, the fetched products give ${inCategory.length}`);
+    if (templateCount !== c.templateCount) errors.push(`categories: ${c.code}: Odoo says ${c.templateCount} templates, the fetched products give ${templateCount}`);
   }
   // Relation variant -> template -> category: a template's variants share one category.
   const categoryByTemplate = new Map<string, Set<string>>();
   for (const p of odoo.products) {
-    const cat = categoryOfGroup.get(p.classification.group.code ?? "") ?? "(none)";
+    const cat = categoryOfProduct(p) ?? "(none)";
     const set = categoryByTemplate.get(p.canonical_template_id) ?? new Set();
     set.add(cat);
     categoryByTemplate.set(p.canonical_template_id, set);

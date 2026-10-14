@@ -15,6 +15,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { artifactManifest } from "../../lib/contracts/artifact-v1.ts";
 import type { OdooSource } from "../../lib/content-pipeline/odoo-source.ts";
+import { categoryContainsVariant, claimedFormCodes, toPublicCatalogCategory } from "../../lib/catalog/public-categories.ts";
 import { describeFiles } from "../../lib/static/artifact-gate.ts";
 import { parseArgs, paths, readJson, workDir, writeJson } from "./common.ts";
 
@@ -33,9 +34,10 @@ if (mode === "remove-family") {
   odoo.products = odoo.products.filter((p) => p.classification.family.code !== family);
   odoo.products_reported_total = odoo.products.length;
   for (const locale of ["fa", "en", "ar"] as const) {
+    const claimed = claimedFormCodes(odoo.categories[locale].map(toPublicCatalogCategory));
     odoo.categories[locale] = odoo.categories[locale]
       .map((c) => {
-        const inCat = odoo.products.filter((p) => p.classification.group.code && c.group_codes.includes(p.classification.group.code));
+        const inCat = odoo.products.filter((p) => categoryContainsVariant(toPublicCatalogCategory(c), claimed, p.classification.group.code, p.classification.form.code));
         return { ...c, variant_count: inCat.length, template_count: new Set(inCat.map((p) => p.canonical_template_id)).size };
       })
       .filter((c) => c.variant_count > 0);
