@@ -9,6 +9,7 @@ import {
   evaluateIntake,
   evaluateOdoo,
   evaluateRfqs,
+  odooFailuresFromAnnotations,
   percentile,
   RFQ_COUNTS_SQL,
   rfqCountsFromRow,
@@ -16,23 +17,25 @@ import {
   unavailable,
   windowStart,
 } from "./checks.ts";
-import { previousJobStart, publishedAt } from "./sources.ts";
+import { previousJob, previousJobStart, publishedAt } from "./sources.ts";
 
 const NOW = new Date("2026-10-04T10:00:00Z");
 const minsAgo = (m: number) => new Date(NOW.getTime() - m * 60_000).toISOString();
 
-test("cron liveness: OK within 15 min, ALERT after, ALERT when no run in the lookback", () => {
-  assert.equal(evaluateCronLiveness("w", minsAgo(14.9), NOW, THRESHOLDS, 24).status, "OK");
-  assert.equal(evaluateCronLiveness("w", minsAgo(15.1), NOW, THRESHOLDS, 24).status, "ALERT");
+test("cron liveness: OK within 20 min (W17.3; was 15), ALERT after, ALERT when no run in the lookback", () => {
+  assert.equal(THRESHOLDS.cronSilentMinutes, 20);
+  assert.equal(evaluateCronLiveness("w", minsAgo(15.1), NOW, THRESHOLDS, 24).status, "OK", "a 15-20 min gap is no longer a false ALERT");
+  assert.equal(evaluateCronLiveness("w", minsAgo(19.9), NOW, THRESHOLDS, 24).status, "OK");
+  assert.equal(evaluateCronLiveness("w", minsAgo(20.1), NOW, THRESHOLDS, 24).status, "ALERT");
   const none = evaluateCronLiveness("w", null, NOW, THRESHOLDS, 24);
   assert.equal(none.status, "ALERT");
   assert.match(none.value, /no scheduled run in 24 h/);
 });
 
-test("cron liveness: the 2026-10-03 gap (last run 17:55:43Z) alerts from the first check after 18:10:43Z", () => {
+test("cron liveness: the 2026-10-03 gap (last run 17:55:43Z) alerts from the first check after 18:15:43Z", () => {
   const last = "2026-10-03T17:55:43Z";
-  assert.equal(evaluateCronLiveness("w", last, new Date("2026-10-03T18:10:00Z"), THRESHOLDS, 24).status, "OK");
-  assert.equal(evaluateCronLiveness("w", last, new Date("2026-10-03T18:15:00Z"), THRESHOLDS, 24).status, "ALERT");
+  assert.equal(evaluateCronLiveness("w", last, new Date("2026-10-03T18:15:00Z"), THRESHOLDS, 24).status, "OK");
+  assert.equal(evaluateCronLiveness("w", last, new Date("2026-10-03T18:16:00Z"), THRESHOLDS, 24).status, "ALERT");
   assert.equal(evaluateCronLiveness("w", last, new Date("2026-10-04T07:15:00Z"), THRESHOLDS, 24).status, "ALERT");
 });
 
@@ -95,11 +98,47 @@ test("content publish: older than 30 h or none found alerts", () => {
   assert.equal(evaluateContentPublish(null, null, NOW, THRESHOLDS).status, "ALERT");
 });
 
-test("Odoo: 200 within 10 s is OK; slow, non-200 or no response alerts", () => {
+test("Odoo: 200 within 10 s is OK; slow, non-200 or no response is a failed check", () => {
   assert.equal(evaluateOdoo({ httpStatus: 200, latencyMs: 4800 }, THRESHOLDS).status, "OK");
-  assert.equal(evaluateOdoo({ httpStatus: 200, latencyMs: 10_001 }, THRESHOLDS).status, "ALERT");
-  assert.equal(evaluateOdoo({ httpStatus: 502, latencyMs: 100 }, THRESHOLDS).status, "ALERT");
-  assert.equal(evaluateOdoo({ httpStatus: null, latencyMs: 10_000, error: "timeout 10000 ms" }, THRESHOLDS).status, "ALERT");
+  assert.equal(evaluateOdoo({ httpStatus: 200, latencyMs: 4800 }, THRESHOLDS, 5).status, "OK", "a pass resets nothing it needs: no counter in its output");
+  for (const p of [{ httpStatus: 200, latencyMs: 10_001 }, { httpStatus: 502, latencyMs: 100 }, { httpStatus: null, latencyMs: 10_000, error: "timeout 10000 ms" }]) {
+    assert.equal(evaluateOdoo(p, THRESHOLDS, 0).status, "WATCH", `first failure: ${JSON.stringify(p)}`);
+    assert.equal(evaluateOdoo(p, THRESHOLDS, 1).status, "ALERT", `second failure in a row: ${JSON.stringify(p)}`);
+  }
+});
+
+test("Odoo (W17.3): ALERT only after 2 consecutive failed checks; the counter round-trips through the annotation", () => {
+  assert.equal(THRESHOLDS.odooConsecutiveFailures, 2);
+  const down = { httpStatus: null, latencyMs: 10_000, error: "timeout 10000 ms" };
+  // run 1: previous run had no Odoo annotation → WATCH, counter 1
+  const r1 = evaluateOdoo(down, THRESHOLDS, odooFailuresFromAnnotations([{ title: "ALERT: cron silent — w", message: "x" }]));
+  assert.equal(r1.status, "WATCH");
+  assert.match(r1.detail ?? "", /consecutive failed checks: 1/);
+  // what GitHub stores for run 1's annotation (title + unescaped message), read back by run 2
+  const asAnnotation = (r: typeof r1) => {
+    const line = annotations([r])[0];
+    const m = /^::(\w+) title=([^:]+)::(.*)$/.exec(line);
+    const unescape = (s: string) => s.replace(/%3A/g, ":").replace(/%2C/g, ",").replace(/%0A/g, "\n").replace(/%0D/g, "\r").replace(/%25/g, "%");
+    return { annotation_level: m![1], title: unescape(m![2]), message: unescape(m![3]) };
+  };
+  const r2 = evaluateOdoo(down, THRESHOLDS, odooFailuresFromAnnotations([asAnnotation(r1)]));
+  assert.equal(r2.status, "ALERT");
+  assert.match(r2.detail ?? "", /consecutive failed checks: 2/);
+  const r3 = evaluateOdoo(down, THRESHOLDS, odooFailuresFromAnnotations([asAnnotation(r2)]));
+  assert.equal(r3.status, "ALERT", "it keeps alerting while Odoo stays down");
+  assert.match(r3.detail ?? "", /consecutive failed checks: 3/);
+  // a passing run leaves no Odoo annotation → the next failure starts again at 1
+  assert.equal(annotations([evaluateOdoo({ httpStatus: 200, latencyMs: 50 }, THRESHOLDS, 2)]).length, 0);
+  assert.equal(evaluateOdoo(down, THRESHOLDS, odooFailuresFromAnnotations([])).status, "WATCH");
+});
+
+test("Odoo (W17.3): an ALERT from before the counter counts as 1; an unreadable history ALERTs at once", () => {
+  assert.equal(odooFailuresFromAnnotations([{ title: "ALERT: Odoo unreachable", message: "HTTP 502 in 80 ms (threshold: 200 within 10 s)" }]), 1);
+  assert.equal(odooFailuresFromAnnotations([{ title: "WATCH: Odoo unreachable", message: "x — consecutive failed checks: 4" }]), 4);
+  assert.equal(odooFailuresFromAnnotations([{ title: "ALERT: published prices stale", message: "consecutive failed checks: 9" }]), 0);
+  const unknown = evaluateOdoo({ httpStatus: 503, latencyMs: 20 }, THRESHOLDS, null);
+  assert.equal(unknown.status, "ALERT");
+  assert.match(unknown.detail ?? "", /previous result unknown/);
 });
 
 test("a source that cannot be read is an ALERT, never a pass", () => {
@@ -254,7 +293,7 @@ test("price age: the production check exists behind a config flag that is OFF; s
 });
 
 // W9.7: the lookback reads THIS target's job, page by page, and never collapses to the 15-minute minimum.
-function fakeGitHub(runs: { id: number; status: string; conclusion: string | null; run_started_at: string }[], jobs: Record<number, { name: string; status: string; conclusion: string | null; started_at: string | null }[]>) {
+function fakeGitHub(runs: { id: number; status: string; conclusion: string | null; run_started_at: string }[], jobs: Record<number, { id?: number; name: string; status: string; conclusion: string | null; started_at: string | null }[]>) {
   const calls: string[] = [];
   const original = globalThis.fetch;
   globalThis.fetch = (async (input: string | URL | Request) => {
@@ -307,4 +346,26 @@ test("lookback: a successful run counts without reading its jobs; nothing in 24 
 test("job names: one per target, as named in ops-health.yml on main (v11-release-watch.yml reads the production one)", () => {
   assert.equal(OPS_TARGETS.staging.opsHealthJobName, "health (staging)");
   assert.equal(OPS_TARGETS.production.opsHealthJobName, "health (production-prep)");
+});
+
+test("previous job (W17.3): returns the job id for the Odoo counter, also for a successful run", async () => {
+  const gh = fakeGitHub(
+    [
+      { id: 9, status: "in_progress", conclusion: null, run_started_at: minsAgo(1) },
+      { id: 8, status: "completed", conclusion: "failure", run_started_at: minsAgo(16) },
+      { id: 7, status: "completed", conclusion: "success", run_started_at: minsAgo(31) },
+    ],
+    {
+      8: [{ name: "health (staging)", status: "completed", conclusion: "failure", started_at: minsAgo(15), id: 801 }, { name: "health (production-prep)", status: "waiting", conclusion: null, started_at: null }],
+      7: [{ name: "health (production-prep)", status: "completed", conclusion: "success", started_at: minsAgo(30), id: 702 }],
+    },
+  );
+  try {
+    const notBefore = new Date(Date.parse(minsAgo(24 * 60)));
+    assert.deepEqual(await previousJob(AUTH, "ops-health.yml", "health (staging)", "9", notBefore), { startedAt: minsAgo(15), jobId: 801 });
+    assert.deepEqual(await previousJob(AUTH, "ops-health.yml", "health (production-prep)", "9", notBefore), { startedAt: minsAgo(31), jobId: 702 }, "the held job of run 8 is skipped; run 7 succeeded");
+    assert.equal(await previousJob(AUTH, "ops-health.yml", "health (staging)", "9", new Date(Date.parse(minsAgo(10)))), null);
+  } finally {
+    gh.restore();
+  }
 });

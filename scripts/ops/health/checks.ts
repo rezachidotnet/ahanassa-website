@@ -198,12 +198,39 @@ export interface OdooProbe {
   error?: string;
 }
 
-export function evaluateOdoo(p: OdooProbe, t: Thresholds): CheckResult {
-  const threshold = `200 within ${t.odooMaxLatencyMs / 1000} s`;
-  const base = { id: "odoo:meta", title: "Odoo unreachable" };
-  if (p.httpStatus === null) return { ...base, value: `no response after ${Math.round(p.latencyMs)} ms (${p.error ?? "error"})`, threshold, status: "ALERT" };
-  const ok = p.httpStatus === 200 && p.latencyMs <= t.odooMaxLatencyMs;
-  return { ...base, value: `HTTP ${p.httpStatus} in ${Math.round(p.latencyMs)} ms`, threshold, status: ok ? "OK" : "ALERT" };
+export const ODOO_TITLE = "Odoo unreachable";
+/** W17.3: the counter, written into the check's detail (and so its annotation) and read back by the next run. */
+const ODOO_COUNTER = /consecutive failed checks: (\d+)/;
+
+/**
+ * W17.3: how many Odoo checks in a row had failed as of the previous completed run of this job, from its annotations
+ * ("WATCH: Odoo unreachable" / "ALERT: Odoo unreachable"). No such annotation = 0; one from before W17.3 (no
+ * counter) = 1.
+ */
+export function odooFailuresFromAnnotations(list: readonly { title: string | null; message: string }[]): number {
+  const a = list.find((x) => x.title === `WATCH: ${ODOO_TITLE}` || x.title === `ALERT: ${ODOO_TITLE}`);
+  if (!a) return 0;
+  const m = ODOO_COUNTER.exec(a.message);
+  return m ? Number(m[1]) : 1;
+}
+
+export const odooOk = (p: OdooProbe, t: Thresholds) => p.httpStatus === 200 && p.latencyMs <= t.odooMaxLatencyMs;
+
+/**
+ * `previousFailures`: failed checks in a row before this one (odooFailuresFromAnnotations), or null when the previous
+ * result could not be read — then a failure ALERTs at once (a check that cannot see its history must not stay quiet).
+ * W17.3: a failure is WATCH until t.odooConsecutiveFailures checks in a row have failed, then ALERT.
+ */
+export function evaluateOdoo(p: OdooProbe, t: Thresholds, previousFailures: number | null = 0): CheckResult {
+  const threshold = `200 within ${t.odooMaxLatencyMs / 1000} s; ALERT after ${t.odooConsecutiveFailures} failed checks in a row`;
+  const base = { id: "odoo:meta", title: ODOO_TITLE };
+  const ok = odooOk(p, t);
+  const value = p.httpStatus === null ? `no response after ${Math.round(p.latencyMs)} ms (${p.error ?? "error"})` : `HTTP ${p.httpStatus} in ${Math.round(p.latencyMs)} ms`;
+  if (ok) return { ...base, value, threshold, status: "OK" };
+  const count = (previousFailures ?? 0) + 1;
+  const detail = `consecutive failed checks: ${count}${previousFailures === null ? " (previous result unknown)" : ""}`;
+  const alert = previousFailures === null || count >= t.odooConsecutiveFailures;
+  return { ...base, value, threshold, status: alert ? "ALERT" : "WATCH", detail };
 }
 
 // 9. Price age (W9.4, D-PRICE-AGE) ----------------------------------------------------------------

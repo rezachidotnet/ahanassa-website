@@ -3,7 +3,7 @@
  * workflow needs no `npm ci`. Every call is a read:
  *   - Cloudflare GraphQL Analytics (token: Account › Account Analytics › Read)
  *   - D1 REST `query` with a single SELECT (token: Account › D1 › Read)
- *   - GitHub REST (GITHUB_TOKEN, `actions: read`)
+ *   - GitHub REST (GITHUB_TOKEN, `actions: read`; W17.3: `checks: read` for the previous job's annotations)
  *   - Odoo GET /api/v1/catalog/meta and (W9.4, when enabled) GET /api/v1/pricing/current (no credentials)
  * Errors carry API messages only — never a token or a response body with data.
  */
@@ -126,6 +126,7 @@ interface Run {
 }
 
 interface RunJob {
+  id?: number;
   name: string;
   status: string;
   conclusion: string | null;
@@ -143,19 +144,60 @@ interface RunJob {
  * the same run is still waiting, or was cancelled).
  */
 export async function previousJobStart(auth: GitHubAuth, workflow: string, jobName: string, currentRunId: string | undefined, notBefore: Date, maxPages = 10): Promise<string | null> {
+  return (await findPreviousJob(auth, workflow, jobName, currentRunId, notBefore, maxPages, false))?.startedAt ?? null;
+}
+
+/**
+ * W17.3: the same previous job as previousJobStart, plus its job id (= its check run id), so a check can read what
+ * that job reported (its annotations). Ops health keeps no state of its own: the previous completed run is the state.
+ * jobId is null only when a successful run does not list the job.
+ */
+export async function previousJob(
+  auth: GitHubAuth,
+  workflow: string,
+  jobName: string,
+  currentRunId: string | undefined,
+  notBefore: Date,
+  maxPages = 10,
+): Promise<{ startedAt: string; jobId: number | null } | null> {
+  return findPreviousJob(auth, workflow, jobName, currentRunId, notBefore, maxPages, true);
+}
+
+async function findPreviousJob(
+  auth: GitHubAuth,
+  workflow: string,
+  jobName: string,
+  currentRunId: string | undefined,
+  notBefore: Date,
+  maxPages: number,
+  needJobId: boolean,
+): Promise<{ startedAt: string; jobId: number | null } | null> {
   for (let page = 1; page <= maxPages; page++) {
     const { workflow_runs } = await gh<{ workflow_runs: Run[] }>(auth, `/actions/workflows/${workflow}/runs?per_page=100&page=${page}`);
     for (const r of workflow_runs) {
       if (String(r.id) === currentRunId) continue;
       if (Date.parse(r.run_started_at) < notBefore.getTime()) return null;
-      if (r.status === "completed" && r.conclusion === "success") return r.run_started_at;
+      const success = r.status === "completed" && r.conclusion === "success";
+      if (success && !needJobId) return { startedAt: r.run_started_at, jobId: null };
       const { jobs } = await gh<{ jobs: RunJob[] }>(auth, `/actions/runs/${r.id}/jobs?per_page=20`);
       const job = jobs.find((j) => j.name === jobName);
-      if (job?.status === "completed" && (job.conclusion === "success" || job.conclusion === "failure") && job.started_at) return job.started_at;
+      if (success) return { startedAt: r.run_started_at, jobId: job?.id ?? null };
+      if (job?.status === "completed" && (job.conclusion === "success" || job.conclusion === "failure") && job.started_at) return { startedAt: job.started_at, jobId: job.id ?? null };
     }
     if (workflow_runs.length < 100) return null;
   }
   return null;
+}
+
+export interface Annotation {
+  annotation_level: string;
+  title: string | null;
+  message: string;
+}
+
+/** W17.3: the annotations a job reported (its check run's). Needs `checks: read`. */
+export async function jobAnnotations(auth: GitHubAuth, jobId: number): Promise<Annotation[]> {
+  return gh<Annotation[]>(auth, `/check-runs/${jobId}/annotations?per_page=100`);
 }
 
 export interface JobStep {

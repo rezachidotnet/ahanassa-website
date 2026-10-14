@@ -6,9 +6,9 @@
 **Domain:** `https://www.ahanassa.com`
 **ERP:** `https://odoo.ahanassa.com`
 **Document role:** Highest-authority record of confirmed decisions that supersede conflicting statements anywhere in the active `01-sources/` corpus or older historical source-layer references
-**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered; customer account/portal future-phase architecture registered 2026-08-28; Odoo RFQ-path version/mapping verified against the live environment 2026-08-28; production D1 jurisdiction (EU) confirmed and production D1 provisioned 2026-08-29; §7.2 phone status corrected 2026-09-13 to reflect the already-live 2026-09-02 owner confirmation (FOOTER-P1); §10's own stale phone-unconfirmed bullet reconciled 2026-09-13 (CI-CD-P1 governance pass); §7.1/§7.2 updated 2026-09-14 with new owner-confirmed phone (`03135134`, superseding the 2026-09-02 mobile number) and address plaque number (HP-CONTENT-P1, staging-only content patch); §8b note 2026-10-08: inner pages move to the rounded look (D-W10-1)
-**Version:** 2.6.0
-**Last updated:** 2026-10-08
+**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered; customer account/portal future-phase architecture registered 2026-08-28; Odoo RFQ-path version/mapping verified against the live environment 2026-08-28; production D1 jurisdiction (EU) confirmed and production D1 provisioned 2026-08-29; §7.2 phone status corrected 2026-09-13 to reflect the already-live 2026-09-02 owner confirmation (FOOTER-P1); §10's own stale phone-unconfirmed bullet reconciled 2026-09-13 (CI-CD-P1 governance pass); §7.1/§7.2 updated 2026-09-14 with new owner-confirmed phone (`03135134`, superseding the 2026-09-02 mobile number) and address plaque number (HP-CONTENT-P1, staging-only content patch); §8b note 2026-10-08: inner pages move to the rounded look (D-W10-1); §15 2026-10-14: a deployment waiting for the owner's approval is auto-approved after 6 h (W17.3)
+**Version:** 2.7.0
+**Last updated:** 2026-10-14
 
 ---
 
@@ -440,6 +440,20 @@ STAGING_WEUR_PLACEMENT_IS_PRODUCTION_POLICY   = false, was never true (reaffirme
 **What this does not close:** the future R2 bucket itself (not created — attachment scanning remains unapproved, §8); production Queue/DLQ producer-consumer wiring to a deployed Worker (no production Worker has been deployed); production secrets (`ODOO_API_KEY`, `TURNSTILE_SECRET_KEY` — not provisioned for `env.production`); the unrelated `ahanassa-odoo-backups` R2 bucket (Odoo-server-side backup infrastructure, outside this website-storage decision, not affected by or relevant to this jurisdiction policy).
 
 **Source:** owner decision recorded via this task's instructions, 2026-08-29. Full audit trail and provisioning evidence: `DOCUMENT_AUDIT_REPORT.md` DAR-032 (supersedes DAR-031's "returned to owner" jurisdiction gate with the approved decision, without rewriting DAR-031's own historical record).
+
+---
+
+## 15. Automatic approval of waiting deployments after 6 h — OWNER-CONFIRMED
+
+```text
+AUTO_APPROVE_AFTER                = 6 h of waiting for the owner's environment approval
+AUTO_APPROVE_SCOPE                = every pending deployment (production-v11, production, any environment with required reviewers)
+AUTO_APPROVE_NEVER_WHEN           = any completed job of the run failed, was cancelled or timed out
+AUTO_APPROVE_REPLACES             = the human wait only — gates, canary, smoke, rollback and observation unchanged
+AUTO_APPROVE_COMMENT              = "auto-approved after 6 h per owner decision"
+```
+
+**Status:** OWNER-CONFIRMED 2026-10-14 (W17.3), approved as a HIGH change. A deployment the owner has neither approved nor rejected after 6 h is approved by `.github/workflows/auto-approve.yml` on `main` with the owner's fine-grained token (secret `AUTO_APPROVE_TOKEN`). The owner's **Reject** within the 6 h still stops a release. The release policy gate, staging provenance, the HIGH canary path and the observation stay exactly as they are; only the wait for a human tap is replaced. Full rule, audit and limits: `docs/release/RELEASE_POLICY.md` §21.
 
 ---
 

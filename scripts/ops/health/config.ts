@@ -115,7 +115,7 @@ export function contentStaleAlertEffective(target: OpsTarget, env: Record<string
 }
 
 export interface Thresholds {
-  /** Last scheduled invocation older than this → ALERT "cron silent". */
+  /** Last scheduled invocation older than this → ALERT "cron silent" (W17.3: 20; 15 raised false alerts). */
   cronSilentMinutes: number;
   /** Oldest undelivered (pending/queued/syncing/retry) RFQ older than this → ALERT. */
   rfqUndeliveredMaxAgeMinutes: number;
@@ -134,6 +134,11 @@ export interface Thresholds {
   /** Odoo GET /api/v1/catalog/meta: abort after, and ALERT above, these. */
   odooTimeoutMs: number;
   odooMaxLatencyMs: number;
+  /**
+   * W17.3: "Odoo unreachable" ALERTs only from this many failed checks in a row (one failed check is WATCH). The count
+   * is carried by the previous completed run's annotation (checks.ts odooFailuresFromAnnotations).
+   */
+  odooConsecutiveFailures: number;
   /** INFO only: reported, never fails the job (GitHub does not guarantee schedule times). */
   reconcilerInfoMaxAgeHours: number;
   /** W9.4 (D-PRICE-AGE): newest published price older than this → ALERT (internal stale-price alert). */
@@ -141,7 +146,7 @@ export interface Thresholds {
 }
 
 export const THRESHOLDS: Thresholds = {
-  cronSilentMinutes: 15,
+  cronSilentMinutes: 20,
   rfqUndeliveredMaxAgeMinutes: 45,
   rfqTerminalFailureMax: 0,
   cpuExceededMax: 0,
@@ -151,6 +156,7 @@ export const THRESHOLDS: Thresholds = {
   contentPublishMaxAgeHours: 30,
   odooTimeoutMs: 10_000,
   odooMaxLatencyMs: 10_000,
+  odooConsecutiveFailures: 2,
   reconcilerInfoMaxAgeHours: 3,
   priceStaleMaxDays: 5,
 };
@@ -177,7 +183,7 @@ export const TEST_FORCE = {
   cpu: { cpuExceededMax: -1 },
   intake: { intake5xxMax: -1 },
   content: { contentPublishMaxAgeHours: 0 },
-  odoo: { odooMaxLatencyMs: 0 },
+  odoo: { odooMaxLatencyMs: 0, odooConsecutiveFailures: 1 },
 } satisfies Record<string, Partial<Thresholds>>;
 
 export type ForceKey = keyof typeof TEST_FORCE;

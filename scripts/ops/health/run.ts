@@ -24,6 +24,8 @@ import {
   evaluatePriceStale,
   evaluateReconciler,
   evaluateRfqs,
+  odooFailuresFromAnnotations,
+  odooOk,
   RFQ_COUNTS_SQL,
   rfqCountsFromRow,
   summaryMarkdown,
@@ -31,7 +33,20 @@ import {
   windowStart,
   type CheckResult,
 } from "./checks.ts";
-import { d1Select, httpByHost, lastRunStart, lastScheduledRun, lastSuccessfulPublish, newestPublishedPrice, previousJobStart, probeOdoo, workerCpu, type CloudflareAuth, type GitHubAuth } from "./sources.ts";
+import {
+  d1Select,
+  httpByHost,
+  jobAnnotations,
+  lastRunStart,
+  lastScheduledRun,
+  lastSuccessfulPublish,
+  newestPublishedPrice,
+  previousJob,
+  probeOdoo,
+  workerCpu,
+  type CloudflareAuth,
+  type GitHubAuth,
+} from "./sources.ts";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -58,8 +73,11 @@ async function main(): Promise<number> {
 
   const earliest = new Date(now.getTime() - WINDOW.maxMinutes * 60_000);
   let previous: string | null = null;
+  let previousJobId: number | null | undefined; // undefined = the lookup failed
   try {
-    previous = await previousJobStart(gh, target.opsHealthWorkflow, target.opsHealthJobName, process.env.GITHUB_RUN_ID, earliest);
+    const job = await previousJob(gh, target.opsHealthWorkflow, target.opsHealthJobName, process.env.GITHUB_RUN_ID, earliest);
+    previous = job?.startedAt ?? null;
+    previousJobId = job ? job.jobId : null;
   } catch {
     previous = null; // the lookup failed: check the full maximum window rather than guess a short one
   }
@@ -113,8 +131,20 @@ async function main(): Promise<number> {
     }
     return evaluateContentPublish(last, active, now, t, contentStaleAlertEffective(target));
   });
-  // 8. Odoo reachability (GET only)
-  results.push(evaluateOdoo(await probeOdoo(ODOO_META_URL, t.odooTimeoutMs), t));
+  // 8. Odoo reachability (GET only). W17.3: ALERT only on the 2nd failed check in a row; the count of the previous
+  // completed run of this job is read from its annotations (only after a failure: a passing check needs no history).
+  const odoo = await probeOdoo(ODOO_META_URL, t.odooTimeoutMs);
+  let odooPrevious: number | null = 0;
+  if (!odooOk(odoo, t)) {
+    try {
+      // No previous completed run in 24 h = no earlier failure on record; a failed lookup = unknown (ALERT at once).
+      if (previousJobId === undefined) odooPrevious = null;
+      else if (previousJobId !== null) odooPrevious = odooFailuresFromAnnotations(await jobAnnotations(gh, previousJobId));
+    } catch {
+      odooPrevious = null;
+    }
+  }
+  results.push(evaluateOdoo(odoo, t, odooPrevious));
   // 9. price age (W9.4; off unless the target enables it)
   if (target.priceStaleCheck) {
     await guard("pricing:stale", "published prices stale", `newest published price ≤ ${t.priceStaleMaxDays} days old`, async () =>

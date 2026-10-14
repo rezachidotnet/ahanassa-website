@@ -548,6 +548,8 @@ A period without a completed run (a monitoring gap) therefore counts as observed
 
 The observation evidence lists the runs, their outcomes and every gap over 30 minutes; the `STABLE_100` bot PR carries it. An ALERT during the window stops the observation: `LOW` rolls back automatically (§20.8), `HIGH` goes to the owner (§20.1 step 4).
 
+**W17.3 (2026-10-14), fewer false ALERTs.** "cron silent" ALERTs after 20 min without a scheduled run (was 15). "Odoo unreachable" ALERTs only on the second failed check in a row; a single failed check is a WATCH (a warning; the job stays green). The count is carried by the previous completed run's annotation (`scripts/ops/health`, `docs/OPS_ALERTS.md`). A WATCH is not an ALERT for this observation.
+
 ### 20.3 `STABLE_100` field mapping (v11)
 
 The ledger schema (§3) and its strict validator (`lib/ci/release-ledger.ts`) are unchanged. A v11 row fills the columns as follows (`.github/scripts/v11-ledger-append.mjs` writes it):
@@ -677,4 +679,29 @@ Neither scan ever prints a name. A finding names the file and the name's line nu
 | auto-ledger (§20.3, §20.8) | `.github/scripts/v11-ledger-append.test.mjs`: one line appended, nothing else changed, the strict resolver makes it `BASE_PRODUCTION_SHA`; `ROLLED_BACK` never changes it; no pipe/newline breaks the table; idempotent CLI |
 | rollback (§20.8) | `.github/scripts/v11-rollback.test.mjs`: Worker then guarded pointer then verify; refused before any write (pointer moved, target pruned, www moved, already on target, no target); a failure after a write is an ALERT |
 | ops-health lookback (§20.2) | `scripts/ops/health/checks.test.ts`: 10+ cancelled runs no longer collapse the window; the job of a held run counts; nothing in 24 h = the full window |
+| ops-health thresholds (§20.2, W17.3) | `scripts/ops/health/checks.test.ts`: cron silent OK up to 20 min; Odoo WATCH on the 1st failed check, ALERT from the 2nd in a row, the counter read back from the previous run's annotation, unknown history = ALERT at once |
+| auto-approve (§21) | `.github/scripts/auto-approve.test.mjs`: approve at ≥ 6 h, not before; never with a failed/cancelled/timed-out job; skipped is not a failure; wait start = latest known, unknown = never; per environment; idempotent; dry run; no secret = warning only |
 | source names (§20.9) | `.github/scripts/v11-source-names.test.mjs`: findings never show a name; a path is redacted; fails on a finding; reports "not run" without a list |
+
+---
+
+## 21. Automatic approval after 6 h (owner decision W17.3, 2026-10-14)
+
+**Owner decision, 2026-10-14 (`PROJECT_OVERRIDES.md` §15).** This section is itself a governance change and was approved as a HIGH change by the owner. **Any deployment waiting for the owner's approval is approved automatically once it has waited 6 h.**
+
+**What it replaces: only the human wait.** A GitHub environment approval (`production-v11`, `production`, or any other environment with required reviewers) that the owner has neither approved nor rejected after 6 h is approved by `.github/workflows/auto-approve.yml` on `main`. Everything that runs after the approval is unchanged: the release policy gate (§0.2) and staging provenance (§5.1) of `deploy-production.yml`, the HIGH canary path (§5, §11), the v11 guards before the first write, smoke and automatic rollback (§20.1 step 3), the observation and its attestation (§12, §20.2, §20.8). An approval never skips a gate inside the run; a gate that fails still stops it.
+
+**The rule** (`.github/scripts/auto-approve.mjs`, every 30 min and on demand):
+
+1. It reads the workflow runs whose status is `waiting`, and for each run the jobs of its latest attempt and its pending deployments.
+2. **Never a run with a failed earlier job.** It approves only when every completed job of the run concluded `success` or `skipped` (a skipped job ran no step: its condition was false; a job skipped because an earlier one failed comes with that failure). Any `failure`, `cancelled`, `timed_out`, `action_required`, `neutral` or `stale` job refuses the run.
+3. **6 h from the start of the wait.** The wait start is the latest of the environment's `wait_timer_started_at` and the `created_at` of the run's waiting jobs (GitHub creates a job when its `needs` are met, which is when its environment wait begins). The latest value is taken so the approval is never early. A wait start that cannot be read refuses the run.
+4. It approves (`POST /repos/{owner}/{repo}/actions/runs/{run_id}/pending_deployments`, `state=approved`) the environments of that run that qualify, with the comment **"auto-approved after 6 h per owner decision"**.
+5. **Reviewer.** A required reviewer must approve, so the call uses the owner's fine-grained personal access token in the repository secret `AUTO_APPROVE_TOKEN` (Actions: read, Deployments: write), never the workflow's own token. An environment the token's user may not approve is refused and reported. Without the secret the workflow does nothing and warns.
+6. **Idempotent.** An approved run is no longer `waiting`. A run the owner approved or rejected between the read and the call is reported, not an error. A failed approval fails the job (GitHub e-mails the owner).
+
+**Audit (§15).** The job summary lists every waiting run with its environment, decision (`approve` / `wait` / `refuse`), the outcome and the reason (wait start, wait length, the failed job). GitHub records the approval under the owner's account with the comment, in the run's review history. The release's own evidence and ledger row (§3, §20.3) are written as before.
+
+**What the owner keeps.** **Reject** at any time during the 6 h stops the release, exactly as before. Approving earlier is still possible. In particular, while a `HIGH` v11 release is in its observation, "the owner approves no further release" (§20.1 step 4) now means: the owner **rejects** a pending `production-v11` approval within 6 h, otherwise it is approved. Promotion of a legacy canary still starts only from the owner's own dispatch of `promote-production.yml` with the observation attestation (§11, §12); a merge of the `STABLE_100` bot PR (§20.1 step 5) is not a deployment and is not affected.
+
+**Queue.** A waiting approval holds `content-publish.yml`'s queue (§20.1 step 3) for at most about 6.5 h (6 h plus the next scheduled run; GitHub `schedule` is best-effort, so a dropped slot delays the approval to the next run that fires).
