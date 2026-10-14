@@ -292,12 +292,28 @@ await runStep(`publish ${command}`, async () => {
         }
       }
       lines.push(`data/rfq-catalog.{fa,en,ar}.json carry ${version}`);
-      const sitemap = await fetchText(`${STATIC_BASE_URL}/sitemap.xml`);
-      if (sitemap.status !== 200 || !/<urlset/.test(sitemap.text)) throw new Error(`smoke sitemap.xml: ${sitemap.status}`);
-      const robots = await fetchText(`${STATIC_BASE_URL}/robots.txt`);
-      if (robots.status !== 200 || robots.text !== TARGET.robotsTxt) throw new Error(`smoke robots.txt: ${robots.status}, not the ${env} policy file`);
-      const sitemapUrls = (sitemap.text.match(/<loc>/g) ?? []).length;
-      if (sitemapUrls !== manifest.counts.sitemap_urls) throw new Error(`smoke sitemap.xml: ${sitemapUrls} URLs, the artifact has ${manifest.counts.sitemap_urls}`);
+      // A code-only release keeps the live snapshot_version, so waitForServedVersion returns at once while some
+      // edge locations still run the previous Worker version for a short while (2026-10-14: run 38535830483 read
+      // the previous robots.txt 3 s after the deploy). Poll robots.txt + sitemap.xml until both are the artifact's,
+      // for up to 180 s — the same way the /data and /_next/static checks wait — and only then fail.
+      const filesUntil = Date.now() + 180_000;
+      let sitemap: Awaited<ReturnType<typeof fetchText>>;
+      let robots: Awaited<ReturnType<typeof fetchText>>;
+      let sitemapUrls: number;
+      for (;;) {
+        sitemap = await fetchText(`${STATIC_BASE_URL}/sitemap.xml`);
+        robots = await fetchText(`${STATIC_BASE_URL}/robots.txt`);
+        sitemapUrls = (sitemap.text.match(/<loc>/g) ?? []).length;
+        const sitemapOk = sitemap.status === 200 && /<urlset/.test(sitemap.text) && sitemapUrls === manifest.counts.sitemap_urls;
+        const robotsOk = robots.status === 200 && robots.text === TARGET.robotsTxt;
+        if (sitemapOk && robotsOk) break;
+        if (Date.now() >= filesUntil) {
+          if (sitemap.status !== 200 || !/<urlset/.test(sitemap.text)) throw new Error(`smoke sitemap.xml: ${sitemap.status}`);
+          if (!robotsOk) throw new Error(`smoke robots.txt: ${robots.status}, not the ${env} policy file`);
+          throw new Error(`smoke sitemap.xml: ${sitemapUrls} URLs, the artifact has ${manifest.counts.sitemap_urls}`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10_000));
+      }
       for (const nf of ["/w4-smoke-missing-page", "/en/w4-smoke-missing-page", "/ar/products/w4-smoke-missing"]) {
         const r = await fetchText(`${STATIC_BASE_URL}${nf}`);
         if (r.status !== 404) throw new Error(`smoke ${nf}: expected 404, got ${r.status}`);
