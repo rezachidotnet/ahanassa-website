@@ -33,7 +33,13 @@
         ]
       },
       // Staging namespace; 20/60 s per client-IP key. Missing/failing binding -> 503 (fail-closed).
-      "ratelimits": [{ "name": "RFQ_RATE_LIMITER", "namespace_id": "1102", "simple": { "limit": 20, "period": 60 } }],
+      "ratelimits": [
+        { "name": "RFQ_RATE_LIMITER", "namespace_id": "1102", "simple": { "limit": 20, "period": 60 } },
+        // W13.3: POST /api/rfqs/extract — 6 readings / 60 s per client-IP key (each costs Workers AI time). Missing -> 503.
+        { "name": "RFQ_EXTRACT_RATE_LIMITER", "namespace_id": "1104", "simple": { "limit": 6, "period": 60 } }
+      ],
+      // W13.3: Workers AI for reading pictures/PDFs of item lists (docs/RFQ_INSTANT_EXTRACT.md). Nothing is stored.
+      "ai": { "binding": "AI" },
       // Cron reconciler: one due RFQ per run (§6.4). Account cap: 5 triggers.
       "triggers": { "crons": ["*/5 * * * *"] },
       // D-RFQ-FILE: PRIVATE bucket for RFQ files (no r2.dev URL, no custom domain), EU jurisdiction
@@ -55,6 +61,8 @@
         "QUEUE_FAST_PATH": "0",
         // File upload on (needs the RFQ_FILES bucket above). docs/RFQ_FILE_UPLOAD.md.
         "RFQ_FILES_ENABLED": "1",
+        // W13.3 instant extraction (needs file upload on + the AI binding above). docs/RFQ_INSTANT_EXTRACT.md.
+        "RFQ_EXTRACT_ENABLED": "1",
         "TEST_HOOKS": "1"
       }
       // Secrets (wrangler secret put --env staging): TURNSTILE_SECRET_KEY, ODOO_RFQ_API_TOKEN (= stub bearer), ADMIN_TOKEN.
@@ -94,7 +102,13 @@
         //   npx wrangler r2 bucket create ahanassa-v11-rfq-files-production --jurisdiction eu
         //   add "r2_buckets": [{ "binding": "RFQ_FILES", "bucket_name": "ahanassa-v11-rfq-files-production", "jurisdiction": "eu" }]
         //   set RFQ_FILES_ENABLED to "1".
-        "RFQ_FILES_ENABLED": "0"
+        "RFQ_FILES_ENABLED": "0",
+        // W13.3 instant extraction: OFF in production (no AI binding, no extract limiter). It also needs
+        // file upload on. To switch on (owner), after the steps above:
+        //   add "ai": { "binding": "AI" }
+        //   add to "ratelimits": { "name": "RFQ_EXTRACT_RATE_LIMITER", "namespace_id": "1105", "simple": { "limit": 6, "period": 60 } }
+        //   set RFQ_EXTRACT_ENABLED to "1".
+        "RFQ_EXTRACT_ENABLED": "0"
       }
     }
   }

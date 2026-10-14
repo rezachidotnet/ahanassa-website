@@ -13,8 +13,12 @@ import path from "node:path";
  */
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const HOOK_STRINGS = ["TEST_KILL_AFTER_POST", "kill_after_post", "/__admin/test/", "deliver-real-401", "TEST_HOOKS", "odoo.ahanassa.com", "stagingTestRoutes", "result_with_testing_key", "1x0000000000000000000000000000000AA"];
-/** Size budget for the production bundle (raw bytes) — W3 cut it from 1025 KiB to ~250 KiB; zod must not come back. */
-const MAX_PRODUCTION_BYTES = 300 * 1024;
+/**
+ * Size budget for the production bundle (raw bytes) — W3 cut it from 1025 KiB to ~250 KiB; zod must not come back.
+ * W13.1 file upload took it to ~283 KiB; W13.3 instant extraction (lib/rfq-worker/extract.ts + the shared
+ * lib/rfq/extract parser) to ~308 KiB, so the budget is 330 KiB — still far below anything zod would add.
+ */
+const MAX_PRODUCTION_BYTES = 330 * 1024;
 
 function bundle(entry: string): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rfq-bundle-scan-"));

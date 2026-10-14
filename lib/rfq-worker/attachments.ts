@@ -4,7 +4,7 @@ import { RFQ_KEY_HEADER_NAME, checkFileHead, createContainerScanner, MAX_RFQ_FIL
 import { hashIdempotencyKey, isValidIdempotencyKey } from "../rfq/idempotency.ts";
 import { getClientIp, hashRateLimitKey } from "../security/rate-limit.ts";
 import { corsHeaders, isAllowedOrigin } from "./cors.ts";
-import { csv, filesEnabled, type RfqWorkerEnv } from "./config.ts";
+import { csv, extractEnabled, extractListsEnabled, filesEnabled, type RfqWorkerEnv } from "./config.ts";
 
 /**
  * RFQ file upload (owner decision D-RFQ-FILE; docs/RFQ_FILE_UPLOAD.md).
@@ -60,7 +60,9 @@ export function filesPreflight(request: Request, allowed: readonly string[]): Re
 export function filesCapability(request: Request, env: RfqWorkerEnv): Response {
   const cors = corsHeaders(request.headers.get("origin"), csv(env.ALLOWED_ORIGINS));
   const enabled = filesEnabled(env);
-  const body = enabled ? { ok: true, enabled, maxFiles: MAX_RFQ_FILES, maxFileBytes: MAX_RFQ_FILE_BYTES, extensions: RFQ_FILE_EXTENSIONS } : { ok: true, enabled };
+  // W13.3: whether the form may read an attached list into rows (lists in the browser; pictures/PDFs via /api/rfqs/extract).
+  const extract = { lists: extractListsEnabled(env), pictures: extractEnabled(env) };
+  const body = enabled ? { ok: true, enabled, maxFiles: MAX_RFQ_FILES, maxFileBytes: MAX_RFQ_FILE_BYTES, extensions: RFQ_FILE_EXTENSIONS, extract } : { ok: true, enabled };
   return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json", "Cache-Control": "public, max-age=300", ...cors } });
 }
 

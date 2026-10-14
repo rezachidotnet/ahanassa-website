@@ -7,6 +7,15 @@ export interface RateLimiter {
   limit(options: { key: string }): Promise<{ success: boolean }>;
 }
 
+/**
+ * The Workers AI binding as the W13.3 extract endpoint uses it (a structural
+ * subset of the runtime's `Ai`, so tests can pass a fake).
+ */
+export interface AiBinding {
+  run(model: string, inputs: unknown): Promise<unknown>;
+  toMarkdown?(files: { name: string; blob: Blob }[]): Promise<{ format: string; data?: string } | { format: string; data?: string }[]>;
+}
+
 export interface RfqWorkerEnv {
   DB_OPS: D1Database;
   /** Read-only use: rfq_variant_index + publication_pointer (A8). */
@@ -39,10 +48,27 @@ export interface RfqWorkerEnv {
   RFQ_FILES?: R2Bucket;
   /** "1" = the form offers file upload and the Worker accepts files. Needs RFQ_FILES too. */
   RFQ_FILES_ENABLED?: string;
+  /** W13.3: Workers AI, used only by POST /api/rfqs/extract (reading a customer's picture/PDF list). */
+  AI?: AiBinding;
+  /** "1" = the form reads attached lists into rows. Needs AI, the extract limiter and file upload on (filesEnabled). */
+  RFQ_EXTRACT_ENABLED?: string;
+  /** Per-IP limit for /api/rfqs/extract — its own namespace, so readings never use up the RFQ budget. Missing → 503. */
+  RFQ_EXTRACT_RATE_LIMITER?: RateLimiter;
+  /** Optional model overrides (defaults in lib/rfq-worker/extract.ts, the same as Odoo W13.2). */
+  EXTRACT_VISION_MODEL?: string;
+  EXTRACT_TEXT_MODEL?: string;
 }
 
 /** File upload is on only with BOTH the bucket binding and the flag (docs/RFQ_FILE_UPLOAD.md). */
 export const filesEnabled = (env: RfqWorkerEnv): env is RfqWorkerEnv & { RFQ_FILES: R2Bucket } => Boolean(env.RFQ_FILES) && env.RFQ_FILES_ENABLED === "1";
+
+/**
+ * W13.3 instant extraction, one switch (RFQ_EXTRACT_ENABLED) on top of file upload:
+ *  - lists: the form reads typed lists (xlsx/csv/txt) in the browser — no Worker work at all;
+ *  - pictures: POST /api/rfqs/extract reads pictures and PDFs — needs the AI binding as well.
+ */
+export const extractListsEnabled = (env: RfqWorkerEnv): boolean => filesEnabled(env) && env.RFQ_EXTRACT_ENABLED === "1";
+export const extractEnabled = (env: RfqWorkerEnv): boolean => extractListsEnabled(env) && Boolean(env.AI);
 
 export const csv = (value: string | undefined): string[] =>
   (value ?? "")

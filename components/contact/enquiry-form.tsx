@@ -28,7 +28,10 @@ import { RfqSuccessPanel, RFQ_SUBMITTED_ATTR } from "@/components/contact/rfq-su
 import { clearRfqBasket, writeRfqBasket, EMPTY_RFQ_CUSTOMER, type RfqBasketAddOutcome, type RfqBasketCustomer } from "@/lib/rfq/rfq-basket";
 import { RfqFilesField, type RfqFileError } from "@/components/contact/rfq-files-field";
 import { checkDeclaredFile, checkFileBytes, MAX_RFQ_FILES, sanitizeFilename, type RfqFileRejection } from "@/lib/rfq/attachment-policy";
-import { uploadRfqFiles } from "@/lib/rfq/upload-files";
+import { uploadRfqFiles, type FilesCapability } from "@/lib/rfq/upload-files";
+import { useRfqListExtraction, fileKeyOf } from "@/components/contact/use-rfq-list-extraction";
+import { completeExtractedRow, composeItemNote, isEditedByCustomer, mergeExtractedRows, type RfqRowExtract } from "@/lib/rfq/extract/to-rows";
+import { trackExtractEvent } from "@/lib/rfq/extract/analytics";
 
 /**
  * Multi-item RFQ / purchase-list form (docs/RFQ_MULTI_ITEM_FORM.md).
@@ -44,6 +47,12 @@ import { uploadRfqFiles } from "@/lib/rfq/upload-files";
  * Files are checked in the browser with the server's own policy, declared
  * (name + size) in the RFQ, and sent one by one only after the RFQ is
  * accepted; the success panel still shows only the tracking number.
+ *
+ * W13.3 (docs/RFQ_INSTANT_EXTRACT.md): when the Worker says so
+ * (`extractCapability`), each attached list is read into draft rows
+ * (use-rfq-list-extraction.ts). Rows from a file show the customer's own
+ * text and, when unsure, «لطفاً بررسی کنید»; on submit their item note
+ * starts «از فایل: …» for Odoo staff (composeItemNote). Reading never blocks the submit.
  */
 
 interface TurnstileRenderOptions {
@@ -57,12 +66,17 @@ interface TurnstileRenderOptions {
   "before-interactive-callback"?: () => void;
   "after-interactive-callback"?: () => void;
   "timeout-callback"?: () => void;
+  /** "execute": the widget waits for turnstile.execute() (W13.3 extract widget). */
+  execution?: "render" | "execute";
+  /** "interaction-only": invisible unless Cloudflare needs the visitor to interact. */
+  appearance?: "always" | "execute" | "interaction-only";
 }
 
 interface TurnstileApi {
   render(container: HTMLElement, options: TurnstileRenderOptions): string;
   reset(widgetId?: string): void;
   remove(widgetId?: string): void;
+  execute?(widget: string | HTMLElement): void;
 }
 
 declare global {
@@ -252,6 +266,9 @@ function RequiredMark({ srLabel }: { srLabel: string }) {
 
 type Status = "idle" | "submitting" | "uploading" | "success" | "error";
 
+/** A form row; one read from an attached file carries what was read (W13.3). */
+type FormRow = RfqRow & { extract?: RfqRowExtract };
+
 function generateIdempotencyKey(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
   return `key-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -271,6 +288,7 @@ export function EnquiryForm({
   catalogSnapshotVersion = null,
   rfqEndpoint = "/api/rfqs",
   filesEndpoint = null,
+  extractCapability = null,
 }: {
   locale: Locale;
   turnstileSiteKey?: string;
@@ -300,6 +318,8 @@ export function EnquiryForm({
   rfqEndpoint?: string;
   /** D-RFQ-FILE: `<rfqEndpoint>/files` when the RFQ Worker reports upload as enabled; null = no file field. */
   filesEndpoint?: string | null;
+  /** W13.3: whether attached lists are read into rows (from GET <rfqEndpoint>/files); null = not at all. */
+  extractCapability?: FilesCapability["extract"] | null;
 }) {
   const [status, setStatus] = useState<Status>("idle");
   const [reference, setReference] = useState<string | null>(null);
@@ -308,7 +328,10 @@ export function EnquiryForm({
   const [turnstileScriptLoaded, setTurnstileScriptLoaded] = useState(false);
   /** UI-only status for explaining the disabled Submit button while Turnstile hasn't produced a token yet — never affects whether Submit is actually enabled (that remains solely `Boolean(turnstileToken)`, unchanged). */
   const [turnstileStatus, setTurnstileStatus] = useState<"verifying" | "interactive" | "failed" | "success">("verifying");
-  const [rows, setRows] = useState<RfqRow[]>(() => (initialRows && initialRows.length > 0 ? initialRows : [createEmptyCatalogRow()]));
+  const [rows, setRows] = useState<FormRow[]>(() => (initialRows && initialRows.length > 0 ? initialRows : [createEmptyCatalogRow()]));
+  // The latest rows/status for the list reader's callback, which runs after an await.
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
   const [rowErrors, setRowErrors] = useState<Record<string, RfqRowFieldKey[]>>({});
   const idempotencyKeyRef = useRef(createIdempotencyKeyLifecycle(generateIdempotencyKey));
   const formRenderedAtRef = useRef(Date.now());
@@ -335,6 +358,26 @@ export function EnquiryForm({
   const [referenceCopied, setReferenceCopied] = useState(false);
   const successHeadingRef = useRef<HTMLHeadingElement>(null);
   const succeeded = status === "success" && reference !== null;
+  const statusRef = useRef(status);
+  statusRef.current = status;
+
+  const extraction = useRfqListExtraction({
+    locale,
+    capability: filesEndpoint ? extractCapability : null,
+    catalogItems,
+    rfqEndpoint,
+    turnstileSiteKey,
+    onRows: (_fileKey, extracted) => {
+      // Sent, or being sent: a late reading changes nothing.
+      if (statusRef.current === "submitting" || statusRef.current === "uploading" || statusRef.current === "success") return { added: 0, overflow: extracted.length };
+      const merged = mergeExtractedRows(rowsRef.current, extracted);
+      regenerateIdempotencyKey();
+      rowsRef.current = merged.rows;
+      setRows(merged.rows);
+      setRowErrors({});
+      return { added: merged.added, overflow: merged.overflow };
+    },
+  });
 
   // Success state (W10.3): hide the rest of the request page (styles/theme-extensions.css,
   // [data-rfq-submitted] [data-rfq-hide-on-success]) and move the visitor to the panel.
@@ -477,7 +520,8 @@ export function EnquiryForm({
 
   function updateRow(id: string, fields: RfqRowFields) {
     regenerateIdempotencyKey();
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, fields } : r)));
+    // W13.3: picking the product of a row read from a file also picks the size read with it.
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, fields: completeExtractedRow(r.fields, fields, r.extract, catalogItems) } : r)));
     setRowErrors((prev) => {
       if (!prev[id]) return prev;
       const next = { ...prev };
@@ -511,6 +555,7 @@ export function EnquiryForm({
   async function addFiles(picked: File[]) {
     regenerateIdempotencyKey();
     const next = [...files];
+    const accepted: File[] = [];
     const errors: RfqFileError[] = [];
     for (const file of picked) {
       if (next.some((f) => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified)) continue;
@@ -534,15 +579,40 @@ export function EnquiryForm({
         continue;
       }
       next.push(file);
+      accepted.push(file);
+      // Count and the policy's extension only — never the file name (W16.4 privacy rule).
+      trackExtractEvent("file_upload", { file_count: next.length, file_type: declared.ext });
     }
     setFiles(next);
     setFileErrors(errors);
+    // W13.3: read the new lists into rows (the files stay attached whatever the reading gives).
+    if (accepted.length) extraction.enqueue(accepted);
   }
 
   function removeFile(index: number) {
     regenerateIdempotencyKey();
+    const file = files[index];
     setFiles((prev) => prev.filter((_, i) => i !== index));
     setFileErrors([]);
+    if (file) {
+      extraction.forget(file);
+      // Its rows stay (the visitor may have worked on them) but no longer claim a file that is not sent.
+      const key = fileKeyOf(file);
+      setRows((prev) => prev.map((r) => (r.extract?.fileKey === key ? { id: r.id, fields: r.fields } : r)));
+    }
+  }
+
+  /** «حذف ردیف‌های این فایل»: the rows read from one file go; the file stays attached. */
+  function removeFileRows(index: number) {
+    const file = files[index];
+    if (!file) return;
+    regenerateIdempotencyKey();
+    const key = fileKeyOf(file);
+    setRows((prev) => {
+      const left = prev.filter((r) => r.extract?.fileKey !== key);
+      return left.length ? left : [createEmptyCatalogRow()];
+    });
+    setRowErrors({});
   }
 
   function scrollToRow(id: string) {
@@ -585,7 +655,18 @@ export function EnquiryForm({
       return;
     }
 
-    const items: RfqItemInput[] = rows.map((row) => buildRfqItemInput(row.fields, locale)).filter((item): item is RfqItemInput => item !== null);
+    // W13.3: a row read from an attached file tells Odoo staff so in its item note (starts «از فایل:», names the
+    // file, «ویرایش‌شده توسط مشتری» when changed — the Odoo PR #10 note contract, composeItemNote) — the existing
+    // description field, no contract change. A hand-typed row's note never starts with «از فایل:».
+    const attachedNames = new Map(files.map((file) => [fileKeyOf(file), sanitizeFilename(file.name)]));
+    const items: RfqItemInput[] = rows
+      .map((row) => {
+        const fileName = row.extract ? attachedNames.get(row.extract.fileKey) : undefined;
+        const extract = fileName ? row.extract : undefined;
+        const fields = { ...row.fields, notes: composeItemNote(row.fields.notes, extract, isEditedByCustomer(row), fileName) };
+        return buildRfqItemInput(fields, locale);
+      })
+      .filter((item): item is RfqItemInput => item !== null);
 
     const idempotencyKey = idempotencyKeyRef.current.current();
     const sendFiles = filesEndpoint ? files : [];
@@ -677,6 +758,7 @@ export function EnquiryForm({
     setReferenceCopied(false);
     setFiles([]);
     setFileErrors([]);
+    extraction.reset();
     resetTurnstile();
   }
 
@@ -685,6 +767,12 @@ export function EnquiryForm({
   }
 
   const submitting = status === "submitting" || status === "uploading";
+  /** What a row read from a still-attached file shows (W13.3); null for every other row. */
+  const attachedFileKeys = new Set(files.map(fileKeyOf));
+  const fromFileOf = (row: FormRow) =>
+    row.extract && attachedFileKeys.has(row.extract.fileKey)
+      ? { rawText: row.extract.rawText, review: row.extract.review, reasons: row.extract.reasons, picture: row.extract.source === "image" }
+      : null;
   const turnstileBlocking = Boolean(turnstileSiteKey) && !turnstileToken;
   const errorRowEntries = Object.entries(rowErrors);
   const rowIndexById = new Map(rows.map((r, i) => [r.id, i]));
@@ -880,6 +968,7 @@ export function EnquiryForm({
                   disabled={submitting}
                   errors={rowErrors[row.id] ?? []}
                   catalogGroups={catalogGroups}
+                  fromFile={fromFileOf(row)}
                   onChange={(fields) => updateRow(row.id, fields)}
                   onRemove={() => removeRow(row.id)}
                   canRemove={rows.length > 1}
@@ -904,6 +993,7 @@ export function EnquiryForm({
               disabled={submitting}
               errors={rowErrors[row.id] ?? []}
               catalogGroups={catalogGroups}
+              fromFile={fromFileOf(row)}
               onChange={(fields) => updateRow(row.id, fields)}
               onRemove={() => removeRow(row.id)}
               canRemove={rows.length > 1}
@@ -956,7 +1046,21 @@ export function EnquiryForm({
         )}
       </div>
 
-      {filesEndpoint && <RfqFilesField locale={locale} files={files} errors={fileErrors} disabled={submitting} onAdd={(picked) => void addFiles(picked)} onRemove={removeFile} />}
+      {filesEndpoint && (
+        <RfqFilesField
+          locale={locale}
+          files={files}
+          errors={fileErrors}
+          disabled={submitting}
+          onAdd={(picked) => void addFiles(picked)}
+          onRemove={removeFile}
+          readsLists={extraction.enabled}
+          statuses={files.map((f) => extraction.statuses[fileKeyOf(f)] ?? null)}
+          onRemoveRows={removeFileRows}
+          onRetry={(index) => files[index] && extraction.enqueue([files[index]])}
+          extractWidgetRef={extraction.widgetContainerRef}
+        />
+      )}
 
       {turnstileSiteKey && (
         <div className="grid gap-2">
