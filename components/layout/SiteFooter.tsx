@@ -7,6 +7,7 @@ import { siteConfig } from "@/lib/metadata/site";
 import { visibleNavLinks, headerPhoneLabel } from "@/lib/content/nav";
 import { CONTACT_PHONE_DISPLAY, CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 import { ABOUT_GROUP_ANCHOR, GROUP_COMPANIES, GROUP_FOOTER_COPY, OFFICES, PARENT_ORGANIZATION } from "@/lib/content/company";
+import { fullCatalogPath } from "@/lib/downloads/paths";
 
 /**
  * Global footer — four-column composition matches
@@ -32,7 +33,7 @@ import { ABOUT_GROUP_ANCHOR, GROUP_COMPANIES, GROUP_FOOTER_COPY, OFFICES, PARENT
 const copy: Record<
   Locale,
   {
-    footerTitle: string; role: string; productsNav: string; catalogueCta: string; companyNav: string;
+    footerTitle: string; role: string; productsNav: string; catalogueCta: string; cataloguePdf: string; companyNav: string;
     incoterms: string; rights: string;
   }
 > = {
@@ -41,6 +42,7 @@ const copy: Record<
     role: "تامین فولاد پروژه شما",
     productsNav: "محصولات",
     catalogueCta: "کاتالوگ کامل",
+    cataloguePdf: "کاتالوگ PDF",
     companyNav: "شرکت",
     incoterms: "اینکوترمز",
     rights: "کلیه حقوق این وب‌سایت متعلق به",
@@ -50,6 +52,7 @@ const copy: Record<
     role: "Steel supply for your project.",
     productsNav: "Products",
     catalogueCta: "Full catalog",
+    cataloguePdf: "Catalog (PDF)",
     companyNav: "Company",
     incoterms: "Incoterms",
     rights: "All rights reserved,",
@@ -59,6 +62,7 @@ const copy: Record<
     role: "توريد الصلب لمشروعك.",
     productsNav: "المنتجات",
     catalogueCta: "الكتالوج الكامل",
+    cataloguePdf: "الكتالوج (PDF)",
     companyNav: "الشركة",
     incoterms: "شروط التجارة الدولية",
     rights: "جميع الحقوق محفوظة لـ",
@@ -110,6 +114,12 @@ export function SiteFooter({ locale, hasArticles = false }: { locale: Locale; ha
             <li>
               <Link href={localizedPath(locale, "/products")} className={FOOTER_LINK}>
                 {t.catalogueCta}
+              </Link>
+            </li>
+            <li>
+              {/* W17.2: the catalog PDF of this page's locale (fa→fa, en→en, ar→ar), built from the catalog snapshot. */}
+              <Link href={fullCatalogPath(locale)} hrefLang={locale} type="application/pdf" className={FOOTER_LINK}>
+                {t.cataloguePdf}
               </Link>
             </li>
           </ul>

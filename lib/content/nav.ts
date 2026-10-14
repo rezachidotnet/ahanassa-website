@@ -1,6 +1,11 @@
 import type { Locale } from "@/config/locales";
 import { PRICE_NAV_LABEL, PRICE_PAGE_ROUTE } from "../pricing/price-page.ts";
 import { ARTICLES_ROUTE } from "../articles/routes.ts";
+import { DOWNLOADS_ROUTE } from "../downloads/paths.ts";
+import { DOWNLOADS_COPY } from "../downloads/copy.ts";
+
+/** W17.2 (owner instruction 2026-10-14): «مرکز دانلود» / "Download Center" / «مركز التنزيل», after Articles, in all three locales. */
+const DOWNLOADS_NAV_LABEL = { fa: DOWNLOADS_COPY.fa.nav, en: DOWNLOADS_COPY.en.nav, ar: DOWNLOADS_COPY.ar.nav };
 
 /**
  * Primary Header navigation — docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.1.md §58.1.
@@ -29,6 +34,12 @@ export interface NavLink {
   path: string;
   label: string;
   hasDropdown?: boolean;
+  /**
+   * W17.2: shown in the DESKTOP bar only from this breakpoint. At lg (1024–1279 px) the bar is already full (W11.1)
+   * and one more item wraps the phone number, so «مرکز دانلود» joins it from xl; the mobile drawer and the footer
+   * always list it.
+   */
+  desktopFrom?: "xl";
 }
 
 export const navLinks: Record<Locale, NavLink[]> = {
@@ -38,6 +49,7 @@ export const navLinks: Record<Locale, NavLink[]> = {
     { path: "/services", label: "خدمات", hasDropdown: true },
     { path: "/industries", label: "صنایع" },
     { path: ARTICLES_ROUTE, label: "مقالات" },
+    { path: DOWNLOADS_ROUTE, label: DOWNLOADS_NAV_LABEL.fa, desktopFrom: "xl" },
     { path: "/about", label: "درباره ما" },
     { path: "/contact", label: "تماس با ما" },
   ],
@@ -46,6 +58,7 @@ export const navLinks: Record<Locale, NavLink[]> = {
     { path: "/services", label: "Services", hasDropdown: true },
     { path: "/industries", label: "Industries" },
     { path: ARTICLES_ROUTE, label: "Articles" },
+    { path: DOWNLOADS_ROUTE, label: DOWNLOADS_NAV_LABEL.en, desktopFrom: "xl" },
     { path: "/about", label: "About" },
     { path: "/contact", label: "Contact" },
   ],
@@ -55,6 +68,7 @@ export const navLinks: Record<Locale, NavLink[]> = {
     { path: "/services", label: "الخدمات", hasDropdown: true },
     { path: "/industries", label: "الصناعات" },
     { path: ARTICLES_ROUTE, label: "المقالات" },
+    { path: DOWNLOADS_ROUTE, label: DOWNLOADS_NAV_LABEL.ar, desktopFrom: "xl" },
     { path: "/about", label: "من نحن" },
     { path: "/contact", label: "تواصل معنا" },
   ],

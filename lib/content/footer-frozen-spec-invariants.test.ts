@@ -56,13 +56,16 @@ test("SiteFooter no longer imports the Persian-only sample catalog categories", 
   );
 });
 
-test("Products nav group retains exactly one truthful, unfiltered destination (/products)", () => {
+test("Products nav group: the unfiltered /products listing, then the catalog PDF of the page's locale (W17.2)", () => {
   const productsNavMatch = FOOTER_SOURCE.match(/<nav[^>]*aria-label=\{t\.productsNav\}[\s\S]*?<\/nav>/);
   assert.ok(productsNavMatch, "expected a Products <nav> block");
   const block = productsNavMatch[0];
   const linkCount = (block.match(/<Link\b/g) ?? []).length;
-  assert.equal(linkCount, 1, "expected exactly one <Link> in the Products nav group after removing the four stale links");
-  assert.match(block, /localizedPath\(locale,\s*"\/products"\)/, "the remaining link must resolve to the real, unfiltered /products route");
+  assert.equal(linkCount, 2, "expected exactly two <Link>s in the Products nav group: /products and the catalog PDF");
+  assert.match(block, /localizedPath\(locale,\s*"\/products"\)/, "the first link must resolve to the real, unfiltered /products route");
+  // W17.2 (owner instruction 2026-10-14): the catalog PDF of the page's own locale, next to /products.
+  assert.match(block, /fullCatalogPath\(locale\)/, "the second link must open the catalog PDF of the page's locale");
+  assert.ok(block.indexOf("/products") < block.indexOf("fullCatalogPath"), "/products first, the PDF next to it");
 });
 
 // --- EN/AR Persian-leak removal ---

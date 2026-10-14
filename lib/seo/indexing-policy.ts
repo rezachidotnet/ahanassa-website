@@ -26,7 +26,7 @@ export const NON_INDEXABLE = [
 ] as const;
 
 /** The public, non-catalog pages every locale has (app/sitemap.ts; W11.1 articles may link to them). */
-export const STATIC_PUBLIC_PATHS = ["/", "/products", "/services", "/about", "/industries", "/markets", "/contact"] as const;
+export const STATIC_PUBLIC_PATHS = ["/", "/products", "/services", "/about", "/industries", "/markets", "/contact", "/downloads"] as const;
 
 /**
  * W16.3 (D-SEO, docs/seo/keyword-map.md §2.2 #9 / §10 Q7, owner brief 2026-10-13): public pages that stay

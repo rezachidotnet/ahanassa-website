@@ -30,6 +30,9 @@ import { getAllowedUomsForCatalogGroup } from "../../lib/rfq/uom-policy.ts";
 import { STATIC_TARGETS } from "../../lib/static/targets.ts";
 import { rasterizeCover } from "../../lib/articles/cover-raster.ts";
 import { articleCoverPath } from "../../lib/articles/routes.ts";
+import { generateDownloads } from "../../lib/downloads/generate.ts";
+import { summarizeSkipped, type DownloadCatalog } from "../../lib/downloads/model.ts";
+import { loadSourceNames } from "../../lib/static/source-name-scan.ts";
 
 const repo = path.resolve(import.meta.dirname, "../..");
 const args = new Map<string, string>();
@@ -152,7 +155,19 @@ fs.writeFileSync(path.join(publicDir, "robots.txt"), renderRobotsTxt(robots()));
 const sitemapEntries = await sitemap();
 fs.writeFileSync(path.join(publicDir, "sitemap.xml"), renderSitemapXml(sitemapEntries));
 counts.sitemap_urls = sitemapEntries.length;
+// W17.2: the Download Center reads the catalog through the same repository as the pages (lib/downloads/source.ts).
+const { loadDownloadCatalog } = await load("lib/downloads/source.ts");
+const downloadCatalogs: DownloadCatalog[] = [];
+for (const locale of locales) downloadCatalogs.push(await loadDownloadCatalog(locale));
 await vite.close();
+
+// W17.2: section drawings (DXF + SVG), spec sheets and catalogs (PDF), from the snapshot only (lib/downloads/generate.ts).
+const downloads = await generateDownloads(publicDir, downloadCatalogs, { sourceNames: loadSourceNames() });
+counts.download_drawings = downloads.drawings.length;
+counts.download_spec_sheets = downloads.specSheets;
+counts.download_catalogs = downloads.catalogs;
+log(`downloads: ${downloads.drawings.length} section drawing(s), ${downloads.specSheets} spec sheet(s), ${downloads.catalogs} catalog(s); largest PDF ${Math.max(0, ...downloads.files.filter((f) => f.path.endsWith(".pdf")).map((f) => f.bytes))} B`);
+for (const g of summarizeSkipped(downloads.skipped)) log(`downloads: no drawing for ${g.sizes.length} ${g.formCode} size(s) (${g.sizes[0]} … ${g.sizes[g.sizes.length - 1]}): ${g.reason}`);
 
 // W11.1: article covers, SVG (snapshot) → PNG (og:image) + WebP (cards); the SVG is never published.
 for (const a of snapshot.tables.published_articles) {
