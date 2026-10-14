@@ -9,17 +9,19 @@
  *
  *   node scripts/static/hydration-check.ts [publicAssetsDir] [--all] [--pages /a,/b] [--strict-console]
  *        [--base-url https://host] [--expect-snapshot snap-…]
- * Chrome: $CHROME_PATH, else the macOS app path, else `google-chrome`.
+ * Chrome: $CHROME_PATH, else the macOS app path, else `google-chrome`. W17.5: a Chrome that does not come up is
+ * started again (fresh port and profile), up to 3 starts, before "could not start Chrome" fails the run.
  *
  * W4 additions: `--strict-console` fails a page on ANY console.error or exception (interactive pages:
  * form, filters); `--pages` limits the page list; `--base-url` checks a deployed host instead of the
  * local server (staging smoke); `--expect-snapshot` requires every /contact page to load
  * /manifest.public.json with that snapshot_version (the version the RFQ form sends).
  */
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { CHROME_START_ATTEMPTS, withRetries } from "../../lib/content-pipeline/smoke-retry.ts";
 import { startStaticServer } from "./serve.ts";
 
 const argv = process.argv.slice(2);
@@ -49,17 +51,43 @@ const pages: string[] = pagesOption
   : ["/contact", "/en/contact", "/ar/contact"];
 
 const server = baseUrlOption ? { url: baseUrlOption, close: () => {} } : await startStaticServer(root);
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), "hydration-"));
-const port = 9400 + Math.floor(Math.random() * 400);
-const chrome = spawn(chromePath, ["--headless=new", "--disable-gpu", "--no-sandbox", `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, "about:blank"], { stdio: "ignore" });
-let wsUrl: string | undefined;
-for (let i = 0; i < 80 && !wsUrl; i++) {
-  await sleep(250);
+const removeProfile = (dir: string) => {
   try {
-    wsUrl = ((await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()) as { type: string; webSocketDebuggerUrl: string }[]).find((t) => t.type === "page")?.webSocketDebuggerUrl;
-  } catch {}
-}
-if (!wsUrl) throw new Error(`could not start Chrome at ${chromePath}`);
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  } catch {
+    // a leftover temp profile must not fail the gate
+  }
+};
+const stopChrome = async (proc: ChildProcess) => {
+  const exited = new Promise((r) => proc.once("exit", r));
+  proc.kill();
+  await Promise.race([exited, sleep(5000)]);
+};
+// W17.5: a Chrome that does not come up (2026-10-14, "could not start Chrome") is retried with a fresh port and
+// profile, up to CHROME_START_ATTEMPTS starts; the last failure keeps its message (lib/content-pipeline/smoke-retry.ts).
+let profile!: string;
+let chrome!: ChildProcess;
+const wsUrl = await withRetries(
+  async () => {
+    profile = fs.mkdtempSync(path.join(os.tmpdir(), "hydration-"));
+    const port = 9400 + Math.floor(Math.random() * 400);
+    chrome = spawn(chromePath, ["--headless=new", "--disable-gpu", "--no-sandbox", `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, "about:blank"], { stdio: "ignore" });
+    let url: string | undefined;
+    for (let i = 0; i < 80 && !url; i++) {
+      await sleep(250);
+      try {
+        url = ((await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()) as { type: string; webSocketDebuggerUrl: string }[]).find((t) => t.type === "page")?.webSocketDebuggerUrl;
+      } catch {}
+    }
+    if (!url) {
+      await stopChrome(chrome);
+      removeProfile(profile);
+      throw new Error(`could not start Chrome at ${chromePath}`);
+    }
+    return url;
+  },
+  { attempts: CHROME_START_ATTEMPTS, delayMs: 2000, onRetry: (attempt, error) => console.error(`Chrome start attempt ${attempt}/${CHROME_START_ATTEMPTS} failed (${error instanceof Error ? error.message : String(error)}); retrying`) },
+);
 const ws = new WebSocket(wsUrl);
 await new Promise((r) => ws.addEventListener("open", r));
 let id = 0;
@@ -134,15 +162,9 @@ for (const page of pages) {
   results.push(row);
 }
 ws.close();
-const exited = new Promise((r) => chrome.once("exit", r));
-chrome.kill();
-await Promise.race([exited, sleep(5000)]);
+await stopChrome(chrome);
 server.close();
-try {
-  fs.rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-} catch {
-  // a leftover temp profile must not fail the gate
-}
+removeProfile(profile);
 for (const r of results) console.log(`${r.ok ? "PASS" : "FAIL"} ${r.page}${r.sampleOption !== undefined ? ` (IR option: "${r.sampleOption}")` : ""}${r.snapshotVersion !== undefined ? ` (form snapshot: ${r.snapshotVersion})` : ""}${r.errors.length ? ` — ${r.errors.join(" | ")}` : ""}`);
 const failed = results.filter((r) => !r.ok);
 console.log(`hydration: ${results.length - failed.length}/${results.length} pages clean`);

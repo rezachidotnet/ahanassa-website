@@ -8,6 +8,7 @@ import { homepageCopy } from "@/lib/content/homepage";
 import { HOMEPAGE_SHOWCASE_MAX_CARDS, showcaseCountAttribute } from "@/lib/catalog/homepage-showcase-layout";
 import { resolveCategoryMedia } from "@/lib/catalog/media-registry";
 import { categoryListingPath } from "@/lib/catalog/public-categories";
+import { groupShowcaseCategories } from "@/lib/content/category-nav";
 import { localizedPath, type Locale } from "@/config/locales";
 import { isWeightCalculatorPublished, WEIGHT_CALCULATOR_ROUTE } from "@/lib/weight-calculator/publication";
 import type { PublicCatalogCategory } from "@/lib/catalog/types";
@@ -52,15 +53,20 @@ const imageAlt: Record<Locale, (name: string) => string> = {
  * `CatalogEmptyState` itself is untouched and still used by the /products
  * listing, where an explanatory empty state IS the right answer.
  *
- * Up to `HOMEPAGE_SHOWCASE_MAX_CARDS` (8) categories render, one card each, composed per the frozen 0–8 matrix (§25/§73.1) via
+ * W17.5 (owner, 2026-10-14): the sheet categories share ONE «ورق» card, the
+ * Header's own grouping (`groupShowcaseCategories`); every other category
+ * keeps its own card.
+ *
+ * Up to `HOMEPAGE_SHOWCASE_MAX_CARDS` (8) cards render, one per category or group, composed per the frozen 0–8 matrix (§25/§73.1) via
  * `data-count` + `.aa-showcase-grid` in `styles/theme-extensions.css` —
  * never padded with fabricated ones (§8), never a carousel (§32).
  */
 export function ProductShowcase({ locale, items }: { locale: Locale; items: PublicCatalogCategory[] }) {
   const t = homepageCopy[locale].productShowcase;
   const calculatorLabel = isWeightCalculatorPublished(locale) ? CALCULATOR_LINK_LABEL[locale] : undefined;
-  // §7/§24 hard cap — Odoo's order is kept, only the tail beyond 8 is dropped.
-  const cards = items.slice(0, HOMEPAGE_SHOWCASE_MAX_CARDS);
+  // W17.5: the sheet categories are one «ورق» card, grouped as the Header groups them (lib/content/category-nav.ts).
+  // §7/§24 hard cap on those cards — Odoo's order is kept, only the tail beyond 8 is dropped.
+  const cards = groupShowcaseCategories(items, locale).slice(0, HOMEPAGE_SHOWCASE_MAX_CARDS);
 
   // §35 / §82 "0 cards -> Section hidden". Nothing renders: no heading, no
   // placeholder, no skeleton, no fabricated card.
