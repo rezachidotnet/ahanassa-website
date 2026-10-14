@@ -66,3 +66,15 @@ export function groupProductFamilies<T extends { code: string; name: string }>(i
   }
   return out;
 }
+
+/**
+ * W17.5 (owner decision 2026-10-14) — Homepage Product Showcase cards: the Header's grouping above, so the sheet
+ * categories take ONE card («ورق» / "Sheet & coil" / «الصاج واللفائف») and Pipe and the rest stay inside the frozen
+ * 8-card cap (the cap is applied to these cards, never raised). A Showcase card is one whole-card link (Product
+ * Showcase V2.0 §72.1) and the Header's family has no listing of its own, so the family card keeps its first
+ * member's code: it opens that listing (SHEET_PLATE, Odoo's «ورق») and shows that member's photo; the listing's
+ * filter bar reaches the other sheet categories.
+ */
+export function groupShowcaseCategories<T extends { code: string; name: string }>(items: readonly T[], locale: Locale): Array<{ code: string; name: string }> {
+  return groupProductFamilies(items, locale).map((entry) => ("children" in entry && entry.children ? { code: entry.children[0].code, name: entry.name } : { code: entry.code, name: entry.name }));
+}

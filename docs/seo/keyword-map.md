@@ -152,8 +152,10 @@ We target **«خرید/فروش/تأمین/مشخصات/استاندارد»** i
   | I-beam (IPE/IPN) | **شيلمان** (سعر الشيلمان في العراق) |
   | box section | **حديد مربع / علب** |
   | sheet | **صاج** |
+  | sheet types (W17.4) | **الصاج الأسود** (black) · **الصاج المزيت** (cold-rolled, oiled) · **الصاج المجلفن** (galvanized) · **الصاج الملون** (PPGI); coil = **رول** / **لفائف** — *provisional, owner-accepted 2026-10-14 (W17.5)* |
   | angle | **زاوية / زاويه** |
   | billet | بليت |
+- **Sheet-type words are provisional (owner decision, W17.5, 2026-10-14).** The owner accepts the ar sheet-type and coil words above for the Iraq market, with no code change. In site copy today (W17.4: `lib/content/category-seo.ts`, `lib/content/category-nav.ts`, `lib/content/export.ts`) «الصاج الأسود», «الصاج المجلفن», «رول» and «لفائف» appear; «المزيت» and «الملون» do not (the copy says «الصاج المدرفل على البارد» and «الصاج المطلي», and Odoo owns the ar category names). They are not yet confirmed by an Iraqi buyer or by Search Console data; revisit them when ar impressions for the sheet categories exist, and change copy only on a new owner decision.
 - **Weight:** «وزن حديد التسليح حسب القطر», «وزن حديد التسليح في المتر الطولي», «جدول اوزان الحديد», «حساب وزن الحديد». The ar calculator is a direct fit (§6 P1-3).
 
 ### 3.6 English: global spec intent and Iran supply

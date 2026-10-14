@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { factoriesForFamily, filterOptions, parsePriceFilterQuery, priceFilterSearch, reconcilePriceFilter, type PriceFilterOptions } from "../pricing/price-page.ts";
 import { ABOUT_COPY } from "../content/about.ts";
-import { GROUP_CARD_COPY, GROUP_COMPANIES, OFFICES } from "../content/company.ts";
+import { GROUP_CARD_COPY, GROUP_COMPANIES, OFFICES, groupCompany } from "../content/company.ts";
 import { TEHRAN_OFFICE } from "../seo/schema.ts";
 import { locales } from "../../config/locales.ts";
 
@@ -76,12 +76,14 @@ test("about: the intro paragraphs are justified (inter-word, last line at the st
 
 // --- 3. /about: group logo cards --------------------------------------------------------------------
 
-test("group logos: the four supplied, WebP + PNG fallback, at most 400 px wide and small, with their real width/height", async () => {
+test("group logos: all five supplied (W17.5: AiSanat = the «فناساخت» mark), WebP + PNG fallback, at most 400 px wide and small, with their real width/height", async () => {
   // sharp 0.35 types resolve to `unknown` under this tsconfig (see scripts/images/build-variants.ts).
   const sharp = (await import("sharp")).default as unknown as (file: string) => { metadata(): Promise<{ width?: number; height?: number }> };
   const withLogo = GROUP_COMPANIES.filter((c) => c.logo);
-  assert.deepEqual(withLogo.map((c) => c.id).sort(), ["ahanassa", "avizsazeh", "fazasazeh", "sipanel"]);
-  assert.equal(GROUP_COMPANIES.find((c) => c.id === "aisanat")!.logo, null, "no AiSanat logo supplied");
+  assert.deepEqual(withLogo.map((c) => c.id).sort(), ["ahanassa", "aisanat", "avizsazeh", "fazasazeh", "sipanel"]);
+  assert.equal(GROUP_CARD_COPY.fa.logoAlt(groupCompany("aisanat").name.fa), "لوگوی آی‌صنعت");
+  assert.equal(GROUP_CARD_COPY.en.logoAlt(groupCompany("aisanat").name.en), "AiSanat logo");
+  assert.equal(GROUP_CARD_COPY.ar.logoAlt(groupCompany("aisanat").name.ar), "شعار آي صنعت");
   for (const c of withLogo) {
     for (const file of [c.logo!.webp, c.logo!.png]) {
       const abs = path.join(REPO, "public", file);

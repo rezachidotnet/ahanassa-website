@@ -41,6 +41,7 @@ import { compareTargetArtifacts } from "../../lib/static/target-diff-gate.ts";
 import { PRODUCTION_ROBOTS_TXT, STAGING_ROBOTS_TXT } from "../../lib/static/indexing-gate.ts";
 import { STATIC_TARGETS } from "../../lib/static/targets.ts";
 import { nextStaticEntries, STATIC_ASSET_WAIT, waitForStaticAssets } from "../../lib/content-pipeline/static-asset-wait.ts";
+import { CONTACT_HYDRATION_RETRY, withRetries } from "../../lib/content-pipeline/smoke-retry.ts";
 import { annotate, log as logger, parseArgs, paths, publicDb, readJson, repoRoot, runStep, summary, workDir, writeJson } from "./common.ts";
 
 const command = process.argv[2];
@@ -330,9 +331,16 @@ await runStep(`publish ${command}`, async () => {
       });
       if (!assets.ok) throw new Error(`smoke /_next/static: ${assets.pending.length} of ${assets.checked} file(s) not served with the artifact's bytes after ${Math.round(assets.waitedMs / 1000)} s: ${assets.pending.slice(0, 10).map((f) => `${f.path} (${f.last})`).join(", ")}`);
       lines.push(`${assets.checked} /_next/static files serve the artifact's bytes (${assets.rounds} round(s), ${Math.round(assets.waitedMs / 1000)} s)`);
-      const form = spawnSync("node", ["scripts/static/hydration-check.ts", "--base-url", STATIC_BASE_URL, "--pages", "/contact,/en/contact,/ar/contact", "--expect-snapshot", version], { cwd: repoRoot, encoding: "utf8" });
-      process.stdout.write(form.stdout);
-      if (form.status !== 0) throw new Error(`smoke /contact form: ${form.stdout.split("\n").filter((l) => l.startsWith("FAIL")).join(" | ") || form.stderr.slice(-400)}`);
+      // W17.5: one failed check (2026-10-14: "/ar/contact … not hydrated", the next identical run passed) is
+      // re-run once after 30 s before the smoke fails, with the same message (lib/content-pipeline/smoke-retry.ts).
+      await withRetries(
+        async () => {
+          const form = spawnSync("node", ["scripts/static/hydration-check.ts", "--base-url", STATIC_BASE_URL, "--pages", "/contact,/en/contact,/ar/contact", "--expect-snapshot", version], { cwd: repoRoot, encoding: "utf8" });
+          process.stdout.write(form.stdout);
+          if (form.status !== 0) throw new Error(`smoke /contact form: ${form.stdout.split("\n").filter((l) => l.startsWith("FAIL")).join(" | ") || form.stderr.slice(-400)}`);
+        },
+        { ...CONTACT_HYDRATION_RETRY, onRetry: (_attempt, error) => log(`${error instanceof Error ? error.message : String(error)} — re-running the /contact check once in ${CONTACT_HYDRATION_RETRY.delayMs / 1000} s`) },
+      );
       lines.push(`/contact fa/en/ar hydrated in Chrome; the form loads catalog_snapshot_version ${version}`);
       const health = await fetchText(TARGET.rfqHealthUrl);
       if (health.status !== 200) throw new Error(`smoke RFQ Worker /healthz: ${health.status}`);
