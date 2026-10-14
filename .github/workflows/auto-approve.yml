@@ -1,0 +1,62 @@
+# W17.3 (owner decision 2026-10-14, RELEASE_POLICY.md §21): a deployment that has waited 6 h for the owner's approval
+# is approved automatically. It replaces only the human wait: the release policy gate, the v11 guards, smoke, automatic
+# rollback, the canary and the observation are unchanged. A Reject within the 6 h still stops the release.
+#
+# Every 30 min (+ on demand): .github/scripts/auto-approve.mjs lists the runs with status=waiting and approves each
+# pending deployment whose wait started ≥ 6 h ago — only when every completed job of that run succeeded (never a run
+# with a failed or cancelled earlier job). The job summary logs every decision. Idempotent (an approved run is no
+# longer waiting). The approval must come from a required reviewer, so it uses the owner's fine-grained PAT in the
+# secret AUTO_APPROVE_TOKEN (Actions: read, Deployments: write), never the workflow's own token. Without the secret
+# it does nothing and warns.
+#
+# GitHub `schedule` is best-effort on this repository (W11.2): a dropped slot only delays an approval to the next
+# run that fires. It checks out nothing but .github/scripts of its own commit; the token is passed to that one step.
+
+name: Auto-approve
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Report the decisions only; approve nothing"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "11,41 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auto-approve
+  cancel-in-progress: false
+
+jobs:
+  auto-approve:
+    name: approve deployments waiting ≥ 6 h
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout the release scripts
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Approve pending deployments waiting ≥ 6 h (fails only when an approval fails)
+        shell: bash
+        env:
+          AUTO_APPROVE_TOKEN: ${{ secrets.AUTO_APPROVE_TOKEN }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+        run: |
+          set -euo pipefail
+          if [ "$DRY_RUN" = "true" ]; then
+            node .github/scripts/auto-approve.mjs --dry-run
+          else
+            node .github/scripts/auto-approve.mjs
+          fi

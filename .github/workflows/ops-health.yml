@@ -48,6 +48,9 @@ on:
 permissions:
   contents: read
   actions: read
+  # W17.3: "Odoo unreachable" ALERTs only on the 2nd failed check in a row; the count is read back from the previous
+  # completed run's annotations (GET /check-runs/{job_id}/annotations). Read-only.
+  checks: read
 
 # W11.3: no concurrency group at all (W9.1c had one per job). GitHub sometimes never moves a job out of "waiting" on an
 # environment that has no reviewer or wait timer (F3: staging 2026-10-06 and 10-07; production-v11-monitor run
