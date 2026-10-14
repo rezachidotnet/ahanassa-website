@@ -52,7 +52,7 @@ import { trackExtractEvent } from "@/lib/rfq/extract/analytics";
  * (`extractCapability`), each attached list is read into draft rows
  * (use-rfq-list-extraction.ts). Rows from a file show the customer's own
  * text and, when unsure, «لطفاً بررسی کنید»; on submit their item note
- * carries «از فایل: …» for Odoo staff. Reading never blocks the submit.
+ * starts «از فایل: …» for Odoo staff (composeItemNote). Reading never blocks the submit.
  */
 
 interface TurnstileRenderOptions {
@@ -655,13 +655,15 @@ export function EnquiryForm({
       return;
     }
 
-    // W13.3: a row read from an attached file tells Odoo staff so in its item note («از فایل: …»,
-    // «(ویرایش‌شده توسط مشتری)» when changed) — the existing description field, no contract change.
-    const attachedKeys = new Set(files.map(fileKeyOf));
+    // W13.3: a row read from an attached file tells Odoo staff so in its item note (starts «از فایل:», names the
+    // file, «ویرایش‌شده توسط مشتری» when changed — the Odoo PR #10 note contract, composeItemNote) — the existing
+    // description field, no contract change. A hand-typed row's note never starts with «از فایل:».
+    const attachedNames = new Map(files.map((file) => [fileKeyOf(file), sanitizeFilename(file.name)]));
     const items: RfqItemInput[] = rows
       .map((row) => {
-        const extract = row.extract && attachedKeys.has(row.extract.fileKey) ? row.extract : undefined;
-        const fields = extract ? { ...row.fields, notes: composeItemNote(row.fields.notes, extract, isEditedByCustomer(row)) } : row.fields;
+        const fileName = row.extract ? attachedNames.get(row.extract.fileKey) : undefined;
+        const extract = fileName ? row.extract : undefined;
+        const fields = { ...row.fields, notes: composeItemNote(row.fields.notes, extract, isEditedByCustomer(row), fileName) };
         return buildRfqItemInput(fields, locale);
       })
       .filter((item): item is RfqItemInput => item !== null);

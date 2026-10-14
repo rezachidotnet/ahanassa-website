@@ -146,23 +146,56 @@ export function isEditedByCustomer(row: RfqRow & { extract?: RfqRowExtract }): b
 
 /** Item description limit of rfq_submit.v1 (lib/rfq/validation.ts LIMITS.description). */
 export const MAX_ITEM_DESCRIPTION = 1000;
-/** The provenance words for Odoo staff — always Persian, whatever the page language. */
-export const FROM_FILE_PREFIX = "از فایل: ";
-export const EDITED_SUFFIX = " (ویرایش‌شده توسط مشتری)";
+/**
+ * The provenance words for Odoo staff — always Persian, whatever the page
+ * language. Contract with Odoo (`ahanassa_rfq_file_intake`
+ * models/customer_lines.py; contract v1.2 "Rows pre-filled from the
+ * customer's file"): the note of a row from the customer's file STARTS with
+ * «از فایل:» and CONTAINS «ویرایش‌شده توسط مشتری» when the customer changed
+ * the row; a hand-typed row's note never starts with «از فایل:». When the
+ * note names one of the RFQ's files, Odoo compares the row only with that file.
+ */
+export const FROM_FILE_PREFIX = "از فایل:";
+export const EDITED_MARK = "ویرایش‌شده توسط مشتری";
+/** Put in front of a hand-typed note that itself starts with «از فایل:», so Odoo never takes it for a row from a file. */
+export const HAND_NOTE_GUARD = "یادداشت: ";
+/** What Odoo skips before looking for the prefix: spaces, ZWNJ, direction marks, BOM. */
+const LEADING_MARKS = /^[\s‌‎‏‪-‮﻿]+/u;
+/** The file text always keeps at least this much room next to a long note of the customer's own. */
+const MIN_RAW_ROOM = 40;
+
+/** Cut to `max` UTF-16 units (the API's own measure, validation.ts), never inside a character, «…» when cut. */
+function cut(s: string, max: number): string {
+  if (s.length <= max) return s;
+  let out = "";
+  for (const ch of s) {
+    if (out.length + ch.length > max - 1) break;
+    out += ch;
+  }
+  return `${out.trimEnd()}…`;
+}
 
 /**
- * The item note Odoo receives for a row read from a file — no contract
- * change: the existing `description`. «<customer's own note> | از فایل: <the
- * customer's text>» plus «(ویرایش‌شده توسط مشتری)» when they changed the row.
- * The file text is shortened, never the customer's own note.
+ * The item note Odoo receives (the existing item `description`, sent to Odoo
+ * as `notes`; no contract change). A row read from a file:
+ *   «از فایل: <customer's text> — فایل «<file name>» — ویرایش‌شده توسط مشتری | <customer's own note>»
+ * The file name is the one Odoo stores for the attachment (`sanitizeFilename`);
+ * the edited mark only when the customer changed product, size, quantity or
+ * unit; « | <own note>» only when they wrote one. At most
+ * MAX_ITEM_DESCRIPTION: the file text and the customer's note are shortened,
+ * never the prefix, the file name or the edited mark.
+ * A hand-typed row: the customer's note as typed (see HAND_NOTE_GUARD).
  */
-export function composeItemNote(notes: string, extract: RfqRowExtract | undefined, edited: boolean): string {
+export function composeItemNote(notes: string, extract: RfqRowExtract | undefined, edited: boolean, fileName?: string): string {
   const own = notes.trim();
-  if (!extract) return own;
-  const suffix = edited ? EDITED_SUFFIX : "";
-  const lead = own ? `${own} | ` : "";
-  const room = MAX_ITEM_DESCRIPTION - [...lead].length - [...FROM_FILE_PREFIX].length - [...suffix].length;
-  if (room < 20) return clip(own, MAX_ITEM_DESCRIPTION);
-  const raw = [...extract.rawText].length > room ? `${[...extract.rawText].slice(0, room - 1).join("")}…` : extract.rawText;
-  return `${lead}${FROM_FILE_PREFIX}${raw}${suffix}`;
+  if (!extract) {
+    const typed = own.replace(LEADING_MARKS, "").startsWith(FROM_FILE_PREFIX) ? `${HAND_NOTE_GUARD}${own}` : own;
+    return cut(typed, MAX_ITEM_DESCRIPTION);
+  }
+  const head = `${FROM_FILE_PREFIX} `;
+  const tail = `${fileName ? ` — فایل «${fileName}»` : ""}${edited ? ` — ${EDITED_MARK}` : ""}`;
+  const rawText = extract.rawText.replace(/\s+/g, " ").trim();
+  const room = MAX_ITEM_DESCRIPTION - head.length - tail.length;
+  const ownPart = own ? ` | ${cut(own, room - 3 - Math.min(rawText.length, MIN_RAW_ROOM))}` : "";
+  return `${head}${cut(rawText, room - ownPart.length)}${tail}${ownPart}`;
 }

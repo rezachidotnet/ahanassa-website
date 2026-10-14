@@ -117,10 +117,22 @@ in the message (the whole file is still sent).
 
 ## Provenance to Odoo (no contract change)
 
-For a row from a still-attached file, the existing item `description` becomes
-`<customer's own note> | از فایل: <the customer's text>` and ends with « (ویرایش‌شده توسط مشتری)» when the
-visitor changed product, size, quantity or unit (`composeItemNote`, ≤ 1000 characters; the customer's own
-note is never shortened). Always Persian, for staff. The file goes as before through the v1.2 `attachments`.
+For a row from a still-attached file, the existing item `description` (Odoo's `notes`) follows the note
+contract of Odoo PR #10 (`ahanassa_rfq_file_intake` `models/customer_lines.py`, contract v1.2 "Rows
+pre-filled from the customer's file"):
+
+    از فایل: <the customer's text> — فایل «<file name>» — ویرایش‌شده توسط مشتری | <customer's own note>
+
+- it **starts with «از فایل:»** (colon right after فایل), so Odoo shows the badge «از فایل مشتری»;
+- «— ویرایش‌شده توسط مشتری» only when the visitor changed product, size, quantity or unit;
+- the file name is the one Odoo stores for the attachment (`sanitizeFilename`), so Odoo compares the row only
+  with that file;
+- « | <own note>» only when the customer wrote one;
+- ≤ 1000 characters: the file text and the own note are shortened, never the prefix, file name or edited mark.
+
+A hand-typed row's note never starts with «از فایل:»: if the customer typed that themselves, «یادداشت: » is put
+in front. `composeItemNote`; the format is pinned by a test in `lib/rfq/extract-match.test.ts`. Always Persian,
+for staff. The file goes as before through the v1.2 `attachments`.
 
 ## No prices
 

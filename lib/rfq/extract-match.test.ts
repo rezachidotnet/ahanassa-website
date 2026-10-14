@@ -4,7 +4,7 @@ import type { PublicRfqCatalogItem } from "./catalog-selector.ts";
 import { matchLine, variantForDims } from "./extract/match.ts";
 import type { ExtractedLine } from "./extract/lines.ts";
 import { textToLines, transcriptToLines } from "./extract/lines.ts";
-import { completeExtractedRow, composeItemNote, EDITED_SUFFIX, FROM_FILE_PREFIX, isEditedByCustomer, lineToRow, MAX_ITEM_DESCRIPTION, mergeExtractedRows, type ExtractedRfqRow } from "./extract/to-rows.ts";
+import { completeExtractedRow, composeItemNote, EDITED_MARK, FROM_FILE_PREFIX, HAND_NOTE_GUARD, isEditedByCustomer, lineToRow, MAX_ITEM_DESCRIPTION, mergeExtractedRows, type ExtractedRfqRow } from "./extract/to-rows.ts";
 import { createEmptyCatalogRow, MAX_ITEMS, type RfqRow } from "./item-row-validation.ts";
 
 /**
@@ -169,18 +169,52 @@ test("merging: empty rows are replaced, filled rows kept first, MAX_ITEMS respec
   assert.equal(mergeExtractedRows(empty, []).rows.length, 1, "never an empty form");
 });
 
-test("provenance for Odoo: «از فایل: …» in the existing item note, «ویرایش‌شده توسط مشتری» when changed, ≤ 1000 characters", () => {
+// Ported from the Odoo side (ahanassa-odoo PR #10, addons/ahanassa_rfq_file_intake/models/customer_lines.py),
+// so this test fails if the website's note ever stops matching what Odoo looks for.
+const ODOO_LEADING_MARKS = /^[ \t\r\n‌‎‏‪‫‬﻿]+/u;
+const odooIsFromCustomerFile = (notes: string) => Boolean(notes) && notes.replace(ODOO_LEADING_MARKS, "").startsWith("از فایل:");
+const odooIsEditedByCustomer = (notes: string) => odooIsFromCustomerFile(notes) && /ویرایش[‌‏ ]?شده\s+توسط\s+مشتری/u.test(notes);
+/** Odoo leaves a customer line to another file when the note names another of the RFQ's files and not this one. */
+const odooLeftToOtherFile = (notes: string, thisFile: string, rfqFiles: string[]) => !notes.includes(thisFile) && rfqFiles.some((name) => notes.includes(name));
+
+test("note format contract with Odoo PR #10: starts «از فایل:», names the file, «ویرایش‌شده توسط مشتری» when changed; hand rows never «از فایل:»", () => {
   const row: ExtractedRfqRow = lineToRow(line("میلگرد آجدار ۱۶ A3 - ۲۰ تن"), CATALOG, "spreadsheet", "f1");
+  assert.equal(FROM_FILE_PREFIX, "از فایل:", "colon right after فایل");
+  assert.equal(EDITED_MARK, "ویرایش‌شده توسط مشتری", "with a ZWNJ");
   assert.equal(isEditedByCustomer(row), false);
-  assert.equal(composeItemNote("", row.extract, false), `${FROM_FILE_PREFIX}میلگرد آجدار ۱۶ A3 - ۲۰ تن`);
+  assert.equal(isEditedByCustomer({ ...row, fields: { ...row.fields, notes: "تحویل اصفهان" } }), false, "their own note is not an edit of what was read");
   const edited = { ...row, fields: { ...row.fields, quantityValue: "25" } };
   assert.equal(isEditedByCustomer(edited), true);
-  assert.equal(isEditedByCustomer({ ...row, fields: { ...row.fields, notes: "تحویل اصفهان" } }), false, "their own note is not an edit of what was read");
-  assert.equal(composeItemNote("تحویل اصفهان", row.extract, true), `تحویل اصفهان | ${FROM_FILE_PREFIX}میلگرد آجدار ۱۶ A3 - ۲۰ تن${EDITED_SUFFIX}`);
+
+  // exact strings
+  const plain = composeItemNote("", row.extract, false, "لیست خرید.xlsx");
+  assert.equal(plain, "از فایل: میلگرد آجدار ۱۶ A3 - ۲۰ تن — فایل «لیست خرید.xlsx»");
+  const changed = composeItemNote(" تحویل اصفهان ", row.extract, true, "لیست خرید.xlsx");
+  assert.equal(changed, "از فایل: میلگرد آجدار ۱۶ A3 - ۲۰ تن — فایل «لیست خرید.xlsx» — ویرایش‌شده توسط مشتری | تحویل اصفهان");
+  assert.equal(composeItemNote("", row.extract, false), "از فایل: میلگرد آجدار ۱۶ A3 - ۲۰ تن", "the file name is optional");
+
+  // read as Odoo reads it
+  assert.ok(odooIsFromCustomerFile(plain) && !odooIsEditedByCustomer(plain));
+  assert.ok(odooIsFromCustomerFile(changed) && odooIsEditedByCustomer(changed));
+  assert.ok(!odooLeftToOtherFile(changed, "لیست خرید.xlsx", ["لیست خرید.xlsx", "photo.jpg"]), "compared with its own file");
+  assert.ok(odooLeftToOtherFile(changed, "photo.jpg", ["لیست خرید.xlsx", "photo.jpg"]), "left alone by the other file");
+
+  // rows typed by hand: never «از فایل:», even when the customer typed it
+  for (const typed of ["", "تحویل فوری", "از فایل: لیست قبلی", "‏ از فایل: لیست قبلی"]) {
+    const note = composeItemNote(typed, undefined, false);
+    assert.equal(odooIsFromCustomerFile(note), false, typed);
+    assert.ok(note.includes(typed.trim()), "the customer's words are kept");
+  }
   assert.equal(composeItemNote(" own ", undefined, false), "own");
-  const long = composeItemNote("ن".repeat(700), { ...row.extract, rawText: "ر".repeat(300) }, true);
-  assert.ok([...long].length <= MAX_ITEM_DESCRIPTION && long.startsWith("ن".repeat(700)) && long.endsWith(EDITED_SUFFIX));
-  assert.equal(composeItemNote("ن".repeat(990), row.extract, false), "ن".repeat(990), "no room: the customer's own note wins");
+  assert.equal(composeItemNote("از فایل: لیست قبلی", undefined, false), `${HAND_NOTE_GUARD}از فایل: لیست قبلی`);
+
+  // ≤ 1000 characters (the API's measure): prefix, file name and edited mark always kept
+  for (const [own, raw] of [["ن".repeat(700), "ر".repeat(300)], ["ن".repeat(990), "میلگرد ۱۶"], ["", "ر".repeat(1200)], ["ن".repeat(1000), "ر".repeat(1000)]]) {
+    const note = composeItemNote(own, { ...row.extract, rawText: raw }, true, "x".repeat(116) + ".pdf");
+    assert.ok(note.length <= MAX_ITEM_DESCRIPTION, `${note.length}`);
+    assert.ok(odooIsFromCustomerFile(note) && odooIsEditedByCustomer(note) && note.includes(`«${"x".repeat(116)}.pdf»`));
+    if (own) assert.ok(note.includes(" | ن"), "the customer's own note keeps its place");
+  }
 });
 
 test("recorded vision transcripts of the photo fixtures → rows (fake AI; real outputs of 2026-10-13, digit misreads included)", () => {
