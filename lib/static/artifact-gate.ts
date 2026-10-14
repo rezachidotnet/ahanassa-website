@@ -4,8 +4,9 @@ import path from "node:path";
 import { artifactManifest, publicManifest, publicRfqCatalog, PRIVATE_DIR, PUBLIC_DIR, type ArtifactFileEntry } from "../contracts/artifact-v1.ts";
 import { scanPublicFile, type LeakFinding } from "./leak-scan.ts";
 import { internalIdsFromSnapshot, scanPublication } from "./publication-gate.ts";
-import { priceGateInput, scanPrices } from "./price-gate.ts";
+import { priceGateInput, scanPrices, visibleText } from "./price-gate.ts";
 import { loadSourceNames, redactSourceNames, scanSourceNames } from "./source-name-scan.ts";
+import { checkAgentTexts, checkMarkdownMirrors } from "./markdown-mirror.ts";
 import { scanArticlePages } from "./article-gate.ts";
 import { STATIC_TARGETS, TURNSTILE_ORIGIN } from "./targets.ts";
 import { checkStaticCacheRules } from "./static-rules.ts";
@@ -156,7 +157,7 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
   // 5. Leak scan over every public text file.
   const leaks: LeakFinding[] = [];
   for (const e of publicEntries) {
-    if (!/\.(html|json|txt|xml|js|css)$/.test(e.path) && !e.path.startsWith("_") && e.path !== ".assetsignore") continue;
+    if (!/\.(html|json|txt|xml|js|css|md)$/.test(e.path) && !e.path.startsWith("_") && e.path !== ".assetsignore") continue;
     leaks.push(...scanPublicFile(e.path, readPublic(e.path), options.companyPhones ?? []));
   }
   for (const l of leaks) failures.push(`leak ${l.kind} in ${l.file}: ${l.match}`);
@@ -169,12 +170,17 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
   } catch {
     failures.push(`${PRIVATE_DIR}/snapshot.json missing or unreadable (needed for the internal-id scan)`);
   }
-  const textFiles = publicEntries.filter((e) => /\.(html|json|txt|xml|js|css)$/.test(e.path)).map((e) => ({ path: e.path, content: readPublic(e.path) }));
+  const textFiles = publicEntries.filter((e) => /\.(html|json|txt|xml|js|css|md)$/.test(e.path)).map((e) => ({ path: e.path, content: readPublic(e.path) }));
   for (const f of scanPublication(textFiles, internalIdsFromSnapshot(snapshotDoc))) failures.push(`publication ${f.kind} in ${f.file}: ${f.match}`);
   // 7. Price gate (W9.4): rendered price text = the snapshot row's allow-listed fields, Persian pages only.
   for (const f of scanPrices(textFiles, priceGateInput(snapshotDoc))) failures.push(`price ${f.kind} in ${f.file}: ${f.match}`);
   // 8b. Article pages (W11.1): en no price data, ar no factory/location, no external image, no JSON-LD.
   for (const f of scanArticlePages(textFiles, priceGateInput(snapshotDoc).rows)) failures.push(`article ${f.kind} in ${f.file}: ${f.match}`);
+  // 8c. Agents (W16.7): each .md page mirror says nothing its HTML page does not; llms*.txt and en .md carry no
+  //     price amount, currency or factory/place; ar .md no factory/place. (Leak, publication, article and
+  //     source-name scans already cover .md and llms*.txt as text files.)
+  failures.push(...checkMarkdownMirrors(textFiles, visibleText));
+  failures.push(...checkAgentTexts(textFiles, priceGateInput(snapshotDoc).rows));
   // 8. Price-source names (W9.6): never in any public file. The names never live in this public repository.
   const sourceNames = options.sourceNames === undefined ? loadSourceNames() : options.sourceNames;
   // Never a name in the output: a finding is the file (redacted when its path holds a name) + the list index.
