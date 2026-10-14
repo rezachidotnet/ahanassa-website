@@ -306,8 +306,8 @@ test("company facts: parent group, sister companies with links, working hours, p
   assert.equal(PARENT_ORGANIZATION.foundingDate, "1997");
   assert.deepEqual(GROUP_COMPANIES.map((c) => [c.domain, c.sinceSolar, c.url]), [
     ["fazasazeh.ir", 1376, "https://fazasazeh.ir"],
-    ["sipanelco.com", 1394, "https://sipanelco.com"],
-    ["avizsazeh.com", 1400, "https://avizsazeh.com"],
+    ["sipanelco.com", 1394, "https://www.sipanelco.com"],
+    ["avizsazeh.com", 1400, "https://www.avizsazeh.com"],
     ["ahanassa.com", 1403, null],
     ["aisanat.ir", 1405, "https://aisanat.ir"],
   ]);

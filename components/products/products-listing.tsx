@@ -40,6 +40,7 @@ export async function ProductsListing({
   category,
   hero,
   intro,
+  aside,
 }: {
   locale: Locale;
   category?: PublicCatalogCategory;
@@ -47,6 +48,8 @@ export async function ProductsListing({
   hero?: { title: string; body?: string };
   /** W16.3: the category intro (text + links), rendered between the hero and the filter bar. */
   intro?: React.ReactNode;
+  /** W16.6: a contextual block after the product grid (the group services box on beam/box/coated-sheet pages). */
+  aside?: React.ReactNode;
 }) {
   // Category list failure isolation: a failed read leaves the category row
   // out instead of failing the whole listing. Same tag+JSON logging
@@ -95,6 +98,8 @@ export async function ProductsListing({
           )}
         </ul>
       )}
+
+      {aside}
 
       <CtaBand locale={locale} />
     </>

@@ -4,7 +4,7 @@ import { isLocale, localizedPath, type Locale } from "@/config/locales";
 import { buildPageMetadata } from "@/lib/metadata/resolve";
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";
 import { ABOUT_COPY, ABOUT_PHOTOS } from "@/lib/content/about";
-import { companyPhoneDisplay, GROUP_COMPANIES, OFFICES, sinceLabel, WORKING_HOURS_TEXT } from "@/lib/content/company";
+import { ABOUT_GROUP_ANCHOR, companyPhoneDisplay, GROUP_COMPANIES, OFFICES, sinceLabel, WORKING_HOURS_TEXT } from "@/lib/content/company";
 import { CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 import { RAW_MATERIALS_ROUTE } from "@/lib/content/raw-materials";
 import { EXPORT_ROUTE, isExportPublished } from "@/lib/content/export";
@@ -151,7 +151,7 @@ export default async function AboutPage({ params }: PageProps) {
         </div>
       </section>
 
-      <section aria-labelledby="about-group" className="border-border bg-background border-b section-y">
+      <section id={ABOUT_GROUP_ANCHOR} aria-labelledby="about-group" className="border-border bg-background border-b section-y">
         <div className="container-x grid gap-10 lg:grid-cols-2">
           <div>
             <h2 id="about-group" className={H2}>
