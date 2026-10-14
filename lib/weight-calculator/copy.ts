@@ -188,7 +188,7 @@ const en: WeightCalculatorCopy = {
     beam: "IPE and IPN beams: only from the EN 10365 mass-per-metre table, never computed from dimensions.",
   },
   basisRounding:
-    "Rounding: everything is calculated at full precision and only the displayed figure is rounded (half up): weight per metre to 3 decimals, per piece or sheet to 2, total weight to 1 and tonnes to 3. The number of pieces needed to reach a weight is rounded up to a whole number. A cost estimate is rounded to the nearest 1,000 Toman.",
+    "Rounding: everything is calculated at full precision and only the displayed figure is rounded (half up): weight per metre to 3 decimals, per piece or sheet to 2, total weight to 1 and tonnes to 3. The number of pieces needed to reach a weight is rounded up to a whole number.",
   standardsTitle: "Standards",
 };
 

@@ -300,7 +300,7 @@ const normName = (s: string) => s.replace(/ي/g, "ی").replace(/ك/g, "ک").repl
 /**
  * Artifact gate (W16.7) for the agent texts: `llms.txt` / `llms-full.txt` and the en Markdown pages carry no price
  * amount of this run's snapshot (Toman or IRR, any digit script, with or without grouping) and no factory or
- * delivery-location name, and llms.txt no currency word; the ar Markdown pages no factory or location name (ar = price + date only).
+ * delivery-location name, and llms.txt and the en pages no currency word (llms-full.txt is llms.txt + those pages); the ar Markdown pages no factory or location name (ar = price + date only).
  */
 export function checkAgentTexts(
   files: ReadonlyArray<{ path: string; content: string }>,
@@ -317,8 +317,8 @@ export function checkAgentTexts(
     const text = normName(asciiDigits(content));
     for (const n of names) if (text.includes(n)) failures.push(`agent text: ${path} names a factory or delivery location of the price snapshot`);
     if (ar) continue;
-    // The currency word itself: only in llms.txt, the one text written here (a mirror repeats its page's own wording).
-    if (path === "llms.txt" && CURRENCY_WORD.test(content)) failures.push(`agent text: ${path} mentions a currency`);
+    // No currency word: llms.txt, and every en page (its .md mirror is the page's visible text).
+    if (path !== "llms-full.txt" && CURRENCY_WORD.test(content)) failures.push(`agent text: ${path} mentions a currency`);
     for (const m of asciiDigits(content).matchAll(/\d[\d,٬]*/g)) {
       const value = Number(m[0].replace(/[,٬]/g, ""));
       if (amounts.has(value)) failures.push(`agent text: ${path} has a price amount of the snapshot (${m[0]})`);

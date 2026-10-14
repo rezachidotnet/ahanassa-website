@@ -141,6 +141,8 @@ test("gate: llms*.txt and en Markdown carry no snapshot price amount or factory/
   assert.match(checkAgentTexts([{ path: "llms.txt", content: "Rebar 48,947 today" }], rows)[0], /price amount/);
   assert.match(checkAgentTexts([{ path: "en/prices.md", content: "rebar ۴۸۹٬۴۷۰" }], rows)[0], /price amount/, "IRR in Persian digits");
   assert.match(checkAgentTexts([{ path: "llms.txt", content: "Prices in Toman" }], rows)[0], /currency/);
+  assert.match(checkAgentTexts([{ path: "en/tools/weight-calculator.md", content: "A cost estimate is rounded to the nearest 1,000 Toman." }], rows)[0], /currency/, "no currency word on an en page");
+  assert.deepEqual(checkAgentTexts([{ path: "en/about.md", content: "Building materials and industrial pipe" }], rows), [], "a word containing 'rial' is not a currency");
   assert.match(checkAgentTexts([{ path: "ar/prices.md", content: "٤٨٬٩٤٧ کارخانه آزمایشی الف" }], rows)[0], /factory or delivery location/);
   assert.deepEqual(checkAgentTexts([{ path: "ar/prices.md", content: "سعر اليوم ٤٨٬٩٤٧ تومان/كغ" }], rows), [], "ar: price + date is allowed");
   assert.deepEqual(checkAgentTexts([{ path: "prices.md", content: "۴۸٬۹۴۷ تومان کارخانه آزمایشی الف درب کارخانه" }], rows), [], "fa: full price display is allowed");
@@ -197,4 +199,12 @@ test("llms.txt / llms-full.txt: no price amount, currency, factory or price word
   assert.ok(full.startsWith(llms.trimEnd()));
   assert.ok(full.includes("# en/about.md") && full.includes("# en.md"), "the English pages follow");
   assert.ok(!full.includes("تومان"), "only English (price-free) pages are appended");
+});
+
+test("en weight calculator: no currency in the text the page shows (fa/ar keep their Toman wording)", async () => {
+  const { WEIGHT_CALCULATOR_COPY } = await import("../weight-calculator/copy.ts");
+  // priceUnit / priceLabel / priceDisclaimer render only beside a cost estimate, which en never has (no price data).
+  const { priceUnit: _unit, priceLabel: _label, priceDisclaimer: _disclaimer, ...shown } = WEIGHT_CALCULATOR_COPY.en;
+  assert.ok(!/\b(tomans?|rials?|irr)\b|\$/i.test(JSON.stringify(shown)), "en calculator text names no currency");
+  for (const l of ["fa", "ar"] as const) assert.match(JSON.stringify(WEIGHT_CALCULATOR_COPY[l]), /تومان/, `${l} unchanged`);
 });
