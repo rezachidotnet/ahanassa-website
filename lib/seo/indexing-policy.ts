@@ -43,8 +43,11 @@ export function isNoindexPage(path: string): boolean {
 /** Paths robots.txt disallows on the production target — the technical paths above, nothing else. */
 export const PRODUCTION_ROBOTS_DISALLOW = ["/api/", "/static-404", "/*?"] as const;
 
-/** Header rules (`_headers`) that mark non-page public files noindex on the production target. */
-export const PRODUCTION_NOINDEX_HEADER_PATHS = ["/data/*", "/manifest.public.json"] as const;
+/**
+ * Header rules (`_headers`) that mark non-page public files noindex on the production target. W16.7: the `.md`
+ * mirror of a page is for agents; the HTML page stays the one indexed URL.
+ */
+export const PRODUCTION_NOINDEX_HEADER_PATHS = ["/data/*", "/manifest.public.json", "/*.md"] as const;
 
 /** True only for the production build (APP_ENV=production): the one target whose public pages are indexable. */
 export function isIndexableTarget(): boolean {

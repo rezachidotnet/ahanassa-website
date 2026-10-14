@@ -24,6 +24,7 @@ import { snapshotCounts, rfqVariantIndexRow, type RfqVariantIndexRow } from "../
 import { artifactManifest, artifactPipelineInfo, publicManifest, publicRfqCatalog, PUBLIC_DIR, PRIVATE_DIR, ARTIFACT_SCHEMA_VERSION } from "../../lib/contracts/artifact-v1.ts";
 import { buildAssetsIgnoreFile, buildHeadersFile, buildRedirectsFile, renderRobotsTxt, renderSitemapXml, type StaticEnvironment } from "../../lib/static/static-rules.ts";
 import { moveDefaultLocaleToRoot, placeLocale404s, removeUnpublishedOutputs } from "../../lib/static/postprocess.ts";
+import { writeAgentFiles } from "../../lib/static/agent-files.ts";
 import { describeFiles, runArtifactGate } from "../../lib/static/artifact-gate.ts";
 import { getAllowedUomsForCatalogGroup } from "../../lib/rfq/uom-policy.ts";
 import { STATIC_TARGETS } from "../../lib/static/targets.ts";
@@ -164,6 +165,11 @@ for (const a of snapshot.tables.published_articles) {
 }
 counts.article_covers = snapshot.tables.published_articles.length;
 if (snapshot.tables.published_articles.length) log(`rasterized ${snapshot.tables.published_articles.length} article cover(s) to PNG + WebP`);
+
+// W16.7: a Markdown mirror of every page (X.html → X.md) and /llms.txt + /llms-full.txt, from the final HTML.
+const agent = writeAgentFiles(publicDir);
+counts.markdown_pages = agent.markdown;
+log(`wrote ${agent.markdown} Markdown page(s), llms.txt (${agent.llmsBytes} B), llms-full.txt (${agent.llmsFullBytes} B)`);
 
 // W10.6: the immutable Cache-Control names each hashed file the export wrote (never a wildcard; static-rules.ts).
 const nextStaticDir = path.join(publicDir, "_next/static");

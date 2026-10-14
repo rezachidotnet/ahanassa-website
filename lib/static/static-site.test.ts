@@ -9,7 +9,7 @@ import { PERSIAN_ALLOWLIST, scanPublicFile, stripAllowlisted } from "./leak-scan
 import { buildAssetsIgnoreFile, buildHeadersFile, buildRedirectsFile, renderRobotsTxt, renderSitemapXml } from "./static-rules.ts";
 import { moveDefaultLocaleToRoot, placeLocale404s, removeUnpublishedOutputs } from "./postprocess.ts";
 import { describeFiles, forbiddenPublicPath, REQUIRED_PUBLIC_FILES, runArtifactGate } from "./artifact-gate.ts";
-import { headerBlocks, PRODUCTION_ROBOTS_TXT } from "./indexing-gate.ts";
+import { headerBlocks, PRODUCTION_ROBOTS_TXT, STAGING_ROBOTS_TXT } from "./indexing-gate.ts";
 import { buildSecurityHeaders } from "../security/headers.ts";
 import { STATIC_TARGETS } from "./targets.ts";
 import { toPublicPathname } from "../../config/locales.ts";
@@ -78,7 +78,7 @@ test("_headers is generated from lib/security/headers.ts (single source); stagin
   assert.match(buildHeadersFile("staging", STATIC_TARGETS["staging"].rfqApiOrigin), /X-Robots-Tag: noindex, nofollow/);
   const production = headerBlocks(buildHeadersFile("production", STATIC_TARGETS["production"].rfqApiOrigin));
   assert.ok(!production.get("/*")!.some((l) => /noindex/i.test(l)), "production pages are never noindex");
-  assert.deepEqual([...production].filter(([, lines]) => lines.some((l) => /X-Robots-Tag/.test(l))).map(([block]) => block), ["/data/*", "/manifest.public.json"]);
+  assert.deepEqual([...production].filter(([, lines]) => lines.some((l) => /X-Robots-Tag/.test(l))).map(([block]) => block), ["/data/*", "/manifest.public.json", "/*.md"]);
   assert.match(read("lib/security/headers.ts"), /export function applySecurityHeaders[\s\S]*for \(const \[name, value\] of SECURITY_HEADERS\)/, "proxy.ts uses the same builder");
 });
 
@@ -95,10 +95,10 @@ test("_redirects keeps fa unprefixed and /request on /contact; .assetsignore exc
 });
 
 test("robots.txt / sitemap.xml render the app's own metadata-route results", () => {
-  assert.equal(renderRobotsTxt({ rules: { userAgent: "*", disallow: "/" } }), "User-Agent: *\nDisallow: /\n");
+  assert.equal(renderRobotsTxt({ rules: { userAgent: "*", disallow: "/" } }), "User-Agent: *\nContent-Signal: search=yes, ai-input=yes, ai-train=yes\nDisallow: /\n");
   assert.equal(
     renderRobotsTxt({ rules: [{ userAgent: "*", allow: "/", disallow: ["/api/"] }], sitemap: "https://www.ahanassa.com/sitemap.xml" }),
-    "User-Agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: https://www.ahanassa.com/sitemap.xml\n",
+    "User-Agent: *\nContent-Signal: search=yes, ai-input=yes, ai-train=yes\nAllow: /\nDisallow: /api/\n\nSitemap: https://www.ahanassa.com/sitemap.xml\n",
   );
   const xml = renderSitemapXml([{ url: "https://www.ahanassa.com/products/a&b", lastModified: "2026-09-18T10:12:01.186Z" }]);
   assert.match(xml, /<loc>https:\/\/www\.ahanassa\.com\/products\/a&amp;b<\/loc><lastmod>2026-09-18T10:12:01\.186Z<\/lastmod>/);
@@ -145,7 +145,7 @@ function buildArtifact(env: "staging" | "production" = "staging") {
   write(pub, "en.html", page("en", "/en"));
   write(pub, "ar.html", page("ar", "/ar"));
   for (const f of ["404.html", "en/404.html", "ar/404.html"]) write(pub, f, '<html><head><meta name="robots" content="noindex, nofollow"/></head><body>404</body></html>');
-  write(pub, "robots.txt", env === "production" ? PRODUCTION_ROBOTS_TXT : "User-Agent: *\nDisallow: /\n");
+  write(pub, "robots.txt", env === "production" ? PRODUCTION_ROBOTS_TXT : STAGING_ROBOTS_TXT);
   write(pub, "sitemap.xml", renderSitemapXml(env === "production" ? Object.values(languages).slice(0, 3).map((url) => ({ url, lastModified: "2026-10-01T00:00:00.000Z", alternates: { languages } })) : []));
   write(pub, "_headers", buildHeadersFile(env, STATIC_TARGETS[env].rfqApiOrigin));
   write(pub, "_redirects", buildRedirectsFile());
