@@ -47,6 +47,8 @@ export const JSONLD_ALLOWED_KEYS: ReadonlySet<string> = new Set([
   "department", "postalCode",
   // Owner, 2026-10-13 (lib/content/company.ts): working hours and the parent group's founding year.
   "openingHoursSpecification", "dayOfWeek", "opens", "closes", "foundingDate",
+  // D-W207-EMAIL (owner, 2026-10-16): the /contact Organization contactPoint's e-mail (the leak scan allows the address on /contact only).
+  "email",
 ]);
 
 const LEGACY_XID = /ahanassa_marketplace\.[a-z0-9_]+/g;

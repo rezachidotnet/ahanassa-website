@@ -30,7 +30,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { artifactManifest, type ArtifactManifest } from "../../lib/contracts/artifact-v1.ts";
 import { rfqVariantIndexRow, type RfqVariantIndexRow } from "../../lib/contracts/snapshot-v1.ts";
-import { COMPANY_PUBLIC_NUMBERS } from "../../lib/content/contact-channels.ts";
+import { COMPANY_PUBLIC_EMAILS, COMPANY_PUBLIC_NUMBERS } from "../../lib/content/contact-channels.ts";
 import { PIPELINE_CONFIG } from "../../lib/content-pipeline/config.ts";
 import { categoryReplaceBatches, batchStatements, clearFirstPointerSql, failStagedSql, mirrorStatements, pruneSql, restorePointerSql, stagedStateSql, switchPointerSql, variantIndexBatches, versionsToPrune } from "../../lib/content-pipeline/publication-sql.ts";
 import { isPipelineVersion } from "../../lib/content-pipeline/version.ts";
@@ -125,7 +125,7 @@ async function stateRows(): Promise<{ version: string; status: string; created_a
 }
 
 function verifyArtifact(): void {
-  const gate = runArtifactGate(p.artifact, { companyPhones: COMPANY_PUBLIC_NUMBERS });
+  const gate = runArtifactGate(p.artifact, { companyPhones: COMPANY_PUBLIC_NUMBERS, companyEmails: COMPANY_PUBLIC_EMAILS });
   if (gate.failures.length) throw new Error(`artifact gate refused the deploy:\n${gate.failures.slice(0, 30).join("\n")}`);
 }
 

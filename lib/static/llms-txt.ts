@@ -1,5 +1,6 @@
 import { companyPhoneDisplay, GROUP_COMPANIES, OFFICES, PARENT_ORGANIZATION, WORKING_HOURS_TEXT } from "../content/company.ts";
 import { RAW_MATERIAL_SLUGS, RAW_MATERIALS, rawMaterialPath } from "../content/raw-materials.ts";
+import { COMPANY_PUBLIC_EMAILS } from "../content/contact-channels.ts";
 import { MARKDOWN_ORIGIN, markdownFileFor } from "./markdown-mirror.ts";
 
 /**
@@ -89,14 +90,22 @@ export function buildLlmsTxt(pages: readonly LlmsPage[]): string {
   ].join("\n");
 }
 
-/** `/llms-full.txt`: llms.txt followed by the Markdown of every English page (en has no prices). */
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** The /contact e-mail line as the Markdown mirror renders it: ` Email: [addr](mailto:addr)`. */
+const COMPANY_EMAIL_MD = new RegExp(COMPANY_PUBLIC_EMAILS.map((e) => `[ \\t]*Email: \\[${escapeRegExp(e)}\\]\\(mailto:${escapeRegExp(e)}\\)`).join("|"), "g");
+
+/**
+ * `/llms-full.txt`: llms.txt followed by the Markdown of every English page (en has no prices). D-W207-EMAIL:
+ * the company e-mail lives on /contact only, so its line is cut from the en/contact copy here (en/contact.md
+ * keeps it); if the mirror's wording changes, the leak scan fails the build instead of publishing the address.
+ */
 export function buildLlmsFullTxt(llmsTxt: string, pages: readonly LlmsPage[], markdownOf: (mdFile: string) => string | null): string {
   const parts = [llmsTxt.trimEnd()];
   for (const p of [...pages].sort((a, b) => a.file.localeCompare(b.file))) {
     if (!(p.file === "en.html" || p.file.startsWith("en/"))) continue;
     const md = markdownFileFor(p.file);
     const text = md ? markdownOf(md) : null;
-    if (text) parts.push(text.trimEnd());
+    if (text) parts.push(text.replace(COMPANY_EMAIL_MD, "").trimEnd());
   }
   return `${parts.join("\n\n---\n\n")}\n`;
 }
