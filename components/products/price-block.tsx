@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, Info, Minus } from "lucide-react";
 import type { Locale } from "@/config/locales";
 import { ButtonLink } from "@/components/ui/button";
 import { badgeVariants, cardVariants } from "@/components/ui/surface-variants";
+import { priceChangeToneClass } from "@/lib/pricing/price-change-tone";
 import { presentPriceBlock, PRICE_BLOCK_COPY, type PriceBlockData } from "@/lib/pricing/price-block-presentation";
 import { PriceAge } from "./price-age";
 
@@ -14,8 +15,8 @@ import { PriceAge } from "./price-age";
  * Persian pages only (renders nothing for en/ar). `price` missing or
  * incomplete -> the "missing price" variant: «استعلام قیمت» + the RFQ CTA,
  * never an empty value. No source website, no JSON-LD `offers` — the data
- * type carries neither. Change since the previous price is neutral n-700,
- * not red/green.
+ * type carries neither. Change since the previous price: W20.1 up green,
+ * down red, unchanged neutral n-700, always with its arrow and %.
  *
  * W9.6: `priceCtaLabel` replaces the CTA text when a price is shown («استعلام قیمت نهایی», the RFQ form
  * prefilled by `rfqHref`); `trend` is the optional 30-day chart, drawn under the details.
@@ -44,7 +45,7 @@ export function PriceBlock({ locale, price, rfqHref, productName, priceCtaLabel,
             <div className="flex flex-wrap items-center gap-2">
               <span className={badgeVariants({ tone: "info" })}>{view.vat}</span>
               {view.change && (
-                <span className="text-neutral-700 inline-flex items-center gap-1 text-sm font-semibold">
+                <span className={`${priceChangeToneClass(view.change.direction)} inline-flex items-center gap-1 text-sm font-semibold`}>
                   {view.change.direction === "up" ? <ArrowUp className="size-3.5" aria-hidden="true" /> : view.change.direction === "down" ? <ArrowDown className="size-3.5" aria-hidden="true" /> : <Minus className="size-3.5" aria-hidden="true" />}
                   {view.change.percent ?? t.unchanged} {view.change.since}
                 </span>

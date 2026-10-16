@@ -8,6 +8,7 @@ import { SkipLink } from "@/components/layout/SkipLink";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { AnalyticsRuntime } from "@/components/analytics/analytics-runtime";
+import { StickyWhatsApp } from "@/components/layout/sticky-whatsapp";
 import { listHeaderProductFamilyShortcuts, type HeaderProductFamilyShortcut } from "@/lib/catalog/editorial-repository";
 import { listPublicProcessingGroups, type PublicProcessingGroup } from "@/lib/processing/public-repository";
 import { hasArticles } from "@/lib/articles/repository";
@@ -96,6 +97,8 @@ export default async function LocaleLayout({
         <SiteHeader locale={locale} productFamilies={productFamilies} serviceGroups={serviceGroups} hasArticles={articlesPublished} />
         <main id="main-content">{children}</main>
         <SiteFooter locale={locale} hasArticles={articlesPublished} />
+        {/* W20.1: floating WhatsApp button, en/ar only (renders nothing on fa). */}
+        <StickyWhatsApp locale={locale} />
         {/* W16.4: dataLayer + phone/WhatsApp clicks + GTM after load (config/analytics.ts); renders nothing. */}
         <AnalyticsRuntime locale={locale} />
       </body>

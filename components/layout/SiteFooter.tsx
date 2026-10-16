@@ -6,7 +6,7 @@ import { localizedPath, type Locale } from "@/config/locales";
 import { siteConfig } from "@/lib/metadata/site";
 import { visibleNavLinks, headerPhoneLabel } from "@/lib/content/nav";
 import { CONTACT_PHONE_DISPLAY, CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
-import { ABOUT_GROUP_ANCHOR, GROUP_COMPANIES, GROUP_FOOTER_COPY, OFFICES, PARENT_ORGANIZATION } from "@/lib/content/company";
+import { ABOUT_GROUP_ANCHOR, GROUP_CARD_COPY, GROUP_COMPANIES, GROUP_FOOTER_COPY, OFFICES, PARENT_ORGANIZATION } from "@/lib/content/company";
 import { fullCatalogPath } from "@/lib/downloads/paths";
 
 /**
@@ -28,7 +28,9 @@ import { fullCatalogPath } from "@/lib/downloads/paths";
  * tag row is kept. W16.6: one group line in the bottom bar (the parent group's site and /about#group, from
  * lib/content/company.ts). W17.1 (owner): the Tehran coordination office under the head office, and a short
  * «شرکت‌های گروه» list linking every sister company with a site — both from lib/content/company.ts (OFFICES,
- * GROUP_COMPANIES), the same names as /about; this supersedes W16.6's "no sister links site-wide".
+ * GROUP_COMPANIES), the same names as /about; this supersedes W16.6's "no sister links site-wide". W20.1 (owner,
+ * 2026-10-16): that list is vertical, one company per line, each name an underlined link to its site in a new tab
+ * (rel="noopener", with a hidden "opens in a new tab" note), with the inverse (cream) focus ring of the navy footer.
  */
 const copy: Record<
   Locale,
@@ -72,6 +74,9 @@ const copy: Record<
 /** Footer links: 44px tap targets (W10.0 P1-4), white/72 muted text (>= 7:1; white/45-65 was down to 4.21:1). */
 const FOOTER_LINK = "text-on-inverse-muted inline-flex min-h-11 items-center transition-colors hover:text-white";
 
+/** W20.1: a group-company link — underlined (it leaves the site), cream focus ring (`on-inverse`, 14.2:1 on navy). */
+const GROUP_LINK = cn(FOOTER_LINK, "underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--aa-color-focus-ring-inverse)]");
+
 const incotermCodes = ["FOB", "CFR", "CIF", "FCA", "DAP", "EXW"];
 
 export function SiteFooter({ locale, hasArticles = false }: { locale: Locale; hasArticles?: boolean }) {
@@ -96,11 +101,12 @@ export function SiteFooter({ locale, hasArticles = false }: { locale: Locale; ha
           <p className="text-accent-on-inverse mt-4 text-sm font-medium">{siteConfig.tagline}</p>
           <nav className="mt-8" aria-label={group.companies}>
             <h3 className="eyebrow text-accent-on-inverse">{group.companies}</h3>
-            <ul className="mt-2 flex flex-wrap gap-x-5 text-sm">
+            <ul className="mt-2 flex flex-col text-sm" data-footer-group-companies="">
               {sisters.map((c) => (
                 <li key={c.id}>
-                  <a href={c.url!} className={FOOTER_LINK}>
+                  <a href={c.url!} target="_blank" rel="noopener" className={GROUP_LINK}>
                     {c.name[locale]}
+                    <span className="sr-only"> {GROUP_CARD_COPY[locale].newTab}</span>
                   </a>
                 </li>
               ))}
@@ -165,7 +171,7 @@ export function SiteFooter({ locale, hasArticles = false }: { locale: Locale; ha
         </div>
       </div>
 
-      <div className="border-t border-white/10">
+      <div className="border-t border-white/10" data-site-footer-bottom="">
         <div className="container-x flex flex-col gap-3 py-6 text-on-inverse-muted text-xs sm:flex-row sm:items-center sm:justify-between">
           <p>
             &copy; {new Date().getFullYear()} {t.rights} {siteConfig.name} ({siteConfig.legalOwner})

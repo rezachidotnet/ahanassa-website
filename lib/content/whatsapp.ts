@@ -43,6 +43,28 @@ const copy: Record<Locale, { label: string; hint: string; general: string; withR
   },
 };
 
+/**
+ * W20.1 (owner instruction 2026-10-16) — the floating WhatsApp button, en and ar pages only (fa already has its
+ * contact paths): its accessible name and the short prefilled greeting in the page's language.
+ */
+export const STICKY_WHATSAPP_LOCALES = ["en", "ar"] as const satisfies readonly Locale[];
+
+const stickyCopy: Record<(typeof STICKY_WHATSAPP_LOCALES)[number], { label: string; greeting: string }> = {
+  en: { label: "Chat with Ahan Asa on WhatsApp", greeting: "Hello Ahan Asa, I have a question about steel supply." },
+  ar: { label: "تواصل مع آهن آسا عبر واتساب", greeting: "مرحبًا آهن آسا، لديّ استفسار عن توريد الحديد." },
+};
+
+export function hasStickyWhatsApp(locale: Locale): locale is (typeof STICKY_WHATSAPP_LOCALES)[number] {
+  return (STICKY_WHATSAPP_LOCALES as readonly Locale[]).includes(locale);
+}
+
+/** The floating button's link and label, or null on fa or without a valid number (then nothing is rendered). */
+export function stickyWhatsApp(locale: Locale, number: string | null = WHATSAPP_BUSINESS_NUMBER): { href: string; label: string } | null {
+  if (!hasStickyWhatsApp(locale) || !isValidWhatsAppNumber(number)) return null;
+  const { label, greeting } = stickyCopy[locale];
+  return { href: `https://wa.me/${number}?text=${encodeURIComponent(greeting)}`, label };
+}
+
 export function whatsappCopy(locale: Locale) {
   return copy[locale];
 }

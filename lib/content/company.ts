@@ -43,7 +43,7 @@ export const GROUP_COMPANIES: ReadonlyArray<{ id: string; url: string | null; do
   { id: "sipanel", url: "https://www.sipanelco.com", domain: "sipanelco.com", sinceSolar: 1394, name: { fa: "سی‌پانل", en: "SiPanel", ar: "سي بانل" }, field: { fa: "پوشش سالن‌های صنعتی", en: "Cladding of industrial halls", ar: "تغطية الصالات الصناعية" }, logo: groupLogo("sipanel", 400, 77) },
   { id: "avizsazeh", url: "https://www.avizsazeh.com", domain: "avizsazeh.com", sinceSolar: 1400, name: { fa: "آویز سازه", en: "Aviz Sazeh", ar: "آويز سازه" }, field: { fa: "سقف کاذب سالن‌ها", en: "Suspended ceilings for halls", ar: "الأسقف المعلقة للصالات" }, logo: groupLogo("avizsazeh", 319, 160) },
   { id: "ahanassa", url: null, domain: "ahanassa.com", sinceSolar: 1403, name: { fa: "آهن آسا", en: "Ahan Asa", ar: "آهن آسا" }, field: { fa: "تأمین فولاد ساختمان و صنعت", en: "Steel supply for construction and industry", ar: "توريد الحديد للبناء والصناعة" }, logo: groupLogo("ahanassa", 149, 160) },
-  { id: "aisanat", url: "https://aisanat.ir", domain: "aisanat.ir", sinceSolar: 1405, name: { fa: "آی‌صنعت", en: "AiSanat", ar: "آي صنعت" }, field: { fa: "خدمات فناوری اطلاعات ویژهٔ این صنعت", en: "IT services for this industry", ar: "خدمات تقنية المعلومات لهذا القطاع" }, logo: groupLogo("aisanat", 400, 128) },
+  { id: "aisanat", url: "https://aisanaat.ir", domain: "aisanaat.ir", sinceSolar: 1405, name: { fa: "آی‌صنعت", en: "AiSanat", ar: "آي صنعت" }, field: { fa: "خدمات فناوری اطلاعات ویژهٔ این صنعت", en: "IT services for this industry", ar: "خدمات تقنية المعلومات لهذا القطاع" }, logo: groupLogo("aisanat", 400, 128) },
 ];
 
 /** A group company by id (throws on an unknown id, so a renamed entry fails the build, not the page). */

@@ -49,7 +49,7 @@ The staging and production builds are byte-identical except for robots, sitemap,
 |---|---|---|
 | `rfq_submit` | The RFQ API accepted a request (the tracking-number panel appears) | `rfq_tracking_number` (only this) |
 | `phone_click` | Any `tel:` link is clicked (header, footer, hero, mobile menu, CTA) | `link_location`: `header` / `footer` / `mobile_menu` / `main` |
-| `whatsapp_click` | Any `wa.me` / WhatsApp link is clicked | `link_location` |
+| `whatsapp_click` | Any `wa.me` / WhatsApp link is clicked | `link_location` (as `phone_click`, plus `sticky` = the floating WhatsApp button on en/ar pages, W20.1) |
 | `calculator_use` | The visitor's first change to the weight calculator on this page view | `calculator_product_group` (e.g. `REBAR`), `calculator_mode` |
 | `price_page_view` | `/prices` or `/ar/prices` is viewed (when it has prices) | `price_date` (the newest price date shown, `YYYY-MM-DD`) |
 | `basket_add` | A product joins the RFQ basket: the visitor arrives at `/contact` from a product, price or calculator link. A duplicate of a row already in the basket, a full list or a reload sends nothing | `basket_size` (filled rows after the add), `product_family`, `product_slug`, `add_source`: `product` / `price` / `calculator` (the page the visitor came from; left out when it was another page or unknown) |

@@ -29,6 +29,11 @@ const DOWNLOADS_NAV_LABEL = { fa: DOWNLOADS_COPY.fa.nav, en: DOWNLOADS_COPY.en.n
  * About, in all three locales — but only in a locale whose build actually
  * publishes articles (`visibleNavLinks`; a locale without articles has no
  * /articles page, so the item would be a broken link). A plain direct link.
+ *
+ * W20.1 (owner instruction 2026-10-16): «صنایع» / "Industries" / «الصناعات» is
+ * removed from the header, the mobile drawer and the footer (all three read
+ * this list) in every locale. The /industries pages and their sitemap /
+ * noindex treatment are unchanged; no redirect.
  */
 export interface NavLink {
   path: string;
@@ -47,7 +52,6 @@ export const navLinks: Record<Locale, NavLink[]> = {
     { path: "/products", label: "محصولات", hasDropdown: true },
     { path: PRICE_PAGE_ROUTE, label: PRICE_NAV_LABEL.fa },
     { path: "/services", label: "خدمات", hasDropdown: true },
-    { path: "/industries", label: "صنایع" },
     { path: ARTICLES_ROUTE, label: "مقالات" },
     { path: DOWNLOADS_ROUTE, label: DOWNLOADS_NAV_LABEL.fa, desktopFrom: "xl" },
     { path: "/about", label: "درباره ما" },
@@ -56,7 +60,6 @@ export const navLinks: Record<Locale, NavLink[]> = {
   en: [
     { path: "/products", label: "Products", hasDropdown: true },
     { path: "/services", label: "Services", hasDropdown: true },
-    { path: "/industries", label: "Industries" },
     { path: ARTICLES_ROUTE, label: "Articles" },
     { path: DOWNLOADS_ROUTE, label: DOWNLOADS_NAV_LABEL.en, desktopFrom: "xl" },
     { path: "/about", label: "About" },
@@ -66,7 +69,6 @@ export const navLinks: Record<Locale, NavLink[]> = {
     { path: "/products", label: "المنتجات", hasDropdown: true },
     { path: PRICE_PAGE_ROUTE, label: PRICE_NAV_LABEL.ar },
     { path: "/services", label: "الخدمات", hasDropdown: true },
-    { path: "/industries", label: "الصناعات" },
     { path: ARTICLES_ROUTE, label: "المقالات" },
     { path: DOWNLOADS_ROUTE, label: DOWNLOADS_NAV_LABEL.ar, desktopFrom: "xl" },
     { path: "/about", label: "من نحن" },

@@ -67,6 +67,14 @@
   /* Navy surfaces: cream ring (14.2:1); copper on navy is only 2.83:1. Set by
      the `on-inverse` utility (styles/theme-extensions.css). */
   --aa-color-focus-ring-inverse: var(--aa-color-brand-cream-50);
+  /* W20.1 (owner 2026-10-16): price change up = green, down = red, always
+     with ▲/▼ and the % (never colour alone). On white / neutral-50 / cream /
+     neutral-100 / neutral-200: up 5.87 / 5.62 / 5.42 / 5.33 / 4.97:1, down
+     6.57 / 6.29 / 6.06 / 5.97 / 5.56:1 (WCAG AA 4.5:1). The site has no dark
+     theme (`color-scheme: light`, styles/base.css), so the same surfaces and
+     ratios apply when the OS is in dark mode. */
+  --aa-color-price-up: var(--aa-color-success-700);
+  --aa-color-price-down: var(--aa-color-danger-700);
 
   /* Typography scale (size/line-height) */
   --aa-text-display-xl: clamp(2.75rem, 6vw, 5.75rem);

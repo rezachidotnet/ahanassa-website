@@ -20,12 +20,12 @@ test("group company URLs are the owner's (www for SiPanel and Aviz Sazeh) and re
   assert.equal(PARENT_ORGANIZATION.url, "https://fazasazeh.ir");
   assert.equal(groupCompany("sipanel").url, "https://www.sipanelco.com");
   assert.equal(groupCompany("avizsazeh").url, "https://www.avizsazeh.com");
-  assert.equal(groupCompany("aisanat").url, "https://aisanat.ir");
+  assert.equal(groupCompany("aisanat").url, "https://aisanaat.ir");
   assert.throws(() => groupCompany("unknown"));
   const outside = ["components", "app"].flatMap(function walk(dir: string): string[] {
     return fs.readdirSync(path.join(REPO, dir), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : /\.tsx?$/.test(e.name) ? [path.join(dir, e.name)] : []));
   });
-  for (const f of outside) assert.ok(!/sipanelco\.com|avizsazeh\.com|aisanat\.ir|fazasazeh\.ir/.test(read(f)), `${f}: group URLs come from lib/content/company.ts only`);
+  for (const f of outside) assert.ok(!/sipanelco\.com|avizsazeh\.com|aisanaat\.ir|fazasazeh\.ir/.test(read(f)), `${f}: group URLs come from lib/content/company.ts only`);
 });
 
 test("footer: one group line — the group name links to fazasazeh.ir, «شرکت‌های گروه» to /about#group", () => {
@@ -34,7 +34,9 @@ test("footer: one group line — the group name links to fazasazeh.ir, «شرک�
   assert.match(footer, /href=\{`\$\{localizedPath\(locale, "\/about"\)\}#\$\{ABOUT_GROUP_ANCHOR\}`\}/);
   // W17.1 (owner, 2026-10-14) supersedes "no sister links site-wide": the footer lists them (site-fixes-w171.test.ts).
   assert.ok(!/groupCompany|GroupServicesBox/.test(footer), "no contextual services box in the footer");
-  assert.ok(!/target=/.test(footer), "same tab");
+  // W20.1: only the «شرکت‌های گروه» company list opens a new tab; the bottom group line stays in the same tab.
+  assert.match(footer, /<a href=\{PARENT_ORGANIZATION\.url\} className="[^"]*">/, "same tab");
+  assert.equal(footer.match(/target=/g)?.length, 1, "one new-tab link: the group company list");
   assert.equal(`${GROUP_FOOTER_COPY.fa.before}${PARENT_ORGANIZATION.name.fa}${GROUP_FOOTER_COPY.fa.after}`, "آهن آسا، عضو گروه فضاسازه نقش جهان");
   assert.equal(GROUP_FOOTER_COPY.fa.companies, "شرکت‌های گروه");
   assert.equal(`${GROUP_FOOTER_COPY.en.before}${PARENT_ORGANIZATION.name.en}${GROUP_FOOTER_COPY.en.after}`, "Ahan Asa, a member of the Fazasazeh Naghsh-e Jahan group");

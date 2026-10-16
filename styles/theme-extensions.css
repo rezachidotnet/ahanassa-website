@@ -40,6 +40,8 @@
   --color-neutral-700: var(--aa-color-neutral-700);
   --color-danger: var(--aa-color-danger-700);
   --color-danger-50: var(--aa-color-danger-50);
+  --color-price-up: var(--aa-color-price-up);
+  --color-price-down: var(--aa-color-price-down);
 
   --radius-tag: var(--aa-radius-tag);
   --radius-control: var(--aa-radius-control);
@@ -356,5 +358,22 @@
 @layer utilities {
   [data-rfq-submitted] [data-rfq-hide-on-success] {
     display: none;
+  }
+}
+
+/**
+ * W20.1 — the floating WhatsApp button of the en/ar pages (components/layout/sticky-whatsapp.tsx). It is not
+ * shown on a page with a submit form (today the enquiry form of /contact), so it never sits over a form's buttons, and the footer's bottom bar
+ * gets room under it, so the last footer line is never covered at the end of the page.
+ */
+@layer utilities {
+  body:has(form button[type="submit"]) [data-sticky-whatsapp] {
+    display: none;
+  }
+  body:has([data-sticky-whatsapp]) [data-site-footer-bottom] {
+    padding-bottom: calc(56px + 2rem + env(safe-area-inset-bottom));
+  }
+  body:has(form button[type="submit"]) [data-site-footer-bottom] {
+    padding-bottom: 0;
   }
 }
