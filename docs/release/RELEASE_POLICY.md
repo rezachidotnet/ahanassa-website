@@ -137,7 +137,7 @@ Exactly three: `LOW < MEDIUM < HIGH`. A classification run either resolves to ex
 Allowed only if **every** changed file belongs to an explicitly approved low-risk category and no HIGH trigger exists anywhere in the diff.
 
 - ordinary copy/text content (`lib/content/**`)
-- static images/assets inside an approved asset directory (`public/**`, `logo/**`, `design-reference/**`, `lib/fonts/**`)
+- static images/assets inside an approved asset directory (`public/**`, `logo/**`, `design-reference/**`, `lib/fonts/**`); since 2026-10-16 (owner, W20.2) this includes video files `.mp4`, `.m3u8` and `.m4s`, classified exactly like images (`STATIC_ASSET_EXTENSIONS`)
 - CSS-only styling (any `*.css` file)
 - non-critical editorial/historical documentation (`docs/**` outside `docs/release/**` and `docs/integrations/odoo/**`, `v0-package/**`, root editorial docs)
 - repository/editor tooling with no effect on the built artifact (`.vscode/**`, `.claude/**`, `.gitignore`, `.env.example`, `.DS_Store`, `tsconfig.tsbuildinfo`)
@@ -527,6 +527,7 @@ The classifier is `.github/scripts/v11-release-risk.mjs` on `main`, run from the
 | --- | --- |
 | `css` | any `*.css` file |
 | `image` | `public/**` raster images and icons: `.png`, `.jpg`, `.jpeg`, `.webp`, `.avif`, `.gif`, `.ico` (**not `.svg`**: SVG can carry script) |
+| `video` | `public/**` video, classified exactly like `image` (owner, 2026-10-16, W20.2): `.mp4` and its HLS packaging, `.m3u8` playlists and `.m4s` fMP4 segments (**not `.ts`** segments: that extension is TypeScript in this repository) |
 | `copy` | the copy/message modules `lib/content/{homepage,nav,pages,buyer-value,evaluation-assurance,industries,purchase-process}.ts` and `lib/weight-calculator/copy.ts` |
 | `copy-test` | `lib/content/*.test.ts` (the frozen-spec tests that pin that copy; tests never ship) |
 

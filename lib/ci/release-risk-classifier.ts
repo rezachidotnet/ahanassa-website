@@ -211,6 +211,11 @@ const STATIC_ASSET_EXTENSIONS = new Set([
   ".ttf",
   ".otf",
   ".avif",
+  // Owner, 2026-10-16 (W20.2): video static assets, classified exactly like the images above — the MP4 and its HLS
+  // packaging (playlist + fMP4 segments). Not .ts segments: that extension is TypeScript here.
+  ".mp4",
+  ".m3u8",
+  ".m4s",
 ]);
 
 const CSS_EXTENSION = ".css";
