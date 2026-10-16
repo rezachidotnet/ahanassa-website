@@ -89,7 +89,7 @@ test("the zone's Rewrite URL rules match markdownRequestPath (the rules are Clou
   const [home, pages] = MARKDOWN_REWRITE_RULES;
   assert.equal(home.rewritePath.static, "/index.md");
   assert.equal(pages.rewritePath.dynamic, 'concat(http.request.uri.path, ".md")');
-  for (const r of MARKDOWN_REWRITE_RULES) assert.match(r.expression, /^any\(lower\(http\.request\.headers\["accept"\]\[\*\]\) contains "text\/markdown"\)/);
+  for (const r of MARKDOWN_REWRITE_RULES) assert.match(r.expression, /^any\(lower\(http\.request\.headers\["accept"\]\[\*\]\)\[\*\] contains "text\/markdown"\)/);
   // The same decision, evaluated the way the two expressions read.
   const rule = (p: string) => (p === "/" ? "/index.md" : !p.endsWith("/") && !p.endsWith(".md") && !p.startsWith("/_next/") && !p.includes(".") ? `${p}.md` : p);
   for (const p of ["/", "/en", "/ar/prices", "/products/ipe-beam", "/about/", "/about.md", "/llms.txt", "/_next/static/chunks/a.js"]) assert.equal(rule(p), markdownRequestPath(p, "text/markdown"), p);

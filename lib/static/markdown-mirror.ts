@@ -61,7 +61,8 @@ export function markdownRequestPath(pathname: string, accept: string | null | un
  * other extension-less page path (no trailing slash, not /_next/) to <path>.md. Kept here so a test pins them to
  * `markdownRequestPath`.
  */
-const ACCEPTS_MARKDOWN_EXPR = 'any(lower(http.request.headers["accept"][*]) contains "text/markdown")';
+// lower() of the header array returns an array, so contains needs the second [*] (W19.1: matches the live zone rules).
+const ACCEPTS_MARKDOWN_EXPR = 'any(lower(http.request.headers["accept"][*])[*] contains "text/markdown")';
 export const MARKDOWN_REWRITE_RULES = [
   {
     description: "Markdown for agents: home",
