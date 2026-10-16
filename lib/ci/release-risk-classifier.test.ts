@@ -167,6 +167,18 @@ test("ambiguous file never silently downgrades to MEDIUM even alongside only LOW
   assert.equal(result.status, "AMBIGUOUS");
 });
 
+test("video static assets (.mp4, .m3u8, .m4s) classify exactly like images: LOW under public/, AMBIGUOUS outside approved asset dirs", () => {
+  for (const p of ["public/media/about/expo-1405-farewell.mp4", "public/media/about/expo-1405-farewell/index.m3u8", "public/media/about/expo-1405-farewell/init.mp4", "public/media/about/expo-1405-farewell/seg-00.m4s"]) {
+    assert.equal(classifyPath(p).risk, "LOW", p);
+    assert.equal(classifyPath(p).category, classifyPath("public/images/hero-steel-mill.png").category, p);
+  }
+  const low = classifyDiff([file("public/media/new.mp4", "A"), file("public/media/x/index.m3u8"), file("public/media/x/seg-01.m4s", "D"), file("public/images/poster.jpg")]);
+  assert.equal(low.status, "CLASSIFIED");
+  assert.equal((low as any).risk, "LOW");
+  for (const p of ["lib/rfq/clip.mp4", "app/x.m3u8", "scripts/x.m4s"]) assert.equal(classifyPath(p).risk, classifyPath("lib/rfq/mystery.png").risk, p);
+  for (const p of ["public/media/x.webm", "public/media/x.mov", "public/media/x.mpd"]) assert.equal(classifyDiff([file(p)]).status, "AMBIGUOUS", p);
+});
+
 // --- 20-23: renames/deletions --------------------------------------------------
 
 test("20. rename FROM a HIGH path classifies HIGH", () => {
