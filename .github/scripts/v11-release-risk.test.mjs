@@ -21,6 +21,16 @@ test("LOW: only CSS, raster images/icons under public/, and the copy modules", (
   assert.deepEqual(r.high, []);
 });
 
+test("LOW (owner, 2026-10-16): video static assets under public/ — MP4 and HLS playlist/fMP4 segments — exactly like images", () => {
+  const files = ["public/media/about/expo-1405-farewell.mp4", "public/media/about/expo-1405-farewell/index.m3u8", "public/media/about/expo-1405-farewell/init.mp4", "public/media/about/expo-1405-farewell/seg-00.m4s", "public/media/X.MP4"];
+  for (const p of files) assert.equal(lowRule(p), "video", p);
+  const r = classifyChanges([...M(...files), { status: "A", paths: ["public/media/new.mp4"] }, { status: "D", paths: ["public/media/old.m4s"] }, { status: "R100", paths: ["public/media/a.mp4", "public/media/b.mp4"] }, ...M("public/images/poster.jpg")]);
+  assert.equal(r.risk, "LOW", r.high.join(", "));
+  // Same boundary as images: only under public/, only these extensions; a rename out of public/ is HIGH.
+  for (const p of ["media/x.mp4", "app/x.mp4", "lib/x.m3u8", "workers/static/x.m4s", "public/media/seg-00.ts", "public/media/x.webm", "public/media/x.mov", "public/media/x.mpd"]) assert.equal(classifyChanges(M(p)).risk, "HIGH", p);
+  assert.equal(classifyChanges([{ status: "R100", paths: ["public/media/a.mp4", "scripts/a.mp4"] }]).risk, "HIGH");
+});
+
 test("HIGH: pricing, RFQ, Workers, workflows, D1, config, content pipeline — and anything unlisted", () => {
   for (const p of [
     "lib/pricing/price-page.ts",

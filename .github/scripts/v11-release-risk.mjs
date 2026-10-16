@@ -3,7 +3,7 @@
 //   node v11-release-risk.mjs classify --app <checkout with full history> --base <live code sha> --candidate <sha>
 //
 // LOW only when EVERY changed path (both sides of a rename/copy) is on the explicit allowlist below:
-// CSS, raster images/icons under public/, and the copy/message modules. Anything else — pricing, RFQ, Workers,
+// CSS, raster images/icons and video under public/, and the copy/message modules. Anything else — pricing, RFQ, Workers,
 // workflows, D1, configuration, the content pipeline, docs, tests outside lib/content, an unknown git status —
 // is HIGH. No base (the live code could not be resolved) is HIGH too. There is no MEDIUM and no AMBIGUOUS:
 // the default is the most restrictive class.
@@ -26,6 +26,9 @@ export const LEDGER_PATH = "docs/release/PRODUCTION_DEPLOYMENT_MANIFEST.md";
 export const LOW_RULES = [
   { id: "css", test: (p) => /\.css$/i.test(p) },
   { id: "image", test: (p) => /^public\/.+\.(png|jpe?g|webp|avif|gif|ico)$/i.test(p) },
+  // Owner, 2026-10-16 (W20.2): video static assets under public/ are classified exactly like images — the MP4 and its
+  // HLS packaging (playlist + fMP4 segments). Not .ts segments: that extension is TypeScript here.
+  { id: "video", test: (p) => /^public\/.+\.(mp4|m3u8|m4s)$/i.test(p) },
   {
     id: "copy",
     test: (p) =>
@@ -98,7 +101,7 @@ export function classifyRelease(app, base, candidate) {
   const r = classifyChanges(parseNameStatus(raw));
   const reason =
     r.risk === "LOW"
-      ? `all ${r.files.length} changed path(s) are on the LOW allowlist (css, image, copy)`
+      ? `all ${r.files.length} changed path(s) are on the LOW allowlist (css, image, video, copy)`
       : r.risk === "NONE"
         ? "no file differs from the live code"
         : `${r.high.length} path(s) outside the LOW allowlist: ${r.high.slice(0, 8).join(", ")}${r.high.length > 8 ? ", …" : ""}`;
