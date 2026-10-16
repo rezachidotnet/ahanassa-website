@@ -137,6 +137,13 @@ Owner-approved 2026-10-09 (W9.6: price page, ▲/▼, 30-day chart). Code: `lib/
 - **Rendering:** the fa product page draws a chart only with ≥ 7 daily points in the 30 days ending on the
   current price's day; the publication gate re-counts them (`lib/static/price-gate.ts`). ▲/▼ uses
   `published_prices.previous_*` only when it is from an earlier Tehran day.
+- **Previous day (W20.7 add-on, twice-a-day publication):** when Odoo's `previous` is from the same Tehran day as
+  the current price, the pipeline stores in `published_prices.previous_*` the price in effect at the end of the
+  latest earlier Tehran day, taken from this history (`withPreviousDay`), or null when that day closed on request.
+  Without a usable history the Odoo value stays (and the display shows no change). From Odoo W20.9 on, `previous`
+  (the lowest's and each factory's) is already the previous day's, so this only applies to an older Odoo. A
+  same-day factory `previous` (an older Odoo, or a factory with no price before that day) is stored as served,
+  and the display shows no ▲▼ for it.
 - **Build-only**, exactly like `published_prices`: no `migrations_public` table, never mirrored or loaded into D1.
 
 ## `published_articles` (W11.1, extension)

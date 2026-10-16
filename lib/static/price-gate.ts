@@ -21,7 +21,7 @@ const ARTICLE_PAGE = /^(ar\/)?articles(\.html$|\/)/;
  * 2. fa pages: the text inside every price element (`data-aa-price-cell` / `data-aa-price-block`) is
  *    exactly the allow-listed, rendered fields of THAT variant's snapshot row (amount in Toman, factory,
  *    delivery location, date, change) plus the fixed copy. A rendered amount outside a price element fails.
- * 3. ar pages: price cells only (no PriceBlock); their text is the amount + date label + the ar copy, and
+ * 3. ar pages: price cells only (no PriceBlock); their text is the amount + date and update-time label + the ar copy, and
  *    nothing of the fa-only fields appears anywhere in an ar file: no factory, no delivery location, no
  *    price timestamp, no Persian price copy or Persian-digit amount.
  * 4. en files: no price at all — no price element, no price copy, no amount, no factory/location, no

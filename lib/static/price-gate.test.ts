@@ -103,7 +103,9 @@ test("ar: price only — amount + date + VAT note pass; factory, location, times
     const k = kinds([{ path: "ar/products/ipe-beam.html", content: AR_PAGE.replace("</body>", `<script>self.__next_f.push([1,"${o.replace(/"/g, '\\"')}"])</script></body>`) }]);
     assert.ok(k.some((x) => x.startsWith("price_fa_field_on_ar_page")), `${o}: ${k.join(" | ")}`);
   }
-  const extra = AR_PAGE.replace("<span>٧ أكتوبر ٢٠٢٦</span>", "<span>٧ أكتوبر ٢٠٢٦</span><span>مصنع</span>");
+  // W20.7 add-on: the ar cell shows the date and the update time.
+  assert.ok(AR_PAGE.includes("<span>٧ أكتوبر ٢٠٢٦ · تحديث ١٠:٤٥</span>"), AR_PAGE);
+  const extra = AR_PAGE.replace("<span>٧ أكتوبر ٢٠٢٦ · تحديث ١٠:٤٥</span>", "<span>٧ أكتوبر ٢٠٢٦ · تحديث ١٠:٤٥</span><span>مصنع</span>");
   assert.ok(kinds([{ path: "ar/products/ipe-beam.html", content: extra }]).some((x) => x.startsWith("price_text_not_allowed")));
   const outside = AR_PAGE.replace("<h1>عارضة IPE</h1>", "<h1>عارضة IPE</h1><p>٥٥٬٢٠٠</p>");
   assert.ok(kinds([{ path: "ar/products/ipe-beam.html", content: outside }]).includes("price_outside_markup:٥٥٬٢٠٠"));

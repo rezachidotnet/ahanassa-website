@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { isLocale, localizedPath, type Locale } from "@/config/locales";
 import { buildPageMetadata, buildLanguageAlternatesFromEntries } from "@/lib/metadata/resolve";
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";
-import { formatArabicDate, presentPriceCell, PRICE_CELL_ATTRIBUTE, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, PRICE_RANK_ATTRIBUTE, priceDateLabel, type PriceLocale } from "@/lib/pricing/product-page-price";
-import { formatPersianDate } from "@/lib/pricing/price-block-presentation";
+import { presentPriceCell, PRICE_CELL_ATTRIBUTE, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, PRICE_RANK_ATTRIBUTE, priceDateLabel, type PriceLocale } from "@/lib/pricing/product-page-price";
 import { filterOptions, isPricePagePublished, latestPricedAt, PRICE_PAGE_COPY, PRICE_PAGE_LOCALES, PRICE_PAGE_ROUTE, PRICE_ROW_FACTORY_ATTRIBUTE, PRICE_ROW_FAMILY_ATTRIBUTE, type PriceTableRow } from "@/lib/pricing/price-page";
 import { loadPriceTableRows } from "@/lib/pricing/price-page-data";
 import { byTitleDemand, PRICE_HUB_FAMILY_COPY, priceHubPath, publishedHubFamilies } from "@/lib/pricing/price-hubs";
@@ -14,6 +13,7 @@ import Link from "@/components/ui/link";
 import { cn } from "@/lib/utils";
 import { cardVariants } from "@/components/ui/surface-variants";
 import { PriceCellContent } from "@/components/products/price-cell-content";
+import { PriceUpdatedLine } from "@/components/prices/price-updated-line";
 import { PriceTableFilter } from "@/components/prices/price-table-filter";
 import { TrackOnView } from "@/components/analytics/track-on-view";
 
@@ -72,18 +72,15 @@ async function DailyPriceTable({ locale }: { locale: PriceLocale }) {
       </div>
     );
   }
-  const latest = latestPricedAt(rows)!;
+  // W20.7 add-on: fa shows every factory's row, so the newest of those times (a non-lowest factory may be newer).
+  const latest = latestPricedAt(rows, locale === "fa")!;
   const options = filterOptions(rows);
   const column = PRICE_COLUMN_COPY[locale];
   return (
     // minmax(0,1fr): the table's min-w-max must not widen the grid track (that scrolled the whole page at 390 px).
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
       <TrackOnView event="price_page_view" params={{ price_date: new Date(latest).toISOString().slice(0, 10) }} />
-      <p className="text-neutral-700 text-sm font-semibold">
-        {t.updated}{" "}
-        {/* ar carries no timestamp (owner 2026-10-09). */}
-        {locale === "fa" ? <time dateTime={new Date(latest).toISOString()}>{formatPersianDate(new Date(latest))}</time> : formatArabicDate(new Date(latest))}
-      </p>
+      <PriceUpdatedLine locale={locale} label={t.updated} at={latest} />
       <PriceTableFilter tableId={TABLE_ID} options={options} digitsLocale={locale === "fa" ? "fa-IR" : "ar-EG"} copy={{ family: t.family, factory: t.factory, all: t.all, countTemplate: t.count("{n}"), noMatch: t.noMatch }} />
       <div>
         <p className="text-tertiary mb-2 text-xs md:hidden" aria-hidden="true">

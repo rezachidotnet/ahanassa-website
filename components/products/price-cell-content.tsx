@@ -16,7 +16,7 @@ export function PriceCellContent({ view }: { view: PriceCellPresentation }) {
       <span className="text-navy font-bold">{view.amount}</span>
       {view.change && <PriceChangeBadge change={view.change} />}
       {view.place && <span className="text-tertiary block text-xs">{view.place}</span>}
-      {/* ar carries no timestamp (owner 2026-10-09: ar payload = variant id, amount, date label). */}
+      {/* ar carries no machine timestamp (owner 2026-10-09); its label is the date + update time (W20.7 add-on). */}
       {view.datetime ? (
         <time dateTime={view.datetime} className="text-tertiary block text-xs">
           {view.dateLabel}

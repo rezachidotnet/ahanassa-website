@@ -269,7 +269,11 @@ export function priceFilterSearch(search: string, state: PriceFilterState): stri
   return out ? `?${out}` : "";
 }
 
-/** The newest price time of the table (the page's «آخرین به‌روزرسانی»), or null when empty. */
-export function latestPricedAt(rows: readonly PriceTableRow[]): string | null {
-  return rows.reduce<string | null>((max, r) => (max === null || r.price.pricedAt > max ? r.price.pricedAt : max), null);
+/**
+ * The newest price time of the table (the page's «آخرین به‌روزرسانی»), or null when empty. `withFactories` (W20.7
+ * add-on, the fa /prices table that lists every factory): also every factory row's time.
+ */
+export function latestPricedAt(rows: readonly PriceTableRow[], withFactories = false): string | null {
+  const times = rows.flatMap((r) => [r.price.pricedAt, ...(withFactories ? r.factoryPrices.map((p) => p.data.pricedAt) : [])]);
+  return times.reduce<string | null>((max, t) => (max === null || t > max ? t : max), null);
 }

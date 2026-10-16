@@ -37,12 +37,12 @@ test("row -> PriceBlockData: Toman = IRR ÷ 10, factory, location, time, previou
 test("cell: fa shows amount + compact factory/location + date; ar shows amount + date only; unpriced -> «استعلام قیمت» / «السعر عند الطلب»; en nothing", () => {
   const cell = presentPriceCell("fa", priceBlockDataFromRow(ROW));
   // W9.6: ▲/▼ (previous price from an earlier Tehran day); no RFQ button without a variant id.
-  assert.deepEqual(cell, { kind: "price", amount: "۴۸٬۹۴۷", place: "کارخانه آزمایشی الف، درب کارخانه", datetime: "2026-10-08T07:20:00.000Z", dateLabel: "۱۶ مهر ۱۴۰۵", change: { direction: "down", glyph: "▼", label: "۱٫۲٪", word: "کاهش" }, rfq: null });
+  assert.deepEqual(cell, { kind: "price", amount: "۴۸٬۹۴۷", place: "کارخانه آزمایشی الف، درب کارخانه", datetime: "2026-10-08T07:20:00.000Z", dateLabel: "۱۶ مهر ۱۴۰۵ · به‌روزرسانی ۱۰:۵۰", change: { direction: "down", glyph: "▼", label: "۱٫۲٪", word: "کاهش" }, rfq: null });
   assert.deepEqual(presentPriceCell("fa", undefined), { kind: "missing", label: "استعلام قیمت" });
   assert.equal(presentPriceCell("en", priceBlockDataFromRow(ROW)), null);
   assert.equal(presentPriceCell("en", undefined), null);
   // ar (owner decision change 2026-10-09): price only — no factory, no location, no timestamp.
-  assert.deepEqual(presentPriceCell("ar", priceBlockDataFromRow(ROW)), { kind: "price", amount: "٤٨٬٩٤٧", place: null, datetime: null, dateLabel: "٨ أكتوبر ٢٠٢٦", change: { direction: "down", glyph: "▼", label: "١٫٢٪", word: "انخفاض" }, rfq: null });
+  assert.deepEqual(presentPriceCell("ar", priceBlockDataFromRow(ROW)), { kind: "price", amount: "٤٨٬٩٤٧", place: null, datetime: null, dateLabel: "٨ أكتوبر ٢٠٢٦ · تحديث ١٠:٥٠", change: { direction: "down", glyph: "▼", label: "١٫٢٪", word: "انخفاض" }, rfq: null });
   assert.deepEqual(presentPriceCell("ar", undefined), { kind: "missing", label: "السعر عند الطلب" });
   assert.equal(PRICE_COLUMN_COPY.fa.header, "قیمت روز");
   assert.deepEqual(AR_PRICE_COPY, { header: "سعر اليوم", unit: "تومان/كغ", vat: "شامل ضريبة القيمة المضافة", missing: "السعر عند الطلب" });

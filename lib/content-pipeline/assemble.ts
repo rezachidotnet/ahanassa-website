@@ -5,7 +5,7 @@ import type { PublishedArticleRow } from "../contracts/snapshot-articles.ts";
 import type { D1Source } from "./d1-source.ts";
 import type { OdooSource } from "./odoo-source.ts";
 import { validatePricing } from "./pricing.ts";
-import { validatePricingHistory } from "./pricing-history.ts";
+import { validatePricingHistory, withPreviousDay } from "./pricing-history.ts";
 
 /**
  * Builds the snapshot.v1 tables from one full Odoo fetch plus the
@@ -232,6 +232,7 @@ export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivat
   // W9.4/W9.6: prices and their daily history, Odoo-owned and build-only.
   const pricing = validatePricing(odoo.prices, odoo.products, odoo.fetched_at);
   const prices = pricing.rows;
+  const history = validatePricingHistory(odoo.price_history, prices, odoo.fetched_at);
 
   // --- editorial layer: carried verbatim from DB_PUBLIC -------------------------
   return {
@@ -245,9 +246,10 @@ export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivat
     catalog_group_labels: [...d1.tables.catalog_group_labels].sort(byKey((r) => `${r.group_code}|${r.locale}`)),
     // W9.4: Odoo-owned, build-only; only the allow-listed fields (empty when the pricing source has any error,
     // which validateSource reports and which stops the run).
-    published_prices: prices,
+    // W20.7 add-on: ▲/▼ against the previous Tehran day, not a same-day earlier publication.
+    published_prices: withPreviousDay(prices, history.previousDay),
     // W9.6: the daily points of the 30-day chart (empty, never an error, when the history is unusable).
-    published_price_history: validatePricingHistory(odoo.price_history, prices, odoo.fetched_at).rows,
+    published_price_history: history.rows,
     // W20.7: every factory's price (fa price page); empty when Odoo has no factory_prices or any of it is unusable.
     published_factory_prices: pricing.factoryRows,
     // W11.1: build-only articles, already sorted by (locale, slug).
