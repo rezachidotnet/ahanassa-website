@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import type { Locale } from "@/config/locales";
-import { CHART_RFQ_ATTRIBUTE, CHART_SLUG_ATTRIBUTE, clickEventFor, familyFromPath, isRfqHref, linkLocation, rfqCtaLocation, trackEvent } from "@/lib/analytics/events";
+import { CHART_RFQ_ATTRIBUTE, CHART_SLUG_ATTRIBUTE, clickEventFor, expertClickEvent, familyFromPath, isRfqHref, linkLocation, rfqCtaLocation, trackEvent } from "@/lib/analytics/events";
 import { startGtm } from "@/lib/analytics/gtm";
 
 /** The article page's <article> (it reports article_cta_click instead). */
@@ -17,7 +17,9 @@ const ARTICLE_SCOPE = '[data-analytics-scope="article"]';
  *   3. reports rfq_cta_click for every RFQ link (`/contact`, `/request`) outside an article (an article
  *      reports its own article_cta_click, components/analytics/article-analytics.tsx), with the catalog family
  *      when the link, the page (`data-product-family`) or the URL names one,
- *   4. starts GTM after the window `load` event (lib/analytics/gtm.ts: production hostname or
+ *   4. reports expert_call_click / expert_whatsapp_click / expert_rfq_click / expert_chat_click for the homepage
+ *      expert section's actions (`data-expert-action`, W20.3), on top of the events above,
+ *   5. starts GTM after the window `load` event (lib/analytics/gtm.ts: production hostname or
  *      `?gtm_debug=` only), so Google's script never competes with the page's own LCP resources.
  */
 export function AnalyticsRuntime({ locale }: { locale: Locale }) {
@@ -28,6 +30,8 @@ export function AnalyticsRuntime({ locale }: { locale: Locale }) {
     const onClick = (e: MouseEvent) => {
       const link = e.target instanceof Element ? e.target.closest("a[href]") : null;
       const event = link ? clickEventFor(link.getAttribute("href") ?? "") : null;
+      const expert = link ? expertClickEvent(link.getAttribute("data-expert-action")) : null;
+      if (link && expert) trackEvent(expert, { expert_variant: link.closest("[data-expert-variant]")?.getAttribute("data-expert-variant") ?? undefined });
       if (link && event) trackEvent(event, { link_location: linkLocation(link) });
       else if (link && isRfqHref(link.getAttribute("href") ?? "") && !link.closest(ARTICLE_SCOPE)) {
         const family = link.closest("[data-product-family]")?.getAttribute("data-product-family") ?? document.querySelector("[data-product-family]")?.getAttribute("data-product-family") ?? familyFromPath(window.location.pathname);

@@ -117,8 +117,24 @@ export const WORKING_HOURS = [
 export const WORKING_HOURS_TEXT: Record<Locale, { label: string; lines: string[] }> = {
   fa: { label: "ساعات پاسخ‌گویی", lines: ["شنبه تا چهارشنبه ۸ تا ۱۷", "پنجشنبه ۸ تا ۱۲"] },
   en: { label: "Business hours", lines: ["Saturday to Wednesday, 8:00–17:00", "Thursday, 8:00–12:00 (Iran time)"] },
-  ar: { label: "ساعات العمل", lines: ["من السبت إلى الأربعاء، 8:00–17:00", "الخميس، 8:00–12:00 (بتوقيت إيران)"] },
+  // ar: «من … إلى …» rather than «8:00–17:00» — in RTL text the bidi algorithm lays two number runs joined by a dash
+  // out right-to-left, so the range showed as «17:00–8:00». An Arabic word between the times keeps them in order.
+  ar: { label: "ساعات العمل", lines: ["من السبت إلى الأربعاء، من 8:00 إلى 17:00", "الخميس، من 8:00 إلى 12:00 (بتوقيت إيران)"] },
 };
+
+/**
+ * W20.3 add-on — the optional real sales expert on the homepage «با کارشناس فروش صحبت کنید» section
+ * (components/home/expert-contact.tsx): a round photo, a first name and the role. Leave it null until the owner
+ * supplies a real person's photo and first name — never a stock or placeholder person. `photo.src` is a file under
+ * public/ (a test checks it exists) with its own pixel size, so the avatar box is reserved before load. A locale
+ * whose name is empty shows no avatar.
+ */
+export interface SalesExpertProfile {
+  photo: { src: string; width: number; height: number };
+  firstName: Record<Locale, string>;
+}
+
+export const SALES_EXPERT: SalesExpertProfile | null = null;
 
 /** The company phone as shown to visitors: «031-35134», from the one stored number (both its local and +98 forms). */
 export function companyPhoneDisplay(stored: string = CONTACT_PHONE_E164): string {

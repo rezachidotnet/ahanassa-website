@@ -12,6 +12,7 @@ import { listIndicators } from "@/lib/indicators/repository";
 import { ProductShowcase } from "@/components/home/product-showcase";
 import { BuyerValue } from "@/components/home/buyer-value";
 import { Industries } from "@/components/home/industries";
+import { ExpertContact } from "@/components/home/expert-contact";
 import { FinalCta } from "@/components/home/final-cta";
 import type { PublicPriceStripItem } from "@/lib/pricing/types";
 import type { PublicCatalogCategory } from "@/lib/catalog/types";
@@ -24,7 +25,13 @@ export { generateLocaleStaticParams as generateStaticParams } from "@/lib/static
  *
  *   Header -> Hero -> Price Strip [conditional] ->
  *   Product Showcase -> Buyer Value -> Verified Evidence [conditional] ->
- *   Industries / Use Cases [conditional] -> Final CTA -> Footer
+ *   Industries / Use Cases [conditional] -> Talk to a Sales Expert ->
+ *   Final CTA -> Footer
+ *
+ * Talk to a Sales Expert: W20.3, owner instruction 2026-10-16 — amendment A1
+ * of the composition freeze (its §21, docs/homepage/HOMEPAGE_SUPERSESSION_REGISTER.md).
+ * Always present; equal channel options (phone, WhatsApp, RFQ form, hours),
+ * so the Final CTA keeps the one primary action.
  *
  * Weight calculator: no section of its own. The W10.1 Calculator CTA block
  * after the Hero (D-W10-5) was removed by the owner on 2026-10-09 (W10.3);
@@ -202,6 +209,7 @@ export default async function HomePage({ params }: PageProps) {
       <ProductShowcase locale={locale} items={homepageCategories} />
       <BuyerValue locale={locale} />
       <Industries locale={locale} />
+      <ExpertContact locale={locale} />
       <FinalCta locale={locale} />
 
       <JsonLd data={jsonLdGraph([organizationSchema(locale), localBusinessSchema(locale), websiteSchema()])} />
