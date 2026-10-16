@@ -15,7 +15,7 @@ export const ANALYTICS_EVENTS = {
   rfq_submit: ["rfq_tracking_number"],
   /** A click on any `tel:` link. `link_location`: header | footer | mobile_menu | main. */
   phone_click: ["link_location"],
-  /** A click on any WhatsApp (`wa.me`) link. */
+  /** A click on any WhatsApp (`wa.me`) link; `link_location` as phone_click, or `sticky` for the floating en/ar button (W20.1). */
   whatsapp_click: ["link_location"],
   /** The first time a visitor changes an input of the weight calculator on this page view. */
   calculator_use: ["calculator_product_group", "calculator_mode"],
@@ -73,7 +73,9 @@ export function trackEvent<E extends AnalyticsEventName>(event: E, params?: Anal
 }
 
 /** Where a clicked link sits: the nearest landmark (the mobile drawer is a dialog). */
-export function linkLocation(element: Element): "header" | "footer" | "mobile_menu" | "main" | "other" {
+export function linkLocation(element: Element): "header" | "footer" | "mobile_menu" | "main" | "sticky" | "other" {
+  // W20.1: the floating WhatsApp button of the en/ar pages (components/layout/sticky-whatsapp.tsx).
+  if (element.closest("[data-sticky-whatsapp]")) return "sticky";
   if (element.closest('[role="dialog"]')) return "mobile_menu";
   // <main> first: an article's own <header> sits inside it.
   if (element.closest("main")) return "main";

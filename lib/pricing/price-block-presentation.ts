@@ -18,8 +18,9 @@ import type { Locale } from "@/config/locales";
  *   the RFQ CTA) — never a blank, "null", "NaN" or 0 amount.
  * - The data type has no field for where a price was collected, so the
  *   block cannot show a source website; and it emits no JSON-LD `offers`.
- * - The change is shown in neutral colours (not red/green): the brand is a
- *   procurement partner, not a price board.
+ * - The change: up green, down red, unchanged neutral (W20.1, owner
+ *   2026-10-16, superseding the earlier neutral-only rule), always with its
+ *   arrow and % (lib/pricing/price-change-tone.ts).
  */
 export interface PriceBlockData {
   /** Integer Toman per kilogram, VAT included. */

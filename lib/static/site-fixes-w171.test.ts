@@ -58,11 +58,11 @@ test("prices filter component: options from filterOptions, factory list via fact
 
 // --- 2. /about: leadership and the justified intro --------------------------------------------------
 
-test("about: leadership reads exactly «role: name», chairman first, in every locale", () => {
+test("about: leadership reads exactly «role: name», CEO first (W20.1), in every locale", () => {
   const line = (l: (typeof locales)[number]) => ABOUT_COPY[l].leadership.map((p) => `${p.role}: ${p.name}`);
-  assert.deepEqual(line("fa"), ["رئیس هیئت‌مدیره: امیرموسی طالقانی", "مدیرعامل: فاطمه زاهدی"]);
-  assert.deepEqual(line("en"), ["Chairman of the Board: Amirmousa Taleghani", "Chief Executive Officer: Fatemeh Zahedi"]);
-  assert.deepEqual(line("ar"), ["رئيس مجلس الإدارة: أمير موسى طالقاني", "المديرة التنفيذية: فاطمة زاهدي"]);
+  assert.deepEqual(line("fa"), ["مدیرعامل: فاطمه زاهدی", "رئیس هیئت‌مدیره: امیرموسی طالقانی"]);
+  assert.deepEqual(line("en"), ["Chief Executive Officer: Fatemeh Zahedi", "Chairman of the Board: Amirmousa Taleghani"]);
+  assert.deepEqual(line("ar"), ["المديرة التنفيذية: فاطمة زاهدي", "رئيس مجلس الإدارة: أمير موسى طالقاني"]);
   const page = code("app/[locale]/about/page.tsx");
   assert.match(page, /<strong className="text-navy font-bold">\{person\.role\}:<\/strong> \{person\.name\}\s*<\/li>/, "nothing after the name");
 });
@@ -106,7 +106,7 @@ test("group cards: equal height, explicit size, alt per locale, outbound links r
   assert.match(page, /if \(!company\.url\) return <div /);
   assert.match(page, /group-focus-visible:grayscale-0/, "the colour returns on keyboard focus too");
   assert.equal(GROUP_COMPANIES.find((c) => c.id === "ahanassa")!.url, null);
-  assert.deepEqual(GROUP_COMPANIES.filter((c) => c.url).map((c) => c.url), ["https://fazasazeh.ir", "https://www.sipanelco.com", "https://www.avizsazeh.com", "https://aisanat.ir"]);
+  assert.deepEqual(GROUP_COMPANIES.filter((c) => c.url).map((c) => c.url), ["https://fazasazeh.ir", "https://www.sipanelco.com", "https://www.avizsazeh.com", "https://aisanaat.ir"]);
   assert.equal(GROUP_CARD_COPY.fa.logoAlt("سی‌پانل"), "لوگوی سی‌پانل");
   assert.equal(GROUP_CARD_COPY.en.logoAlt("SiPanel"), "SiPanel logo");
   assert.equal(GROUP_CARD_COPY.ar.logoAlt("سي بانل"), "شعار سي بانل");
@@ -134,7 +134,8 @@ test("footer: head office, then the Tehran coordination office, and the group co
   const tehran = footer.indexOf("{offices.tehran.address}");
   assert.ok(head > 0 && head < tehranLabel && tehranLabel < tehran, "Tehran under Isfahan");
   assert.match(footer, /const sisters = GROUP_COMPANIES\.filter\(\(c\) => c\.url !== null\);/);
-  assert.match(footer, /<a href=\{c\.url!\} className=\{FOOTER_LINK\}>\s*\{c\.name\[locale\]\}/);
+  // W20.1: a vertical list, new tab + rel="noopener", underlined (site-fixes-w201.test.ts).
+  assert.match(footer, /<a href=\{c\.url!\} target="_blank" rel="noopener" className=\{GROUP_LINK\}>\s*\{c\.name\[locale\]\}/);
   assert.ok(!/اصفهان|ستارخان|Isfahan|Sattarkhan|أصفهان/.test(footer), "no address re-hardcoded");
 });
 

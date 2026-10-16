@@ -63,6 +63,17 @@ D-DAR-063 and D-SCHEDULE are implemented now (W9.1). D-PRICE and D-ARTICLES are 
 | **D-W103-3** | **All form controls the same border width, height and radius** on the contact page and the RFQ form, fa/en/ar, mobile and desktop. | `components/ui/form-control.ts`: inputs and selects are a fixed 48px (`h-12`, was `min-h-12`, which let the desktop phone input stretch to 56.5px), 1px border, 8px radius; the textarea keeps the same border and radius and stays multi-line. The form has no file input (attachments go via WhatsApp, decision 2026-10-04). |
 | **D-W103-4** | **RFQ success state: only the tracking-number panel.** After «ارسال برای بررسی» succeeds, hide every other part of the request page and show only the tracking number (prominent), a copy button, one short next-step line and one link back home. All three locales; error path unchanged; no RFQ Worker/API change. | `components/contact/rfq-success-panel.ts` (+ test); `enquiry-form.tsx` sets `data-rfq-submitted` on `<html>`, the contact page marks its hero, form heading, next steps, office and FAQ with `data-rfq-hide-on-success` (`styles/theme-extensions.css`). The confirmation's WhatsApp-drawings link and «ثبت درخواست جدید» button are no longer shown. **fa/en/ar panel copy, removing the WhatsApp link and «ثبت درخواست جدید» from the panel, and the sheet/plate image ("sheet and plate.jpg", overriding the 2026-09-28 rejection): approved 2026-10-09.** |
 
+## Decisions of 2026-10-16 (W20.1)
+
+| # | Decision (as given) | Effect |
+|---|---|---|
+| **D-W201-1** | Price change: up = ▲ and % in green, down = ▼ and % in red, unchanged neutral; the arrow stays (never colour alone), WCAG AA. Supersedes the W9.6/W10.2 "neutral colours, not red/green" rule. | `lib/pricing/price-change-tone.ts`; tokens `--aa-color-price-up/down` (success-700 / danger-700, ≥ 4.97:1 on every price surface) in `styles/tokens.css`; used by `PriceChangeBadge` (/prices, product variant table) and `PriceBlock`. The site has no dark theme (`color-scheme: light`), so the ratios hold in an OS dark mode. |
+| **D-W201-2** | Remove «صنایع» / Industries from the header, mobile drawer and footer menus in fa/en/ar; keep the /industries pages and sitemap entries as they are, no redirect. | `lib/content/nav.ts` (the one list all three menus read). /industries stays published and noindex (W16.3). |
+| **D-W201-3** | AiSanat's domain is aisanaat.ir. | `lib/content/company.ts` `url`/`domain`. |
+| **D-W201-4** | /about leadership: «مدیرعامل: فاطمه زاهدی» first, then «رئیس هیئت‌مدیره: امیرموسی طالقانی», same order in en/ar. | `lib/content/about.ts`. |
+| **D-W201-5** | Footer «شرکت‌های گروه»: one company per line, each name an underlined link to its site (new tab, rel="noopener"), visible focus ring. | `components/layout/SiteFooter.tsx`; hidden "(opens in a new tab)" note from `GROUP_CARD_COPY`. |
+| **D-W201-6** | Sticky WhatsApp button on en and ar pages only: bottom inline-end corner, 56px, wa.me with `WHATSAPP_BUSINESS_NUMBER` and a short greeting in the page's language, hidden in print, not over form buttons, aria-label, existing `whatsapp_click` event. | `components/layout/sticky-whatsapp.tsx` + `lib/content/whatsapp.ts` `stickyWhatsApp`; hidden on pages with a submit form (/contact) and in print (`styles/theme-extensions.css`); `link_location: sticky`. No cookie/consent banner exists today. en/ar greeting and label are listed in the PR for veto. |
+
 ## Decisions of 2026-10-14 (W17.5)
 
 | # | Decision (as given) | Effect |

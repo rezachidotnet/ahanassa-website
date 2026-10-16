@@ -39,13 +39,14 @@ function stripComments(source: string): string {
 
 // --- §58.1: frozen routes ---
 
-test("frozen routes: products/services/industries/about/contact resolve exactly as specified, for every locale", () => {
+test("frozen routes: products/services/about/contact resolve exactly as specified, for every locale (W20.1: no Industries)", () => {
   for (const locale of ["fa", "en", "ar"] as const) {
     const links = navLinks[locale];
     const byPath = new Map(links.map((l) => [l.path, l]));
     assert.ok(byPath.has("/products"));
     assert.ok(byPath.has("/services"));
-    assert.ok(byPath.has("/industries"));
+    // W20.1 (owner instruction 2026-10-16): Industries left the menus; /industries itself stays published.
+    assert.ok(!byPath.has("/industries"), "Industries is not a menu item (W20.1)");
     assert.ok(byPath.has("/about"));
     assert.ok(byPath.has("/contact"));
     assert.ok(!byPath.has("/markets"), "the primary nav must no longer target /markets — superseded by /industries");
@@ -53,7 +54,7 @@ test("frozen routes: products/services/industries/about/contact resolve exactly 
     // W11.1 (owner instruction 2026-10-09): «مقالات» → /articles in all three locales (shown only where the build has articles).
     // W17.2 (owner instruction 2026-10-14): «مرکز دانلود» → /downloads in all three locales.
     // Nothing else.
-    const expected = locale === "en" ? 7 : 8;
+    const expected = locale === "en" ? 6 : 7;
     assert.equal(links.length, expected, "no new top-level navigation item may be introduced without a new approved architecture decision (§58.1)");
     assert.equal(byPath.has("/prices"), locale !== "en", "the price page item is fa/ar only (en has no prices)");
     assert.ok(byPath.has("/articles"), "the articles item exists in every locale (W11.1)");
@@ -492,17 +493,17 @@ test("NAV-P1: the 5 frozen top-level items, their order, and the Products/Servic
     // W9.6: the owner-approved «قیمت روز» item sits right after Products on fa/ar; the frozen five keep their order.
     const all = navLinks[locale];
     if (locale !== "en") assert.equal(all[1].path, "/prices");
-    // W11.1: «مقالات» sits between Industries and About.
-    assert.equal(all[all.findIndex((l) => l.path === "/industries") + 1].path, "/articles");
+    // W11.1: «مقالات» sits right after Services (between Industries and About until W20.1 removed Industries).
+    assert.equal(all[all.findIndex((l) => l.path === "/services") + 1].path, "/articles");
     // W17.2: «مرکز دانلود» sits right after «مقالات».
     assert.equal(all[all.findIndex((l) => l.path === "/articles") + 1].path, "/downloads");
     const links = all.filter((l) => l.path !== "/prices" && l.path !== "/articles" && l.path !== "/downloads");
-    assert.equal(links.length, 5);
+    // W20.1: the frozen five minus Industries.
+    assert.equal(links.length, 4);
     assert.equal(links[0].path, "/products");
     assert.equal(links[1].path, "/services");
-    assert.equal(links[2].path, "/industries");
-    assert.equal(links[3].path, "/about");
-    assert.equal(links[4].path, "/contact");
+    assert.equal(links[2].path, "/about");
+    assert.equal(links[3].path, "/contact");
   }
 });
 
