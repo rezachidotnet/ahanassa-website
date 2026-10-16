@@ -5,7 +5,7 @@ form fills its item rows within seconds. The customer reviews, edits and submits
 still uploaded** with the RFQ (W13.1, private R2) and reaches Odoo through the v1.2 `attachments` field, so
 staff can compare the picture with the list.
 
-Builds on `docs/RFQ_FILE_UPLOAD.md`. Production stays **off** until the owner switches it on (below).
+Builds on `docs/RFQ_FILE_UPLOAD.md`. Production is **on** since W20.4 (owner 2026-10-16; Switch, below).
 
 ## Where each file is read
 
@@ -154,13 +154,15 @@ these calls with its `trackEvent`, add `rfq_extract` to `ANALYTICS_EVENTS`, and 
 | Environment | `AI` | `RFQ_EXTRACT_RATE_LIMITER` | `RFQ_EXTRACT_ENABLED` | Result |
 |---|---|---|---|---|
 | staging | bound | namespace 1104, 6 / 60 s | `1` | on (with W13.1 upload on) |
-| production | — | — | `0` | **off** |
+| production | bound | namespace 1105, 6 / 60 s | `1` | **on** since W20.4 (owner 2026-10-16) |
 
 `GET /api/rfqs/files` now also answers `extract: {lists, pictures}`; an older Worker that does not send it
-means "attach only". To switch production on (owner), after W13.1's own steps (0009, bucket, binding,
-`RFQ_FILES_ENABLED=1`): add `"ai": { "binding": "AI" }`, add the ratelimit
-`{ "name": "RFQ_EXTRACT_RATE_LIMITER", "namespace_id": "1105", "simple": { "limit": 6, "period": 60 } }`, set
-`RFQ_EXTRACT_ENABLED` to `"1"`. **No new secret.** Ratelimit namespaces need no dashboard step.
+means "attach only". Production was switched on in W20.4 after W13.1's own steps (0009, bucket, binding,
+`RFQ_FILES_ENABLED=1`): `"ai": { "binding": "AI" }`, the ratelimit `RFQ_EXTRACT_RATE_LIMITER` (namespace
+1105) and `RFQ_EXTRACT_ENABLED = "1"` in `workers/rfq/wrangler.jsonc` env production. **No new secret.**
+Ratelimit namespaces need no dashboard step. It goes live with the RFQ Worker's manual deploy
+(`docs/release/RELEASE_POLICY.md` §20.6). To switch extraction off alone: set `RFQ_EXTRACT_ENABLED` to `"0"`
+and redeploy; upload stays on.
 
 ## Measurements (2026-10-13/14)
 

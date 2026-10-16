@@ -1610,8 +1610,9 @@ follow-up). Production upload is still off until the owner switches it on.
   3. **File-only RFQ:** allowed — no item row is needed when at least one file is declared.
   - The hand-off to Odoo is now contract v1.2 `attachments`, with the `notes` text only as the fallback
     when Odoo answers that it does not support v1.2.
-- **Still open:** switching production on (bucket, binding, `RFQ_FILES_ENABLED=1`, migration 0009) is a
-  separate owner step at release time. `PROJECT_OVERRIDES.md` §8 and `SECURITY_GUIDELINES.md` §13 still
+- **Production switched on (W20.4, owner 2026-10-16, `docs/OWNER_DECISIONS.md` D-W204-1):** migration
+  0009 applied, bucket `ahanassa-v11-rfq-files-production` (eu), binding and `RFQ_FILES_ENABLED=1` in
+  `workers/rfq/wrangler.jsonc`; live with the RFQ Worker's manual deploy. `PROJECT_OVERRIDES.md` §8 and `SECURITY_GUIDELINES.md` §13 still
   read as a hard block; updating that wording is a controlled documentation task, not done here.
 
 ---

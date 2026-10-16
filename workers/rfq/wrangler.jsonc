@@ -84,8 +84,17 @@
         { "binding": "DB_PUBLIC", "database_name": "ahanassa-v11-public-production", "database_id": "6e74ff59-9961-40f2-b8e5-8a9619f45776", "migrations_dir": "../../migrations_public" }
       ],
       // Own namespace (staging 1102, legacy production 2001); 20/60 s per client-IP key; missing -> 503.
-      "ratelimits": [{ "name": "RFQ_RATE_LIMITER", "namespace_id": "1103", "simple": { "limit": 20, "period": 60 } }],
+      "ratelimits": [
+        { "name": "RFQ_RATE_LIMITER", "namespace_id": "1103", "simple": { "limit": 20, "period": 60 } },
+        // W13.3: POST /api/rfqs/extract — 6 readings / 60 s per client-IP key (staging 1104). Missing -> 503.
+        { "name": "RFQ_EXTRACT_RATE_LIMITER", "namespace_id": "1105", "simple": { "limit": 6, "period": 60 } }
+      ],
+      // W13.3: Workers AI for reading pictures/PDFs of item lists (docs/RFQ_INSTANT_EXTRACT.md). Nothing is stored.
+      "ai": { "binding": "AI" },
       "triggers": { "crons": ["*/5 * * * *"] },
+      // D-RFQ-FILE: PRIVATE bucket for RFQ files (no r2.dev URL, no custom domain), EU jurisdiction.
+      // Created by the owner 2026-10-16 (dashboard, jurisdiction eu); migration 0009 is applied to production DB_OPS.
+      "r2_buckets": [{ "binding": "RFQ_FILES", "bucket_name": "ahanassa-v11-rfq-files-production", "jurisdiction": "eu" }],
       "vars": {
         "APP_ENV": "production",
         "ALLOWED_ORIGINS": "https://www.ahanassa.com",
@@ -95,20 +104,12 @@
         "DELIVERY_ON_QUEUE": "0",
         "DELIVERY_ON_CRON": "1",
         "QUEUE_FAST_PATH": "0",
-        // D-RFQ-FILE: OFF in production. No RFQ_FILES binding yet, so this deploys without the bucket;
-        // the form hides the upload field (GET /api/rfqs/files says enabled:false). Migration 0009 must be
-        // applied to production DB_OPS before this Worker version goes live (docs/RFQ_FILE_UPLOAD.md).
-        // The §8 control is accepted (DAR-065, 2026-10-13). To switch on (owner):
-        //   npx wrangler r2 bucket create ahanassa-v11-rfq-files-production --jurisdiction eu
-        //   add "r2_buckets": [{ "binding": "RFQ_FILES", "bucket_name": "ahanassa-v11-rfq-files-production", "jurisdiction": "eu" }]
-        //   set RFQ_FILES_ENABLED to "1".
-        "RFQ_FILES_ENABLED": "0",
-        // W13.3 instant extraction: OFF in production (no AI binding, no extract limiter). It also needs
-        // file upload on. To switch on (owner), after the steps above:
-        //   add "ai": { "binding": "AI" }
-        //   add to "ratelimits": { "name": "RFQ_EXTRACT_RATE_LIMITER", "namespace_id": "1105", "simple": { "limit": 6, "period": 60 } }
-        //   set RFQ_EXTRACT_ENABLED to "1".
-        "RFQ_EXTRACT_ENABLED": "0"
+        // File upload ON since W20.4 (owner 2026-10-16; needs the RFQ_FILES bucket above). docs/RFQ_FILE_UPLOAD.md.
+        // The §8 control is accepted (DAR-065, 2026-10-13).
+        "RFQ_FILES_ENABLED": "1",
+        // W13.3 instant extraction ON since W20.4 (needs file upload on + the AI binding and
+        // RFQ_EXTRACT_RATE_LIMITER above). docs/RFQ_INSTANT_EXTRACT.md.
+        "RFQ_EXTRACT_ENABLED": "1"
       }
     }
   }

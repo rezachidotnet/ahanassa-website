@@ -63,6 +63,12 @@ D-DAR-063 and D-SCHEDULE are implemented now (W9.1). D-PRICE and D-ARTICLES are 
 | **D-W103-3** | **All form controls the same border width, height and radius** on the contact page and the RFQ form, fa/en/ar, mobile and desktop. | `components/ui/form-control.ts`: inputs and selects are a fixed 48px (`h-12`, was `min-h-12`, which let the desktop phone input stretch to 56.5px), 1px border, 8px radius; the textarea keeps the same border and radius and stays multi-line. The form has no file input (attachments go via WhatsApp, decision 2026-10-04). |
 | **D-W103-4** | **RFQ success state: only the tracking-number panel.** After «ارسال برای بررسی» succeeds, hide every other part of the request page and show only the tracking number (prominent), a copy button, one short next-step line and one link back home. All three locales; error path unchanged; no RFQ Worker/API change. | `components/contact/rfq-success-panel.ts` (+ test); `enquiry-form.tsx` sets `data-rfq-submitted` on `<html>`, the contact page marks its hero, form heading, next steps, office and FAQ with `data-rfq-hide-on-success` (`styles/theme-extensions.css`). The confirmation's WhatsApp-drawings link and «ثبت درخواست جدید» button are no longer shown. **fa/en/ar panel copy, removing the WhatsApp link and «ثبت درخواست جدید» from the panel, and the sheet/plate image ("sheet and plate.jpg", overriding the 2026-09-28 rejection): approved 2026-10-09.** |
 
+## Decisions of 2026-10-16 (W20.4)
+
+| # | Decision (as given) | Effect |
+|---|---|---|
+| **D-W204-1** | **Turn on RFQ file upload and instant extraction in production.** The owner created the private bucket `ahanassa-v11-rfq-files-production` (jurisdiction eu) and a separate Object-Read-only R2 token for Odoo. | `workers/rfq/wrangler.jsonc` env production: `RFQ_FILES` binding, `AI` binding, `RFQ_EXTRACT_RATE_LIMITER` (namespace 1105, 6/60 s), `RFQ_FILES_ENABLED=1`, `RFQ_EXTRACT_ENABLED=1`. Migration 0009 is already applied to production DB_OPS. Ships as a manual RFQ Worker deploy (`RELEASE_POLICY.md` §20.6); the static site needs no change (the form asks `GET /api/rfqs/files`). Supersedes "production stays off" in D-RFQ-FILE, D-RFQ-FILE-3 and D-RFQ-EXTRACT. `docs/RFQ_FILE_UPLOAD.md`, `docs/RFQ_INSTANT_EXTRACT.md`. |
+
 ## Decisions of 2026-10-16 (W20.1)
 
 | # | Decision (as given) | Effect |

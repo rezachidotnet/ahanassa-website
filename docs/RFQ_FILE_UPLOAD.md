@@ -20,17 +20,23 @@ production artifacts stay identical apart from the allowlisted values (r4 target
 | Environment | `RFQ_FILES` | `RFQ_FILES_ENABLED` | Result |
 |---|---|---|---|
 | staging | `ahanassa-v11-rfq-files-staging` (eu) | `1` | on, once the bucket exists |
-| production | — (not bound) | `0` | **off**: the field is hidden |
+| production | `ahanassa-v11-rfq-files-production` (eu) | `1` | **on** since W20.4 (owner 2026-10-16) |
 
-Production stays off until the owner switches it on. The owner accepted the current upload checks as
-the `PROJECT_OVERRIDES.md` §8 control on 2026-10-13 (ClamAV comes with the W14 server;
-`DOCUMENT_AUDIT_REPORT.md` DAR-065). To switch production on, the owner:
+The owner accepted the current upload checks as the `PROJECT_OVERRIDES.md` §8 control on 2026-10-13
+(ClamAV comes with the W14 server; `DOCUMENT_AUDIT_REPORT.md` DAR-065) and switched production on on
+2026-10-16 (W20.4, `docs/OWNER_DECISIONS.md` D-W204-1):
 
-1. applies migration 0009 to production DB_OPS (needed by the code even with upload off, for RFQs with
-   files only — a file-less RFQ never touches the 0009 columns);
-2. creates the bucket;
-3. adds the binding;
-4. sets the flag (see `workers/rfq/wrangler.jsonc`).
+1. migration 0009 is applied to production DB_OPS;
+2. the owner created the bucket in the dashboard, jurisdiction eu;
+3. the binding and the flag are in `workers/rfq/wrangler.jsonc` env production;
+4. the RFQ Worker goes live with a manual, owner-approved `wrangler deploy --env production`
+   (`docs/release/RELEASE_POLICY.md` §20.6). The static site needs no change: the form asks
+   `GET /api/rfqs/files`.
+
+Odoo reads the bucket with a separate R2 token, **Object Read** on this bucket only
+(`AHANASSA_RFQ_FILES_R2_*` on the Odoo server; ahanassa-odoo `docs/runbooks/W13_2_RFQ_FILE_INTAKE.md`).
+To switch upload off again: set `RFQ_FILES_ENABLED` to `"0"` and redeploy the RFQ Worker (this also
+switches extraction off).
 
 ## Flow
 
