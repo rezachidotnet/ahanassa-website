@@ -22,6 +22,11 @@ import { firstPricedVariant, isPriceLocale, PRICE_BLOCK_ATTRIBUTE, PRICE_BLOCK_O
 import { sparklineSeries, tehranDay } from "@/lib/pricing/price-history";
 import { PRICE_RFQ_COPY, priceRfqHref } from "@/lib/pricing/price-rfq";
 import { PriceSparkline } from "@/components/products/price-sparkline";
+import { PriceDecision } from "@/components/products/price-decision";
+import { priceWindows, windowPoints } from "@/lib/pricing/price-position";
+import { chartWindowStart, priceChartPath, PRICE_CHART_WINDOW_DAYS } from "@/lib/pricing/price-charts";
+import { priceChartForSlug } from "@/lib/pricing/price-chart-data";
+import { listIndicators } from "@/lib/indicators/repository";
 import { ProductRelatedLinks } from "@/components/products/product-related-links";
 import { GroupServicesBox } from "@/components/group/group-services-box";
 import { showGroupServices } from "@/lib/content/company";
@@ -88,7 +93,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
  * the price markup can then never move the point where React splits that row, which would make the
  * staging and production artifacts differ outside the allowlist (lib/static/target-diff-gate.ts).
  */
-async function ProductSpecs({ locale, variants, title }: { locale: Locale; variants: ProductVariant[]; title: string }) {
+async function ProductSpecs({ locale, variants, title, slug }: { locale: Locale; variants: ProductVariant[]; title: string; slug: string }) {
   await Promise.resolve();
   // fa: PriceBlock + column; ar: price-only column; en: no price data at all (owner decision change 2026-10-09).
   const prices = isPriceLocale(locale) ? await listProductPagePrices(variants.map((v) => v.xid)) : null;
@@ -97,8 +102,15 @@ async function ProductSpecs({ locale, variants, title }: { locale: Locale; varia
   const mainPrice = main ? prices?.get(main.xid) : undefined;
   // W9.6: the 30-day chart of the main variant — only with ≥ 7 daily points (sparklineSeries), else nothing.
   const currentDay = mainPrice ? tehranDay(mainPrice.pricedAt) : null;
-  const series = main && currentDay ? sparklineSeries(await listDailyPriceHistory(main.xid), currentDay) : null;
+  const history = main && currentDay ? await listDailyPriceHistory(main.xid) : [];
+  const series = main && currentDay ? sparklineSeries(history, currentDay) : null;
   const contact = localizedPath(locale, "/contact");
+  // W18.2: the decision block — the 30/90-day position of today's price, a 90-day mini trend when the history reaches
+  // past 30 days, the market drivers line and «قیمت قطعی برای حجم شما» (fa only; nothing without a priced main variant).
+  const windows = main && currentDay ? priceWindows(history, currentDay) : [];
+  const has90 = windows.some((w) => w.window === 90);
+  const chart = windows.length ? await priceChartForSlug(slug) : null;
+  const indicators = windows.length ? await listIndicators() : [];
   return (
     <>
       {prices && locale === "fa" && (
@@ -113,6 +125,19 @@ async function ProductSpecs({ locale, variants, title }: { locale: Locale; varia
               trend={series && currentDay ? <PriceSparkline series={series} currentDay={currentDay} /> : undefined}
             />
           </div>
+          {main && mainPrice && currentDay && windows.length > 0 && (
+            <div className="mt-4">
+              <PriceDecision
+                xid={main.xid}
+                slug={slug}
+                windows={windows}
+                trend={has90 ? { series: windowPoints(history, currentDay, PRICE_CHART_WINDOW_DAYS), from: chartWindowStart(currentDay, PRICE_CHART_WINDOW_DAYS), to: currentDay, days: PRICE_CHART_WINDOW_DAYS } : null}
+                indicators={indicators}
+                rfqHref={priceRfqHref("fa", main.xid, mainPrice.factoryName)}
+                chartHref={chart ? localizedPath("fa", priceChartPath(chart.slug)) : null}
+              />
+            </div>
+          )}
         </div>
       )}
       <div className="mt-6">
@@ -221,7 +246,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       <section className="border-border bg-background border-b py-16 lg:py-20">
         <div className="container-x">
           <h2 className="text-navy text-lg font-bold">{t.specs}</h2>
-          <ProductSpecs locale={locale} variants={variants} title={seo.h1 ?? product.commercialTemplateName} />
+          <ProductSpecs locale={locale} variants={variants} title={seo.h1 ?? product.commercialTemplateName} slug={slug} />
           <VariantHighlightFromQuery rows={variantRowIds} selectedLabel={variantSelectedLabel(locale)} />
 
           <ButtonLink href={localizedPath(locale, "/contact")} variant="primary" size="md" className="mt-10 h-auto min-h-12 py-3">

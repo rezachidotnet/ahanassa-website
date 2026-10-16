@@ -2,6 +2,7 @@ import type { CatalogApiProduct } from "../catalog/odoo-api-client.ts";
 import { normalizeCatalogTimestamp, slugifyFromSku, slugifyTemplateXid } from "../catalog/sync.ts";
 import type { SnapshotV1 } from "../contracts/snapshot-v1.ts";
 import type { PublishedArticleRow } from "../contracts/snapshot-articles.ts";
+import type { PublishedIndicatorPointRow, PublishedIndicatorRow } from "../contracts/snapshot-indicators.ts";
 import type { D1Source } from "./d1-source.ts";
 import type { OdooSource } from "./odoo-source.ts";
 import { validatePricing } from "./pricing.ts";
@@ -26,6 +27,8 @@ import { validatePricingHistory, withPreviousDay } from "./pricing-history.ts";
  *   snapshot with `is_active = 0` (soft deactivation; editorial rows survive).
  * - W11.1: `articles` are the rows the validate step accepted from the content
  *   repository (lib/content-pipeline/articles.ts); build-only, never from D1.
+ * - W18.2: `indicators` are the market-indicator rows the validate step accepted
+ *   (lib/content-pipeline/indicators.ts); build-only, never from D1.
  */
 
 type Tables = SnapshotV1["tables"];
@@ -82,7 +85,7 @@ function sameColumns(a: Record<string, unknown>, b: Record<string, unknown>, key
 
 const byKey = <T>(key: (row: T) => string) => (a: T, b: T) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0);
 
-export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivatedAt: string, articles: readonly PublishedArticleRow[] = []): Tables {
+export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivatedAt: string, articles: readonly PublishedArticleRow[] = [], indicators: { rows: readonly PublishedIndicatorRow[]; points: readonly PublishedIndicatorPointRow[] } = { rows: [], points: [] }): Tables {
   // --- templates + variants ---------------------------------------------------
   const existingProducts = d1.tables.catalog_products;
   const productByTemplate = new Map(existingProducts.map((p) => [p.template_xid, p]));
@@ -254,5 +257,8 @@ export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivat
     published_factory_prices: pricing.factoryRows,
     // W11.1: build-only articles, already sorted by (locale, slug).
     published_articles: [...articles],
+    // W18.2: build-only market indicators (reference indices), sorted by code / (code, date).
+    published_indicators: [...indicators.rows].sort(byKey((r) => r.code)),
+    published_indicator_points: [...indicators.points].sort(byKey((r) => `${r.code}|${r.date}`)),
   };
 }

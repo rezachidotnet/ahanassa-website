@@ -1,7 +1,7 @@
 import { companyPhoneDisplay, GROUP_COMPANIES, OFFICES, PARENT_ORGANIZATION, WORKING_HOURS_TEXT } from "../content/company.ts";
 import { RAW_MATERIAL_SLUGS, RAW_MATERIALS, rawMaterialPath } from "../content/raw-materials.ts";
 import { COMPANY_PUBLIC_EMAILS } from "../content/contact-channels.ts";
-import { MARKDOWN_ORIGIN, markdownFileFor } from "./markdown-mirror.ts";
+import { MARKDOWN_ORIGIN, MARKET_INDICATOR_MARKDOWN, markdownFileFor } from "./markdown-mirror.ts";
 
 /**
  * W16.7 — `/llms.txt` (llmstxt.org format) and `/llms-full.txt`, written by the static build from the pages the
@@ -62,9 +62,15 @@ export function buildLlmsTxt(pages: readonly LlmsPage[]): string {
       link("/prices", "Daily price list (Persian)", "price, mill, delivery point and date per product"),
       link("/ar/prices", "Daily price list (Arabic)", "price and date per product"),
       // A hub's H1 carries the day's date; the label is the family's English name, so this file stays the same each day.
-      ...under("/prices/").map((r) => link(r, `${familyName(r)} prices (Persian)`)),
+      ...under("/prices/").filter((r) => !r.startsWith("/prices/chart/")).map((r) => link(r, `${familyName(r)} prices (Persian)`)),
       ...under("/ar/prices/").map((r) => link(r, `${familyName(r)} prices (Arabic)`)),
     ], "Prices are indicative and dated; the final price of an order comes with the quote."),
+    // W18.2: the fa chart pages (named by product slug: their H1 is Persian) and the en/ar indicators page.
+    ...section("Price charts (Persian only)", under("/prices/chart/").map((r) => link(r, `Price chart and 90-day trend: ${r.split("/").pop()} (Persian)`)), "Ahan Asa's own published daily price of one reference size per product, with a daily data table. A record of past prices, not a forecast."),
+    ...section("Steel market indicators (English and Arabic)", [
+      link("/en/market-indicators", "Steel market indicators (English)", "iron ore, the US hot-rolled steel producer price index and the US dollar Exchange Center rate in Iran, with sources and dates"),
+      link("/ar/market-indicators", "Steel market indicators (Arabic)"),
+    ], "Reference indices from public sources, each with its source and date. They are not Ahan Asa selling prices."),
     ...section("Tools", [
       link("/en/tools/weight-calculator", "Steel weight calculator (English)"),
       link("/tools/weight-calculator", "Steel weight calculator (Persian)"),
@@ -98,11 +104,13 @@ const COMPANY_EMAIL_MD = new RegExp(COMPANY_PUBLIC_EMAILS.map((e) => `[ \\t]*Ema
  * `/llms-full.txt`: llms.txt followed by the Markdown of every English page (en has no prices). D-W207-EMAIL:
  * the company e-mail lives on /contact only, so its line is cut from the en/contact copy here (en/contact.md
  * keeps it); if the mirror's wording changes, the leak scan fails the build instead of publishing the address.
+ * W18.2: the en market-indicators page (index values and the USD/IRR rate, MARKET_INDICATOR_MARKDOWN) is linked from
+ * llms.txt but not copied here, so this file keeps carrying no currency rate or index value.
  */
 export function buildLlmsFullTxt(llmsTxt: string, pages: readonly LlmsPage[], markdownOf: (mdFile: string) => string | null): string {
   const parts = [llmsTxt.trimEnd()];
   for (const p of [...pages].sort((a, b) => a.file.localeCompare(b.file))) {
-    if (!(p.file === "en.html" || p.file.startsWith("en/"))) continue;
+    if (!(p.file === "en.html" || p.file.startsWith("en/")) || MARKET_INDICATOR_MARKDOWN.includes(markdownFileFor(p.file) ?? "")) continue;
     const md = markdownFileFor(p.file);
     const text = md ? markdownOf(md) : null;
     if (text) parts.push(text.replace(COMPANY_EMAIL_MD, "").trimEnd());

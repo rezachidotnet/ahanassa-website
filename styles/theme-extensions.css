@@ -377,3 +377,15 @@
     padding-bottom: 0;
   }
 }
+
+/**
+ * W18.2 — the 30/90-day range of a price chart page (components/prices/price-chart.tsx) without JavaScript: both
+ * windows are server-rendered, the checked radio decides which one is visible (90 by default). A browser without
+ * :has() shows both, one under the other. The radios' change event only reports chart_range_change.
+ */
+@layer utilities {
+  [data-chart-range-root]:has(input[data-chart-range="30"]:checked) [data-chart-window="90"],
+  [data-chart-range-root]:has(input[data-chart-range="90"]:checked) [data-chart-window="30"] {
+    display: none;
+  }
+}

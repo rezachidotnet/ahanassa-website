@@ -5,6 +5,7 @@ import { artifactManifest, publicManifest, publicRfqCatalog, PRIVATE_DIR, PUBLIC
 import { scanPublicFile, type LeakFinding } from "./leak-scan.ts";
 import { internalIdsFromSnapshot, scanPublication } from "./publication-gate.ts";
 import { priceGateInput, scanPrices, visibleText } from "./price-gate.ts";
+import { indicatorGateInput, scanIndicators } from "./indicator-gate.ts";
 import { loadSourceNames, redactSourceNames, scanSourceNames } from "./source-name-scan.ts";
 import { checkAgentTexts, checkMarkdownMirrors } from "./markdown-mirror.ts";
 import { scanArticlePages } from "./article-gate.ts";
@@ -178,6 +179,8 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
   // 7. Price gate (W9.4): rendered price text = the snapshot row's allow-listed fields, Persian pages only.
   const priceInput = priceGateInput(snapshotDoc);
   for (const f of scanPrices(textFiles, priceInput)) failures.push(`price ${f.kind} in ${f.file}: ${f.match}`);
+  // 7b. Indicator gate (W18.2): every indicator carries its reference label, source and date, and only its own texts.
+  for (const f of scanIndicators(textFiles, indicatorGateInput(snapshotDoc))) failures.push(`indicator ${f.kind} in ${f.file}: ${f.match}`);
   // W20.7: every factory's price counts like the lowest for the article and agent-text rules (amounts, names).
   const everyPriceRow = [...priceInput.rows, ...[...priceInput.factoryRows.values()].flat()];
   // 8b. Article pages (W11.1): en no price data, ar no factory/location, no external image, no JSON-LD.

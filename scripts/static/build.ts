@@ -128,6 +128,8 @@ const { listRfqSelectableCatalogItems } = await load("lib/catalog/editorial-repo
 const robots = (await load("app/robots.ts")).default;
 const sitemap = (await load("app/sitemap.ts")).default;
 const { COMPANY_PUBLIC_EMAILS, COMPANY_PUBLIC_NUMBERS } = await load("lib/content/contact-channels.ts");
+// W18.2: the fa chart pages of this build (their en/ar paths get a redirect; lib/static/static-rules.ts).
+const chartSlugs: string[] = (await (await load("lib/pricing/price-chart-data.ts")).listPriceChartProducts()).map((p: { slug: string }) => p.slug);
 
 fs.mkdirSync(path.join(publicDir, "data"), { recursive: true });
 const indexRows: RfqVariantIndexRow[] = [];
@@ -192,7 +194,9 @@ const staticAssetPaths = fs.existsSync(nextStaticDir)
   ? (fs.readdirSync(nextStaticDir, { recursive: true, withFileTypes: true }) as fs.Dirent[]).filter((d) => d.isFile()).map((d) => "/" + path.relative(publicDir, path.join(d.parentPath, d.name)).split(path.sep).join("/"))
   : [];
 fs.writeFileSync(path.join(publicDir, "_headers"), buildHeadersFile(environment, target.rfqApiOrigin, staticAssetPaths));
-fs.writeFileSync(path.join(publicDir, "_redirects"), buildRedirectsFile(snapshot.tables.route_redirects));
+fs.writeFileSync(path.join(publicDir, "_redirects"), buildRedirectsFile(snapshot.tables.route_redirects, chartSlugs));
+counts.price_chart_pages = chartSlugs.length;
+counts.market_indicators = snapshot.tables.published_indicators.length;
 counts.route_redirect_rules = snapshot.tables.route_redirects.length;
 fs.writeFileSync(path.join(publicDir, ".assetsignore"), buildAssetsIgnoreFile());
 // generated_at = the snapshot's own time, so the same snapshot always gives byte-identical public files (W4 determinism).

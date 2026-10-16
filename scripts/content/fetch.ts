@@ -29,6 +29,11 @@ const pricingLabel = (odoo: OdooSource) =>
       ? `⚠️ FETCH FAILED (${odoo.prices.error ?? "unknown"}) — the validate step decides (empty price set, or blocked when the live site shows prices)`
       : `not deployed (HTTP ${odoo.prices?.http_status ?? "—"})`;
 const log = logger("fetch");
+// W18.2: per locale, the indicators response status (the indicators themselves are validated in the next step).
+const indicatorsLabel = (odoo: OdooSource) =>
+  Object.entries(odoo.indicators ?? {})
+    .map(([l, s]) => `${l} ${s?.status === "ok" ? `${Array.isArray((s.body as { data?: unknown } | null)?.data) ? (s.body as { data: unknown[] }).data.length : "?"} row(s)` : s?.status === "failed" ? `⚠️ failed (${s.error ?? "unknown"})` : `not deployed (HTTP ${s?.http_status ?? "—"})`}`)
+    .join(", ") || "not fetched";
 const articlesLabel = (a: ArticlesSource) =>
   a.status === "ok"
     ? `${a.files.filter((f) => f.path.endsWith(".md")).length} article files, ${a.files.filter((f) => f.path.endsWith(".svg")).length} covers (${a.mode}${a.repo && a.mode !== "dir" ? ` ${a.repo}@${a.ref}` : ""}${a.commit ? ` ${a.commit.slice(0, 12)}` : ""})`
@@ -82,6 +87,7 @@ await runStep("fetch", async () => {
         meta_standards: odoo.meta.standards.length,
       },
       // W9.4: status + row count only (the prices themselves are validated in the next step).
+      indicators: Object.fromEntries(Object.entries(odoo.indicators ?? {}).map(([l, s]) => [l, { status: s?.status ?? "not_fetched", http_status: s?.http_status ?? null, error: s?.error ?? null }])),
       pricing: { status: odoo.prices?.status ?? "not_fetched", http_status: odoo.prices?.http_status ?? null, error: odoo.prices?.error ?? null, etag: odoo.prices?.etag ?? null, rows: pricingRows(odoo) },
     },
     d1: { duration_ms: d1Ms, active_version: d1.publication.active_version, versions: d1.publication.versions.map((v) => `${v.version}:${v.status}`) },
@@ -95,6 +101,7 @@ await runStep("fetch", async () => {
       `- Odoo \`${odoo.base_url}\`: **${report.odoo.requests} GET** requests, ${odooMs} ms (statuses ${JSON.stringify(report.odoo.statuses)})`,
       `- Products ${report.odoo.counts.products} (reported ${odoo.products_reported_total}), templates ${report.odoo.counts.templates}, categories ${report.odoo.counts.categories_fa}/${report.odoo.counts.categories_en}/${report.odoo.counts.categories_ar}, processing groups ${report.odoo.counts.processing_groups_fa}/${report.odoo.counts.processing_groups_en}/${report.odoo.counts.processing_groups_ar}`,
       `- Pricing \`/api/v1/pricing/current\`: ${pricingLabel(odoo)}`,
+      `- Market indicators \`/api/v1/catalog/indicators\`: ${indicatorsLabel(odoo)} — the validate step decides; never blocks the run`,
       `- DB_PUBLIC (read-only): active \`${d1.publication.active_version}\`, retained ${report.d1.versions.join(", ") || "none"}`,
       `- Articles (content repository): ${articlesLabel(articles)}`,
     ].join("\n"),

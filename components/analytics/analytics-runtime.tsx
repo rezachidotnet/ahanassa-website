@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import type { Locale } from "@/config/locales";
-import { clickEventFor, familyFromPath, isRfqHref, linkLocation, rfqCtaLocation, trackEvent } from "@/lib/analytics/events";
+import { CHART_RFQ_ATTRIBUTE, CHART_SLUG_ATTRIBUTE, clickEventFor, familyFromPath, isRfqHref, linkLocation, rfqCtaLocation, trackEvent } from "@/lib/analytics/events";
 import { startGtm } from "@/lib/analytics/gtm";
 
 /** The article page's <article> (it reports article_cta_click instead). */
@@ -32,6 +32,9 @@ export function AnalyticsRuntime({ locale }: { locale: Locale }) {
       else if (link && isRfqHref(link.getAttribute("href") ?? "") && !link.closest(ARTICLE_SCOPE)) {
         const family = link.closest("[data-product-family]")?.getAttribute("data-product-family") ?? document.querySelector("[data-product-family]")?.getAttribute("data-product-family") ?? familyFromPath(window.location.pathname);
         trackEvent("rfq_cta_click", { cta_location: rfqCtaLocation(link, window.location.pathname) ?? undefined, product_family: family ?? undefined });
+        // W18.2: «قیمت قطعی برای حجم شما» of a price gauge or a chart page also reports chart_to_rfq.
+        const chartCta = link.closest(`[${CHART_RFQ_ATTRIBUTE}]`);
+        if (chartCta) trackEvent("chart_to_rfq", { cta_location: chartCta.getAttribute(CHART_RFQ_ATTRIBUTE) ?? undefined, product_slug: chartCta.getAttribute(CHART_SLUG_ATTRIBUTE) ?? undefined, product_family: family ?? undefined });
       }
     };
     document.addEventListener("click", onClick, { capture: true });

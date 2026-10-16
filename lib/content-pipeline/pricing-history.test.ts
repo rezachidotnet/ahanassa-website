@@ -21,9 +21,9 @@ const PRICES: PublishedPriceRow[] = validatePricing({ status: "ok", http_status:
 const ok = (body: unknown) => ({ status: "ok" as const, http_status: 200, etag: null, body });
 const clone = () => structuredClone(HISTORY.response) as { data: Record<string, unknown>[]; meta: Record<string, unknown> };
 
-test("fixtures are synthetic and the documented request is ?days=30", () => {
+test("fixtures are synthetic and the documented request is ?days=90 (W18.2)", () => {
   assert.equal(HISTORY.synthetic, true);
-  assert.equal(PRICING_HISTORY_PATH, "/api/v1/pricing/history?days=30");
+  assert.equal(PRICING_HISTORY_PATH, "/api/v1/pricing/history?days=90");
 });
 
 test("valid history: one row per (priced variant, Tehran day) = the day's last numeric point; nothing else stored", () => {

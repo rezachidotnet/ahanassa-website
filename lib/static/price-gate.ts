@@ -7,6 +7,10 @@ import { sparklineSeries, tehranDay, type DailyPoint } from "../pricing/price-hi
 import { CALCULATOR_PRICE_PAGES, fileLocale } from "./leak-scan.ts";
 import { ARTICLE_TEXT_ATTRIBUTE } from "../articles/routes.ts";
 import { jsonLdBlocks } from "./publication-gate.ts";
+import { allowedChartTexts, allowedGaugeTexts, PRICE_CHART_ATTRIBUTE, PRICE_CHART_COPY, PRICE_CHART_WINDOW_DAYS, PRICE_DECISION_COPY, PRICE_GAUGE_ATTRIBUTE, PRICE_LINE_ATTRIBUTE } from "../pricing/price-charts.ts";
+import { priceWindows, windowPoints } from "../pricing/price-position.ts";
+import { pathPointCount } from "../charts/line-geometry.ts";
+import { INDICATOR_ATTRIBUTE, INDICATOR_LINE_ATTRIBUTE } from "../indicators/presentation.ts";
 
 /** fa/ar article pages and listings (W11.1): `articles/…`, `ar/articles/…` (and the `articles.html` listing). */
 const ARTICLE_PAGE = /^(ar\/)?articles(\.html$|\/)/;
@@ -52,12 +56,23 @@ const ARTICLE_PAGE = /^(ar\/)?articles(\.html$|\/)/;
  *    `priceCurrency` IRR, a per-kg `UnitPriceSpecification` with VAT included, nothing else (no factory, seller,
  *    date or availability). Never on en, never another page, never a factory's non-lowest price.
  *
+ * W18.2 (price intelligence):
+ * 9. A price-position gauge (`data-aa-price-gauge="<CVAR>"`, the fa product page's decision block and the chart
+ *    pages) and a chart page's chart (`data-aa-price-chart="<CVAR>"`) exist on fa pages only, for a priced variant
+ *    whose snapshot history gives the gauge at least one window; every text in them is the fixed copy or a number
+ *    recomputed here from the snapshot (lib/pricing/price-position.ts, lib/pricing/price-charts.ts) — the lowest,
+ *    average, highest, today and, on a chart, each day's price and date; every price line
+ *    (`data-aa-price-line="<n>"`) sits in one of them and draws exactly a window's number of daily points. The fa
+ *    drivers line nested in a gauge is the indicator gate's (lib/static/indicator-gate.ts). Gauge, chart and
+ *    indicator elements are left out of rule 2's "no amount outside a price element" (their numbers are checked
+ *    here, or are not prices at all).
+ *
  * The pricing-API field names, source-like keys and factory codes are refused in every public file by the
  * leak scan (lib/static/leak-scan.ts, kind `pricing_field`); JSON-LD types/keys by the publication gate.
  */
 export interface PriceFinding {
   file: string;
-  kind: "price_field_not_allowed" | "price_text_not_allowed" | "price_unknown_variant" | "price_outside_markup" | "price_on_en_page" | "price_fa_field_on_ar_page" | "calculator_price_not_allowed" | "price_excluded_variant" | "price_sparkline_not_allowed" | "price_jsonld_not_allowed";
+  kind: "price_field_not_allowed" | "price_text_not_allowed" | "price_unknown_variant" | "price_outside_markup" | "price_on_en_page" | "price_fa_field_on_ar_page" | "calculator_price_not_allowed" | "price_excluded_variant" | "price_sparkline_not_allowed" | "price_jsonld_not_allowed" | "price_gauge_not_allowed";
   match: string;
 }
 
@@ -183,7 +198,9 @@ const PAGE_H1 = /<h1\b[^>]*>([\s\S]*?)<\/h1>/i;
 /** Persian copy that only a fa price element shows; never on ar or en. */
 const FA_PRICE_COPY = [PRICE_BLOCK_COPY.unit, PRICE_BLOCK_COPY.vat, PRICE_BLOCK_COPY.askToday, PRICE_BLOCK_COPY.missing, PRICE_COLUMN_COPY.fa.note, `${PRICE_BLOCK_COPY.title} `, PRICE_DISCLAIMER.fa, PRICE_RFQ_COPY.fa, PRICE_TREND_COPY.fa];
 /** W9.6: fa-only price markers — the chart and the factory RFQ prefill; never on ar or en. (▲/▼ is fa + ar, never en.) */
-const FA_ONLY_MARKERS = [PRICE_SPARKLINE_ATTRIBUTE, PRICE_TREND_COPY.fa, `&amp;${RFQ_FACTORY_PARAM}=`, `&${RFQ_FACTORY_PARAM}=`, `?${RFQ_FACTORY_PARAM}=`];
+const FA_ONLY_MARKERS = [PRICE_SPARKLINE_ATTRIBUTE, PRICE_TREND_COPY.fa, `&amp;${RFQ_FACTORY_PARAM}=`, `&${RFQ_FACTORY_PARAM}=`, `?${RFQ_FACTORY_PARAM}=`,
+  // W18.2: the gauge, the chart pages and their CTA are fa only.
+  PRICE_GAUGE_ATTRIBUTE, PRICE_CHART_ATTRIBUTE, PRICE_LINE_ATTRIBUTE, PRICE_DECISION_COPY.cta, PRICE_DECISION_COPY.title];
 const CHANGE_MARKERS = [PRICE_CHANGE_COPY.up, PRICE_CHANGE_COPY.down, ...Object.values(PRICE_CHANGE_WORDS.ar)];
 /** Arabic copy of the ar price cells; never on en. */
 const AR_COPY = [...Object.values(AR_PRICE_COPY), PRICE_DISCLAIMER.ar, PRICE_RFQ_COPY.ar];
@@ -299,10 +316,59 @@ export function scanPrices(files: ReadonlyArray<{ path: string; content: string 
     // may quote a price: editorial text under the content repository's rules and the owner's review. Only there,
     // only on fa/ar; en article pages stay fully covered by rule 4 above.
     if (ARTICLE_PAGE.test(path)) outside = withoutElements(outside, elementsWithAttribute(outside, [ARTICLE_TEXT_ATTRIBUTE]));
+    // 9. (W18.2) Gauges and charts (fa): every number recomputed from the snapshot; then they leave rule 2's scan, as do
+    // the indicator elements (an index value is not a price; the indicator gate checks them).
+    if (locale === "fa") findings.push(...scanGaugesAndCharts(path, outside, h1, byVariant, input));
+    outside = withoutElements(outside, elementsWithAttribute(outside, [PRICE_GAUGE_ATTRIBUTE, PRICE_CHART_ATTRIBUTE, INDICATOR_ATTRIBUTE, INDICATOR_LINE_ATTRIBUTE]));
     const outsideText = visibleText(outside);
     for (const a of amounts[locale]) if (outsideText.includes(a)) findings.push({ file: path, kind: "price_outside_markup", match: a });
   }
   return findings;
+}
+
+/**
+ * 9. (W18.2) The fa gauges and chart pages: see the rule list above. `html` is the page without its price
+ * elements (a gauge never sits inside one); `h1` the page's H1 (a chart page's product name follows its prefix).
+ */
+export function scanGaugesAndCharts(path: string, html: string, h1: string, byVariant: ReadonlyMap<string, PublishedPriceRow>, input: PriceGateInput): PriceFinding[] {
+  const out: PriceFinding[] = [];
+  const fail = (match: string) => out.push({ file: path, kind: "price_gauge_not_allowed", match });
+  const elements = elementsWithAttribute(html, [PRICE_GAUGE_ATTRIBUTE, PRICE_CHART_ATTRIBUTE]);
+  let linesInside = 0;
+  for (const el of elements) {
+    const where = `${el.attribute}="${el.value}"`;
+    const row = byVariant.get(el.value);
+    const day = row ? tehranDay(row.published_at) : null;
+    if (!row || !day || input.variants.get(el.value)?.eligible === false) {
+      fail(`${where}: no eligible published price`);
+      continue;
+    }
+    const history = input.history.get(el.value) ?? [];
+    const windows = priceWindows(history, day);
+    if (windows.length === 0) {
+      fail(`${where}: the snapshot history gives no window`);
+      continue;
+    }
+    // Lines: each draws a window's points (a gauge: the 90-day trend; a chart: its 30- or 90-day view).
+    const counts = el.attribute === PRICE_GAUGE_ATTRIBUTE ? [windowPoints(history, day, PRICE_CHART_WINDOW_DAYS).length] : [30, 90].map((d) => windowPoints(history, day, d).length);
+    for (const m of el.html.matchAll(new RegExp(`<svg\\b[^>]*\\s${PRICE_LINE_ATTRIBUTE}="(\\d+)"[^>]*>([\\s\\S]*?)</svg>`, "g"))) {
+      linesInside++;
+      const line = /<path\b[^>]*\bd="([^"]*)"[^>]*stroke-linejoin/.exec(m[2])?.[1] ?? "";
+      if (!counts.includes(Number(m[1])) || pathPointCount(line) !== Number(m[1])) fail(`${where}: a line draws ${m[1]}/${pathPointCount(line)} point(s), the snapshot has ${counts.join(" or ")}`);
+    }
+    // Text: the drivers line (indicator gate) out, the rest is copy + recomputed numbers.
+    const text = visibleText(withoutElements(el.html, elementsWithAttribute(el.html, [INDICATOR_LINE_ATTRIBUTE, INDICATOR_ATTRIBUTE])));
+    const prefix = PRICE_CHART_COPY.title("");
+    const allowed =
+      el.attribute === PRICE_GAUGE_ATTRIBUTE
+        ? allowedGaugeTexts(windows, PRICE_CHART_WINDOW_DAYS, true)
+        : allowedChartTexts(h1.startsWith(prefix) ? h1.slice(prefix.length) : h1, windowPoints(history, day, PRICE_CHART_WINDOW_DAYS), day);
+    const left = residue(text, allowed);
+    if (left) fail(`${where}: ${left.slice(0, 120)}`);
+  }
+  const allLines = (html.match(new RegExp(`\\s${PRICE_LINE_ATTRIBUTE}="`, "g")) ?? []).length;
+  if (allLines !== linesInside) fail(`${allLines - linesInside} price line(s) outside a gauge or a chart`);
+  return out;
 }
 
 const SPARKLINE = new RegExp(`${PRICE_SPARKLINE_ATTRIBUTE}="([^"]*)"`, "g");

@@ -3,7 +3,7 @@ import { isEarlierTehranDay, tehranDay } from "../pricing/price-history.ts";
 import { PRICE_CLOCK_SKEW_MS, PRICE_EARLIEST_UTC, PRICE_IRR_PER_KG_BOUNDS, PRICING_FACTORY_KEYS, PRICING_I18N_KEYS, PRICING_POINT_KEYS, type PricingSource } from "./pricing.ts";
 
 /**
- * W9.6 — Odoo public pricing API v1 `GET /api/v1/pricing/history?days=30` for the content pipeline: the
+ * W9.6 — Odoo public pricing API v1 `GET /api/v1/pricing/history?days=90` (W18.2; was 30) for the content pipeline: the
  * daily points of the product page's 30-day sparkline (lib/contracts/snapshot-prices.ts
  * §published_price_history). Same allow-list rule as /current (lib/content-pipeline/pricing.ts): every
  * documented key is listed below; any other key is ignored and reported, never stored.
@@ -23,7 +23,8 @@ import { PRICE_CLOCK_SKEW_MS, PRICE_EARLIEST_UTC, PRICE_IRR_PER_KG_BOUNDS, PRICI
  * before the current price's day (null when that was "price on request"), and `withPreviousDay` puts it into
  * `published_prices.previous_*` in place of a same-day previous.
  */
-export const PRICING_HISTORY_DAYS = 30;
+/** W18.2: 90 days (Odoo's maximum): the sparkline still draws the last 30 (sparklineSeries); the price-position gauge and the chart pages use 90. */
+export const PRICING_HISTORY_DAYS = 90;
 export const PRICING_HISTORY_PATH = `/api/v1/pricing/history?days=${PRICING_HISTORY_DAYS}`;
 
 export const PRICING_HISTORY_ROW_KEYS = new Set(["id", "canonical_id", "canonical_template_id", "sku", "unit", "currency", "vat_included", "price_at_window_start", "prices"]);

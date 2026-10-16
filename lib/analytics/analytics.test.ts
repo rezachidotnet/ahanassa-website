@@ -7,7 +7,7 @@ import { buildCspReportOnly } from "../security/headers.ts";
 import { GA4_MEASUREMENT_ID, GA4_MEASUREMENT_ID_PATTERN, GTM_CONTAINER_ID, gtmContainerId } from "../../config/analytics.ts";
 
 test("events: the seven D-SEO events + the D-ARTICLE-METRICS article and product-funnel events, each with a fixed parameter allowlist", () => {
-  assert.deepEqual(Object.keys(ANALYTICS_EVENTS).sort(), ["article_cta_click", "article_read", "basket_add", "calculator_open", "calculator_use", "file_upload", "phone_click", "price_page_view", "product_view", "rfq_cta_click", "rfq_submit", "whatsapp_click"]);
+  assert.deepEqual(Object.keys(ANALYTICS_EVENTS).sort(), ["article_cta_click", "article_read", "basket_add", "calculator_open", "calculator_use", "chart_range_change", "chart_to_rfq", "chart_view", "file_upload", "gauge_view", "indicator_page_view", "phone_click", "price_page_view", "product_view", "rfq_cta_click", "rfq_submit", "whatsapp_click"]);
   assert.deepEqual(ANALYTICS_EVENTS.basket_add, ["basket_size", "product_family", "product_slug", "add_source"]);
   assert.deepEqual(ANALYTICS_EVENTS.product_view, ["product_family", "product_slug"]);
   assert.deepEqual(ANALYTICS_EVENTS.rfq_cta_click, ["cta_location", "product_family"]);

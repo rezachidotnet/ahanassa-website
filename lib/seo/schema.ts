@@ -277,3 +277,27 @@ export function eventSchema(input: { id: string; name: string; description: stri
     attendee: { "@id": organizationId() },
   };
 }
+
+/**
+ * W18.2 — a `Dataset` for a chart page (fa: Ahan Asa's own published daily prices of one product) or for the en/ar
+ * market-indicators page (one per indicator, with the source's credit and page). Describes the data the page shows
+ * in its table; it never carries a value or a price (a Dataset is not an offer; the price gate's rule 8 keeps prices
+ * out of every non-product JSON-LD). Ahan Asa is the creator of its own price data only: an indicator's creator is
+ * left out and its source named in `creditText` / `isBasedOn`.
+ */
+export function datasetSchema(input: { url: string; id?: string; name: string; description: string; temporalCoverage: string; dateModified: string; variable: string; unitText: string; ownData: boolean; creditText?: string; isBasedOn?: string }) {
+  return {
+    "@type": "Dataset",
+    "@id": `${input.url}#${input.id ?? "dataset"}`,
+    name: input.name,
+    description: input.description,
+    url: input.url,
+    ...(input.ownData ? { creator: { "@id": organizationId() } } : {}),
+    isAccessibleForFree: true,
+    temporalCoverage: input.temporalCoverage,
+    dateModified: input.dateModified,
+    variableMeasured: { "@type": "PropertyValue", name: input.variable, unitText: input.unitText },
+    ...(input.creditText ? { creditText: input.creditText } : {}),
+    ...(input.isBasedOn ? { isBasedOn: input.isBasedOn } : {}),
+  };
+}
