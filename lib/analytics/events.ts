@@ -13,7 +13,7 @@
 export const ANALYTICS_EVENTS = {
   /** The RFQ was accepted by the RFQ API (success panel shown). */
   rfq_submit: ["rfq_tracking_number"],
-  /** A click on any `tel:` link. `link_location`: header | footer | mobile_menu | main. */
+  /** A click on any `tel:` link. `link_location`: header | footer | mobile_menu | main | home_expert (W20.3 homepage expert section). */
   phone_click: ["link_location"],
   /** A click on any WhatsApp (`wa.me`) link; `link_location` as phone_click, or `sticky` for the floating en/ar button (W20.1). */
   whatsapp_click: ["link_location"],
@@ -29,7 +29,7 @@ export const ANALYTICS_EVENTS = {
   basket_add: ["basket_size", "product_family", "product_slug", "add_source"],
   /** A product page was loaded (app/[locale]/products/[slug]/page.tsx). */
   product_view: ["product_family", "product_slug"],
-  /** An RFQ link (`/contact`, `/request`) outside an article was clicked; `cta_location`: product | price | category | home | header | calculator. */
+  /** An RFQ link (`/contact`, `/request`) outside an article was clicked; `cta_location`: product | price | category | home | header | calculator | home_expert. */
   rfq_cta_click: ["cta_location", "product_family"],
   /** The weight calculator page was loaded; `calculator_entry`: home_cta | category | product | price | direct (same-origin referrer path only). */
   calculator_open: ["calculator_entry"],
@@ -73,9 +73,11 @@ export function trackEvent<E extends AnalyticsEventName>(event: E, params?: Anal
 }
 
 /** Where a clicked link sits: the nearest landmark (the mobile drawer is a dialog). */
-export function linkLocation(element: Element): "header" | "footer" | "mobile_menu" | "main" | "sticky" | "other" {
+export function linkLocation(element: Element): "header" | "footer" | "mobile_menu" | "main" | "sticky" | "home_expert" | "other" {
   // W20.1: the floating WhatsApp button of the en/ar pages (components/layout/sticky-whatsapp.tsx).
   if (element.closest("[data-sticky-whatsapp]")) return "sticky";
+  // W20.3: the homepage «با کارشناس فروش صحبت کنید» section (components/home/expert-contact.tsx).
+  if (element.closest("[data-home-expert]")) return "home_expert";
   if (element.closest('[role="dialog"]')) return "mobile_menu";
   // <main> first: an article's own <header> sits inside it.
   if (element.closest("main")) return "main";
@@ -137,10 +139,11 @@ export function familyFromPath(pathname: string): string | null {
   return m ? m[1].toUpperCase().replace(/-/g, "_") : null;
 }
 
-/** rfq_cta_click `cta_location`: the header (or the mobile menu), else the kind of page; null in the footer or on other pages. */
-export function rfqCtaLocation(link: Element, pathname: string): FunnelPage | "header" | null {
+/** rfq_cta_click `cta_location`: the header (or the mobile menu), the homepage expert section, else the kind of page; null in the footer or on other pages. */
+export function rfqCtaLocation(link: Element, pathname: string): FunnelPage | "header" | "home_expert" | null {
   const where = linkLocation(link);
   if (where === "header" || where === "mobile_menu") return "header";
+  if (where === "home_expert") return "home_expert";
   return where === "main" ? funnelPage(pathname) : null;
 }
 

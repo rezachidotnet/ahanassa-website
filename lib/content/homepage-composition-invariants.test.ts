@@ -54,6 +54,7 @@ const SECTIONS = [
   "components/home/product-showcase.tsx",
   "components/home/buyer-value.tsx",
   "components/home/industries.tsx",
+  "components/home/expert-contact.tsx",
   "components/home/final-cta.tsx",
 ];
 
@@ -94,7 +95,7 @@ test("the frozen composition really is the one asserted here (§4)", () => {
   // Guards against this test file drifting from the document it claims to
   // encode: §4's own ordering block must name these sections in this order.
   const section4 = COMPOSITION.slice(COMPOSITION.indexOf("## 4. Authoritative Homepage composition"), COMPOSITION.indexOf("## 5. Component status matrix"));
-  const expected = ["Global Header", "Hero", "Price Strip [conditional]", "Product Showcase", "Buyer Value / Service Promise", "Verified Evidence [conditional]", "Industries / Use Cases [conditional]", "Final CTA", "Global Footer"];
+  const expected = ["Global Header", "Hero", "Price Strip [conditional]", "Product Showcase", "Buyer Value / Service Promise", "Verified Evidence [conditional]", "Industries / Use Cases [conditional]", "Talk to a Sales Expert", "Final CTA", "Global Footer"];
   let cursor = -1;
   for (const name of expected) {
     const at = section4.indexOf(name, cursor + 1);
@@ -115,7 +116,7 @@ test("the page returns one flat fragment, so source order IS render order", () =
 });
 
 test("the rendered Homepage order matches the frozen composition (§4, §16.1)", () => {
-  const order = ["Hero", "PriceStrip", "ProductShowcase", "BuyerValue", "Industries", "FinalCta"];
+  const order = ["Hero", "PriceStrip", "ProductShowcase", "BuyerValue", "Industries", "ExpertContact", "FinalCta"];
   const positions = order.map((tag) => ({ tag, at: orderOf(tag) }));
 
   for (const { tag, at } of positions) {
@@ -419,7 +420,7 @@ test("the retained /industries and /markets lists are untouched by the Homepage 
 // ---------------------------------------------------------------------------
 
 test("there is exactly one Homepage H1, and it belongs to the Hero (§14)", () => {
-  const sections = ["components/home/hero.tsx", "components/home/price-strip.tsx", "components/home/product-showcase.tsx", "components/home/buyer-value.tsx", "components/home/industries.tsx", "components/home/final-cta.tsx"];
+  const sections = ["components/home/hero.tsx", "components/home/price-strip.tsx", "components/home/product-showcase.tsx", "components/home/buyer-value.tsx", "components/home/industries.tsx", "components/home/expert-contact.tsx", "components/home/final-cta.tsx"];
   const withH1 = sections.filter((file) => /<h1[\s>]/.test(readCode(file)));
   assert.deepEqual(withH1, ["components/home/hero.tsx"], "§14: there MUST be exactly one Homepage H1");
 });
@@ -449,6 +450,16 @@ test("an omitted conditional section leaves no placeholder heading behind (§9, 
 // ---------------------------------------------------------------------------
 // CTA progression — §11, §16.14
 // ---------------------------------------------------------------------------
+
+test("Talk to a Sales Expert (amendment A1, §21) is always present, light, and sits right before the Final CTA", () => {
+  assert.match(PAGE_CODE, /<ExpertContact locale=\{locale\} \/>\s*<FinalCta/, "A1: directly before the Final CTA");
+  assert.ok(orderOf("Industries") < orderOf("ExpertContact"), "A1: after Industries");
+  const code = readCode("components/home/expert-contact.tsx");
+  assert.ok(!/return null/.test(code), "A1: always present");
+  // No ButtonLink pair: equal option cards, so the Final CTA keeps the single primary action (§11).
+  assert.ok(!code.includes("ButtonLink") && !code.includes("buttonVariants"), "A1: must not repeat the Final CTA's buttons");
+  assert.ok(COMPOSITION.includes("## 21. Amendment A1"), "the amendment is recorded in the freeze");
+});
 
 test("the Homepage keeps ONE primary conversion goal and no competing third action (§11)", () => {
   // §11: Buyer Value is "Normally explanatory; MUST NOT add a competing
@@ -499,7 +510,7 @@ test("no two consecutive heavy Navy sections, even when conditional sections are
   // industries -> Hero -> Products -> Buyer Value -> Final CTA) and in §10.5's
   // product-failure state (Hero -> Buyer Value -> Final CTA), a light section
   // always separates the two Navy bands. That is structural, not incidental.
-  const alwaysPresentLight = ["components/home/buyer-value.tsx"];
+  const alwaysPresentLight = ["components/home/buyer-value.tsx", "components/home/expert-contact.tsx"];
   for (const file of alwaysPresentLight) {
     const code = readCode(file);
     assert.ok(!/className="[^"]*\bbg-navy(-\d+)?\b/.test(code), `${file} must stay a light surface — it is the guaranteed transition between the two Navy bands`);
@@ -523,7 +534,7 @@ test("Buyer Value reads as a flat Content Section, visually distinct from the ac
 });
 
 test("all Homepage sections align to the one shared container (Visual System §13, §21.12)", () => {
-  for (const file of ["components/home/hero.tsx", "components/home/price-strip.tsx", "components/home/product-showcase.tsx", "components/home/buyer-value.tsx", "components/home/industries.tsx", "components/home/final-cta.tsx"]) {
+  for (const file of SECTIONS) {
     assert.ok(readCode(file).includes("container-x"), `${file} must use the shared container/gutter system`);
   }
 });
