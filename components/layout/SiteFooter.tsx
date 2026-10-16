@@ -1,6 +1,7 @@
 import Image from "@/components/ui/image";
 import { BRAND_MARK_SRC } from "@/lib/media/image-sources";
 import Link from "@/components/ui/link";
+import { isMarketIndicatorsLocale, MARKET_INDICATORS_COPY, MARKET_INDICATORS_ROUTE } from "@/lib/indicators/page";
 import { cn } from "@/lib/utils";
 import { localizedPath, type Locale } from "@/config/locales";
 import { siteConfig } from "@/lib/metadata/site";
@@ -79,7 +80,7 @@ const GROUP_LINK = cn(FOOTER_LINK, "underline underline-offset-4 focus-visible:o
 
 const incotermCodes = ["FOB", "CFR", "CIF", "FCA", "DAP", "EXW"];
 
-export function SiteFooter({ locale, hasArticles = false }: { locale: Locale; hasArticles?: boolean }) {
+export function SiteFooter({ locale, hasArticles = false, hasIndicators = false }: { locale: Locale; hasArticles?: boolean; hasIndicators?: boolean }) {
   const t = copy[locale];
   const links = visibleNavLinks(locale, hasArticles);
   const group = GROUP_FOOTER_COPY[locale];
@@ -128,6 +129,14 @@ export function SiteFooter({ locale, hasArticles = false }: { locale: Locale; ha
                 {t.cataloguePdf}
               </Link>
             </li>
+            {/* W18.2 (owner 2026-10-16): en/ar only, when the build publishes the market-indicators page; never in the main nav. */}
+            {hasIndicators && isMarketIndicatorsLocale(locale) && (
+              <li>
+                <Link href={localizedPath(locale, MARKET_INDICATORS_ROUTE)} className={FOOTER_LINK}>
+                  {MARKET_INDICATORS_COPY[locale].footerLink}
+                </Link>
+              </li>
+            )}
           </ul>
         </nav>
 

@@ -5,7 +5,8 @@ import type { Locale } from "../../config/locales.ts";
  * reference indices and the USD/IRR Exchange Center rate, each with its source and date. No Ahan Asa price on en
  * (en never shows one); ar links to the ar daily price page (price + date). fa has no such page: the fa indicators
  * sit in the price strip, the decision block and the chart pages, and `/market-indicators` sends fa to `/prices`
- * (lib/static/static-rules.ts). Published only when the snapshot has at least one indicator.
+ * (lib/static/static-rules.ts). Published only when the snapshot has at least one indicator. Linked (owner,
+ * 2026-10-16) from the en/ar footer and the export page — never the main nav — and from /ar/prices.
  */
 export const MARKET_INDICATORS_ROUTE = "/market-indicators";
 export const MARKET_INDICATORS_LOCALES = ["en", "ar"] as const satisfies readonly Locale[];
@@ -24,6 +25,10 @@ export interface MarketIndicatorsCopy {
   pricesLink?: string;
   pricesNote?: string;
   cta: string;
+  /** Owner 2026-10-16: the en/ar footer link (never in the main nav). */
+  footerLink: string;
+  /** Owner 2026-10-16: the line on the export page that links here. */
+  exportNote: string;
   datasetDescription: (name: string) => string;
 }
 
@@ -44,6 +49,8 @@ export const MARKET_INDICATORS_COPY: Record<MarketIndicatorsLocale, MarketIndica
       ],
     },
     cta: "Request a quote for your list",
+    footerLink: "Market indicators",
+    exportNote: "Global steel reference indices and the US dollar rate, with sources and dates:",
     datasetDescription: (name) => `${name}: the values shown on this page, with the date each refers to.`,
   },
   ar: {
@@ -64,6 +71,8 @@ export const MARKET_INDICATORS_COPY: Record<MarketIndicatorsLocale, MarketIndica
     pricesLink: "أسعار آهن آسا اليوم",
     pricesNote: "أسعار آهن آسا اليومية (السعر والتاريخ) في صفحة مستقلة:",
     cta: "طلب عرض سعر لقائمتك",
+    footerLink: "مؤشرات السوق",
+    exportNote: "المؤشرات المرجعية العالمية للصلب وسعر الدولار، مع مصادرها وتواريخها:",
     datasetDescription: (name) => `${name}: القيم المعروضة في هذه الصفحة مع التاريخ الذي تخصه كل قيمة.`,
   },
 };

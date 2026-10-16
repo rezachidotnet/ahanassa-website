@@ -15,16 +15,17 @@ import type { DailyPoint } from "./price-history.ts";
  *   daily closing prices in it (days without a publication are simply absent).
  * - A window is shown only with ≥ POSITION_MIN_POINTS points; the 90-day window only when it reaches further back
  *   than the 30-day one (a point older than 30 days) — otherwise it would repeat the 30-day row.
- * - position = (today − min) / (max − min): ≤ 1/3 «ارزان» (low), ≥ 2/3 «گران» (high), else «متوسط» (mid). A flat
+ * - position = (today − min) / (max − min) (owner 2026-10-16: 25/50/25): the lowest quarter «ارزان» (low, ≤ 0.25),
+ *   the top quarter «گران» (high, ≥ 0.75), the middle half «متوسط» (mid). A flat
  *   window (min = max) is «متوسط» at the middle.
  */
 export const POSITION_WINDOWS = [30, 90] as const;
 export type PositionWindow = (typeof POSITION_WINDOWS)[number];
 /** Daily points a window needs before it is shown (the same floor as the 30-day sparkline). Parameter. */
 export const POSITION_MIN_POINTS = 7;
-/** The thirds that split low / mid / high. Parameter. */
-export const POSITION_LOW_MAX = 1 / 3;
-export const POSITION_HIGH_MIN = 2 / 3;
+/** The quarters that split low / mid / high: 25 % / 50 % / 25 % of the window's range (owner 2026-10-16). Parameter. */
+export const POSITION_LOW_MAX = 0.25;
+export const POSITION_HIGH_MIN = 0.75;
 
 export type PricePosition = "low" | "mid" | "high";
 

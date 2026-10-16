@@ -205,6 +205,17 @@ test("wiring: the pages and components render the W18.2 surfaces where the owner
   assert.match(src("components/prices/price-chart.tsx"), /TrackOnView event="chart_view"/);
   assert.match(src("components/prices/chart-range-toggle.tsx"), /trackEvent\("chart_range_change"/);
   assert.match(src("components/analytics/analytics-runtime.tsx"), /trackEvent\("chart_to_rfq"/);
+  // Owner 2026-10-16: en/ar footer + export page link the indicators page (only when published); never the main nav.
+  const footer = src("components/layout/SiteFooter.tsx");
+  assert.match(footer, /hasIndicators && isMarketIndicatorsLocale\(locale\)[\s\S]*MARKET_INDICATORS_ROUTE[\s\S]*footerLink/);
+  assert.match(src("app/[locale]/layout.tsx"), /hasIndicators=\{indicatorsPublished\}/);
+  assert.match(src("app/[locale]/export/page.tsx"), /isMarketIndicatorsLocale\(locale\) && \(await listIndicators\(\)\)\.length > 0[\s\S]*MARKET_INDICATORS_ROUTE/);
+  assert.doesNotMatch(src("lib/content/nav.ts"), /market-indicators|MARKET_INDICATORS/);
+  assert.deepEqual([MARKET_INDICATORS_COPY.en.footerLink, MARKET_INDICATORS_COPY.ar.footerLink], ["Market indicators", "مؤشرات السوق"]);
+  // Owner 2026-10-16: ar keeps the link to /ar/prices; the indicators page never renders an Ahan Asa price.
+  const indicatorsPage = src("app/[locale]/market-indicators/page.tsx");
+  assert.match(indicatorsPage, /PRICE_PAGE_ROUTE/);
+  assert.doesNotMatch(indicatorsPage, /listProductPagePrices|loadPriceTableRows|PriceCellContent|presentPriceCell/);
   // Indicator colours stay neutral: no green/red tone on any indicator surface.
   for (const f of ["components/indicators/indicator-card.tsx", "components/indicators/indicator-section.tsx", "components/indicators/drivers-line.tsx", "components/products/price-gauge.tsx"]) assert.doesNotMatch(src(f), /success|danger|text-green|text-red|priceChangeToneClass/, f);
 });

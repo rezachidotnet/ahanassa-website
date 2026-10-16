@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { POSITION_MIN_POINTS, positionOf, priceWindows, windowPoints, windowStats } from "./price-position.ts";
+import { POSITION_HIGH_MIN, POSITION_LOW_MAX, POSITION_MIN_POINTS, positionOf, priceWindows, windowPoints, windowStats } from "./price-position.ts";
 import { chartSeries, selectChartProducts, PRICE_CHART_MAX_PAGES, PRICE_CHART_PER_FAMILY, PRICE_DECISION_COPY, PRICE_CHART_COPY, allowedGaugeTexts } from "./price-charts.ts";
 import { addDays, lineGeometry, pathPointCount } from "../charts/line-geometry.ts";
 import type { DailyPoint } from "./price-history.ts";
@@ -15,12 +15,20 @@ const series = (days: number, step: number, price: (i: number) => number): Daily
   return out.reverse();
 };
 
-test("position: thirds of the window's range; a flat window is mid", () => {
+test("position (owner 2026-10-16): lowest quarter ارزان, middle half متوسط, top quarter گران; a flat window is mid", () => {
+  assert.deepEqual([POSITION_LOW_MAX, POSITION_HIGH_MIN], [0.25, 0.75]);
   assert.equal(positionOf(0), "low");
-  assert.equal(positionOf(1 / 3), "low");
+  assert.equal(positionOf(0.25), "low");
+  assert.equal(positionOf(0.26), "mid");
+  assert.equal(positionOf(1 / 3), "mid", "a third is no longer low");
   assert.equal(positionOf(0.5), "mid");
-  assert.equal(positionOf(2 / 3), "high");
+  assert.equal(positionOf(2 / 3), "mid", "two thirds is no longer high");
+  assert.equal(positionOf(0.74), "mid");
+  assert.equal(positionOf(0.75), "high");
   assert.equal(positionOf(1), "high");
+  // In a window: today 30 % up the range is mid (was low under thirds).
+  const w = windowStats([...series(29, 1, () => 1000).slice(0, -1).map((p, i) => ({ ...p, price: i === 0 ? 2000 : 1000 })), { day: TODAY, price: 1300 }], TODAY, 30)!;
+  assert.deepEqual([w.fraction, w.position], [0.3, "mid"]);
   const flat = windowStats(series(30, 1, () => 50_000), TODAY, 30)!;
   assert.deepEqual([flat.position, flat.fraction, flat.min, flat.max, flat.avg], ["mid", 0.5, 50_000, 50_000, 50_000]);
 });
