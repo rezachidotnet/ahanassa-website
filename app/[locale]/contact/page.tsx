@@ -13,9 +13,9 @@ import { getTurnstileSiteKey } from "@/lib/env";
 import { cardVariants } from "@/components/ui/surface-variants";
 import { WORKING_HOURS_TEXT } from "@/lib/content/company";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { faqPageSchema, jsonLdGraph, localBusinessSchema } from "@/lib/seo/schema";
+import { faqPageSchema, jsonLdGraph, localBusinessSchema, organizationSchema } from "@/lib/seo/schema";
 import { contactFaq } from "@/lib/content/pages";
-import { CONTACT_PHONE_DISPLAY, CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
+import { CONTACT_PHONE_DISPLAY, CONTACT_PHONE_E164, CONTACT_SALES_EMAIL } from "@/lib/content/contact-channels";
 
 export { generateLocaleStaticParams as generateStaticParams } from "@/lib/static/locale-params";
 
@@ -50,7 +50,7 @@ interface PageProps {
 
 const copy: Record<
   Locale,
-  { eyebrow: string; title: string; body: string; formEyebrow: string; formTitle: string; formBody: string; officeTitle: string; addressLines: string[]; tehranTitle: string; tehranLines: string[]; phoneLabel: string; nextTitle: string }
+  { eyebrow: string; title: string; body: string; formEyebrow: string; formTitle: string; formBody: string; officeTitle: string; addressLines: string[]; tehranTitle: string; tehranLines: string[]; phoneLabel: string; emailLabel: string; nextTitle: string }
 > = {
   fa: {
     eyebrow: "تماس با ما",
@@ -64,6 +64,7 @@ const copy: Record<
     tehranTitle: "دفتر هماهنگی تهران",
     tehranLines: ["تهران، خیابان ستارخان، پلاک 660", "کد پستی 1454954166"],
     phoneLabel: "تلفن",
+    emailLabel: "ایمیل",
     nextTitle: "مراحل بعدی",
   },
   en: {
@@ -78,6 +79,7 @@ const copy: Record<
     tehranTitle: "Tehran coordination office",
     tehranLines: ["Sattarkhan Street, No. 660, Tehran, Iran", "Postal code 1454954166"],
     phoneLabel: "Phone",
+    emailLabel: "Email",
     nextTitle: "Next steps",
   },
   ar: {
@@ -92,6 +94,7 @@ const copy: Record<
     tehranTitle: "مكتب التنسيق في طهران",
     tehranLines: ["شارع ستارخان، رقم 660، طهران، إيران", "الرمز البريدي 1454954166"],
     phoneLabel: "الهاتف",
+    emailLabel: "البريد الإلكتروني",
     nextTitle: "الخطوات التالية",
   },
 };
@@ -178,6 +181,13 @@ export default async function ContactPage({ params }: PageProps) {
                     {CONTACT_PHONE_DISPLAY}
                   </a>
                 </span>
+                {/* D-W207-EMAIL (owner, 2026-10-16): the company e-mail, on this page only. */}
+                <span className="block">
+                  {t.emailLabel}:{" "}
+                  <a href={`mailto:${CONTACT_SALES_EMAIL}`} dir="ltr" className="text-navy font-medium hover:underline">
+                    {CONTACT_SALES_EMAIL}
+                  </a>
+                </span>
               </address>
               {/* W16.3: working hours from the shared company facts (lib/content/company.ts), also on /about. */}
               <h3 className="text-navy mt-5 text-sm font-bold">{WORKING_HOURS_TEXT[locale].label}</h3>
@@ -204,8 +214,9 @@ export default async function ContactPage({ params }: PageProps) {
         <FaqSection locale={locale} />
       </div>
 
-      {/* W16.2 (D-SEO): the offices (rendered above; D-COMPANY-INFO adds Tehran) and the FAQ (rendered above), word for word. */}
-      <JsonLd data={jsonLdGraph([localBusinessSchema(locale, { withTehranOffice: true }), faqPageSchema(contactFaq[locale].items)].filter((n) => n !== null))} />
+      {/* W16.2 (D-SEO): the offices (rendered above; D-COMPANY-INFO adds Tehran) and the FAQ (rendered above), word for word.
+          D-W207-EMAIL: the Organization node with the e-mail in its contactPoint, as rendered above — this page only. */}
+      <JsonLd data={jsonLdGraph([organizationSchema(locale, { withSalesEmail: true }), localBusinessSchema(locale, { withTehranOffice: true }), faqPageSchema(contactFaq[locale].items)].filter((n) => n !== null))} />
     </>
   );
 }

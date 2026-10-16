@@ -1,5 +1,5 @@
 import { siteConfig } from "../metadata/site.ts";
-import { CONTACT_PHONE_E164 } from "../content/contact-channels.ts";
+import { CONTACT_PHONE_E164, CONTACT_SALES_EMAIL } from "../content/contact-channels.ts";
 import { PARENT_ORGANIZATION, WORKING_HOURS } from "../content/company.ts";
 import type { Locale } from "../../config/locales.ts";
 import { BRAND_MARK_LOGO_PATH } from "../media/image-sources.ts";
@@ -77,7 +77,11 @@ export function openingHoursSchema() {
   return WORKING_HOURS.map((h) => ({ "@type": "OpeningHoursSpecification", dayOfWeek: [...h.dayOfWeek], opens: h.opens, closes: h.closes }));
 }
 
-export function organizationSchema(locale: Locale = "fa") {
+/**
+ * D-W207-EMAIL (owner, 2026-10-16): `withSalesEmail` adds the company e-mail to `contactPoint` — only on
+ * /contact, the one page that renders it. The homepage's Organization node carries no e-mail.
+ */
+export function organizationSchema(locale: Locale = "fa", options: { withSalesEmail?: boolean } = {}) {
   return {
     "@type": "Organization",
     "@id": organizationId(),
@@ -99,6 +103,7 @@ export function organizationSchema(locale: Locale = "fa") {
     contactPoint: {
       "@type": "ContactPoint",
       telephone: CONTACT_PHONE_E164,
+      ...(options.withSalesEmail ? { email: CONTACT_SALES_EMAIL } : {}),
       contactType: "sales",
       areaServed: [...AREA_SERVED],
     },

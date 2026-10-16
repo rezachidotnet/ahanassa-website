@@ -6,9 +6,9 @@
 **Domain:** `https://www.ahanassa.com`
 **ERP:** `https://odoo.ahanassa.com`
 **Document role:** Highest-authority record of confirmed decisions that supersede conflicting statements anywhere in the active `01-sources/` corpus or older historical source-layer references
-**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered; customer account/portal future-phase architecture registered 2026-08-28; Odoo RFQ-path version/mapping verified against the live environment 2026-08-28; production D1 jurisdiction (EU) confirmed and production D1 provisioned 2026-08-29; §7.2 phone status corrected 2026-09-13 to reflect the already-live 2026-09-02 owner confirmation (FOOTER-P1); §10's own stale phone-unconfirmed bullet reconciled 2026-09-13 (CI-CD-P1 governance pass); §7.1/§7.2 updated 2026-09-14 with new owner-confirmed phone (`03135134`, superseding the 2026-09-02 mobile number) and address plaque number (HP-CONTENT-P1, staging-only content patch); §8b note 2026-10-08: inner pages move to the rounded look (D-W10-1); §15 2026-10-14: a deployment waiting for the owner's approval is auto-approved after 6 h (W17.3)
-**Version:** 2.7.0
-**Last updated:** 2026-10-14
+**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered; customer account/portal future-phase architecture registered 2026-08-28; Odoo RFQ-path version/mapping verified against the live environment 2026-08-28; production D1 jurisdiction (EU) confirmed and production D1 provisioned 2026-08-29; §7.2 phone status corrected 2026-09-13 to reflect the already-live 2026-09-02 owner confirmation (FOOTER-P1); §10's own stale phone-unconfirmed bullet reconciled 2026-09-13 (CI-CD-P1 governance pass); §7.1/§7.2 updated 2026-09-14 with new owner-confirmed phone (`03135134`, superseding the 2026-09-02 mobile number) and address plaque number (HP-CONTENT-P1, staging-only content patch); §8b note 2026-10-08: inner pages move to the rounded look (D-W10-1); §15 2026-10-14: a deployment waiting for the owner's approval is auto-approved after 6 h (W17.3); §7.2a 2026-10-16: company e-mail `sales@ahanassa.com`, /contact only (D-W207-EMAIL)
+**Version:** 2.8.0
+**Last updated:** 2026-10-16
 
 ---
 
@@ -216,6 +216,14 @@ CONTACT_PHONE_E164 = 03135134   (confirmed for production use, HP-CONTENT-P1)
 
 **Single source of truth:** `lib/content/contact-channels.ts` (`CONTACT_PHONE_E164 = "03135134"`, since 2026-10-13 `"+983135134"` plus `CONTACT_PHONE_DISPLAY = "031-35134"`, see the update above). Reused — never re-hardcoded — by Hero, Header, the mobile nav drawer, `FinalCta`, and `SiteFooter`. Import the constant; do not duplicate the value.
 
+### 7.2a E-mail — OWNER-CONFIRMED 2026-10-16 (decision D-W207-EMAIL)
+
+```text
+CONTACT_SALES_EMAIL = sales@ahanassa.com   (lib/content/contact-channels.ts)
+```
+
+Shown **only on /contact** (fa/en/ar, a `mailto:` link next to the phone) and in that page's Organization `contactPoint.email`. Not in the header, footer, mobile menu, any other page, `llms.txt` or `llms-full.txt`; the homepage Organization node carries no e-mail. The leak scan allows exactly this address and only in the /contact files (`COMPANY_EMAIL_PAGES` in `lib/static/leak-scan.ts`), the way `COMPANY_PUBLIC_NUMBERS` allows the phone. No other address is confirmed.
+
 ### 7.3 Business scope — OWNER-CONFIRMED 2026-10-13 (decision D-COMPANY-INFO)
 
 ```text
@@ -347,7 +355,7 @@ This override file controls only the decisions explicitly listed above. For ever
 
 The following remain genuinely unresolved after the 2026-08-26 owner sign-off round. Per `CLAUDE.md`, Claude Code must never invent business facts, contact data, or credentials for any of these:
 
-- Company email, WhatsApp (the phone, §7.2, and the working hours and parent group, §7.4, are confirmed and not listed here)
+- Any company email other than `sales@ahanassa.com` (§7.2a, /contact only), WhatsApp (the phone, §7.2, and the working hours and parent group, §7.4, are confirmed and not listed here)
 - Company legal entity name, registration/tax ID, invoicing identity
 - Board/leadership information
 - Odoo deployed version, installed modules, exact API protocol, exact model/field mapping (§3 — confirmed as an integration-phase gate, not a blocker, but the values themselves remain unknown)

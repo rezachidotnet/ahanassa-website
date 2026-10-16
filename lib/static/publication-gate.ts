@@ -49,6 +49,8 @@ export const JSONLD_ALLOWED_KEYS: ReadonlySet<string> = new Set([
   "openingHoursSpecification", "dayOfWeek", "opens", "closes", "foundingDate",
   // W20.2 (owner, 2026-10-16): the past Event on /about (Isfahan Buildexpo 1405) — dates, venue, Ahan Asa as attendee. No offers/organizer.
   "startDate", "endDate", "eventStatus", "eventAttendanceMode", "location", "attendee",
+  // D-W207-EMAIL (owner, 2026-10-16): the /contact Organization contactPoint's e-mail (the leak scan allows the address on /contact only).
+  "email",
 ]);
 
 const LEGACY_XID = /ahanassa_marketplace\.[a-z0-9_]+/g;

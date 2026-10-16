@@ -17,7 +17,7 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { COMPANY_PUBLIC_NUMBERS } from "../../lib/content/contact-channels.ts";
+import { COMPANY_PUBLIC_EMAILS, COMPANY_PUBLIC_NUMBERS } from "../../lib/content/contact-channels.ts";
 import { listFiles, runArtifactGate } from "../../lib/static/artifact-gate.ts";
 import { checkLinks } from "../../lib/static/link-check.ts";
 import { thinContentMarkdown, thinContentReport } from "../../lib/content-pipeline/thin-content.ts";
@@ -36,7 +36,7 @@ await runStep("checks", async () => {
 
   const productionPublicDir = path.join(p.artifactProduction, "public-assets");
   for (const [target, dir] of [["staging", p.artifact], ["production", p.artifactProduction]] as const) {
-    const gate = runArtifactGate(dir, { companyPhones: COMPANY_PUBLIC_NUMBERS });
+    const gate = runArtifactGate(dir, { companyPhones: COMPANY_PUBLIC_NUMBERS, companyEmails: COMPANY_PUBLIC_EMAILS });
     if (gate.failures.length) throw new Error(`artifact gate failed (${target}):\n${gate.failures.slice(0, 50).join("\n")}`);
     log(`gate ${target}: pass (${gate.stats.publicFiles} public files)`);
     const pub = path.join(dir, "public-assets");

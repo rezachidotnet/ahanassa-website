@@ -76,7 +76,7 @@ export function forbiddenPublicPath(p: string): string | null {
  * `sourceNames` (W9.6): the private price-source names to refuse in every public file; by default read from
  * AHANASSA_PRICE_SOURCE_NAMES_FILE (lib/static/source-name-scan.ts). `stats.sourceNameScan` says whether it ran.
  */
-export function runArtifactGate(artifactDir: string, options: { companyPhones?: readonly string[]; sourceNames?: readonly string[] | null } = {}): GateResult {
+export function runArtifactGate(artifactDir: string, options: { companyPhones?: readonly string[]; companyEmails?: readonly string[]; sourceNames?: readonly string[] | null } = {}): GateResult {
   const failures: string[] = [];
   const publicDir = path.join(artifactDir, PUBLIC_DIR);
   const privateDir = path.join(artifactDir, PRIVATE_DIR);
@@ -161,7 +161,7 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
   const leaks: LeakFinding[] = [];
   for (const e of publicEntries) {
     if (!/\.(html|json|txt|xml|js|css|md|svg|dxf)$/.test(e.path) && !e.path.startsWith("_") && e.path !== ".assetsignore") continue;
-    leaks.push(...scanPublicFile(e.path, readPublic(e.path), options.companyPhones ?? []));
+    leaks.push(...scanPublicFile(e.path, readPublic(e.path), options.companyPhones ?? [], options.companyEmails ?? []));
   }
   for (const l of leaks) failures.push(`leak ${l.kind} in ${l.file}: ${l.match}`);
 

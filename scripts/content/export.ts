@@ -22,7 +22,7 @@ import { decreaseFindings, describeDecrease, type DecreaseFinding } from "../../
 import { runArtifactGate } from "../../lib/static/artifact-gate.ts";
 import { compareTargetArtifacts } from "../../lib/static/target-diff-gate.ts";
 import { readSnapshotFile } from "../../lib/static/snapshot-io.ts";
-import { COMPANY_PUBLIC_NUMBERS } from "../../lib/content/contact-channels.ts";
+import { COMPANY_PUBLIC_EMAILS, COMPANY_PUBLIC_NUMBERS } from "../../lib/content/contact-channels.ts";
 import { log as logger, parseArgs, paths, readJson, repoRoot, runStep, summary, workDir, writeJson } from "./common.ts";
 
 const args = parseArgs();
@@ -73,7 +73,7 @@ await runStep("export", async () => {
       const m = artifactManifest.parse(JSON.parse(fs.readFileSync(file, "utf8")));
       m.pipeline!.overridden_decreases.push(...overrides);
       fs.writeFileSync(file, JSON.stringify(m, null, 1) + "\n");
-      const gate = runArtifactGate(dir, { companyPhones: COMPANY_PUBLIC_NUMBERS });
+      const gate = runArtifactGate(dir, { companyPhones: COMPANY_PUBLIC_NUMBERS, companyEmails: COMPANY_PUBLIC_EMAILS });
       if (gate.failures.length) throw new Error(`artifact gate failed after recording overrides:\n${gate.failures.join("\n")}`);
     }
     manifest.pipeline!.overridden_decreases.push(...overrides);
