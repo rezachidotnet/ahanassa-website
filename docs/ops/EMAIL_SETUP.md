@@ -120,6 +120,15 @@ Settings → Technical → Outgoing Mail Servers → new:
 
 Odoo handles contacts, mailing lists, unsubscribes and the List-Unsubscribe headers. Resend only delivers. Set the mailing "From" to `Ahan Asa | آهن آسا <sales@ahanassaa.com>` and Reply-To to `sales@ahanassa.com`, and use plain-text mailings.
 
+## Verification (2026-10-16, Gmail "Show original")
+
+| Test | From | SPF | DKIM | DMARC |
+| --- | --- | --- | --- | --- |
+| 1 marketing domain | `sales@ahanassaa.com` (Resend ap-northeast-1) | pass (`rsend.ahanassaa.com`) | pass `d=ahanassaa.com s=resend` | pass (p=NONE) |
+| 2 send-as path | `sales@ahanassa.com` (Resend eu-west-1) | pass (`send.ahanassa.com`) | pass `d=ahanassa.com s=resend` | pass (p=REJECT) |
+
+Both arrived over TLS 1.3 as `text/plain; charset=utf-8`, with no tracking links or pixels. Test 2 passes the strict DMARC through the aligned DKIM signature.
+
 ## Open items
 
 - DMARC on ahanassaa.com: move to `p=quarantine` after two clean weeks (see plan above).
