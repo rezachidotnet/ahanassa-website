@@ -528,3 +528,22 @@ It MUST:
 Analytics: `phone_click` / `whatsapp_click` with `link_location: home_expert`, and `rfq_cta_click` with `cta_location: home_expert`.
 
 The §19 decision list reads with this amendment: item 1 becomes Hero → conditional Price Strip → Product Showcase → Buyer Value → conditional Verified Evidence → conditional Industries → Talk to a Sales Expert → Final CTA.
+
+---
+
+## 22. Amendment A2 — Talk to a Sales Expert redesign (2026-10-16)
+
+**Authority:** owner feedback W20.3, 2026-10-16 ("the expert section is too plain; make it the most modern, premium version possible within the approved visual system"). Supersedes the A1 bullets on equal weight, the role-only rule and the button pair; the rest of A1 stands — position, always present, light surface, no response-time promise.
+
+The section now:
+
+- has ONE primary action, the RFQ («ارسال فاکتور یا لیست خرید», CTA_STRATEGY §4) to the `/contact` form, with telephone and WhatsApp as secondary actions — CTA_STRATEGY §3.1 (one dominant action per section) and §4.1 (phone and messaging never displace the RFQ). The Final CTA keeps its own pair; both return the buyer to the same RFQ goal, so neither competes with it;
+- ships two layouts behind the build-time `EXPERT_SECTION_VARIANT` (`lib/content/home-expert.ts`, default "A"): **A "Concierge card"** (one elevated Featured panel: intro and live hours, then three action tiles) and **B "Split band"** (benefit headline, three proof points taken verbatim from approved homepage copy, a button row);
+- may show a real sales expert (round photo, first name, role) only when `SALES_EXPERT` in `lib/content/company.ts` holds a real photo and name — never a placeholder or stock person;
+- shows a live "open now / opens …" line, computed in the visitor's browser in Asia/Tehran time from `WORKING_HOURS` in a reserved fixed-height box (no layout shift) — the section's only client JS; the static hours lines remain the no-JS fallback;
+- renders the «چت با کارشناس» button (W21) only when live chat is configured — no dead button;
+- uses the shared Reveal for a subtle, never-hiding entrance (none under `prefers-reduced-motion`).
+
+The light-surface rule applies to the section element: a navy-filled primary action tile inside it is an action, not a Navy section.
+
+Analytics: `expert_call_click` / `expert_whatsapp_click` / `expert_rfq_click` / `expert_chat_click` with `expert_variant` (A | B), in addition to the A1 events.

@@ -39,6 +39,15 @@ export const ANALYTICS_EVENTS = {
   article_read: ["article_slug", "article_lang"],
   /** D-ARTICLE-METRICS: an RFQ («استعلام قیمت») button or link inside an article was clicked; `cta_location`: inline | product_card | bottom. */
   article_cta_click: ["article_slug", "article_lang", "cta_location"],
+  /**
+   * W20.3 redesign: an action in the homepage expert section (components/home/expert-contact.tsx) was clicked;
+   * `expert_variant`: A | B (the build's layout). Sent in addition to the site-wide phone_click / whatsapp_click /
+   * rfq_cta_click, which keep counting every channel with location home_expert.
+   */
+  expert_call_click: ["expert_variant"],
+  expert_whatsapp_click: ["expert_variant"],
+  expert_rfq_click: ["expert_variant"],
+  expert_chat_click: ["expert_variant"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type AnalyticsEventName = keyof typeof ANALYTICS_EVENTS;
@@ -91,6 +100,14 @@ export function clickEventFor(href: string): "phone_click" | "whatsapp_click" | 
   if (/^tel:/i.test(href)) return "phone_click";
   if (/^https:\/\/(?:wa\.me|api\.whatsapp\.com|wa\.link)\//i.test(href)) return "whatsapp_click";
   return null;
+}
+
+export const EXPERT_ACTIONS = { call: "expert_call_click", whatsapp: "expert_whatsapp_click", rfq: "expert_rfq_click", chat: "expert_chat_click" } as const;
+export type ExpertClickEvent = (typeof EXPERT_ACTIONS)[keyof typeof EXPERT_ACTIONS];
+
+/** The expert-section event for a link's `data-expert-action` value, or null (any other link). */
+export function expertClickEvent(action: string | null | undefined): ExpertClickEvent | null {
+  return action && Object.hasOwn(EXPERT_ACTIONS, action) ? EXPERT_ACTIONS[action as keyof typeof EXPERT_ACTIONS] : null;
 }
 
 /** The kind of public page a path is, for the funnel events; null for every other page. */

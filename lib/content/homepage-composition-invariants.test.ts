@@ -451,15 +451,16 @@ test("an omitted conditional section leaves no placeholder heading behind (§9, 
 // CTA progression — §11, §16.14
 // ---------------------------------------------------------------------------
 
-test("Talk to a Sales Expert (amendment A1, §21) is always present, light, and sits right before the Final CTA", () => {
+test("Talk to a Sales Expert (amendments A1/A2, §21–§22) is always present, light, and sits right before the Final CTA", () => {
   assert.match(PAGE_CODE, /<ExpertContact locale=\{locale\} \/>\s*<FinalCta/, "A1: directly before the Final CTA");
   assert.ok(orderOf("Industries") < orderOf("ExpertContact"), "A1: after Industries");
   const code = readCode("components/home/expert-contact.tsx");
   assert.ok(!/return null/.test(code), "A1: always present");
-  // No primary button: equal option cards (and at most the secondary live-chat button), so the Final CTA keeps
-  // the single primary action (§11).
-  assert.ok(!code.includes("ButtonLink") && !/variant(?:=|: )"primary"/.test(code), "A1: must not repeat the Final CTA's primary action");
-  assert.ok(COMPOSITION.includes("## 21. Amendment A1"), "the amendment is recorded in the freeze");
+  // A2: one primary action, and it is the RFQ — never a second primary of another kind (CTA_STRATEGY §3.1, §4.1).
+  const primaries = [...code.matchAll(/<ButtonLink href=\{([^}]+)\}[^>]*variant="primary"/g)].map((m) => m[1]);
+  assert.deepEqual(primaries, ["actions.rfq"], "A2: B's only primary button is the RFQ");
+  assert.equal((code.match(/variant(?:=|: )"primary"/g) ?? []).length, 1);
+  assert.ok(COMPOSITION.includes("## 21. Amendment A1") && COMPOSITION.includes("## 22. Amendment A2"), "the amendments are recorded in the freeze");
 });
 
 test("the Homepage keeps ONE primary conversion goal and no competing third action (§11)", () => {
@@ -514,7 +515,9 @@ test("no two consecutive heavy Navy sections, even when conditional sections are
   const alwaysPresentLight = ["components/home/buyer-value.tsx", "components/home/expert-contact.tsx"];
   for (const file of alwaysPresentLight) {
     const code = readCode(file);
-    assert.ok(!/className="[^"]*\bbg-navy(-\d+)?\b/.test(code), `${file} must stay a light surface — it is the guaranteed transition between the two Navy bands`);
+    // The section element's own surface (A2: an action tile inside it may be navy — it is an action, not a band).
+    const section = code.slice(code.indexOf("<section"), code.indexOf(">", code.indexOf("<section")));
+    assert.ok(section.length > 0 && !/\bbg-navy(-\d+)?\b/.test(section), `${file} must stay a light surface — it is the guaranteed transition between the two Navy bands`);
     assert.ok(!/return null/.test(code), `${file} must be unconditional, or the transition could disappear`);
   }
   const heroAt = orderOf("Hero");
