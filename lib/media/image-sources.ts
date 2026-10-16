@@ -125,6 +125,10 @@ export const OPTIMIZED_IMAGE_SOURCES: Readonly<Record<string, ImageRole>> = {
   "/images/products/u channel.jpg": "card",
   "/images/products/u-channel.png": "card",
   "/images/products/wire-rod.png": "card",
+  // W20.2 — /about «رویدادها»: Isfahan Buildexpo 1405 poster (organiser phone row removed), closing photo, video poster frame.
+  "/images/about/expo-1405-poster.jpg": "gallery",
+  "/images/about/expo-1405-closing.jpg": "gallery",
+  "/images/about/expo-1405-farewell-frame.jpg": "gallery",
   [BRAND_MARK_SRC]: "mark",
 };
 
