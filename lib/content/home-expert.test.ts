@@ -4,9 +4,10 @@ import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { locales as LOCALES } from "../../config/locales.ts";
-import { HOME_EXPERT_LOCATION, homeExpertCopy, homeExpertListHref, homeExpertWhatsAppHref, RFQ_FILES_ANCHOR } from "./home-expert.ts";
+import { HOME_EXPERT_LOCATION, homeExpertCopy, homeExpertListHref, homeExpertLiveChat, homeExpertProfile, homeExpertWhatsAppHref, LIVECHAT_ENABLED, LIVECHAT_URL, RFQ_FILES_ANCHOR } from "./home-expert.ts";
 import { WHATSAPP_BUSINESS_NUMBER } from "./whatsapp.ts";
-import { WORKING_HOURS, WORKING_HOURS_TEXT } from "./company.ts";
+import { existsSync } from "node:fs";
+import { SALES_EXPERT, WORKING_HOURS, WORKING_HOURS_TEXT } from "./company.ts";
 import { isRfqHref, rfqCtaLocation, linkLocation, buildEvent } from "../analytics/events.ts";
 
 /** W20.3 — the homepage «با کارشناس فروش صحبت کنید» section (components/home/expert-contact.tsx). */
@@ -64,7 +65,9 @@ test("component: tel: from the single phone source, LTR number, hours from compa
   assert.ok(component.includes("href={`tel:${CONTACT_PHONE_E164}`}"));
   assert.match(component, /dir="ltr"[^>]*>\s*\{CONTACT_PHONE_DISPLAY\}/);
   assert.ok(component.includes("WORKING_HOURS_TEXT[locale]"));
-  assert.ok(!/<img|<Image|next\/image|"use client"|<Reveal/.test(component), "no photo, no client JS, no late-loading content (no CLS)");
+  assert.ok(!/<Image|next\/image|"use client"|<Reveal/.test(component), "no client JS, no late-loading content (no CLS)");
+  assert.equal((component.match(/<img/g) ?? []).length, 1, "the only image is the optional expert avatar");
+  assert.match(component, /\{expert && \(\s*<p[^>]*>[\s\S]*?<img src=\{expert\.src\} width=\{expert\.width\} height=\{expert\.height\}/, "avatar only with a profile, with its own size (no CLS)");
   assert.ok(!/\b(?:ml|mr|pl|pr|left|right)-\d/.test(component), "logical properties only (RTL/LTR)");
   assert.match(component, /rel=\{WHATSAPP_REL\}/);
 });
@@ -84,4 +87,38 @@ test("ar working hours render in order in RTL: 8:00 before 17:00 and 8:00 before
     assert.ok(line.indexOf(opens) > -1 && line.indexOf(opens) < line.indexOf(closes), `${opens} comes before ${closes}: ${line}`);
     assert.match(between, /\p{Script=Arabic}/u, `an Arabic word separates ${opens} and ${closes}: ${line}`);
   });
+});
+
+const profile = { photo: { src: "/images/team/sara.webp", width: 240, height: 240 }, firstName: { fa: "سارا", en: "Sara", ar: "سارا" } };
+
+test("expert slot: off by default; shown only with a photo AND a first name (no placeholder person)", () => {
+  assert.equal(SALES_EXPERT, null, "default build: no expert configured");
+  for (const locale of LOCALES) assert.equal(homeExpertProfile(locale), null);
+  assert.deepEqual(homeExpertProfile("fa", profile), { src: "/images/team/sara.webp", width: 240, height: 240, name: "سارا", role: "کارشناس فروش آهن آسا" });
+  assert.equal(homeExpertProfile("en", profile)?.role, "Ahan Asa sales expert");
+  assert.equal(homeExpertProfile("fa", { ...profile, photo: { ...profile.photo, src: " " } }), null, "no photo file");
+  assert.equal(homeExpertProfile("en", { ...profile, firstName: { ...profile.firstName, en: "" } }), null, "no name in this locale");
+  assert.equal(homeExpertProfile("fa", { ...profile, photo: { ...profile.photo, width: 0 } }), null, "no size = no reserved box");
+});
+
+test("expert slot: a configured photo must be a real file under public/", () => {
+  if (!SALES_EXPERT) return;
+  assert.match(SALES_EXPERT.photo.src, /^\/[\w./-]+\.(?:webp|jpe?g|png|avif)$/);
+  assert.ok(existsSync(new URL(`../../public${SALES_EXPERT.photo.src}`, import.meta.url)), `${SALES_EXPERT.photo.src} must exist in public/`);
+});
+
+test("live-chat slot: hidden until LIVECHAT_ENABLED and a URL are both set; label per locale", () => {
+  assert.equal(LIVECHAT_ENABLED, false, "W21 turns it on");
+  assert.equal(LIVECHAT_URL, null);
+  for (const locale of LOCALES) assert.equal(homeExpertLiveChat(locale), null);
+  assert.equal(homeExpertLiveChat("fa", true, null), null, "a flag alone renders no dead button");
+  assert.equal(homeExpertLiveChat("fa", false, "/chat"), null);
+  assert.equal(homeExpertLiveChat("fa", true, "javascript:alert(1)"), null, "https or same-site path only");
+  assert.deepEqual(homeExpertLiveChat("fa", true, "/chat"), { href: "/chat", label: "چت با کارشناس" });
+  assert.equal(homeExpertLiveChat("en", true, "https://chat.example.test/")?.label, "Chat with an expert");
+  assert.match(component, /\{chat && \(/, "the button is not rendered without a chat link");
+});
+
+test("default build: with neither slot the heading renders bare, exactly as before the add-on", () => {
+  assert.match(component, /\{expert \|\| chat \? \([\s\S]*?\) : \(\s*heading\s*\)\}/);
 });

@@ -1,12 +1,14 @@
-import { Clock, FileText, Phone } from "lucide-react";
+import { Clock, FileText, MessageCircle, Phone } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Locale } from "@/config/locales";
 import { WhatsAppIcon } from "@/components/icons/whatsapp-icon";
+import { buttonVariants } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { CONTACT_PHONE_DISPLAY, CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 import { GROUP_CARD_COPY, WORKING_HOURS_TEXT } from "@/lib/content/company";
-import { HOME_EXPERT_LOCATION, homeExpertCopy, homeExpertListHref, homeExpertWhatsAppHref } from "@/lib/content/home-expert";
+import { HOME_EXPERT_LOCATION, homeExpertCopy, homeExpertListHref, homeExpertLiveChat, homeExpertProfile, homeExpertWhatsAppHref } from "@/lib/content/home-expert";
 import { WHATSAPP_REL } from "@/lib/content/whatsapp";
+import { cn } from "@/lib/utils";
 
 const HEADING_ID = "home-expert-heading";
 
@@ -32,16 +34,49 @@ const iconBox = "bg-surface text-copper row-span-3 inline-flex size-11 shrink-0 
  * Cream surface after the white Industries band, and never Navy-on-Navy against the Final CTA (Visual System
  * §14). Logical properties only, so the same markup reads right-to-left in fa/ar and left-to-right in en; the
  * phone number is an LTR run.
+ *
+ * Two optional slots, both absent by default (then the markup is exactly the one without them):
+ * - the real expert (company.ts SALES_EXPERT): a round photo with its own width/height, the first name and the
+ *   role, under the intro — only with a configured photo AND first name, never a placeholder person;
+ * - «چت با کارشناس» (LIVECHAT_ENABLED + LIVECHAT_URL, W21): a secondary button at the heading row's end on wide
+ *   screens, below the intro on narrow ones.
  */
 export function ExpertContact({ locale }: { locale: Locale }) {
   const t = homeExpertCopy[locale];
   const hours = WORKING_HOURS_TEXT[locale];
   const whatsappHref = homeExpertWhatsAppHref(locale);
+  const expert = homeExpertProfile(locale);
+  const chat = homeExpertLiveChat(locale);
+  const heading = <SectionHeading headingId={HEADING_ID} eyebrow={t.role} title={t.title} body={t.body} />;
 
   return (
     <section aria-labelledby={HEADING_ID} data-home-expert={HOME_EXPERT_LOCATION} className="border-border border-b bg-[var(--aa-color-bg-warm)] py-20 lg:py-28">
       <div className="container-x">
-        <SectionHeading headingId={HEADING_ID} eyebrow={t.role} title={t.title} body={t.body} />
+        {expert || chat ? (
+          <div className="flex flex-wrap items-end justify-between gap-8">
+            <div className="max-w-2xl">
+              {heading}
+              {expert && (
+                <p className="mt-6 flex items-center gap-4">
+                  {/* alt="": the name is the text right beside it. Fixed 56px box: no layout shift. */}
+                  <img src={expert.src} width={expert.width} height={expert.height} alt="" loading="lazy" decoding="async" className="size-14 shrink-0 rounded-full object-cover" />
+                  <span>
+                    <span className="text-navy block font-bold">{expert.name}</span>
+                    <span className="text-muted-foreground block text-sm">{expert.role}</span>
+                  </span>
+                </p>
+              )}
+            </div>
+            {chat && (
+              <a href={chat.href} className={cn(buttonVariants({ variant: "secondary", size: "button" }), "h-auto min-h-12 py-3")}>
+                <MessageCircle aria-hidden="true" />
+                {chat.label}
+              </a>
+            )}
+          </div>
+        ) : (
+          heading
+        )}
 
         <ul role="list" className={`mt-10 grid gap-4 sm:grid-cols-2 lg:mt-12 ${whatsappHref ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
           <li>

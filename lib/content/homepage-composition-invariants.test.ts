@@ -456,8 +456,9 @@ test("Talk to a Sales Expert (amendment A1, §21) is always present, light, and 
   assert.ok(orderOf("Industries") < orderOf("ExpertContact"), "A1: after Industries");
   const code = readCode("components/home/expert-contact.tsx");
   assert.ok(!/return null/.test(code), "A1: always present");
-  // No ButtonLink pair: equal option cards, so the Final CTA keeps the single primary action (§11).
-  assert.ok(!code.includes("ButtonLink") && !code.includes("buttonVariants"), "A1: must not repeat the Final CTA's buttons");
+  // No primary button: equal option cards (and at most the secondary live-chat button), so the Final CTA keeps
+  // the single primary action (§11).
+  assert.ok(!code.includes("ButtonLink") && !/variant(?:=|: )"primary"/.test(code), "A1: must not repeat the Final CTA's primary action");
   assert.ok(COMPOSITION.includes("## 21. Amendment A1"), "the amendment is recorded in the freeze");
 });
 

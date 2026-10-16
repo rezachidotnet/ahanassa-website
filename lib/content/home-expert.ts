@@ -1,5 +1,6 @@
 import { localizedPath, type Locale } from "../../config/locales.ts";
 import { isValidWhatsAppNumber, WHATSAPP_BUSINESS_NUMBER } from "./whatsapp.ts";
+import { SALES_EXPERT, type SalesExpertProfile } from "./company.ts";
 
 /**
  * W20.3 (owner instruction 2026-10-16) — the homepage «با کارشناس فروش صحبت کنید» section
@@ -29,6 +30,8 @@ export interface HomeExpertCopy {
   list: { title: string; hint: string; action: string };
   /** The hours card's title; its lines are company.ts WORKING_HOURS_TEXT. */
   hoursTitle: string;
+  /** The live-chat button (hidden until LIVECHAT_ENABLED, W21). */
+  chat: string;
 }
 
 export const homeExpertCopy: Record<Locale, HomeExpertCopy> = {
@@ -45,6 +48,7 @@ export const homeExpertCopy: Record<Locale, HomeExpertCopy> = {
     },
     list: { title: "ارسال لیست خرید", hint: "فاکتور یا لیست اقلام را در فرم استعلام ثبت کنید.", action: "رفتن به فرم استعلام" },
     hoursTitle: "ساعات پاسخ‌گویی",
+    chat: "چت با کارشناس",
   },
   en: {
     role: "Ahan Asa sales expert",
@@ -59,6 +63,7 @@ export const homeExpertCopy: Record<Locale, HomeExpertCopy> = {
     },
     list: { title: "Send your purchase list", hint: "Enter your invoice or material list in the request form.", action: "Go to the request form" },
     hoursTitle: "Business hours",
+    chat: "Chat with an expert",
   },
   ar: {
     role: "خبير مبيعات آهن آسا",
@@ -73,6 +78,7 @@ export const homeExpertCopy: Record<Locale, HomeExpertCopy> = {
     },
     list: { title: "أرسل قائمة الشراء", hint: "سجّل الفاتورة أو قائمة المواد في نموذج الطلب.", action: "الانتقال إلى نموذج الطلب" },
     hoursTitle: "ساعات العمل",
+    chat: "الدردشة مع خبير",
   },
 };
 
@@ -85,4 +91,25 @@ export function homeExpertWhatsAppHref(locale: Locale, number: string | null = W
 /** The RFQ form on /contact, at its attachments heading. */
 export function homeExpertListHref(locale: Locale): string {
   return `${localizedPath(locale, "/contact")}#${RFQ_FILES_ANCHOR}`;
+}
+
+/**
+ * Live chat (W21): the «چت با کارشناس» button stays out of the page until LIVECHAT_ENABLED is true AND
+ * LIVECHAT_URL is set — a flag alone never renders a button that goes nowhere. Build-time values, the same for
+ * both static targets, like WHATSAPP_BUSINESS_NUMBER.
+ */
+export const LIVECHAT_ENABLED: boolean = false;
+export const LIVECHAT_URL: string | null = null;
+
+/** The live-chat button's link and label, or null (then nothing is rendered). */
+export function homeExpertLiveChat(locale: Locale, enabled: boolean = LIVECHAT_ENABLED, url: string | null = LIVECHAT_URL): { href: string; label: string } | null {
+  if (!enabled || !url || !/^(?:https:\/\/|\/)/.test(url)) return null;
+  return { href: url, label: homeExpertCopy[locale].chat };
+}
+
+/** The real expert's avatar for this locale, or null without a configured photo and first name (no placeholder person). */
+export function homeExpertProfile(locale: Locale, profile: SalesExpertProfile | null = SALES_EXPERT): { src: string; width: number; height: number; name: string; role: string } | null {
+  const name = profile?.firstName[locale]?.trim();
+  if (!profile || !name || !profile.photo.src.trim() || !(profile.photo.width > 0 && profile.photo.height > 0)) return null;
+  return { ...profile.photo, name, role: homeExpertCopy[locale].role };
 }

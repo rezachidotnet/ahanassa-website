@@ -122,6 +122,20 @@ export const WORKING_HOURS_TEXT: Record<Locale, { label: string; lines: string[]
   ar: { label: "ساعات العمل", lines: ["من السبت إلى الأربعاء، من 8:00 إلى 17:00", "الخميس، من 8:00 إلى 12:00 (بتوقيت إيران)"] },
 };
 
+/**
+ * W20.3 add-on — the optional real sales expert on the homepage «با کارشناس فروش صحبت کنید» section
+ * (components/home/expert-contact.tsx): a round photo, a first name and the role. Leave it null until the owner
+ * supplies a real person's photo and first name — never a stock or placeholder person. `photo.src` is a file under
+ * public/ (a test checks it exists) with its own pixel size, so the avatar box is reserved before load. A locale
+ * whose name is empty shows no avatar.
+ */
+export interface SalesExpertProfile {
+  photo: { src: string; width: number; height: number };
+  firstName: Record<Locale, string>;
+}
+
+export const SALES_EXPERT: SalesExpertProfile | null = null;
+
 /** The company phone as shown to visitors: «031-35134», from the one stored number (both its local and +98 forms). */
 export function companyPhoneDisplay(stored: string = CONTACT_PHONE_E164): string {
   const digits = stored.replace(/\D/g, "").replace(/^98/, "");
