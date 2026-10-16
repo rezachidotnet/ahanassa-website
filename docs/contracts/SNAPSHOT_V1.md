@@ -107,7 +107,20 @@ Owner decisions D-PRICE-DISPLAY / D-PRICE-AGE (`docs/OWNER_DECISIONS.md`, 2026-1
   these fields per locale, that ar files carry none of the fa-only fields, that en files carry no price, and
   that every calculator price-map entry equals the snapshot; the leak scan refuses pricing-API field names,
   source-like keys and factory codes in every public file (`tomanPerKg` is allowed only on the fa/ar
-  calculator page). No JSON-LD `offers`.
+  calculator page). W20.7: JSON-LD `offers` only on fa/ar product pages, with the lowest price only (price-gate rule 8).
+
+## `published_factory_prices` (W20.7, extension)
+
+Build-only, like `published_prices`. It holds every factory's current price of a priced variant, from Odoo `/current` `factory_prices` (W20.6), for the fa `/prices` table only.
+
+The columns are `canonical_variant_id`, `factory_name_fa`, `location_fa`, `price_irr_per_kg`, `published_at`, `previous_price_irr_per_kg` and `previous_published_at` (the previous pair is both null or both set, and the previous is earlier), plus `is_lowest` (0/1). The primary key is (variant, factory).
+
+The schema checks that:
+- every row's variant has a `published_prices` row;
+- each variant has exactly one `is_lowest` row, and it has the same price and factory as `published_prices`;
+- no factory row is below the lowest.
+
+The table is omitted from the content hash when it is empty. Absent or unusable `factory_prices` means an empty table, and the run continues.
 
 ## `published_price_history` (W9.6, extension)
 
@@ -124,6 +137,13 @@ Owner-approved 2026-10-09 (W9.6: price page, ▲/▼, 30-day chart). Code: `lib/
 - **Rendering:** the fa product page draws a chart only with ≥ 7 daily points in the 30 days ending on the
   current price's day; the publication gate re-counts them (`lib/static/price-gate.ts`). ▲/▼ uses
   `published_prices.previous_*` only when it is from an earlier Tehran day.
+- **Previous day (W20.7 add-on, twice-a-day publication):** when Odoo's `previous` is from the same Tehran day as
+  the current price, the pipeline stores in `published_prices.previous_*` the price in effect at the end of the
+  latest earlier Tehran day, taken from this history (`withPreviousDay`), or null when that day closed on request.
+  Without a usable history the Odoo value stays (and the display shows no change). From Odoo W20.9 on, `previous`
+  (the lowest's and each factory's) is already the previous day's, so this only applies to an older Odoo. A
+  same-day factory `previous` (an older Odoo, or a factory with no price before that day) is stored as served,
+  and the display shows no ▲▼ for it.
 - **Build-only**, exactly like `published_prices`: no `migrations_public` table, never mirrored or loaded into D1.
 
 ## `published_articles` (W11.1, extension)

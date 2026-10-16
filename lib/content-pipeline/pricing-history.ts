@@ -1,5 +1,5 @@
 import { publishedPriceHistoryRow, type PublishedPriceHistoryRow, type PublishedPriceRow } from "../contracts/snapshot-prices.ts";
-import { tehranDay } from "../pricing/price-history.ts";
+import { isEarlierTehranDay, tehranDay } from "../pricing/price-history.ts";
 import { PRICE_CLOCK_SKEW_MS, PRICE_EARLIEST_UTC, PRICE_IRR_PER_KG_BOUNDS, PRICING_FACTORY_KEYS, PRICING_I18N_KEYS, PRICING_POINT_KEYS, type PricingSource } from "./pricing.ts";
 
 /**
@@ -16,6 +16,12 @@ import { PRICE_CLOCK_SKEW_MS, PRICE_EARLIEST_UTC, PRICE_IRR_PER_KG_BOUNDS, PRICI
  * Stored per (variant, Tehran day): the day's last numeric point — the price in effect at the end of that
  * day. Only for variants that have a current published price. The factory, location and every other
  * field are read for validation only. Pure: no I/O, no clock.
+ *
+ * W20.7 add-on (owner 2026-10-16: prices publish twice a day, ≈11:30 and ≈13:30 Tehran; ▲/▼ % stays versus the
+ * previous DAY): the v1 `previous` is the price the current one superseded, which after the second run can be the
+ * same day's 11:30 price. `previousDay` keeps, per variant, the price in effect at the end of the latest Tehran day
+ * before the current price's day (null when that was "price on request"), and `withPreviousDay` puts it into
+ * `published_prices.previous_*` in place of a same-day previous.
  */
 export const PRICING_HISTORY_DAYS = 30;
 export const PRICING_HISTORY_PATH = `/api/v1/pricing/history?days=${PRICING_HISTORY_DAYS}`;
@@ -31,6 +37,11 @@ export interface PricingHistoryValidation {
   ignored: string[];
   /** One line for the run summary. */
   summary: string;
+  /**
+   * W20.7 add-on: per variant with a usable history, the price in effect at the end of the latest Tehran day before
+   * the current price's day (`null`: that was "price on request"). A variant with no point before that day is absent.
+   */
+  previousDay: Map<string, { price: number; at: string } | null>;
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -77,9 +88,9 @@ export function validatePricingHistory(source: PricingSource | undefined, curren
   const warnings: string[] = [];
   const empty = (why: string): PricingHistoryValidation => {
     const summary = `EMPTY PRICE HISTORY: ${why}; no 30-day chart is drawn (prices and the catalog publish normally)`;
-    return { rows: [], warnings: current.length ? [`pricing history: ${summary}`] : [], ignored: [...ignored].sort(), summary };
+    return { rows: [], warnings: current.length ? [`pricing history: ${summary}`] : [], ignored: [...ignored].sort(), summary, previousDay: new Map() };
   };
-  if (current.length === 0) return { rows: [], warnings: [], ignored: [], summary: "no price history (no published price)" };
+  if (current.length === 0) return { rows: [], warnings: [], ignored: [], summary: "no price history (no published price)", previousDay: new Map() };
   if (!source || source.status === "not_deployed") return empty(`${PRICING_HISTORY_PATH} is not deployed (HTTP ${source?.http_status ?? "not fetched"})`);
   if (source.status === "failed") return empty(`GET ${PRICING_HISTORY_PATH} failed (${source.error ?? `HTTP ${source.http_status ?? "?"}`})`);
   const body = source.body;
@@ -92,6 +103,7 @@ export function validatePricingHistory(source: PricingSource | undefined, curren
   const byId = new Map(current.map((r) => [r.canonical_variant_id, r]));
   const seen = new Set<string>();
   const rows: PublishedPriceHistoryRow[] = [];
+  const previousDay = new Map<string, { price: number; at: string } | null>();
   for (const raw of body.data) {
     if (!isObject(raw)) return empty("a history row is not an object");
     unknownKeys("history.row", raw, PRICING_HISTORY_ROW_KEYS, ignored);
@@ -137,6 +149,9 @@ export function validatePricingHistory(source: PricingSource | undefined, curren
     // The price in effect at the end of each Tehran day: the day's last point (an on-request one = no price that day).
     const byDay = new Map<string, Point>();
     for (const p of points) byDay.set(tehranDay(p.at)!, p);
+    // W20.7 add-on: the last point before the current price's day (points are oldest first).
+    const closing = points.filter((p) => isEarlierTehranDay(p.at, now.published_at)).at(-1);
+    if (closing) previousDay.set(id, closing.price === null ? null : { price: closing.price, at: closing.at });
     for (const [day, p] of byDay) {
       if (p.price === null) continue;
       const row = publishedPriceHistoryRow.safeParse({ canonical_variant_id: id, day, price_irr_per_kg: p.price, published_at: p.at });
@@ -147,5 +162,19 @@ export function validatePricingHistory(source: PricingSource | undefined, curren
   const ignoredList = [...ignored].sort();
   if (ignoredList.length) warnings.push(`pricing history: ignored ${ignoredList.length} field(s) the website does not know (never stored or rendered): ${ignoredList.join(", ")}`);
   const variants = new Set(rows.map((r) => r.canonical_variant_id)).size;
-  return { rows, warnings, ignored: ignoredList, summary: `${rows.length} daily point(s) for ${variants} priced variant(s)` };
+  return { rows, warnings, ignored: ignoredList, summary: `${rows.length} daily point(s) for ${variants} priced variant(s)`, previousDay };
+}
+
+/**
+ * W20.7 add-on — `published_prices` with ▲/▼ measured against the previous Tehran day: a row whose `previous` is
+ * from the SAME day as its current price (the twice-a-day publication) gets the previous day's closing price from
+ * `previousDay` instead (or no previous when that day closed on request). A row with no previous, or with one from
+ * an earlier day, is unchanged; so is a same-day one without a usable history (the display then shows no change).
+ */
+export function withPreviousDay(rows: readonly PublishedPriceRow[], previousDay: ReadonlyMap<string, { price: number; at: string } | null>): PublishedPriceRow[] {
+  return rows.map((row) => {
+    if (row.previous_published_at === null || isEarlierTehranDay(row.previous_published_at, row.published_at) || !previousDay.has(row.canonical_variant_id)) return row;
+    const ref = previousDay.get(row.canonical_variant_id);
+    return { ...row, previous_price_irr_per_kg: ref?.price ?? null, previous_published_at: ref?.at ?? null };
+  });
 }

@@ -159,7 +159,8 @@ test("the leak, publication and source-name scans read .md files in their page's
   assert.match(gate, /\.\(html\|json\|txt\|xml\|js\|css\|md\)\$/, "leak scan file types include .md");
   assert.match(gate, /const textFiles = publicEntries\.filter\(\(e\) => \/\\\.\(html\|json\|txt\|xml\|js\|css\|md\)\$\//, "publication, price, article and source-name scans include .md");
   assert.match(gate, /checkMarkdownMirrors\(textFiles, visibleText\)/);
-  assert.match(gate, /checkAgentTexts\(textFiles, priceGateInput\(snapshotDoc\)\.rows\)/);
+  assert.match(gate, /checkAgentTexts\(textFiles, everyPriceRow\)/);
+  assert.match(gate, /const everyPriceRow = \[...priceInput\.rows, ...\[...priceInput\.factoryRows\.values\(\)\]\.flat\(\)\];/, "W20.7: the factory prices count too");
 });
 
 // --- 2. llms.txt -----------------------------------------------------------------------------------------

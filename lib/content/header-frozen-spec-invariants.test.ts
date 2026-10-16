@@ -405,7 +405,8 @@ test("addendum §3: a global SkipLink exists, targets #main-content, and is moun
 test("addendum §6: Organization structured data's contactPoint reuses the single centralized phone constant — never a separately hardcoded number", () => {
   const source = readSource("lib/seo/schema.ts");
   // W16.2: schema.ts imports relatively (so node --test can load it); the constant is the same one.
-  assert.match(source, /import \{ CONTACT_PHONE_E164 \} from ["'](?:@\/lib\/content\/contact-channels|\.\.\/content\/contact-channels\.ts)["'];/);
+  // D-W207-EMAIL: the same import also brings CONTACT_SALES_EMAIL (the /contact-only contactPoint.email).
+  assert.match(source, /import \{ CONTACT_PHONE_E164(?:, CONTACT_SALES_EMAIL)? \} from ["'](?:@\/lib\/content\/contact-channels|\.\.\/content\/contact-channels\.ts)["'];/);
   assert.match(source, /telephone:\s*CONTACT_PHONE_E164/, "contactPoint.telephone must reference the centralized constant, not a literal string");
   assert.ok(!/telephone:\s*["']\+?\d/.test(source), "no separately hardcoded phone literal may be introduced for contactPoint");
   assert.match(source, /"@type":\s*"ContactPoint"/);

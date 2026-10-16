@@ -55,12 +55,12 @@ test("FAQPage: visible Q&A as Question/Answer; an item that mentions a currency 
   assert.equal(faqPageSchema([]), null);
 });
 
-test("publication gate accepts the new nodes and still refuses offers/price", () => {
+test("publication gate accepts the new nodes and still refuses offer shapes other than W20.7's", () => {
   const ok = html(jsonLdGraph([localBusinessSchema("en", { withTehranOffice: true }), faqPageSchema([{ q: "q", a: "a" }])!]));
   assert.deepEqual(scanPublication([{ path: "contact.html", content: ok }], new Set()), []);
-  const priced = html(jsonLdGraph([{ "@type": "Product", name: "x", offers: { "@type": "Offer", price: "1" } }]));
+  const priced = html(jsonLdGraph([{ "@type": "Product", name: "x", offers: { "@type": "AggregateOffer", lowPrice: "1", aggregateRating: 5 } }]));
   const kinds = scanPublication([{ path: "products/x.html", content: priced }], new Set()).map((f) => `${f.kind}:${f.match}`);
-  assert.ok(kinds.includes("jsonld_field_not_allowed:offers") && kinds.includes("jsonld_type_not_allowed:Offer"), kinds.join());
+  assert.ok(kinds.includes("jsonld_type_not_allowed:AggregateOffer") && kinds.includes("jsonld_field_not_allowed:lowPrice") && kinds.includes("jsonld_field_not_allowed:aggregateRating"), kinds.join());
 });
 
 test("Organization: the parent group from lib/content/company.ts (name per locale, canonical URL, founded 1997)", () => {

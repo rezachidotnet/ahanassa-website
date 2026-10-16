@@ -5,8 +5,7 @@ import { buildPageMetadata, buildLanguageAlternatesFromEntries } from "@/lib/met
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";
 import { categoryListingPath } from "@/lib/catalog/public-categories";
 import { NOMINAL_WEIGHT_DISCLAIMER } from "@/lib/catalog/specification-presenter";
-import { formatPersianDate } from "@/lib/pricing/price-block-presentation";
-import { formatArabicDate, isPriceLocale, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, priceDateLabel, type PriceLocale } from "@/lib/pricing/product-page-price";
+import { isPriceLocale, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, priceDateLabel, type PriceLocale } from "@/lib/pricing/product-page-price";
 import { latestPricedAt, PRICE_PAGE_COPY, PRICE_PAGE_LOCALES, PRICE_PAGE_ROUTE } from "@/lib/pricing/price-page";
 import { listPublishedHubFamilies, loadPriceTableRows } from "@/lib/pricing/price-page-data";
 import { groupByMill, groupBySize, PRICE_HUB_FAMILY_COPY, PRICE_HUB_PAGE_COPY, priceHubPath, priceHubSegment, type PriceHubCategoryCode } from "@/lib/pricing/price-hubs";
@@ -16,6 +15,7 @@ import { ButtonLink } from "@/components/ui/button";
 import Link from "@/components/ui/link";
 import { cardVariants } from "@/components/ui/surface-variants";
 import { HubPriceTable } from "@/components/prices/hub-price-table";
+import { PriceUpdatedLine } from "@/components/prices/price-updated-line";
 
 interface PageProps {
   params: Promise<{ locale: string; family: string }>;
@@ -84,11 +84,7 @@ async function HubContent({ locale, family }: { locale: PriceLocale; family: Pri
     <>
       <section className="border-border bg-background border-b section-y">
         <div className="container-x grid grid-cols-[minmax(0,1fr)] gap-6">
-          <p className="text-neutral-700 text-sm font-semibold">
-            {page.updated}{" "}
-            {/* ar carries no timestamp (owner 2026-10-09). */}
-            {locale === "fa" ? <time dateTime={new Date(latest).toISOString()}>{formatPersianDate(new Date(latest))}</time> : formatArabicDate(new Date(latest))}
-          </p>
+          <PriceUpdatedLine locale={locale} label={page.updated} at={latest} />
           <p className="text-muted-foreground max-w-3xl leading-relaxed">{t.intro(name)}</p>
 
           <h2 id="by-size" className="text-navy mt-4 text-2xl font-extrabold">

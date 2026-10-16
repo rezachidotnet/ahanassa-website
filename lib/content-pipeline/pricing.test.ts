@@ -33,7 +33,7 @@ test("valid body -> one snapshot row per numeric price with exactly the rendered
   assert.deepEqual(r.errors, []);
   assert.deepEqual(r.warnings, []);
   assert.equal(r.outcome, "published");
-  assert.equal(r.summary, "4 price(s) published, 1 on request");
+  assert.equal(r.summary, "4 price(s) published, 1 on request; no factory_prices (the fa page shows the lowest per size)");
   assert.deepEqual(r.counts, { prices_published: 4, prices_on_request: 1 });
   assert.deepEqual(r.rows.map((x) => x.canonical_variant_id), ["CVAR-000031", "CVAR-000032", "CVAR-000053", "CVAR-000054"]);
   for (const row of r.rows) assert.deepEqual(Object.keys(row).sort(), ["canonical_variant_id", "factory_name_fa", "location_fa", "previous_price_irr_per_kg", "previous_published_at", "price_irr_per_kg", "published_at", "vat_included"]);

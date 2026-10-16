@@ -1,12 +1,12 @@
 import type { Locale } from "@/config/locales";
 import { irrToToman, type PublishedPriceRow } from "../contracts/snapshot-prices.ts";
 import { formatNumber } from "../weight-calculator/format.ts";
-import { formatPersianDate, formatPersianToman, PRICE_BLOCK_COPY, presentPriceBlock, type PriceBlockData } from "./price-block-presentation.ts";
-import { formatArabicDate, isPriceLocale, PRICE_DISCLAIMER, type PriceLocale } from "./price-locale.ts";
+import { formatPersianToman, PRICE_BLOCK_COPY, presentPriceBlock, type PriceBlockData } from "./price-block-presentation.ts";
+import { isPriceLocale, PRICE_DISCLAIMER, priceStampLabel, type PriceLocale } from "./price-locale.ts";
 import { isEarlierTehranDay, priceChange } from "./price-history.ts";
 import { PRICE_RFQ_COPY, priceRfqHref } from "./price-rfq.ts";
 
-export { formatArabicDate, isPriceLocale, PRICE_DISCLAIMER, PRICE_LOCALES, priceDateLabel, type PriceLocale } from "./price-locale.ts";
+export { formatArabicDate, isPriceLocale, PRICE_DISCLAIMER, PRICE_LOCALES, priceDateLabel, priceStampLabel, priceTimeLabel, type PriceLocale } from "./price-locale.ts";
 
 /**
  * W9.4 — the daily price on product pages. Pure: the snapshot's `published_prices` row → the W10.2
@@ -25,6 +25,12 @@ export { formatArabicDate, isPriceLocale, PRICE_DISCLAIMER, PRICE_LOCALES, price
 
 export const PRICE_CELL_ATTRIBUTE = "data-aa-price-cell";
 export const PRICE_BLOCK_ATTRIBUTE = "data-aa-price-block";
+/**
+ * W20.7 — on a fa price cell that shows one factory's price (the /prices table), the factory row's position in
+ * the variant's display order (orderFactoryRows, 0 = the lowest). The gate checks the cell against THAT snapshot
+ * row; a cell without it is checked against the variant's lowest. Never on ar or en.
+ */
+export const PRICE_RANK_ATTRIBUTE = "data-aa-price-rank";
 /** `data-aa-price-block` value when the template has no priced variant (missing-price variant). */
 export const PRICE_BLOCK_ON_REQUEST = "request";
 
@@ -114,8 +120,8 @@ export type PriceCellPresentation =
       kind: "price";
       amount: string;
       /** fa only (ar never shows factory/location). */ place: string | null;
-      /** fa only (ar carries no timestamp). */ datetime: string | null;
-      dateLabel: string;
+      /** fa only (ar carries no machine timestamp). */ datetime: string | null;
+      /** W20.7 add-on: date + update time (priceStampLabel). */ dateLabel: string;
       /** W9.6: ▲/▼ + % (fa, previous day only). */ change: CompactPriceChange | null;
       /** W9.6: «استعلام قیمت نهایی» → the RFQ form prefilled (variant; fa also the factory). */ rfq: { href: string; label: string } | null;
     }
@@ -132,8 +138,8 @@ export function presentPriceCell(locale: Locale, data: PriceBlockData | null | u
   if (!view) return null;
   if (view.kind === "missing" || !data) return { kind: "missing", label: PRICE_COLUMN_COPY[locale].missing };
   const rfq = variantXid ? { href: priceRfqHref(locale, variantXid, locale === "fa" ? view.factoryName : null), label: PRICE_RFQ_COPY[locale] } : null;
-  if (locale === "ar") return { kind: "price", amount: formatTomanAmount("ar", data.tomanPerKg), place: null, datetime: null, dateLabel: formatArabicDate(new Date(view.datetime)), change: presentCompactChange("ar", data), rfq };
-  return { kind: "price", amount: view.amount, place: `${view.factoryName}، ${view.deliveryLocation}`, datetime: view.datetime, dateLabel: formatPersianDate(new Date(view.datetime)), change: presentCompactChange("fa", data), rfq };
+  if (locale === "ar") return { kind: "price", amount: formatTomanAmount("ar", data.tomanPerKg), place: null, datetime: null, dateLabel: priceStampLabel("ar", view.datetime), change: presentCompactChange("ar", data), rfq };
+  return { kind: "price", amount: view.amount, place: `${view.factoryName}، ${view.deliveryLocation}`, datetime: view.datetime, dateLabel: priceStampLabel("fa", view.datetime), change: presentCompactChange("fa", data), rfq };
 }
 
 /** The page's main priced variant: the first one, in the table's order, that has a price. */
@@ -146,7 +152,7 @@ export function allowedPriceTexts(row: PublishedPriceRow | null, locale: PriceLo
   if (locale === "ar") {
     const out: string[] = [...Object.values(AR_PRICE_COPY), PRICE_RFQ_COPY.ar, ...Object.values(PRICE_CHANGE_GLYPHS), ...Object.values(PRICE_CHANGE_WORDS.ar)];
     if (row) {
-      out.push(renderedAmount(row, "ar"), formatArabicDate(new Date(row.published_at)));
+      out.push(renderedAmount(row, "ar"), priceStampLabel("ar", row.published_at));
       const compact = presentCompactChange("ar", priceBlockDataFromRow(row));
       if (compact) out.push(compact.label);
     }
@@ -159,7 +165,7 @@ export function allowedPriceTexts(row: PublishedPriceRow | null, locale: PriceLo
   const data = priceBlockDataFromRow(row);
   const view = presentPriceBlock("fa", data);
   if (view?.kind === "price") {
-    out.push(view.amount, view.factoryName, view.deliveryLocation, view.dateLabel, formatPersianDate(new Date(view.datetime)));
+    out.push(view.amount, view.factoryName, view.deliveryLocation, view.dateLabel, priceStampLabel("fa", view.datetime));
     if (view.change) {
       out.push(view.change.since);
       if (view.change.percent) out.push(view.change.percent);

@@ -1,4 +1,4 @@
-import { publishedPriceRow, type PublishedPriceRow } from "../contracts/snapshot-prices.ts";
+import { publishedFactoryPriceRow, publishedPriceRow, type PublishedFactoryPriceRow, type PublishedPriceRow } from "../contracts/snapshot-prices.ts";
 
 /**
  * W9.4 — Odoo public pricing API v1 (`GET /api/v1/pricing/current`) for the content pipeline.
@@ -16,6 +16,12 @@ import { publishedPriceRow, type PublishedPriceRow } from "../contracts/snapshot
  *   (the active publication's `prices_published` > 0). Otherwise the run builds with an EMPTY price set
  *   and says so clearly in the summary — a pricing problem never blocks a catalog update, and never
  *   silently wipes prices the site shows.
+ *
+ * W20.7 — `factory_prices` (Odoo W20.6, additive): every factory's current price of the variant, kept for the
+ * fa price page (snapshot table `published_factory_prices`). It never decides the run: when it is absent (an
+ * Odoo before W20.6) or any of it is invalid or inconsistent with the v1 lowest fields, ALL factory rows are
+ * dropped with a warning and the lowest prices publish exactly as before — the fa page then shows the lowest
+ * per size, as it did before W20.7. Never half a set: one bad row drops every factory row.
  *
  * Pure: no I/O, no clock (the caller passes the fetch time).
  */
@@ -36,7 +42,12 @@ export const PRICING_ROW_KEYS = new Set([
   "location",
   "previous",
   "basis_note",
+  "factory_prices",
 ]);
+/** W20.7: one `factory_prices` row. `factory.code`, the en/ar names and `change_pct` are read, never stored. */
+export const PRICING_FACTORY_PRICE_KEYS = new Set(["factory", "location", "price_irr_per_kg", "published_at_utc", "previous", "change_pct", "is_lowest"]);
+/** W20.7: `factory_prices[].previous` — that factory's superseded price. */
+export const PRICING_FACTORY_PREVIOUS_KEYS = new Set(["price_irr_per_kg", "published_at_utc"]);
 /** `previous`: a superseded price point. Only its numeric price and time are stored. */
 export const PRICING_POINT_KEYS = new Set(["price_irr_per_kg", "price_on_request", "published_at_utc", "factory", "location"]);
 /** `factory`: only `name.fa` is stored; `code` and the en/ar names are read, never stored. */
@@ -79,6 +90,8 @@ export interface PricingValidation {
   warnings: string[];
   /** Snapshot rows (only when the set is valid; otherwise empty). */
   rows: PublishedPriceRow[];
+  /** W20.7: every factory's price (only when the set is valid AND every `factory_prices` is valid; otherwise empty). */
+  factoryRows: PublishedFactoryPriceRow[];
   /** Ignored unknown fields, as generic paths (e.g. `row.source`, `factory.url`). */
   ignored: string[];
   outcome: PricingOutcome;
@@ -162,10 +175,10 @@ export function validatePricing(source: PricingSource | undefined, catalog: read
     const ignoredList = [...ignored].sort();
     if (live) {
       const summary = `BLOCKED: ${why}, and the live site shows ${previousPricesPublished} price(s); refusing to publish without them`;
-      return { errors: [`pricing: ${summary}`, ...details], warnings: [], rows: [], ignored: ignoredList, counts: { prices_published: 0, prices_on_request: 0 }, outcome: "blocked", summary };
+      return { errors: [`pricing: ${summary}`, ...details], warnings: [], rows: [], factoryRows: [], ignored: ignoredList, counts: { prices_published: 0, prices_on_request: 0 }, outcome: "blocked", summary };
     }
     const summary = `EMPTY PRICE SET: ${why}; no price is shown (the live site shows none either), the catalog publishes normally`;
-    return { errors: [], warnings: [`pricing: ${summary}`, ...details, ...ignoredWarnings(ignoredList)], rows: [], ignored: ignoredList, counts: { prices_published: 0, prices_on_request: 0 }, outcome, summary };
+    return { errors: [], warnings: [`pricing: ${summary}`, ...details, ...ignoredWarnings(ignoredList)], rows: [], factoryRows: [], ignored: ignoredList, counts: { prices_published: 0, prices_on_request: 0 }, outcome, summary };
   };
 
   if (!source || source.status === "not_deployed") return unusable("empty_not_deployed", `${PRICING_CURRENT_PATH} is not deployed (HTTP ${source?.http_status ?? "not fetched"})`);
@@ -184,6 +197,10 @@ export function validatePricing(source: PricingSource | undefined, catalog: read
   const byId = new Map(catalog.map((c) => [c.canonical_id, c]));
   const seen = new Set<string>();
   const rows: PublishedPriceRow[] = [];
+  const factoryRows: PublishedFactoryPriceRow[] = [];
+  /** W20.7: problems of `factory_prices` only — they drop the factory rows, never the set. */
+  const factoryProblems: string[] = [];
+  let withFactoryPrices = 0;
   let onRequest = 0;
   // Assigned inside the forEach callback (TS cannot see that), hence the widened initializer.
   let newest = null as string | null;
@@ -209,8 +226,11 @@ export function validatePricing(source: PricingSource | undefined, catalog: read
     const factory = checkFactory(`${where}.factory`, raw.factory ?? null, errors, ignored);
     const location = checkI18n(`${where}.location`, raw.location ?? null, errors, ignored);
 
+    const hasFactoryPrices = Object.hasOwn(raw, "factory_prices");
+    if (hasFactoryPrices) withFactoryPrices++;
     if (raw.price_on_request === true) {
       onRequest++;
+      if (hasFactoryPrices && !(Array.isArray(raw.factory_prices) && raw.factory_prices.length === 0)) factoryProblems.push(`${where}: a price_on_request row has factory_prices`);
       if (raw.price_irr_per_kg !== null || raw.published_at_utc !== null || raw.factory !== null || raw.location !== null || raw.previous !== null) errors.push(`pricing: ${where}: price_on_request row carries a price, time, factory, location or previous`);
       return;
     }
@@ -255,15 +275,100 @@ export function validatePricing(source: PricingSource | undefined, catalog: read
       previous_published_at: previousPrice !== null && previousAt !== null ? previousAt : null,
     });
     if (!row.success) errors.push(`pricing: ${where}: ${row.error.issues.map((x) => x.message).join("; ")}`);
-    else rows.push(row.data);
+    else {
+      rows.push(row.data);
+      if (hasFactoryPrices) factoryRows.push(...checkFactoryPrices(where, raw.factory_prices, row.data, fetchedAt, factoryProblems, ignored));
+    }
   });
+  if (withFactoryPrices > 0 && withFactoryPrices < body.data.length) factoryProblems.push(`factory_prices is on ${withFactoryPrices} of ${body.data.length} rows`);
 
   if (newest && metaUpdated && metaUpdated < newest) errors.push(`pricing: meta.updated_at_utc ${metaUpdated} is older than the newest published_at_utc ${newest}`);
   if (errors.length) return unusable("empty_invalid", `the pricing response is invalid (${errors.length} problem(s), first: ${errors[0].replace(/^pricing: /, "")})`, errors.slice(0, 20));
   rows.sort((a, b) => (a.canonical_variant_id < b.canonical_variant_id ? -1 : 1));
   const ignoredList = [...ignored].sort();
-  const summary = `${rows.length} price(s) published, ${onRequest} on request${ignoredList.length ? `; ${ignoredList.length} unknown field(s) ignored` : ""}`;
-  return { errors: [], warnings: ignoredWarnings(ignoredList), rows, ignored: ignoredList, counts: { prices_published: rows.length, prices_on_request: onRequest }, outcome: "published", summary };
+  const warnings = ignoredWarnings(ignoredList);
+  let factoryNote: string;
+  let keptFactoryRows: PublishedFactoryPriceRow[] = [];
+  if (withFactoryPrices === 0) factoryNote = "no factory_prices (the fa page shows the lowest per size)";
+  else if (factoryProblems.length) {
+    factoryNote = `factory_prices DROPPED (${factoryProblems.length} problem(s)); the fa page shows the lowest per size`;
+    warnings.push(`pricing: factory_prices dropped, the lowest prices publish as before (${factoryProblems.length} problem(s), first: ${factoryProblems[0]})`, ...factoryProblems.slice(0, 20).map((p) => `pricing: factory_prices: ${p}`));
+  } else {
+    keptFactoryRows = factoryRows.sort((a, b) => (a.canonical_variant_id < b.canonical_variant_id ? -1 : a.canonical_variant_id > b.canonical_variant_id ? 1 : a.factory_name_fa < b.factory_name_fa ? -1 : 1));
+    factoryNote = `${keptFactoryRows.length} factory price(s)`;
+  }
+  const summary = `${rows.length} price(s) published, ${onRequest} on request; ${factoryNote}${ignoredList.length ? `; ${ignoredList.length} unknown field(s) ignored` : ""}`;
+  return { errors: [], warnings, rows, factoryRows: keptFactoryRows, ignored: ignoredList, counts: { prices_published: rows.length, prices_on_request: onRequest }, outcome: "published", summary };
+}
+
+/**
+ * W20.7: one variant's `factory_prices` → snapshot rows. Problems go to `problems` (they drop every factory row,
+ * never the lowest prices). Consistency with the v1 fields the row already passed: exactly one `is_lowest`, and it is
+ * the v1 price (same amount, factory and location); no factory below the lowest; one row per factory.
+ */
+function checkFactoryPrices(where: string, value: unknown, lowest: PublishedPriceRow, fetchedAt: string, problems: string[], ignored: Set<string>): PublishedFactoryPriceRow[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    problems.push(`${where}: a priced row needs a non-empty factory_prices list`);
+    return [];
+  }
+  const out: PublishedFactoryPriceRow[] = [];
+  const names = new Set<string>();
+  let lowestCount = 0;
+  value.forEach((raw, i) => {
+    const at = `${where}.factory_prices[${i}]`;
+    if (!isObject(raw)) {
+      problems.push(`${at}: not an object`);
+      return;
+    }
+    unknownKeys(`${where}.factory_prices`, raw, PRICING_FACTORY_PRICE_KEYS, ignored);
+    const errors: string[] = [];
+    const factory = checkFactory(`${at}.factory`, raw.factory ?? null, errors, ignored);
+    const location = checkI18n(`${at}.location`, raw.location ?? null, errors, ignored);
+    const price = checkPrice(`${at}.price_irr_per_kg`, raw.price_irr_per_kg, errors);
+    const publishedAt = checkTime(`${at}.published_at_utc`, raw.published_at_utc, fetchedAt, errors);
+    if (raw.change_pct !== null && typeof raw.change_pct !== "number") errors.push(`${at}.change_pct: not a number or null`);
+    if (typeof raw.is_lowest !== "boolean") errors.push(`${at}.is_lowest: not true or false`);
+    const factoryFa = factory?.fa;
+    const locationFa = location?.fa;
+    if (!nonBlank(factoryFa)) errors.push(`${at}: factory.name.fa is missing`);
+    if (!nonBlank(locationFa)) errors.push(`${at}: location.fa is missing`);
+    let previousPrice: number | null = null;
+    let previousAt: string | null = null;
+    if (raw.previous !== null) {
+      if (!isObject(raw.previous)) errors.push(`${at}.previous: not an object or null`);
+      else {
+        unknownKeys(`${where}.factory_prices.previous`, raw.previous, PRICING_FACTORY_PREVIOUS_KEYS, ignored);
+        previousPrice = checkPrice(`${at}.previous.price_irr_per_kg`, raw.previous.price_irr_per_kg, errors);
+        previousAt = checkTime(`${at}.previous.published_at_utc`, raw.previous.published_at_utc, fetchedAt, errors);
+      }
+    }
+    if (errors.length) {
+      problems.push(...errors.map((e) => e.replace(/^pricing: /, "")));
+      return;
+    }
+    const name = (factoryFa as string).trim();
+    if (names.has(name)) problems.push(`${at}: a second row for the same factory`);
+    names.add(name);
+    if (raw.is_lowest === true) {
+      lowestCount++;
+      if (price !== lowest.price_irr_per_kg || name !== lowest.factory_name_fa || (locationFa as string).trim() !== lowest.location_fa) problems.push(`${at}: is_lowest, but differs from the row's lowest price, factory or location`);
+    }
+    if (price! < lowest.price_irr_per_kg) problems.push(`${at}: below the row's lowest price`);
+    const row = publishedFactoryPriceRow.safeParse({
+      canonical_variant_id: lowest.canonical_variant_id,
+      factory_name_fa: name,
+      location_fa: (locationFa as string).trim(),
+      price_irr_per_kg: price,
+      published_at: publishedAt,
+      previous_price_irr_per_kg: previousPrice,
+      previous_published_at: previousAt,
+      is_lowest: raw.is_lowest === true ? 1 : 0,
+    });
+    if (!row.success) problems.push(`${at}: ${row.error.issues.map((x) => x.message).join("; ")}`);
+    else out.push(row.data);
+  });
+  if (lowestCount !== 1) problems.push(`${where}: ${lowestCount} factory_prices rows are is_lowest (exactly one expected)`);
+  return out;
 }
 
 function ignoredWarnings(ignored: readonly string[]): string[] {
