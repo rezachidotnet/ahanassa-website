@@ -17,13 +17,13 @@ test("publication gate: public JSON — only allowlisted files and fields", () =
   assert.equal(scanPublication([{ path: "data/extra.json", content: "{}" }], new Set())[0].kind, "json_file_not_allowed");
 });
 
-test("publication gate: JSON-LD — allowed types/properties only; Product never carries offers or price", () => {
+test("publication gate: JSON-LD — allowed types/properties only; offers only in the W20.7 shape (where and what price: the price gate, rule 8)", () => {
   const product = { "@context": "https://schema.org", "@graph": [{ "@type": "Product", "@id": "https://www.ahanassa.com/en/products/x#product", name: "X", url: "https://www.ahanassa.com/en/products/x" }] };
   assert.deepEqual(scanPublication([{ path: "en/products/x.html", content: ld(product) }], new Set()), []);
   const priced = structuredClone(product) as { "@graph": Record<string, unknown>[] };
-  priced["@graph"][0].offers = { "@type": "Offer", price: "1", priceCurrency: "IRR" };
+  priced["@graph"][0].offers = { "@type": "AggregateOffer", lowPrice: "1", priceCurrency: "IRR", availability: "InStock", seller: { "@type": "Organization", name: "S" }, priceRange: "1-2" };
   const kinds = scanPublication([{ path: "en/products/x.html", content: ld(priced) }], new Set()).map((f) => `${f.kind}:${f.match}`);
-  for (const k of ["jsonld_field_not_allowed:offers", "jsonld_type_not_allowed:Offer", "jsonld_field_not_allowed:price", "jsonld_field_not_allowed:priceCurrency"]) assert.ok(kinds.includes(k), k);
+  for (const k of ["jsonld_type_not_allowed:AggregateOffer", "jsonld_field_not_allowed:lowPrice", "jsonld_field_not_allowed:availability", "jsonld_field_not_allowed:seller", "jsonld_field_not_allowed:priceRange"]) assert.ok(kinds.includes(k), k);
 });
 
 test("publication gate: internal ids (DB_PUBLIC row ids, legacy Odoo XIDs) and rendered empty values block", () => {

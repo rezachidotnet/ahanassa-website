@@ -209,7 +209,7 @@ export function breadcrumbListSchema(items: BreadcrumbItem[]) {
  * §12.4) for a published product (template) detail page only — never on category pages. Only fields
  * the page visibly renders: the heading (`name`), the intro (`description`) and the page URL. No `sku`
  * (the page lists many variants), no `brand`/`manufacturer` (Ahan Asa procures, it does not make), no
- * internal id as `@id`, and never `offers`/`price` (public pricing is off, §8.4).
+ * internal id as `@id`. Its daily prices are a separate block (productOffersSchema, W20.7).
  */
 export function productSchema(input: { url: string; name: string; description: string | null }) {
   return {
@@ -218,6 +218,33 @@ export function productSchema(input: { url: string; name: string; description: s
     name: input.name,
     ...(input.description ? { description: input.description } : {}),
     url: input.url,
+  };
+}
+
+/**
+ * W20.7 (owner, 2026-10-16) — the product page's daily prices as `offers` of its `Product` node (same `@id`, a
+ * separate JSON-LD block that merges into it): one `Offer` per priced variant with the variant's LOWEST published
+ * price (never another factory's), per kg in IRR (the page shows Toman = IRR ÷ 10), VAT included. Nothing else:
+ * no factory/seller, date, availability or validity — the price is indicative (D-PRICE-MEANING). fa and ar product
+ * pages only; the price gate (lib/static/price-gate.ts rule 8) checks every value against the snapshot.
+ */
+export function productOffersSchema(input: { url: string; offers: ReadonlyArray<{ variantXid: string; priceIrrPerKg: number }> }) {
+  return {
+    "@type": "Product",
+    "@id": `${input.url}#product`,
+    offers: input.offers.map((o) => ({
+      "@type": "Offer",
+      "@id": `${input.url}#offer-${o.variantXid}`,
+      price: o.priceIrrPerKg,
+      priceCurrency: "IRR",
+      priceSpecification: {
+        "@type": "UnitPriceSpecification",
+        price: o.priceIrrPerKg,
+        priceCurrency: "IRR",
+        referenceQuantity: { "@type": "QuantitativeValue", value: 1, unitCode: "KGM" },
+        valueAddedTaxIncluded: true,
+      },
+    })),
   };
 }
 

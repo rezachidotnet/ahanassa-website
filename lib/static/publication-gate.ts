@@ -12,8 +12,9 @@ import { publicManifest, publicRfqCatalog, publicRfqCatalogItem } from "../contr
  *    public contracts). Any other field — cost, supplier, margin, stock,
  *    purchase price, partner data, internal ids — blocks.
  * 2. JSON-LD in HTML: only the allowed schema.org types and properties
- *    (Organization, LocalBusiness, WebSite, BreadcrumbList, FAQPage,
- *    Product WITHOUT offers/price).
+ *    (Organization, LocalBusiness, WebSite, BreadcrumbList, FAQPage, Event,
+ *    Product; W20.7: Product offers — WHERE and WHAT price is the price gate's
+ *    rule 8, lib/static/price-gate.ts: fa/ar product pages, the lowest only).
  * 3. Internal ids: no DB_PUBLIC row id and no legacy Odoo XID
  *    (`ahanassa_marketplace.…`) anywhere in public text. The only public
  *    identities are canonical_id (CVAR) and canonical_template_id (CTMPL).
@@ -34,7 +35,10 @@ export const PUBLIC_JSON_ALLOWLIST: ReadonlyArray<{ pattern: RegExp; keys: Reado
   { pattern: /^manifest\.public\.json$/, keys: keysOf(publicManifest) },
 ];
 
-export const JSONLD_ALLOWED_TYPES: ReadonlySet<string> = new Set(["Organization", "LocalBusiness", "WebSite", "BreadcrumbList", "ListItem", "PostalAddress", "ContactPoint", "Product", "FAQPage", "Question", "Answer", "OpeningHoursSpecification", "Event", "Place"]);
+export const JSONLD_ALLOWED_TYPES: ReadonlySet<string> = new Set(["Organization", "LocalBusiness", "WebSite", "BreadcrumbList", "ListItem", "PostalAddress", "ContactPoint", "Product", "FAQPage", "Question", "Answer", "OpeningHoursSpecification", "Event", "Place",
+  // W20.7 (owner, 2026-10-16): the lowest daily price as a Product offer, per kg. The price gate (rule 8) allows it only
+  // on fa/ar product pages and only with the variant's lowest published price.
+  "Offer", "UnitPriceSpecification", "QuantitativeValue"]);
 export const JSONLD_ALLOWED_KEYS: ReadonlySet<string> = new Set([
   "@context", "@graph", "@id", "@type",
   "name", "alternateName", "url", "logo", "description", "publisher",
@@ -51,6 +55,9 @@ export const JSONLD_ALLOWED_KEYS: ReadonlySet<string> = new Set([
   "startDate", "endDate", "eventStatus", "eventAttendanceMode", "location", "attendee",
   // D-W207-EMAIL (owner, 2026-10-16): the /contact Organization contactPoint's e-mail (the leak scan allows the address on /contact only).
   "email",
+  // W20.7 (owner, 2026-10-16): Product.offers with the lowest price per kg (price gate rule 8 checks every value).
+  // Still never priceRange/aggregateRating/availability/seller.
+  "offers", "price", "priceCurrency", "priceSpecification", "referenceQuantity", "unitCode", "value", "valueAddedTaxIncluded",
 ]);
 
 const LEGACY_XID = /ahanassa_marketplace\.[a-z0-9_]+/g;

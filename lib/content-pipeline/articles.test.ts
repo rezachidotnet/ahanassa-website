@@ -18,6 +18,7 @@ const tables = (): SnapshotV1["tables"] => ({
   catalog_group_labels: [],
   published_prices: [],
   published_price_history: [],
+  published_factory_prices: [],
   published_articles: [],
 });
 const source = (status: ArticlesSource["status"], error?: string): ArticlesSource => ({ status, mode: status === "not_configured" ? null : "token", repo: "owner/content", ref: "main", commit: null, fetched_at: "2026-10-09T08:00:00.000Z", error, files: [] });

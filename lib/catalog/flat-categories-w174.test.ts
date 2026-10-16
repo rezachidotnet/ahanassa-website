@@ -210,7 +210,7 @@ function w98Source(categories: CatalogApiCategory[], products: CatalogApiProduct
     processing_groups: { fa: pg, en: pg, ar: pg },
   } as OdooSource;
 }
-const emptyTables = (): SnapshotV1["tables"] => ({ catalog_public_categories: [], catalog_products: [], product_variants: [], product_seo_contents: [], public_processing_groups: [], route_redirects: [], homepage_product_rank: [], catalog_group_labels: [], published_prices: [], published_price_history: [], published_articles: [] });
+const emptyTables = (): SnapshotV1["tables"] => ({ catalog_public_categories: [], catalog_products: [], product_variants: [], product_seo_contents: [], public_processing_groups: [], route_redirects: [], homepage_product_rank: [], catalog_group_labels: [], published_prices: [], published_price_history: [], published_factory_prices: [], published_articles: [] });
 const d1 = (): D1Source => ({ schema: "d1-source.v1", read_at: "2026-10-14T07:00:00.000Z", tables: emptyTables(), publication: { active_version: null, versions: [] } });
 const W98_PRODUCTS = [
   product("PL1", "CTMPL-1", "SHEET_PLATE", "HOT_ROLLED_PLATE"),

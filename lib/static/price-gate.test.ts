@@ -103,7 +103,9 @@ test("ar: price only — amount + date + VAT note pass; factory, location, times
     const k = kinds([{ path: "ar/products/ipe-beam.html", content: AR_PAGE.replace("</body>", `<script>self.__next_f.push([1,"${o.replace(/"/g, '\\"')}"])</script></body>`) }]);
     assert.ok(k.some((x) => x.startsWith("price_fa_field_on_ar_page")), `${o}: ${k.join(" | ")}`);
   }
-  const extra = AR_PAGE.replace("<span>٧ أكتوبر ٢٠٢٦</span>", "<span>٧ أكتوبر ٢٠٢٦</span><span>مصنع</span>");
+  // W20.7 add-on: the ar cell shows the date and the update time.
+  assert.ok(AR_PAGE.includes("<span>٧ أكتوبر ٢٠٢٦ · تحديث ١٠:٤٥</span>"), AR_PAGE);
+  const extra = AR_PAGE.replace("<span>٧ أكتوبر ٢٠٢٦ · تحديث ١٠:٤٥</span>", "<span>٧ أكتوبر ٢٠٢٦ · تحديث ١٠:٤٥</span><span>مصنع</span>");
   assert.ok(kinds([{ path: "ar/products/ipe-beam.html", content: extra }]).some((x) => x.startsWith("price_text_not_allowed")));
   const outside = AR_PAGE.replace("<h1>عارضة IPE</h1>", "<h1>عارضة IPE</h1><p>٥٥٬٢٠٠</p>");
   assert.ok(kinds([{ path: "ar/products/ipe-beam.html", content: outside }]).includes("price_outside_markup:٥٥٬٢٠٠"));
@@ -148,13 +150,14 @@ test("leak scan: pricing-API / snapshot field names (also escaped in the RSC pay
   assert.deepEqual(scanPublicFile("products/ipe-beam.html", CLEAN).filter((f) => f.kind === "pricing_field"), [], "the rendered page itself carries no field names");
 });
 
-test("no JSON-LD offers on a priced product page (publication gate)", () => {
+test("W20.7: a JSON-LD offer that is not exactly the lowest per-kg shape fails the price gate (rule 8)", () => {
   const ld = (graph: unknown) => `<script type="application/ld+json">${JSON.stringify({ "@context": "https://schema.org", "@graph": [graph] })}</script>`;
   const product = { "@type": "Product", name: "IPE Beam", url: "https://www.ahanassa.com/products/ipe-beam" };
   assert.deepEqual(scanPublication([{ path: "products/ipe-beam.html", content: CLEAN.replace("</body>", `${ld(product)}</body>`) }], new Set()), []);
+  // The pre-W20.7 shape (a single Offer, string price, no per-kg specification) is still refused.
   const offered = { ...product, offers: { "@type": "Offer", price: "55200", priceCurrency: "IRR" } };
-  const found = scanPublication([{ path: "products/ipe-beam.html", content: CLEAN.replace("</body>", `${ld(offered)}</body>`) }], new Set()).map((f) => f.match);
-  for (const m of ["offers", "Offer", "price", "priceCurrency"]) assert.ok(found.includes(m), m);
+  const found = scanPrices([{ path: "products/ipe-beam.html", content: CLEAN.replace("</body>", `${ld(offered)}</body>`) }], priceGateInput({ tables: { published_prices: [], product_variants: [] } })).map((f) => f.kind);
+  assert.ok(found.includes("price_jsonld_not_allowed"), found.join());
 });
 
 test("residue keeps anything that is not an allowed string or punctuation", () => {
