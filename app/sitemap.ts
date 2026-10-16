@@ -16,6 +16,10 @@ import { RAW_MATERIAL_LOCALES, RAW_MATERIAL_SLUGS, RAW_MATERIALS_ROUTE, rawMater
 import { EXPORT_LOCALES, EXPORT_ROUTE } from "@/lib/content/export";
 import { listAllPublishedPrices } from "@/lib/pricing/product-page-price-repository";
 import { isPriceLocale } from "@/lib/pricing/price-locale";
+import { listPriceChartProducts } from "@/lib/pricing/price-chart-data";
+import { priceChartPath } from "@/lib/pricing/price-charts";
+import { listIndicators } from "@/lib/indicators/repository";
+import { MARKET_INDICATORS_LOCALES, MARKET_INDICATORS_ROUTE } from "@/lib/indicators/page";
 
 /** The public, non-catalog pages of every locale (D6, lib/seo/indexing-policy.ts). Articles (W11.1) are listed below, per locale. */
 export { STATIC_PUBLIC_PATHS };
@@ -79,6 +83,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   /** W16.3: a page published in a fixed locale list (raw materials, export), with alternates between those locales. */
   const fixedLocaleEntry = (locale: Locale, path: string, published: readonly Locale[]) => ({ url: url(locale, path), lastModified, alternates: { languages: canonicalLanguages(buildLanguageAlternatesFromEntries(published.map((l) => ({ locale: l, path })))) } });
 
+  // W18.2: the fa chart pages (as new as the newest price) and the en/ar market-indicators page (as new as its newest value).
+  const charts = await listPriceChartProducts();
+  const indicators = await listIndicators();
+  const latestIndicator = maxIso(indicators.map((i) => i.points[i.points.length - 1].date)) || undefined;
+
   const entries: MetadataRoute.Sitemap = [];
   for (const locale of locales) {
     // W16.3: PRODUCTION_NOINDEX_PAGES (Industries, Markets) stay out until they have real content.
@@ -95,6 +104,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const [path, present] of hubLocales) if (present.includes(locale)) entries.push({ ...fixedLocaleEntry(locale, path, present), lastModified: pricedModified(locale) });
     if (RAW_MATERIAL_LOCALES.includes(locale)) for (const path of [RAW_MATERIALS_ROUTE, ...RAW_MATERIAL_SLUGS.map(rawMaterialPath)]) entries.push(fixedLocaleEntry(locale, path, RAW_MATERIAL_LOCALES));
     if (EXPORT_LOCALES.includes(locale)) entries.push(fixedLocaleEntry(locale, EXPORT_ROUTE, EXPORT_LOCALES));
+    if (locale === "fa") for (const c of charts) entries.push({ ...fixedLocaleEntry("fa", priceChartPath(c.slug), ["fa"]), lastModified: pricedModified("fa") });
+    if (indicators.length && (MARKET_INDICATORS_LOCALES as readonly string[]).includes(locale)) entries.push({ ...fixedLocaleEntry(locale, MARKET_INDICATORS_ROUTE, MARKET_INDICATORS_LOCALES), lastModified: latestIndicator });
   }
   return [...entries, ...productEntries, ...(await articleEntries(url))];
 }

@@ -16,6 +16,11 @@ import { PriceCellContent } from "@/components/products/price-cell-content";
 import { PriceUpdatedLine } from "@/components/prices/price-updated-line";
 import { PriceTableFilter } from "@/components/prices/price-table-filter";
 import { TrackOnView } from "@/components/analytics/track-on-view";
+import { IndicatorStrip } from "@/components/indicators/indicator-strip";
+import { listIndicators } from "@/lib/indicators/repository";
+import { MARKET_INDICATORS_COPY, MARKET_INDICATORS_ROUTE } from "@/lib/indicators/page";
+import { listPriceChartProducts } from "@/lib/pricing/price-chart-data";
+import { PRICE_CHART_COPY, priceChartPath } from "@/lib/pricing/price-charts";
 
 interface PageProps {
   params: Promise<{ locale: string }>;
@@ -195,6 +200,55 @@ async function FamilyHubLinks({ locale }: { locale: PriceLocale }) {
 }
 
 /**
+ * W18.2 — fa: the market indicators strip (reference indices, never our price) above the table. ar: a link to the ar
+ * market-indicators page. Its own async boundary (r4), like the table.
+ */
+async function MarketIndicators({ locale }: { locale: PriceLocale }) {
+  await Promise.resolve();
+  const indicators = await listIndicators();
+  if (indicators.length === 0) return null;
+  if (locale === "fa") return <IndicatorStrip locale="fa" indicators={indicators} />;
+  return (
+    <div className="container-x pt-8">
+      <Link href={localizedPath(locale, MARKET_INDICATORS_ROUTE)} className="text-navy hover:text-copper text-sm font-semibold underline underline-offset-4">
+        {MARKET_INDICATORS_COPY.ar.title}
+      </Link>
+    </div>
+  );
+}
+
+/**
+ * W18.2 — fa: «نمودار و روند قیمت» — links to the chart pages of the top products (lib/pricing/price-charts.ts).
+ * Its own async boundary (r4).
+ */
+async function ChartLinks({ locale }: { locale: PriceLocale }) {
+  await Promise.resolve();
+  if (locale !== "fa") return null;
+  const charts = await listPriceChartProducts();
+  if (charts.length === 0) return null;
+  const t = PRICE_CHART_COPY;
+  return (
+    <section aria-labelledby="price-charts" className="border-border bg-background border-b section-y">
+      <div className="container-x">
+        <h2 id="price-charts" className="text-navy text-2xl font-extrabold">
+          {t.sectionTitle}
+        </h2>
+        <p className="text-muted-foreground mt-2 text-sm">{t.sectionBody}</p>
+        <ul className="mt-6 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+          {charts.map((c) => (
+            <li key={c.slug}>
+              <Link href={localizedPath("fa", priceChartPath(c.slug))} className="text-navy hover:text-copper underline-offset-4 hover:underline">
+                {t.title(c.productName)}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+/**
  * W9.6 — the daily price page (lib/pricing/price-page.ts). No JSON-LD price (SEO phase later), no
  * "from X" anywhere; prices only from the build-time snapshot. W16.3: dated H1/title, an H2 over the
  * table and an H2 section per family hub (lib/pricing/price-hubs.ts).
@@ -206,6 +260,7 @@ export default async function PricesPage({ params }: PageProps) {
   return (
     <>
       <PageHero locale={locale} eyebrow={t.eyebrow} title={day ? t.titleDated(day.date) : t.title} body={t.body} breadcrumb={[{ path: PRICE_PAGE_ROUTE, label: t.eyebrow }]} />
+      <MarketIndicators locale={locale} />
       <section aria-labelledby="price-table-title" className="border-border bg-background border-b section-y">
         <div className="container-x">
           <h2 id="price-table-title" className="text-navy mb-6 text-2xl font-extrabold">
@@ -214,6 +269,7 @@ export default async function PricesPage({ params }: PageProps) {
           <DailyPriceTable locale={locale} />
         </div>
       </section>
+      <ChartLinks locale={locale} />
       <FamilyHubLinks locale={locale} />
     </>
   );

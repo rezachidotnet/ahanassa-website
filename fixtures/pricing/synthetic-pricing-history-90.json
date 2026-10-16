@@ -1,0 +1,3197 @@
+{
+ "synthetic": true,
+ "note": "SYNTHETIC 90-day price history (W18.2: the price-position gauge and chart pages), the shape of Odoo GET /api/v1/pricing/history?days=90. Older points are invented; the last 30 days equal synthetic-pricing-history.json.",
+ "fetched_at": "2026-10-08T08:00:00Z",
+ "response": {
+  "data": [
+   {
+    "id": null,
+    "canonical_id": "CVAR-000031",
+    "canonical_template_id": "CTMPL-000001",
+    "sku": "AA-RB-AJ400-D10-L12",
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "price_at_window_start": null,
+    "prices": [
+     {
+      "price_irr_per_kg": 509050,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-13T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 514440,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-15T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 519570,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-17T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 524180,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-19T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 528050,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-21T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 530980,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-23T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 532840,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-25T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 533520,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-27T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 533000,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-29T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 531300,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-31T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 528510,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-02T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 524760,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-04T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 520240,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-06T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 515170,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-08T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 509790,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-10T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 504380,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-12T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 499200,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-14T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 494510,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-16T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 490530,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-18T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 487460,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-20T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 485450,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-22T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 484600,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-24T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 484960,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-26T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 486500,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-28T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 489140,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-30T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 492770,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-01T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 497200,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-03T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 502210,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-05T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 507560,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-07T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 512980,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-09T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 518210,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-11T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 522980,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-13T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 527070,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-15T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 530280,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-17T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 532440,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-19T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 499000,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-20T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 498000,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-28T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 497500,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-30T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 496000,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-01T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 497000,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-02T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 495000,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-03T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 495900,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-05T06:00:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 495610,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-05T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 489470,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-08T07:20:00Z",
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     }
+    ]
+   },
+   {
+    "id": null,
+    "canonical_id": "CVAR-000032",
+    "canonical_template_id": "CTMPL-000001",
+    "sku": "AA-RB-AJ400-D12-L12",
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "price_at_window_start": null,
+    "prices": [
+     {
+      "price_irr_per_kg": 497330,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-13T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 502600,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-15T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 507610,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-17T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 512110,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-19T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 515890,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-21T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 518760,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-23T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 520570,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-25T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 521240,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-27T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 520730,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-29T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 519070,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-31T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 516340,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-02T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 512680,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-04T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 508260,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-06T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 503310,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-08T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 498060,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-10T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 492770,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-12T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 487710,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-14T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 483120,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-16T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 479230,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-18T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 476230,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-20T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 474270,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-22T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 473440,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-24T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 473790,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-26T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 475290,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-28T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 477880,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-30T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 481430,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-01T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 485750,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-03T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 490650,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-05T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 495870,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-07T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 501170,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-09T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 506270,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-11T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 510940,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-13T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 514940,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-15T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 518070,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-17T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 520180,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-19T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 521170,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-21T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 520980,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-23T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 519640,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-25T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 517190,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-27T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 513770,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-29T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 509540,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-01T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 504710,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-03T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 499510,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-05T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 494210,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-07T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 478200,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-08T07:20:00Z",
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     }
+    ]
+   },
+   {
+    "id": null,
+    "canonical_id": "CVAR-000033",
+    "canonical_template_id": "CTMPL-000001",
+    "sku": "AA-RB-AJ400-D14-L12",
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "price_at_window_start": null,
+    "prices": []
+   },
+   {
+    "id": null,
+    "canonical_id": "CVAR-000053",
+    "canonical_template_id": "CTMPL-000002",
+    "sku": "AA-BM-IPE-S120-L12",
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "price_at_window_start": null,
+    "prices": [
+     {
+      "price_irr_per_kg": 574080,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-13T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 580160,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-15T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 585950,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-17T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 591150,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-19T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 595510,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-21T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 598810,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-23T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 600910,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-25T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 601680,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-27T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 601090,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-29T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 599180,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-31T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 596030,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-02T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 591800,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-04T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 586700,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-06T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 580980,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-08T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 574920,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-10T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 568820,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-12T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 562980,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-14T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 557680,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-16T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 553190,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-18T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 549730,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-20T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 547460,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-22T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 546510,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-24T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 546910,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-26T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 548650,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-28T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 551630,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-30T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 555720,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-01T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 560720,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-03T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 566370,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-05T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 572400,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-07T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 578510,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-09T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 584410,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-11T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 589790,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-13T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 594410,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-15T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 598020,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-17T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 600460,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-19T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 601600,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-21T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 601390,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-23T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 599830,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-25T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 597010,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-27T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 593060,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-29T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 540000,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-01T07:15:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 552000,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-07T07:15:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     }
+    ]
+   },
+   {
+    "id": null,
+    "canonical_id": "CVAR-000054",
+    "canonical_template_id": "CTMPL-000002",
+    "sku": "AA-BM-IPE-S140-L12",
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "price_at_window_start": null,
+    "prices": [
+     {
+      "price_irr_per_kg": 574080,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-13T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 580160,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-15T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 585950,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-17T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 591150,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-19T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 595510,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-21T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 598810,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-23T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 600910,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-25T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 601680,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-27T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 601090,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-29T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 599180,
+      "price_on_request": false,
+      "published_at_utc": "2026-07-31T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 596030,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-02T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 591800,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-04T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 586700,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-06T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 580980,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-08T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 574920,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-10T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 568820,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-12T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 562980,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-14T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 557680,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-16T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 553190,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-18T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 549730,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-20T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 547460,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-22T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 546510,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-24T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 546910,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-26T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 548650,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-28T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 551630,
+      "price_on_request": false,
+      "published_at_utc": "2026-08-30T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 555720,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-01T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 560720,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-03T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 566370,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-05T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 572400,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-07T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 578510,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-09T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 584410,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-11T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 589790,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-13T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 594410,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-15T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 598020,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-17T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 600460,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-19T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 601600,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-21T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 601390,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-23T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 599830,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-25T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 597010,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-27T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 593060,
+      "price_on_request": false,
+      "published_at_utc": "2026-09-29T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": 588170,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-01T07:20:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     },
+     {
+      "price_irr_per_kg": null,
+      "price_on_request": true,
+      "published_at_utc": "2026-10-02T07:15:00Z",
+      "factory": null,
+      "location": null
+     },
+     {
+      "price_irr_per_kg": 552000,
+      "price_on_request": false,
+      "published_at_utc": "2026-10-07T07:15:00Z",
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       }
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      }
+     }
+    ]
+   }
+  ],
+  "meta": {
+   "days": 90,
+   "total_prices": 174,
+   "updated_at_utc": "2026-10-08T07:20:00Z",
+   "unit": "kg",
+   "currency": "IRR",
+   "vat_included": true
+  }
+ }
+}

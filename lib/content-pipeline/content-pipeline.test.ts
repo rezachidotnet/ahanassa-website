@@ -59,7 +59,7 @@ function odooSource(products: CatalogApiProduct[]): OdooSource {
 }
 
 function emptyTables(): SnapshotV1["tables"] {
-  return { catalog_public_categories: [], catalog_products: [], product_variants: [], product_seo_contents: [], public_processing_groups: [], route_redirects: [], homepage_product_rank: [], catalog_group_labels: [], published_prices: [], published_price_history: [], published_factory_prices: [], published_articles: [] };
+  return { catalog_public_categories: [], catalog_products: [], product_variants: [], product_seo_contents: [], public_processing_groups: [], route_redirects: [], homepage_product_rank: [], catalog_group_labels: [], published_prices: [], published_price_history: [], published_factory_prices: [], published_articles: [], published_indicators: [], published_indicator_points: [] };
 }
 
 function d1Source(tables: SnapshotV1["tables"], active: string | null = null, counts: Record<string, number> = {}): D1Source {
@@ -119,11 +119,14 @@ test("full fetch: every page, all locales; a total that changes mid-pagination f
   }) as typeof fetch;
   const source = await fetchOdooSource({ baseUrl: "https://odoo.ahanassa.com", fetchImpl: fake, minIntervalMs: 0 });
   assert.equal(source.products.length, 150);
-  // meta + 3 categories + 2 product pages + 3 processing groups + W9.4 pricing/current + W9.6 pricing/history (404 here: not deployed)
-  assert.equal(source.requests.length, 1 + 3 + 2 + 3 + 1 + 1);
+  // meta + 3 categories + 2 product pages + 3 processing groups + W9.4 pricing/current + W9.6 pricing/history
+  // + W18.2 indicators fa/en/ar (404 here: not deployed)
+  assert.equal(source.requests.length, 1 + 3 + 2 + 3 + 1 + 1 + 3);
   assert.equal(source.prices?.status, "not_deployed");
   assert.equal(source.price_history?.status, "not_deployed");
-  assert.ok(source.requests.some((r) => r.path === "/api/v1/pricing/history?days=30"), JSON.stringify(source.requests.map((r) => r.path)));
+  assert.deepEqual(Object.entries(source.indicators ?? {}).map(([l, s]) => `${l}:${s?.status}`), ["fa:not_deployed", "en:not_deployed", "ar:not_deployed"]);
+  assert.ok(source.requests.some((r) => r.path === "/api/v1/catalog/indicators?locale=ar&days=365"));
+  assert.ok(source.requests.some((r) => r.path === "/api/v1/pricing/history?days=90"), JSON.stringify(source.requests.map((r) => r.path)));
   assert.ok(source.requests.every((r) => r.method === "GET"));
   assert.equal(source.categories_last_modified.en, "2026-09-27T16:49:29.000Z");
   shrink = true;

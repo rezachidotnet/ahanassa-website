@@ -40,6 +40,22 @@ export const ANALYTICS_EVENTS = {
   /** D-ARTICLE-METRICS: an RFQ («استعلام قیمت») button or link inside an article was clicked; `cta_location`: inline | product_card | bottom. */
   article_cta_click: ["article_slug", "article_lang", "cta_location"],
   /**
+   * W18.2: a price or indicator chart was viewed. `chart_type`: product_price (a fa chart page, /prices/chart/<slug>)
+   * | market_indicators (the en/ar indicators page, once per page view); `product_slug` on product_price only.
+   */
+  chart_view: ["chart_type", "product_slug"],
+  /** W18.2: the visitor switched a chart page's range; `chart_range`: 30 | 90 (days). */
+  chart_range_change: ["chart_range", "product_slug"],
+  /**
+   * W18.2: the fa product page's price-position gauge came into view, once per page view: `gauge_position` low | mid |
+   * high and `gauge_window` (30 | 90, the longest window shown), the product page slug.
+   */
+  gauge_view: ["gauge_position", "gauge_window", "product_slug"],
+  /** W18.2: «قیمت قطعی برای حجم شما» was clicked; `cta_location`: gauge (product page) | chart_page. */
+  chart_to_rfq: ["cta_location", "product_slug", "product_family"],
+  /** W18.2: the en/ar "Steel market indicators" page was viewed; `page_lang` en | ar, `indicator_count` = indicators shown. */
+  indicator_page_view: ["page_lang", "indicator_count"],
+  /**
    * W20.3 redesign: an action in the homepage expert section (components/home/expert-contact.tsx) was clicked;
    * `expert_variant`: A | B (the build's layout). Sent in addition to the site-wide phone_click / whatsapp_click /
    * rfq_cta_click, which keep counting every channel with location home_expert.
@@ -119,7 +135,8 @@ export function funnelPage(pathname: string): FunnelPage | null {
   if (path === "/" || path === "/index") return "home";
   if (/^\/products(?:\/category\/[^/]+)?$/.test(path)) return "category";
   if (/^\/products\/[^/]+$/.test(path)) return "product";
-  if (/^\/prices(?:\/[^/]+)?$/.test(path)) return "price";
+  // W18.2: a fa chart page (/prices/chart/<slug>) counts as a price page.
+  if (/^\/prices(?:\/chart)?(?:\/[^/]+)?$/.test(path)) return "price";
   if (path === "/tools/weight-calculator") return "calculator";
   return null;
 }
@@ -178,3 +195,8 @@ export function articleCtaLocation(link: Element): ArticleCtaLocation {
   const mark = link.closest("[data-article-cta]")?.getAttribute("data-article-cta") ?? "";
   return (ARTICLE_CTA_LOCATIONS as readonly string[]).includes(mark) ? (mark as ArticleCtaLocation) : "inline";
 }
+
+/** W18.2: marks the RFQ CTA of a price gauge or a chart page (chart_to_rfq `cta_location`: gauge | chart_page). */
+export const CHART_RFQ_ATTRIBUTE = "data-chart-rfq";
+/** W18.2: the product page slug next to CHART_RFQ_ATTRIBUTE (chart_to_rfq `product_slug`). */
+export const CHART_SLUG_ATTRIBUTE = "data-chart-slug";

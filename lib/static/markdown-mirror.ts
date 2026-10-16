@@ -299,6 +299,13 @@ function canonicalAndLang(html: string): string {
   return `${canonical ? (attr(canonical, "href") ?? "") : ""} ${attr(/<html\b[^>]*>/i.exec(html)?.[0] ?? "", "lang") ?? ""}`;
 }
 
+/**
+ * W18.2: the en market-indicators page's mirror. It names the USD/IRR Exchange Center rate and shows reference index
+ * values — never an Ahan Asa price (the price gate's rule 4 still checks its HTML for every price amount, copy and
+ * name) — so the currency-word and snapshot-amount rules below skip it; the factory/location rule still applies.
+ */
+export const MARKET_INDICATOR_MARKDOWN: readonly string[] = ["en/market-indicators.md"];
+
 /** Digits of any script as ASCII. */
 const asciiDigits = (s: string) => s.replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0)).replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660));
 const CURRENCY_WORD = /(?<![\p{L}])(tomans?|rials?|irr|irt|تومان|ریال|ريال|تومن)(?![\p{L}])|﷼/iu;
@@ -323,7 +330,7 @@ export function checkAgentTexts(
     if (!llms && !en && !ar) continue;
     const text = normName(asciiDigits(content));
     for (const n of names) if (text.includes(n)) failures.push(`agent text: ${path} names a factory or delivery location of the price snapshot`);
-    if (ar) continue;
+    if (ar || MARKET_INDICATOR_MARKDOWN.includes(path)) continue;
     // No currency word: llms.txt, and every en page (its .md mirror is the page's visible text).
     if (path !== "llms-full.txt" && CURRENCY_WORD.test(content)) failures.push(`agent text: ${path} mentions a currency`);
     for (const m of asciiDigits(content).matchAll(/\d[\d,٬]*/g)) {

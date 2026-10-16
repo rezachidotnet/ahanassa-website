@@ -47,6 +47,8 @@ export const paths = (work: string) => ({
   articlesSource: path.join(work, "source/articles.json"),
   /** W11.1: the article rows the validate step accepted (the snapshot step reads them). */
   articles: path.join(work, "articles.json"),
+  /** W18.2: the market-indicator rows the validate step accepted (the snapshot step reads them). */
+  indicators: path.join(work, "indicators.json"),
   validation: path.join(work, "validation.json"),
   snapshot: path.join(work, "snapshot.json"),
   artifact: path.join(work, "artifact"),

@@ -59,6 +59,11 @@ The staging and production builds are byte-identical except for robots, sitemap,
 | `calculator_open` | The weight calculator page loads | `calculator_entry`: `home_cta` / `category` / `product` / `price` (the previous page on this site) / `direct` (anything else: no referrer, another site, another page) |
 | `article_read` | The reader reaches 75% of an article's body (an invisible line at 75% of the body enters the screen; once per page view) | `article_slug`, `article_lang` (`fa` / `en` / `ar`) |
 | `article_cta_click` | An RFQ («استعلام قیمت») button or link **inside an article** is clicked | `article_slug`, `article_lang`, `cta_location`: `inline` (a link in the article text) / `product_card` (the button under the related products) / `bottom` (the «استعلام قیمت» box beside, or on mobile below, the article) |
+| `chart_view` | W18.2: a fa price chart page (`/prices/chart/<slug>`) or the en/ar market-indicators page loads | `chart_type`: `product_price` / `market_indicators`; `product_slug` (product_price only) |
+| `chart_range_change` | W18.2: the 30/90-day switch of a chart page is used | `chart_range`: `30` / `90`, `product_slug` |
+| `gauge_view` | W18.2: the price-position gauge of a fa product page is at least half on screen (once per page view) | `gauge_position`: `low` / `mid` / `high`, `gauge_window`: `30` / `90` (the longest shown), `product_slug` |
+| `chart_to_rfq` | W18.2: «قیمت قطعی برای حجم شما» is clicked (it also sends `rfq_cta_click`) | `cta_location`: `gauge` (product page) / `chart_page`, `product_slug`, `product_family` |
+| `indicator_page_view` | W18.2: `/en/market-indicators` or `/ar/market-indicators` loads | `page_lang`: `en` / `ar`, `indicator_count` |
 | `expert_call_click` / `expert_whatsapp_click` / `expert_rfq_click` / `expert_chat_click` | An action in the homepage «با کارشناس فروش صحبت کنید» section is clicked: phone, WhatsApp, the RFQ («ارسال فاکتور یا لیست خرید») or live chat (W21, only when configured). Sent **in addition to** `phone_click` / `whatsapp_click` / `rfq_cta_click` (`home_expert`), so do not add both into one total | `expert_variant`: `A` (Concierge card) / `B` (Split band) — the layout the site was built with (W20.3 redesign) |
 
 Values:
@@ -142,6 +147,11 @@ Do this for each of the 12 events. (The D-ARTICLE-METRICS tags and triggers — 
 | `GA4 - calculator_open` | `calculator_open` | `calculator_entry` = `{{DLV - calculator_entry}}` |
 | `GA4 - article_read` | `article_read` | `article_slug` = `{{DLV - article_slug}}`, `article_lang` = `{{DLV - article_lang}}` |
 | `GA4 - article_cta_click` | `article_cta_click` | `article_slug` = `{{DLV - article_slug}}`, `article_lang` = `{{DLV - article_lang}}`, `cta_location` = `{{DLV - cta_location}}` |
+| `GA4 - chart_view` | `chart_view` | `chart_type` = `{{DLV - chart_type}}`, `product_slug` = `{{DLV - product_slug}}` |
+| `GA4 - chart_range_change` | `chart_range_change` | `chart_range` = `{{DLV - chart_range}}`, `product_slug` = `{{DLV - product_slug}}` |
+| `GA4 - gauge_view` | `gauge_view` | `gauge_position` = `{{DLV - gauge_position}}`, `gauge_window` = `{{DLV - gauge_window}}`, `product_slug` = `{{DLV - product_slug}}` |
+| `GA4 - chart_to_rfq` | `chart_to_rfq` | `cta_location` = `{{DLV - cta_location}}`, `product_slug` = `{{DLV - product_slug}}`, `product_family` = `{{DLV - product_family}}` |
+| `GA4 - indicator_page_view` | `indicator_page_view` | `page_lang` = `{{DLV - page_lang}}`, `indicator_count` = `{{DLV - indicator_count}}` |
 
 Do **not** add a Custom HTML tag. The site's CSP allows scripts only from the site itself, Turnstile and `*.googletagmanager.com`.
 

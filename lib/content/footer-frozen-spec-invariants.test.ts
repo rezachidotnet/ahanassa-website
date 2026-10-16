@@ -56,12 +56,15 @@ test("SiteFooter no longer imports the Persian-only sample catalog categories", 
   );
 });
 
-test("Products nav group: the unfiltered /products listing, then the catalog PDF of the page's locale (W17.2)", () => {
+test("Products nav group: the unfiltered /products listing, the catalog PDF of the page's locale (W17.2), then en/ar market indicators (W18.2)", () => {
   const productsNavMatch = FOOTER_SOURCE.match(/<nav[^>]*aria-label=\{t\.productsNav\}[\s\S]*?<\/nav>/);
   assert.ok(productsNavMatch, "expected a Products <nav> block");
   const block = productsNavMatch[0];
   const linkCount = (block.match(/<Link\b/g) ?? []).length;
-  assert.equal(linkCount, 2, "expected exactly two <Link>s in the Products nav group: /products and the catalog PDF");
+  // W18.2 (owner 2026-10-16): a third link, en/ar only and only when the build publishes the market-indicators page.
+  assert.equal(linkCount, 3, "expected exactly three <Link>s in the Products nav group: /products, the catalog PDF and the en/ar market indicators");
+  assert.match(block, /hasIndicators && isMarketIndicatorsLocale\(locale\)[\s\S]*MARKET_INDICATORS_ROUTE/, "the indicators link is conditional (en/ar, published)");
+  assert.ok(block.indexOf("fullCatalogPath") < block.indexOf("MARKET_INDICATORS_ROUTE"), "the indicators link comes after the PDF");
   assert.match(block, /localizedPath\(locale,\s*"\/products"\)/, "the first link must resolve to the real, unfiltered /products route");
   // W17.2 (owner instruction 2026-10-14): the catalog PDF of the page's own locale, next to /products.
   assert.match(block, /fullCatalogPath\(locale\)/, "the second link must open the catalog PDF of the page's locale");

@@ -3,6 +3,7 @@ import { fetchProcessingGroups, type ProcessingGroupApiItem } from "../processin
 import { PIPELINE_CONFIG } from "./config.ts";
 import { PRICING_CURRENT_PATH, type PricingSource } from "./pricing.ts";
 import { PRICING_HISTORY_PATH } from "./pricing-history.ts";
+import { INDICATORS_LOCALES, indicatorsPath, type IndicatorsSource } from "./indicators.ts";
 
 /**
  * Architecture V1.1 §7.1 step 1 — the FULL fetch from Odoo (no delta, so
@@ -44,10 +45,15 @@ export interface OdooSource {
    */
   prices?: PricingSource;
   /**
-   * W9.6: `GET /api/v1/pricing/history?days=30`, unvalidated (lib/content-pipeline/pricing-history.ts).
+   * W9.6: `GET /api/v1/pricing/history?days=90` (W18.2; was 30), unvalidated (lib/content-pipeline/pricing-history.ts).
    * Absent in sources fetched before W9.6 (= no 30-day chart).
    */
   price_history?: PricingSource;
+  /**
+   * W18.2: `GET /api/v1/catalog/indicators?locale=fa|en|ar&days=365`, unvalidated (lib/content-pipeline/indicators.ts).
+   * Absent in sources fetched before W18.2 (= no indicators). Never fails the fetch.
+   */
+  indicators?: IndicatorsSource;
 }
 
 export class OdooFetchError extends Error {}
@@ -145,6 +151,9 @@ export async function fetchOdooSource(options: { baseUrl?: string; fetchImpl?: t
 
   const prices = await fetchPricingCurrent(baseUrl, guarded);
   const priceHistory = await fetchPricingPath(PRICING_HISTORY_PATH, baseUrl, guarded);
+  // W18.2: market indicators, one GET per locale (the same never-throw semantics as the prices).
+  const indicators: IndicatorsSource = {};
+  for (const locale of INDICATORS_LOCALES) indicators[locale] = await fetchPricingPath(indicatorsPath(locale), baseUrl, guarded);
 
   return {
     schema: ODOO_SOURCE_SCHEMA,
@@ -160,6 +169,7 @@ export async function fetchOdooSource(options: { baseUrl?: string; fetchImpl?: t
     processing_groups: processingGroups,
     prices,
     price_history: priceHistory,
+    indicators,
   };
 }
 

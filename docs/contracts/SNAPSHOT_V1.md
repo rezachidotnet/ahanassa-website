@@ -165,6 +165,24 @@ Owner-approved 2026-10-09 (W11.1: articles section). Code: `lib/contracts/snapsh
 - **Build-only**, exactly like `published_prices`: no `migrations_public` table, never mirrored or loaded into
   D1. `cover_svg` is rasterized to PNG/WebP at build time; the SVG itself is never published.
 
+## `published_indicators` / `published_indicator_points` (W18.2, extension)
+
+Build-only, like the price tables (`lib/contracts/snapshot-indicators.ts`): Odoo W18.1
+`GET /api/v1/catalog/indicators?locale=fa|en|ar&days=365`, allow-listed by `lib/content-pipeline/indicators.ts`.
+Reference indices only, never an Ahan Asa selling price.
+
+- `published_indicators`: one row per indicator — `code` (`usd_irr_official_cbi`, `iron_ore_wb`, `us_ppi_hot_rolled`
+  only; never IME, never a free-market series), `series_code`, `is_fallback`, `kind`, `label_kind`, `unit`,
+  `frequency`, `source_url` (https, an approved source host), `name_fa/en/ar`, `attribution_fa/en/ar`.
+- `published_indicator_points`: `code`, `date` (a monthly value is dated the 1st of its data month), `value` (> 0),
+  `preliminary` (0/1). Every indicator has ≥ 1 point; the newest is its last value.
+- Both optional (omitted when empty, so older snapshots keep their hash). An invalid indicator is dropped with a
+  warning; indicators never stop a publish. The artifact gate's indicator gate (`lib/static/indicator-gate.ts`) checks
+  every rendered indicator carries the reference label, its source and its date.
+
+W18.2 also raises `published_price_history` to 90 days (`?days=90`): the sparkline still draws 30; the 30/90-day
+price-position gauge and the fa chart pages (`/prices/chart/<slug>`) use 90 (price gate rule 9).
+
 ## `rfq_variant_index` row (architecture §5.1, A8)
 
 | Column | Type |

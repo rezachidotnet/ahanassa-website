@@ -38,7 +38,9 @@ export const PUBLIC_JSON_ALLOWLIST: ReadonlyArray<{ pattern: RegExp; keys: Reado
 export const JSONLD_ALLOWED_TYPES: ReadonlySet<string> = new Set(["Organization", "LocalBusiness", "WebSite", "BreadcrumbList", "ListItem", "PostalAddress", "ContactPoint", "Product", "FAQPage", "Question", "Answer", "OpeningHoursSpecification", "Event", "Place",
   // W20.7 (owner, 2026-10-16): the lowest daily price as a Product offer, per kg. The price gate (rule 8) allows it only
   // on fa/ar product pages and only with the variant's lowest published price.
-  "Offer", "UnitPriceSpecification", "QuantitativeValue"]);
+  "Offer", "UnitPriceSpecification", "QuantitativeValue",
+  // W18.2: a Dataset per fa chart page (our own daily prices) and per en/ar market indicator — never a value or a price.
+  "Dataset", "PropertyValue"]);
 export const JSONLD_ALLOWED_KEYS: ReadonlySet<string> = new Set([
   "@context", "@graph", "@id", "@type",
   "name", "alternateName", "url", "logo", "description", "publisher",
@@ -58,6 +60,8 @@ export const JSONLD_ALLOWED_KEYS: ReadonlySet<string> = new Set([
   // W20.7 (owner, 2026-10-16): Product.offers with the lowest price per kg (price gate rule 8 checks every value).
   // Still never priceRange/aggregateRating/availability/seller.
   "offers", "price", "priceCurrency", "priceSpecification", "referenceQuantity", "unitCode", "value", "valueAddedTaxIncluded",
+  // W18.2: Dataset (lib/seo/schema.ts datasetSchema).
+  "creator", "isAccessibleForFree", "temporalCoverage", "dateModified", "variableMeasured", "unitText", "creditText", "isBasedOn",
 ]);
 
 const LEGACY_XID = /ahanassa_marketplace\.[a-z0-9_]+/g;

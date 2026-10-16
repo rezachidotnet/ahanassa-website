@@ -7,6 +7,8 @@ import { organizationSchema, localBusinessSchema, websiteSchema, jsonLdGraph } f
 import { JsonLd } from "@/components/seo/JsonLd";
 import { Hero } from "@/components/home/hero";
 import { PriceStrip } from "@/components/home/price-strip";
+import { IndicatorStrip } from "@/components/indicators/indicator-strip";
+import { listIndicators } from "@/lib/indicators/repository";
 import { ProductShowcase } from "@/components/home/product-showcase";
 import { BuyerValue } from "@/components/home/buyer-value";
 import { Industries } from "@/components/home/industries";
@@ -151,6 +153,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   });
 }
 
+/** W18.2 — the fa home page's indicator strip. Its own async boundary (r4, as the price pages). */
+async function HomeIndicators() {
+  await Promise.resolve();
+  return <IndicatorStrip locale="fa" indicators={await listIndicators()} />;
+}
+
 export default async function HomePage({ params }: PageProps) {
   const { locale: rawLocale } = await params;
   const locale = isLocale(rawLocale) ? rawLocale : "fa";
@@ -196,6 +204,8 @@ export default async function HomePage({ params }: PageProps) {
     <>
       <Hero locale={locale} />
       <PriceStrip locale={locale} items={priceStripItems} />
+      {/* W18.2: the fa price strip's market-indicator items (reference indices; nothing without indicators). */}
+      {locale === "fa" && <HomeIndicators />}
       <ProductShowcase locale={locale} items={homepageCategories} />
       <BuyerValue locale={locale} />
       <Industries locale={locale} />

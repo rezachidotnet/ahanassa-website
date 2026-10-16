@@ -66,7 +66,7 @@ export function irrToToman(irr: number): number {
 
 /**
  * snapshot.v1 extension — `published_price_history` (W9.6, owner-approved 2026-10-09): the daily price
- * points the product page's 30-day sparkline draws. From Odoo `GET /api/v1/pricing/history?days=30` in the
+ * points the product page's 30-day sparkline draws (W18.2: also the 30/90-day price-position gauge and the fa chart pages). From Odoo `GET /api/v1/pricing/history?days=90` (W18.2; was 30) in the
  * same CI fetch as `/current` (lib/content-pipeline/pricing-history.ts is the allow-list). One row per
  * (priced variant, Tehran calendar day): the price in effect at the END of that day — the day's last
  * published point. Only variants with a `published_prices` row have history, and a variant's newest
