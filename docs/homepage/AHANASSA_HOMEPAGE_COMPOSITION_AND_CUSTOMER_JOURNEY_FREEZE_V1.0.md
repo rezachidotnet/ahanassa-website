@@ -6,6 +6,7 @@
 **Primary direction:** FA / RTL  
 **Freeze date:** 2026-09-08  
 **Visual baseline:** `AHANASSA_HOMEPAGE_VISUAL_SYSTEM_AND_MOTION_FREEZE_V1.0.md`  
+**Amendments:** A1 (2026-10-16, owner) — Talk to a Sales Expert section, §21  
 
 ---
 
@@ -76,6 +77,8 @@ Verified Evidence [conditional]
 ↓
 Industries / Use Cases [conditional]
 ↓
+Talk to a Sales Expert (A1, §21)
+↓
 Final CTA
 ↓
 Global Footer
@@ -96,7 +99,8 @@ If a conditional component is ineligible, it is omitted cleanly and the remainin
 | 4 | Buyer Value / Service Promise | Always present | Supplier selection and service differentiation |
 | 5 | Verified Evidence | Conditional | Validation of operational promises using eligible evidence |
 | 6 | Industries / Use Cases | Conditional | Relevance to real customer/project contexts |
-| 7 | Final CTA | Always present | Conversion after exploration and validation |
+| 7 | Talk to a Sales Expert (A1) | Always present | Reach a real person, through the channel the buyer chooses |
+| 8 | Final CTA | Always present | Conversion after exploration and validation |
 | Shell | Global Footer | Always present | Secondary navigation, legal and organizational closure |
 
 ---
@@ -245,6 +249,7 @@ It MUST:
 | Why choose Ahan Asa | Buyer Value |
 | Proof that promises are being delivered | Verified Evidence |
 | Where/for whom the offer is relevant | Industries / Use Cases |
+| How to reach a person (channels, hours) | Talk to a Sales Expert (A1) |
 | Final action | Final CTA |
 | Detailed purchase process | Dedicated `/process` page |
 
@@ -501,3 +506,44 @@ The next component-level freeze is:
 > **AHANASSA Buyer Value / Service Promise Component Freeze V1.0**
 
 It will define final copy, content hierarchy, desktop/mobile layout, visual treatment, interaction behavior, accessibility, localization, and acceptance tests for the new Buyer Value component without reopening this Homepage composition.
+
+---
+
+## 21. Amendment A1 — Talk to a Sales Expert (2026-10-16)
+
+**Authority:** owner instruction W20.3, 2026-10-16 (the versioned supersession §18 requires for adding a section). Everything else in this freeze is unchanged.
+
+B2B buyers want to speak to a real person before buying, with low friction and a choice of channel. One always-present section, `components/home/expert-contact.tsx`, sits after Industries and before the Final CTA. It answers:
+
+> How can I talk to someone at Ahan Asa, in the way that suits me?
+
+It MUST:
+
+- offer 3–4 options of equal weight: telephone (`tel:`, the one number in `lib/content/contact-channels.ts`), WhatsApp (the configured number, a prefilled message per locale; omitted when no valid number is configured), the RFQ form on `/contact`, and the working hours from `lib/content/company.ts`;
+- present the contact as a role («کارشناس فروش آهن آسا»), never an invented name, photo or testimonial;
+- state a response time only if the owner has confirmed one as a commitment (none is confirmed today, so none is shown);
+- not repeat the Final CTA's primary/secondary button pair — the Final CTA keeps the single primary RFQ action (§11);
+- use a light surface, so it never sits Navy-on-Navy against the Final CTA (Visual System §14).
+
+Analytics: `phone_click` / `whatsapp_click` with `link_location: home_expert`, and `rfq_cta_click` with `cta_location: home_expert`.
+
+The §19 decision list reads with this amendment: item 1 becomes Hero → conditional Price Strip → Product Showcase → Buyer Value → conditional Verified Evidence → conditional Industries → Talk to a Sales Expert → Final CTA.
+
+---
+
+## 22. Amendment A2 — Talk to a Sales Expert redesign (2026-10-16)
+
+**Authority:** owner feedback W20.3, 2026-10-16 ("the expert section is too plain; make it the most modern, premium version possible within the approved visual system"). Supersedes the A1 bullets on equal weight, the role-only rule and the button pair; the rest of A1 stands — position, always present, light surface, no response-time promise.
+
+The section now:
+
+- has ONE primary action, the RFQ («ارسال فاکتور یا لیست خرید», CTA_STRATEGY §4) to the `/contact` form, with telephone and WhatsApp as secondary actions — CTA_STRATEGY §3.1 (one dominant action per section) and §4.1 (phone and messaging never displace the RFQ). The Final CTA keeps its own pair; both return the buyer to the same RFQ goal, so neither competes with it;
+- ships two layouts behind the build-time `EXPERT_SECTION_VARIANT` (`lib/content/home-expert.ts`, default "A"): **A "Concierge card"** (one elevated Featured panel: intro and live hours, then three action tiles) and **B "Split band"** (benefit headline, three proof points taken verbatim from approved homepage copy, a button row);
+- may show a real sales expert (round photo, first name, role) only when `SALES_EXPERT` in `lib/content/company.ts` holds a real photo and name — never a placeholder or stock person;
+- shows a live "open now / opens …" line, computed in the visitor's browser in Asia/Tehran time from `WORKING_HOURS` in a reserved fixed-height box (no layout shift) — the section's only client JS; the static hours lines remain the no-JS fallback;
+- renders the «چت با کارشناس» button (W21) only when live chat is configured — no dead button;
+- uses the shared Reveal for a subtle, never-hiding entrance (none under `prefers-reduced-motion`).
+
+The light-surface rule applies to the section element: a navy-filled primary action tile inside it is an action, not a Navy section.
+
+Analytics: `expert_call_click` / `expert_whatsapp_click` / `expert_rfq_click` / `expert_chat_click` with `expert_variant` (A | B), in addition to the A1 events.
