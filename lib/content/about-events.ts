@@ -66,7 +66,7 @@ export interface AboutEventsCopy {
 export const ABOUT_EVENTS_COPY: Record<Locale, AboutEventsCopy> = {
   fa: {
     title: "رویدادها",
-    lead: "آهن آسا با غرفهٔ خود در بیست‌ونهمین نمایشگاه تخصصی صنعت ساختمان اصفهان حضور داشت.",
+    lead: "در این نمایشگاه، آهن آسا با غرفهٔ خود حضور داشت.",
     datesLabel: "تاریخ",
     venueLabel: "محل برگزاری",
     posterAlt: "پوستر بیست‌ونهمین نمایشگاه تخصصی صنعت ساختمان اصفهان، ۷ تا ۱۰ مهر ۱۴۰۵، شهر نمایشگاهی اصفهان",
