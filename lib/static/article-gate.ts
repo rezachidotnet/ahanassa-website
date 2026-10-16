@@ -2,6 +2,7 @@ import { arPlaceFindings, enPriceFindings } from "../articles/validate.ts";
 import { irrToToman, type PublishedPriceRow } from "../contracts/snapshot-prices.ts";
 import { fileLocale } from "./leak-scan.ts";
 import { visibleText } from "./price-gate.ts";
+import { withoutLinkTargets } from "./markdown-mirror.ts";
 
 /**
  * W11.1 article gate — part of the artifact gate (lib/static/artifact-gate.ts), on every file under
@@ -93,7 +94,8 @@ export function scanArticlePages(files: ReadonlyArray<{ path: string; content: s
   for (const { path, content } of files) {
     if (!ARTICLE_FILE.test(path)) continue;
     const locale = fileLocale(path);
-    const lines = path.endsWith(".html") ? mainTextBlocks(content) : [content];
+    // A .md mirror is checked like its HTML page: the text, not the link targets (the HTML's hrefs).
+    const lines = path.endsWith(".html") ? mainTextBlocks(content) : path.endsWith(".md") ? [withoutLinkTargets(content)] : [content];
     if (locale === "en") for (const match of enPriceFindings(lines, amounts)) findings.push({ file: path, kind: "article_price_on_en", match });
     if (locale === "ar") for (const match of arPlaceFindings([content], names)) findings.push({ file: path, kind: "article_place_on_ar", match });
     if (!path.endsWith(".html")) continue;

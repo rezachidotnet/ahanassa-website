@@ -28,6 +28,18 @@ test("en article pages: no currency, price-sized number, snapshot amount or numb
   assert.deepEqual(mainTextBlocks(page("<p>a</p><p>b</p>")), ["a", "b"]);
 });
 
+test("en article .md mirror: checked like its HTML page — the text, not the link targets (content run of 2026-10-16)", () => {
+  // The cited source of the 2026-10-16 article: a wiki archive timestamp in the URL, the HTML page's href.
+  const source = "- [Guidance Note 8.01: Preparing for effective corrosion protection](https://www.steelconstruction.info/upload/Wiki-Files/archive/f/fc/20151125111353%21GN_8-01.pdf) — The Steel Construction Institute";
+  const md = (body: string) => `---\ntitle: Steel storage on site\nurl: https://www.ahanassa.com/en/articles/steel-storage-on-site\nlang: en\n---\n\n# Steel storage on site\n\n${body}\n`;
+  assert.deepEqual(kinds([{ path: "en/articles/steel-storage-on-site.md", content: md(`## Sources\n\n${source}`) }]), []);
+  assert.deepEqual(kinds([{ path: "en/articles/steel-storage-on-site.html", content: page(`<ul><li><a href="https://www.steelconstruction.info/upload/Wiki-Files/archive/f/fc/20151125111353%21GN_8-01.pdf">Guidance Note 8.01</a></li></ul>`) }]), [], "same as the HTML page");
+  // The text of a .md mirror is still scanned in full: prose, link text and lines outside a link.
+  for (const bad of ["Quoted at 853000.", "[Report 20151125111353](https://example.org/a)", "Rebar is 85,300 Toman per kg, see [this](https://example.org/b).", "https://example.org/archive/20151125111353 plain URL text"]) {
+    assert.deepEqual([...new Set(kinds([{ path: "en/articles/a.md", content: md(bad) }]))], ["article_price_on_en:en/articles/a.md"], bad);
+  }
+});
+
 test("ar article pages: no factory or delivery location of the price snapshot", () => {
   assert.deepEqual(kinds([{ path: "ar/articles/a.html", content: page("<p>السعر اليوم</p>") }]), []);
   assert.deepEqual(kinds([{ path: "ar/articles/a.html", content: page(`<p>${ROW.factory_name_fa}</p>`) }]), ["article_place_on_ar:ar/articles/a.html"]);

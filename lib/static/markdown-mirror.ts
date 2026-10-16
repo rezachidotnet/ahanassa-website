@@ -254,11 +254,17 @@ export function htmlToMarkdown(html: string): string {
 
 // --- gate -----------------------------------------------------------------------------------------------
 
+/**
+ * A Markdown mirror without its link targets: `[text](url)` -> `[text]`. The target is the HTML page's `href`, which no
+ * gate reads as visible text (2026-10-16: a cited source's URL is not prose); the link text stays.
+ */
+export function withoutLinkTargets(markdown: string): string {
+  return markdown.replace(/\]\([^)]*\)/g, "]");
+}
+
 /** Words of a text, for the "Markdown says nothing the HTML does not" check (link targets and Markdown syntax removed). */
 function words(text: string): string[] {
-  return text
-    .replace(/^ *\d+\. /gm, "")
-    .replace(/\]\([^)]*\)/g, "]")
+  return withoutLinkTargets(text.replace(/^ *\d+\. /gm, ""))
     .split(/[\s|*#[\]()>`_\\-]+/)
     .map((w) => w.replace(/^[.,،:;!?"'«»؛]+|[.,،:;!?"'«»؛]+$/g, ""))
     .filter(Boolean);
