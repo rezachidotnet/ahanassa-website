@@ -1,9 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { locales as LOCALES } from "../../config/locales.ts";
 import { HOME_EXPERT_LOCATION, homeExpertCopy, homeExpertListHref, homeExpertWhatsAppHref, RFQ_FILES_ANCHOR } from "./home-expert.ts";
 import { WHATSAPP_BUSINESS_NUMBER } from "./whatsapp.ts";
+import { WORKING_HOURS, WORKING_HOURS_TEXT } from "./company.ts";
 import { isRfqHref, rfqCtaLocation, linkLocation, buildEvent } from "../analytics/events.ts";
 
 /** W20.3 — the homepage «با کارشناس فروش صحبت کنید» section (components/home/expert-contact.tsx). */
@@ -64,4 +67,21 @@ test("component: tel: from the single phone source, LTR number, hours from compa
   assert.ok(!/<img|<Image|next\/image|"use client"|<Reveal/.test(component), "no photo, no client JS, no late-loading content (no CLS)");
   assert.ok(!/\b(?:ml|mr|pl|pr|left|right)-\d/.test(component), "logical properties only (RTL/LTR)");
   assert.match(component, /rel=\{WHATSAPP_REL\}/);
+});
+
+test("ar working hours render in order in RTL: 8:00 before 17:00 and 8:00 before 12:00 (/contact and this section)", () => {
+  // The same <ul> both pages render, in an RTL document.
+  const html = renderToStaticMarkup(createElement("ul", { dir: "rtl", lang: "ar" }, WORKING_HOURS_TEXT.ar.lines.map((line) => createElement("li", { key: line }, line))));
+  const lines = [...html.matchAll(/<li>([^<]*)<\/li>/g)].map((m) => m[1]);
+  assert.equal(lines.length, 2);
+  const expected = WORKING_HOURS.map((h) => [String(Number(h.opens.slice(0, 2))) + h.opens.slice(2), h.closes]);
+  lines.forEach((line, i) => {
+    // RTL reads the logical order, as long as each time is its own run between Arabic words: «من 8:00 إلى 17:00».
+    // Two times joined only by a dash/space form one run that the bidi algorithm lays out reversed («17:00–8:00»).
+    assert.ok(!/\d\s*[–\-—]\s*\d/.test(line), `no dash-joined time range: ${line}`);
+    const [opens, closes] = expected[i];
+    const between = line.slice(line.indexOf(opens) + opens.length, line.indexOf(closes));
+    assert.ok(line.indexOf(opens) > -1 && line.indexOf(opens) < line.indexOf(closes), `${opens} comes before ${closes}: ${line}`);
+    assert.match(between, /\p{Script=Arabic}/u, `an Arabic word separates ${opens} and ${closes}: ${line}`);
+  });
 });
