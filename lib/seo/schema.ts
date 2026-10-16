@@ -223,3 +223,25 @@ export function jsonLdGraph(nodes: object[]) {
     "@graph": nodes,
   };
 }
+
+/**
+ * W20.2 — a past `Event` Ahan Asa took part in (/about «رویدادها»). Only the facts the page shows: name, the
+ * dates (all-day, as the poster gives them), the venue and its city, the poster image, and Ahan Asa as an
+ * attendee. It took place as scheduled, so `eventStatus` stays EventScheduled (schema.org has no "past" status).
+ * No organizer, offers or performer — none was supplied.
+ */
+export function eventSchema(input: { id: string; name: string; description: string; startDate: string; endDate: string; venue: string; locality: string; image: string }) {
+  return {
+    "@type": "Event",
+    "@id": input.id,
+    name: input.name,
+    description: input.description,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    eventStatus: "https://schema.org/EventScheduled",
+    eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
+    location: { "@type": "Place", name: input.venue, address: { "@type": "PostalAddress", addressLocality: input.locality, addressCountry: "IR" } },
+    image: [input.image],
+    attendee: { "@id": organizationId() },
+  };
+}

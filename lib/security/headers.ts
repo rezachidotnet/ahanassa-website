@@ -45,7 +45,8 @@ export function buildCspReportOnly(connectSrc: readonly string[] = []): string {
     ["img-src 'self' data:", ...GA4_IMG_ORIGINS].join(" "),
     "font-src 'self'",
     ["connect-src 'self' https://challenges.cloudflare.com", ...connectSrc, ...GA4_CONNECT_ORIGINS].join(" "),
-    "frame-src 'self' https://challenges.cloudflare.com",
+    // W20.2: /about office maps — OpenStreetMap's own embed, loaded only after the visitor clicks «نمایش نقشه».
+    "frame-src 'self' https://challenges.cloudflare.com https://www.openstreetmap.org",
     "upgrade-insecure-requests",
   ].join("; ");
 }

@@ -35,5 +35,8 @@ export const IMAGE_VARIANTS: Readonly<Record<string, ImageVariantEntry>> = {
   "/images/products/u channel.jpg": { width: 800, height: 600, widths: [320, 480, 640, 800] },
   "/images/products/u-channel.png": { width: 1024, height: 768, widths: [320, 480, 640, 800, 960] },
   "/images/products/wire-rod.png": { width: 1024, height: 768, widths: [320, 480, 640, 800, 960] },
+  "/images/about/expo-1405-poster.jpg": { width: 884, height: 1280, widths: [480, 640, 884] },
+  "/images/about/expo-1405-closing.jpg": { width: 1080, height: 810, widths: [480, 640, 960, 1080] },
+  "/images/about/expo-1405-farewell-frame.jpg": { width: 720, height: 1280, widths: [480, 640, 720] },
   "/brand/ahan-asa-mark.jpg": { width: 4500, height: 4500, widths: [32, 64, 96], jpegWidths: [96, 512] },
 };

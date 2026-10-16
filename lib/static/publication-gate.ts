@@ -34,7 +34,7 @@ export const PUBLIC_JSON_ALLOWLIST: ReadonlyArray<{ pattern: RegExp; keys: Reado
   { pattern: /^manifest\.public\.json$/, keys: keysOf(publicManifest) },
 ];
 
-export const JSONLD_ALLOWED_TYPES: ReadonlySet<string> = new Set(["Organization", "LocalBusiness", "WebSite", "BreadcrumbList", "ListItem", "PostalAddress", "ContactPoint", "Product", "FAQPage", "Question", "Answer", "OpeningHoursSpecification"]);
+export const JSONLD_ALLOWED_TYPES: ReadonlySet<string> = new Set(["Organization", "LocalBusiness", "WebSite", "BreadcrumbList", "ListItem", "PostalAddress", "ContactPoint", "Product", "FAQPage", "Question", "Answer", "OpeningHoursSpecification", "Event", "Place"]);
 export const JSONLD_ALLOWED_KEYS: ReadonlySet<string> = new Set([
   "@context", "@graph", "@id", "@type",
   "name", "alternateName", "url", "logo", "description", "publisher",
@@ -47,6 +47,8 @@ export const JSONLD_ALLOWED_KEYS: ReadonlySet<string> = new Set([
   "department", "postalCode",
   // Owner, 2026-10-13 (lib/content/company.ts): working hours and the parent group's founding year.
   "openingHoursSpecification", "dayOfWeek", "opens", "closes", "foundingDate",
+  // W20.2 (owner, 2026-10-16): the past Event on /about (Isfahan Buildexpo 1405) — dates, venue, Ahan Asa as attendee. No offers/organizer.
+  "startDate", "endDate", "eventStatus", "eventAttendanceMode", "location", "attendee",
 ]);
 
 const LEGACY_XID = /ahanassa_marketplace\.[a-z0-9_]+/g;
