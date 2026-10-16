@@ -13,11 +13,11 @@ import { VariantHighlightFromQuery } from "@/components/products/variant-highlig
 import { CtaBand } from "@/components/ui/cta-band";
 import { TrackOnView } from "@/components/analytics/track-on-view";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { breadcrumbListSchema, jsonLdGraph, productSchema } from "@/lib/seo/schema";
+import { breadcrumbListSchema, jsonLdGraph, productOffersSchema, productSchema } from "@/lib/seo/schema";
 import { siteConfig } from "@/lib/metadata/site";
 import { primaryCta } from "@/lib/content/nav";
 import { PriceBlock } from "@/components/products/price-block";
-import { listDailyPriceHistory, listProductPagePrices } from "@/lib/pricing/product-page-price-repository";
+import { listDailyPriceHistory, listLowestPricesIrr, listProductPagePrices } from "@/lib/pricing/product-page-price-repository";
 import { firstPricedVariant, isPriceLocale, PRICE_BLOCK_ATTRIBUTE, PRICE_BLOCK_ON_REQUEST } from "@/lib/pricing/product-page-price";
 import { sparklineSeries, tehranDay } from "@/lib/pricing/price-history";
 import { PRICE_RFQ_COPY, priceRfqHref } from "@/lib/pricing/price-rfq";
@@ -79,8 +79,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
  * W9.4 — the daily price (owner decisions D-PRICE-DISPLAY / D-PRICE-AGE / D-W10-4, changed 2026-10-09):
  * fa — the W10.2 PriceBlock for the page's first priced variant (table order), or its missing-price
  * variant, and the «قیمت روز» column; ar — the price-only «سعر اليوم» column (no PriceBlock, no factory or
- * location); en — nothing. Prices come from the snapshot at build time; JSON-LD stays Product without
- * offers (architecture V1.1 §12).
+ * location); en — nothing. Prices come from the snapshot at build time. W20.7: the JSON-LD offers (the lowest
+ * per variant) are ProductOffers below, fa/ar only.
  *
  * r4 isolation (same technique as TargetEnquiryForm in contact/page.tsx and NotFoundContent in
  * not-found.tsx): this async boundary always suspends once, so React emits the price block and the
@@ -120,6 +120,19 @@ async function ProductSpecs({ locale, variants, title }: { locale: Locale; varia
       </div>
     </>
   );
+}
+
+/**
+ * W20.7 (owner, 2026-10-16) — the Product node's `offers`: each priced variant's lowest price (lib/seo/schema.ts
+ * productOffersSchema), fa and ar only, nothing without a price. Its own async boundary, like ProductSpecs, so the
+ * page row that carries the target-specific robots value is unchanged (r4).
+ */
+async function ProductOffers({ locale, variants, url }: { locale: Locale; variants: ProductVariant[]; url: string }) {
+  await Promise.resolve();
+  if (!isPriceLocale(locale)) return null;
+  const offers = await listLowestPricesIrr(sortVariantsBySize(variants).map((v) => v.xid));
+  if (offers.length === 0) return null;
+  return <JsonLd data={jsonLdGraph([productOffersSchema({ url, offers })])} />;
 }
 
 /**
@@ -234,6 +247,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       )}
 
       <CtaBand locale={locale} />
+      <ProductOffers locale={locale} variants={variants} url={pageUrl} />
       <ProductAnalytics locale={locale} slug={slug} groupCode={variants[0]?.group.code ?? null} formCode={variants[0]?.form.code ?? null} />
     </>
   );

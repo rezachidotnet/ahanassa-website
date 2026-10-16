@@ -148,13 +148,14 @@ test("leak scan: pricing-API / snapshot field names (also escaped in the RSC pay
   assert.deepEqual(scanPublicFile("products/ipe-beam.html", CLEAN).filter((f) => f.kind === "pricing_field"), [], "the rendered page itself carries no field names");
 });
 
-test("no JSON-LD offers on a priced product page (publication gate)", () => {
+test("W20.7: a JSON-LD offer that is not exactly the lowest per-kg shape fails the price gate (rule 8)", () => {
   const ld = (graph: unknown) => `<script type="application/ld+json">${JSON.stringify({ "@context": "https://schema.org", "@graph": [graph] })}</script>`;
   const product = { "@type": "Product", name: "IPE Beam", url: "https://www.ahanassa.com/products/ipe-beam" };
   assert.deepEqual(scanPublication([{ path: "products/ipe-beam.html", content: CLEAN.replace("</body>", `${ld(product)}</body>`) }], new Set()), []);
+  // The pre-W20.7 shape (a single Offer, string price, no per-kg specification) is still refused.
   const offered = { ...product, offers: { "@type": "Offer", price: "55200", priceCurrency: "IRR" } };
-  const found = scanPublication([{ path: "products/ipe-beam.html", content: CLEAN.replace("</body>", `${ld(offered)}</body>`) }], new Set()).map((f) => f.match);
-  for (const m of ["offers", "Offer", "price", "priceCurrency"]) assert.ok(found.includes(m), m);
+  const found = scanPrices([{ path: "products/ipe-beam.html", content: CLEAN.replace("</body>", `${ld(offered)}</body>`) }], priceGateInput({ tables: { published_prices: [], product_variants: [] } })).map((f) => f.kind);
+  assert.ok(found.includes("price_jsonld_not_allowed"), found.join());
 });
 
 test("residue keeps anything that is not an allowed string or punctuation", () => {

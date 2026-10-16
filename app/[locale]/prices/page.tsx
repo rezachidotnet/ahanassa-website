@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { isLocale, localizedPath, type Locale } from "@/config/locales";
 import { buildPageMetadata, buildLanguageAlternatesFromEntries } from "@/lib/metadata/resolve";
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";
-import { formatArabicDate, presentPriceCell, PRICE_CELL_ATTRIBUTE, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, priceDateLabel, type PriceLocale } from "@/lib/pricing/product-page-price";
+import { formatArabicDate, presentPriceCell, PRICE_CELL_ATTRIBUTE, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, PRICE_RANK_ATTRIBUTE, priceDateLabel, type PriceLocale } from "@/lib/pricing/product-page-price";
 import { formatPersianDate } from "@/lib/pricing/price-block-presentation";
 import { filterOptions, isPricePagePublished, latestPricedAt, PRICE_PAGE_COPY, PRICE_PAGE_LOCALES, PRICE_PAGE_ROUTE, PRICE_ROW_FACTORY_ATTRIBUTE, PRICE_ROW_FAMILY_ATTRIBUTE, type PriceTableRow } from "@/lib/pricing/price-page";
 import { loadPriceTableRows } from "@/lib/pricing/price-page-data";
@@ -109,26 +109,32 @@ async function DailyPriceTable({ locale }: { locale: PriceLocale }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => {
-                const view = presentPriceCell(locale, row.price, row.xid);
-                return (
-                  <tr key={row.xid} className="group" {...{ [PRICE_ROW_FAMILY_ATTRIBUTE]: row.familyCode, ...(row.factory ? { [PRICE_ROW_FACTORY_ATTRIBUTE]: row.factory } : {}) }}>
-                    <th scope="row" className={cn(CELL, "bg-background group-hover:bg-surface min-w-32 text-start font-bold")}>
-                      <Link href={localizedPath(locale, row.productPath)} className="text-navy hover:text-copper underline-offset-4 hover:underline">
-                        {row.productName}
-                      </Link>
-                      <span className="text-tertiary block text-xs font-semibold">{row.familyLabel}</span>
-                    </th>
-                    {view && (
-                      <td {...{ [PRICE_CELL_ATTRIBUTE]: row.xid }} className={cn(CELL, "group-hover:bg-surface whitespace-nowrap")}>
-                        <PriceCellContent view={view} />
+              {rows.flatMap((row) => {
+                // W20.7: fa lists every factory's price of the size (the lowest first, marked when there are several);
+                // without factory rows (ar, or a snapshot without them) the one row shows the lowest, as before.
+                const entries = row.factoryPrices.length ? row.factoryPrices.map((p, rank) => ({ price: p.data, factory: p.data.factoryName, rank, lowest: p.lowest && row.factoryPrices.length > 1 })) : [{ price: row.price, factory: row.factory, rank: null, lowest: false }];
+                return entries.map((entry) => {
+                  const view = presentPriceCell(locale, entry.price, row.xid);
+                  return (
+                    <tr key={`${row.xid}:${entry.rank ?? "lowest"}`} className="group" {...{ [PRICE_ROW_FAMILY_ATTRIBUTE]: row.familyCode, ...(entry.factory ? { [PRICE_ROW_FACTORY_ATTRIBUTE]: entry.factory } : {}) }}>
+                      <th scope="row" className={cn(CELL, "bg-background group-hover:bg-surface min-w-32 text-start font-bold")}>
+                        <Link href={localizedPath(locale, row.productPath)} className="text-navy hover:text-copper underline-offset-4 hover:underline">
+                          {row.productName}
+                        </Link>
+                        <span className="text-tertiary block text-xs font-semibold">{row.familyLabel}</span>
+                        {entry.lowest && <span className="border-copper/30 bg-copper/10 text-copper mt-1 inline-block rounded border px-1.5 py-0.5 text-[11px] font-bold">{t.lowest}</span>}
+                      </th>
+                      {view && (
+                        <td {...{ [PRICE_CELL_ATTRIBUTE]: row.xid, ...(entry.rank !== null ? { [PRICE_RANK_ATTRIBUTE]: String(entry.rank) } : {}) }} className={cn(CELL, "group-hover:bg-surface whitespace-nowrap")}>
+                          <PriceCellContent view={view} />
+                        </td>
+                      )}
+                      <td className={cn(CELL, "text-muted-foreground group-hover:bg-surface whitespace-nowrap")}>
+                        <span dir="ltr">{row.size}</span>
                       </td>
-                    )}
-                    <td className={cn(CELL, "text-muted-foreground group-hover:bg-surface whitespace-nowrap")}>
-                      <span dir="ltr">{row.size}</span>
-                    </td>
-                  </tr>
-                );
+                    </tr>
+                  );
+                });
               })}
             </tbody>
           </table>

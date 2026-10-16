@@ -93,6 +93,13 @@ D-DAR-063 and D-SCHEDULE are implemented now (W9.1). D-PRICE and D-ARTICLES are 
 | **D-RFQ-FILE-5** | **File-only RFQ allowed:** no item row required when at least one file was accepted. | Contract, validator, form. Odoo still requires one line, so the delivery sends one marked placeholder line (`FILE_ONLY_PLACEHOLDER`, 1 ton, "not the customer's quantity"). |
 | **D-RFQ-FILE-6** | **HEIC:** set the input's accept list so iPhone Safari uploads JPEG; if HEIC still arrives, accept it (Odoo marks it manual-reading). | `RFQ_FILE_ACCEPT` no longer lists HEIC; the server allow-list still does. |
 
+## Decisions of 2026-10-16 (W20.7 factory prices on the website)
+
+| # | Decision (as given) | Effect |
+|---|---|---|
+| **D-W207-FACTORY-PRICES** | Follows Odoo W20.6 (one approved price per (variant, factory); `GET /api/v1/pricing/current` gains the additive `factory_prices`). **fa `/prices` lists every factory's price per size**, using `factory_prices`; **ar shows the lowest price + date only; en none**. It **works with and without `factory_prices`**. The schema change is **additive**. | Implemented W20.7. The pipeline (`lib/content-pipeline/pricing.ts`) stores factory rows in a new build-only snapshot table `published_factory_prices` (`lib/contracts/snapshot-prices.ts`). The table holds the factory fa name, the location fa name, the price, the date, that factory's previous price, and `is_lowest`. The code, the en/ar names and `change_pct` are dropped. `published_prices` (the lowest) is unchanged, and an empty table keeps old snapshot hashes. Without `factory_prices`, or when any of it is invalid or disagrees with the v1 lowest, **all** factory rows are dropped with a warning and the lowest publishes as before: it never fails a run. fa `/prices` renders one row per factory, the lowest first and marked «کمترین قیمت». The hubs, product pages and calculator keep the lowest. The price gate checks each factory cell (`data-aa-price-rank`) against its exact snapshot row. ar/en never carry a factory row, its amount or its names. |
+| **D-W207-OFFER** | JSON-LD: the **lowest** price as the offer. | The Product node of fa/ar product pages gets `offers`: one `Offer` per priced variant with its lowest price, per kg in IRR, VAT included (`productOffersSchema`). It carries no factory, seller, date or availability. It is never on en or any other page, and never a non-lowest factory price. This is enforced by price-gate rule 8. The publication gate allows only these Offer/UnitPriceSpecification/QuantitativeValue keys. It supersedes "no JSON-LD offers" (D-PRICE, D-W10-4). |
+
 ## Decisions of 2026-10-13 (W13.3 instant item extraction)
 
 | # | Decision (as given) | Effect |

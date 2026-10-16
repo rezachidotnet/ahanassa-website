@@ -101,13 +101,16 @@ test("build runtime: published_prices loads into the in-memory DB_PUBLIC — and
   assert.ok(!/published_prices/.test(code("lib/content-pipeline/publication-sql.ts")), "the pipeline never mirrors prices into D1");
 });
 
-test("page wiring: fa-only price block + column inside an always-suspending async boundary (own Flight row, r4), JSON-LD Product without offers", () => {
+test("page wiring: fa-only price block + column inside an always-suspending async boundary (own Flight row, r4), JSON-LD offers only in ProductOffers (W20.7)", () => {
   const page = code("app/[locale]/products/[slug]/page.tsx");
   assert.match(page, /async function ProductSpecs\([^)]*\) \{\s*await Promise\.resolve\(\);/);
   assert.match(page, /<ProductSpecs locale=\{locale\}/);
   assert.match(page, /const prices = isPriceLocale\(locale\) \? await listProductPagePrices\(/);
   assert.match(page, /\{prices && locale === "fa" && \(/, "the PriceBlock (factory, location) is fa only");
-  assert.ok(!/offers|priceCurrency/.test(page.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "")), "no JSON-LD offers");
+  // W20.7: the offers are their own always-suspending boundary, fa/ar only, from the lowest prices; nowhere else on the page.
+  assert.match(page, /async function ProductOffers\([^)]*\) \{\s*await Promise\.resolve\(\);\s*if \(!isPriceLocale\(locale\)\) return null;\s*const offers = await listLowestPricesIrr\(/);
+  const outside = page.slice(0, page.indexOf("async function ProductOffers")) + page.slice(page.indexOf("async function ProductAnalytics"));
+  assert.ok(!/offers|priceCurrency/.test(outside.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "").replace("<ProductOffers ", "")), "no JSON-LD offers outside ProductOffers");
   const table = code("components/products/variant-spec-table.tsx");
   // Owner 2026-10-09: fa and ar (not en); hidden unless at least one variant has a price; right after the size column.
   assert.match(table, /const priceCopy = isPriceLocale\(locale\) \? PRICE_COLUMN_COPY\[locale\] : null;/);

@@ -1,5 +1,6 @@
 import type { Locale } from "../../config/locales.ts";
 import type { PriceBlockData } from "./price-block-presentation.ts";
+import type { FactoryPrice } from "./product-page-price-repository.ts";
 import { PRICE_LOCALES, type PriceLocale } from "./price-locale.ts";
 
 /**
@@ -63,6 +64,8 @@ export const PRICE_PAGE_COPY: Record<
     familyProducts: string;
     tableTitle: string;
     calculator: string;
+    /** W20.7 (fa only): the mark on the cheapest factory's row of a size that has several factories. */
+    lowest: string;
   }
 > = {
   fa: {
@@ -91,6 +94,7 @@ export const PRICE_PAGE_COPY: Record<
     familyProducts: "محصولات این گروه:",
     tableTitle: "جدول قیمت روز همه محصولات",
     calculator: "محاسبه وزن آهن‌آلات",
+    lowest: "کمترین قیمت",
   },
   ar: {
     eyebrow: "أسعار اليوم",
@@ -118,6 +122,7 @@ export const PRICE_PAGE_COPY: Record<
     familyProducts: "منتجات هذه الفئة:",
     tableTitle: "جدول أسعار جميع المنتجات اليوم",
     calculator: "حاسبة وزن الحديد",
+    lowest: "",
   },
 };
 
@@ -146,6 +151,12 @@ export interface PriceTableRow {
   price: PriceBlockData;
   /** W16.3: the variant's nominal weight per piece (or per metre), already formatted; null when the catalog has none. */
   weight: { label: string; value: string } | null;
+  /**
+   * W20.7 — fa only: every factory's price of the variant, the lowest first (`[]` on ar, and when the snapshot has
+   * no factory rows for it: the page then shows `price`, the lowest, as before). The /prices table renders one row
+   * per entry; the hubs keep the lowest.
+   */
+  factoryPrices: FactoryPrice[];
 }
 
 export interface PriceTableTemplateInput {
@@ -163,7 +174,7 @@ export interface FamilyResolver {
  * Rows of the price table: every variant of `templates` that has an (eligible) price, grouped by family
  * in catalog order, then the template order, then size order. Pure.
  */
-export function buildPriceTableRows(locale: PriceLocale, templates: readonly PriceTableTemplateInput[], prices: ReadonlyMap<string, PriceBlockData>, family: FamilyResolver): PriceTableRow[] {
+export function buildPriceTableRows(locale: PriceLocale, templates: readonly PriceTableTemplateInput[], prices: ReadonlyMap<string, PriceBlockData>, family: FamilyResolver, factoryPrices: ReadonlyMap<string, FactoryPrice[]> | null = null): PriceTableRow[] {
   const rows: Array<PriceTableRow & { position: number; order: number }> = [];
   let order = 0;
   for (const t of templates) {
@@ -182,6 +193,7 @@ export function buildPriceTableRows(locale: PriceLocale, templates: readonly Pri
         factory: locale === "fa" ? price.factoryName : null,
         price,
         weight: v.weight ?? null,
+        factoryPrices: locale === "fa" ? (factoryPrices?.get(v.xid) ?? []) : [],
         position: f.position,
         order: order++,
       });
@@ -206,9 +218,10 @@ export function filterOptions(rows: readonly PriceTableRow[]): PriceFilterOption
   for (const r of rows) {
     if (!families.has(r.familyCode)) families.set(r.familyCode, r.familyLabel);
     const familyFactories = byFamily.get(r.familyCode) ?? byFamily.set(r.familyCode, new Set()).get(r.familyCode)!;
-    if (r.factory) {
-      factories.add(r.factory);
-      familyFactories.add(r.factory);
+    // W20.7: on fa, every factory with a price of the row (the lowest's factory is one of them).
+    for (const factory of r.factoryPrices?.length ? r.factoryPrices.map((p) => p.data.factoryName) : r.factory ? [r.factory] : []) {
+      factories.add(factory);
+      familyFactories.add(factory);
     }
   }
   return {

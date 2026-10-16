@@ -1,11 +1,12 @@
-import { irrToToman, PUBLISHED_PRICE_COLUMNS, PUBLISHED_PRICE_HISTORY_COLUMNS, type PublishedPriceRow } from "../contracts/snapshot-prices.ts";
+import { factoryRowAsPriceRow, irrToToman, orderFactoryRows, PUBLISHED_FACTORY_PRICE_COLUMNS, PUBLISHED_PRICE_COLUMNS, PUBLISHED_PRICE_HISTORY_COLUMNS, type PublishedFactoryPriceRow, type PublishedPriceRow } from "../contracts/snapshot-prices.ts";
 import { PRICE_BLOCK_COPY } from "../pricing/price-block-presentation.ts";
-import { allowedPriceTexts, AR_PRICE_COPY, PRICE_BLOCK_ATTRIBUTE, PRICE_BLOCK_ON_REQUEST, PRICE_CELL_ATTRIBUTE, PRICE_CHANGE_COPY, PRICE_CHANGE_WORDS, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, PRICE_SPARKLINE_ATTRIBUTE, PRICE_TREND_COPY, priceDateLabel, renderedAmount, type PriceLocale } from "../pricing/product-page-price.ts";
+import { allowedPriceTexts, AR_PRICE_COPY, PRICE_BLOCK_ATTRIBUTE, PRICE_BLOCK_ON_REQUEST, PRICE_CELL_ATTRIBUTE, PRICE_CHANGE_COPY, PRICE_CHANGE_WORDS, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, PRICE_RANK_ATTRIBUTE, PRICE_SPARKLINE_ATTRIBUTE, PRICE_TREND_COPY, priceDateLabel, renderedAmount, type PriceLocale } from "../pricing/product-page-price.ts";
 import { PRICE_RFQ_COPY, RFQ_FACTORY_PARAM } from "../pricing/price-rfq.ts";
 import { isDailyPriceEligible } from "../pricing/daily-price-eligibility.ts";
 import { sparklineSeries, tehranDay, type DailyPoint } from "../pricing/price-history.ts";
 import { CALCULATOR_PRICE_PAGES, fileLocale } from "./leak-scan.ts";
 import { ARTICLE_TEXT_ATTRIBUTE } from "../articles/routes.ts";
+import { jsonLdBlocks } from "./publication-gate.ts";
 
 /** fa/ar article pages and listings (W11.1): `articles/…`, `ar/articles/…` (and the `articles.html` listing). */
 const ARTICLE_PAGE = /^(ar\/)?articles(\.html$|\/)/;
@@ -41,12 +42,22 @@ const ARTICLE_PAGE = /^(ar\/)?articles(\.html$|\/)/;
  * rules and the owner's merge — so rule 2's "no amount outside a price element" skips those regions there.
  * Rules 3 and 4 still apply to the whole file (ar never names a factory/location, en never has a price).
  *
+ * W20.7 (owner, 2026-10-16; Odoo W20.6 one price per (variant, factory)):
+ * 7. `published_factory_prices` rows carry exactly PUBLISHED_FACTORY_PRICE_COLUMNS. A fa price cell with
+ *    `data-aa-price-rank="<k>"` is checked against the k-th factory row of its variant (orderFactoryRows), not the
+ *    lowest; a rank the snapshot does not have fails. ar/en never carry a rank, and the factory rows' amounts,
+ *    factory and location names count like the lowest's in rules 2–4 (ar shows the lowest only, en nothing).
+ * 8. JSON-LD offers: only on fa/ar product pages (`products/<slug>.html`), only the variant's LOWEST
+ *    (published_prices) — one `Offer` per priced variant, `@id` `…#offer-<CVAR>`, `price` = the IRR/kg integer,
+ *    `priceCurrency` IRR, a per-kg `UnitPriceSpecification` with VAT included, nothing else (no factory, seller,
+ *    date or availability). Never on en, never another page, never a factory's non-lowest price.
+ *
  * The pricing-API field names, source-like keys and factory codes are refused in every public file by the
- * leak scan (lib/static/leak-scan.ts, kind `pricing_field`); JSON-LD offers/price by the publication gate.
+ * leak scan (lib/static/leak-scan.ts, kind `pricing_field`); JSON-LD types/keys by the publication gate.
  */
 export interface PriceFinding {
   file: string;
-  kind: "price_field_not_allowed" | "price_text_not_allowed" | "price_unknown_variant" | "price_outside_markup" | "price_on_en_page" | "price_fa_field_on_ar_page" | "calculator_price_not_allowed" | "price_excluded_variant" | "price_sparkline_not_allowed";
+  kind: "price_field_not_allowed" | "price_text_not_allowed" | "price_unknown_variant" | "price_outside_markup" | "price_on_en_page" | "price_fa_field_on_ar_page" | "calculator_price_not_allowed" | "price_excluded_variant" | "price_sparkline_not_allowed" | "price_jsonld_not_allowed";
   match: string;
 }
 
@@ -62,6 +73,8 @@ export interface PriceGateInput {
   variants: Map<string, VariantInfo>;
   /** W9.6: daily points (Toman) per variant, oldest first. */
   history: Map<string, DailyPoint[]>;
+  /** W20.7: every factory's price per variant, in display order (orderFactoryRows), as price rows. */
+  factoryRows: Map<string, PublishedPriceRow[]>;
   findings: PriceFinding[];
 }
 
@@ -74,6 +87,13 @@ export function priceGateInput(snapshot: unknown): PriceGateInput {
     for (const key of Object.keys(raw ?? {})) if (!(PUBLISHED_PRICE_COLUMNS as readonly string[]).includes(key)) findings.push({ file: "private-snapshot/snapshot.json", kind: "price_field_not_allowed", match: key });
     rows.push(raw as unknown as PublishedPriceRow);
   }
+  const byFactory = new Map<string, PublishedFactoryPriceRow[]>();
+  for (const raw of (tables.published_factory_prices ?? []) as Record<string, unknown>[]) {
+    for (const key of Object.keys(raw ?? {})) if (!(PUBLISHED_FACTORY_PRICE_COLUMNS as readonly string[]).includes(key)) findings.push({ file: "private-snapshot/snapshot.json", kind: "price_field_not_allowed", match: `published_factory_prices.${key}` });
+    const row = raw as unknown as PublishedFactoryPriceRow;
+    byFactory.set(row.canonical_variant_id, [...(byFactory.get(row.canonical_variant_id) ?? []), row]);
+  }
+  const factoryRows = new Map([...byFactory].map(([xid, list]) => [xid, orderFactoryRows(list).map(factoryRowAsPriceRow)]));
   const history = new Map<string, DailyPoint[]>();
   for (const raw of (tables.published_price_history ?? []) as Record<string, unknown>[]) {
     for (const key of Object.keys(raw ?? {})) if (!(PUBLISHED_PRICE_HISTORY_COLUMNS as readonly string[]).includes(key)) findings.push({ file: "private-snapshot/snapshot.json", kind: "price_field_not_allowed", match: `published_price_history.${key}` });
@@ -87,7 +107,7 @@ export function priceGateInput(snapshot: unknown): PriceGateInput {
     const code = (k: string) => (typeof v[k] === "string" ? (v[k] as string) : null);
     variants.set(v.xid, { xid: v.xid, size: String(v.commercial_size ?? v.section_size ?? v.sku ?? ""), eligible: isDailyPriceEligible({ familyCode: code("family_code"), groupCode: code("group_code"), formCode: code("form_code") }) });
   }
-  return { rows, variants, history, findings };
+  return { rows, variants, history, factoryRows, findings };
 }
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", "#39": "'", "#x27": "'" };
@@ -211,9 +231,11 @@ export function scanCalculatorPrices(path: string, content: string, locale: Pric
 export function scanPrices(files: ReadonlyArray<{ path: string; content: string }>, input: PriceGateInput): PriceFinding[] {
   const findings: PriceFinding[] = [...input.findings];
   const byVariant = new Map(input.rows.map((r) => [r.canonical_variant_id, r]));
-  const amounts = { fa: [...new Set(input.rows.map((r) => renderedAmount(r, "fa")))], ar: [...new Set(input.rows.map((r) => renderedAmount(r, "ar")))] };
-  const names = [...new Set(input.rows.flatMap((r) => [r.factory_name_fa, r.location_fa]))];
-  const times = [...new Set(input.rows.flatMap((r) => [r.published_at, new Date(r.published_at).toISOString()]))];
+  // W20.7: the factory rows count like the lowest (their amounts, names and times are fa-only too).
+  const every = [...input.rows, ...[...input.factoryRows.values()].flat()];
+  const amounts = { fa: [...new Set(every.map((r) => renderedAmount(r, "fa")))], ar: [...new Set(every.map((r) => renderedAmount(r, "ar")))] };
+  const names = [...new Set(every.flatMap((r) => [r.factory_name_fa, r.location_fa]))];
+  const times = [...new Set(every.flatMap((r) => [r.published_at, new Date(r.published_at).toISOString()]))];
 
   for (const { path, content } of files) {
     const locale = fileLocale(path);
@@ -221,17 +243,24 @@ export function scanPrices(files: ReadonlyArray<{ path: string; content: string 
       // 4. No price on en — in the HTML, the RSC payload and any locale JSON.
       const forbidden = ["data-aa-price", "tomanPerKg", ...FA_PRICE_COPY, ...FA_ONLY_MARKERS, ...CHANGE_MARKERS, ...AR_COPY, ...amounts.fa, ...amounts.ar, ...names];
       for (const s of forbidden) if (content.includes(s)) findings.push({ file: path, kind: "price_on_en_page", match: s.trim() });
+      // 8. Never a JSON-LD offer on en.
+      if (path.endsWith(".html")) findings.push(...scanOfferJsonLd(path, content, byVariant));
       continue;
     }
     if (locale === "ar") {
       // 3. ar is price only: none of the fa-only fields, anywhere in the file (HTML and payload).
-      const forbidden = [PRICE_BLOCK_ATTRIBUTE, ...FA_PRICE_COPY, ...FA_ONLY_MARKERS, ...amounts.fa, ...names, ...times];
+      const forbidden = [PRICE_BLOCK_ATTRIBUTE, PRICE_RANK_ATTRIBUTE, ...FA_PRICE_COPY, ...FA_ONLY_MARKERS, ...amounts.fa, ...names, ...times];
       for (const s of forbidden) if (content.includes(s)) findings.push({ file: path, kind: "price_fa_field_on_ar_page", match: s.trim() });
     }
-    if (locale !== "fa" && locale !== "ar") continue;
+    if (locale !== "fa" && locale !== "ar") {
+      if (path.endsWith(".html")) findings.push(...scanOfferJsonLd(path, content, byVariant));
+      continue;
+    }
     // 5. The calculator's price map (fa/ar calculator pages only; elsewhere the leak scan refuses it).
     if (CALCULATOR_PRICE_PAGES.includes(path)) findings.push(...scanCalculatorPrices(path, content, locale, byVariant, input.variants));
     if (!path.endsWith(".html")) continue;
+    // 8. JSON-LD offers: the lowest only, on fa/ar product pages only.
+    findings.push(...scanOfferJsonLd(path, content, byVariant));
     // 2./3. Allow-listed text inside every price element, no amount outside one.
     const elements = priceElements(content);
     const h1 = visibleText(PAGE_H1.exec(content)?.[1] ?? "");
@@ -248,7 +277,17 @@ export function scanPrices(files: ReadonlyArray<{ path: string; content: string 
         continue;
       }
       if (variant && !variant.eligible) findings.push({ file: path, kind: "price_excluded_variant", match: `${el.attribute}="${el.value}": a per-ton material has a daily price element` });
-      const row = variant ? (byVariant.get(variant.xid) ?? null) : null;
+      // 7. A factory cell (fa /prices): its rank's factory row, never the lowest by default.
+      const rank = new RegExp(`\\s${PRICE_RANK_ATTRIBUTE}="([^"]*)"`).exec(/^<[^>]*>/.exec(el.html)?.[0] ?? "")?.[1];
+      let row = variant ? (byVariant.get(variant.xid) ?? null) : null;
+      if (rank !== undefined) {
+        const factoryRow = variant && locale === "fa" && /^\d+$/.test(rank) ? input.factoryRows.get(variant.xid)?.[Number(rank)] : undefined;
+        if (!factoryRow) {
+          findings.push({ file: path, kind: "price_unknown_variant", match: `${el.attribute}="${el.value}" ${PRICE_RANK_ATTRIBUTE}="${rank}": no such factory price` });
+          continue;
+        }
+        row = factoryRow;
+      }
       findings.push(...scanSparklines(path, el, row, input.history));
       if (el.attribute === PRICE_BLOCK_ATTRIBUTE && variant && !row) findings.push({ file: path, kind: "price_unknown_variant", match: `${el.attribute}="${el.value}" has no published price` });
       const productName = locale === "fa" && el.attribute === PRICE_BLOCK_ATTRIBUTE ? (variant ? `${h1} ${variant.size}` : h1) : undefined;
@@ -288,5 +327,61 @@ export function scanSparklines(path: string, el: PriceElement, row: PublishedPri
   const linePoints = (line.match(SPARKLINE_POINT) ?? []).length;
   if (!series) out.push({ file: path, kind: "price_sparkline_not_allowed", match: `${where}: the snapshot has fewer than the minimum daily points` });
   else if (drawn !== series.length || linePoints !== series.length) out.push({ file: path, kind: "price_sparkline_not_allowed", match: `${where}: draws ${drawn}/${linePoints} point(s), the snapshot has ${series.length}` });
+  return out;
+}
+
+/** Product pages: `products/<slug>.html` and `ar/products/<slug>.html` (en never; the lists/categories never). */
+const OFFER_PAGE = /^(ar\/)?products\/(?!category\/)[^/]+\.html$/;
+const OFFER_ID = /#offer-(CVAR-[A-Za-z0-9-]+)$/;
+const OFFER_KEYS = ["@id", "@type", "price", "priceCurrency", "priceSpecification"];
+const SPEC_KEYS = ["@type", "price", "priceCurrency", "referenceQuantity", "valueAddedTaxIncluded"];
+const QUANTITY_KEYS = ["@type", "unitCode", "value"];
+
+/**
+ * 8. (W20.7) Every JSON-LD `offers` / `Offer` / price key in a page: allowed only on a fa/ar product page, and
+ * each Offer is exactly the lowest published price of its variant, per kg, IRR, VAT included.
+ */
+export function scanOfferJsonLd(path: string, html: string, byVariant: ReadonlyMap<string, PublishedPriceRow>): PriceFinding[] {
+  const out: PriceFinding[] = [];
+  const fail = (match: string) => out.push({ file: path, kind: "price_jsonld_not_allowed", match });
+  const allowedPage = OFFER_PAGE.test(path) && fileLocale(path) !== "en";
+  for (const block of jsonLdBlocks(html)) {
+    let doc: unknown;
+    try {
+      doc = JSON.parse(block);
+    } catch {
+      continue; // the publication gate reports unparseable JSON-LD
+    }
+    const visit = (node: unknown): void => {
+      if (Array.isArray(node)) return node.forEach(visit);
+      if (!node || typeof node !== "object") return;
+      const o = node as Record<string, unknown>;
+      if ("offers" in o) {
+        if (!allowedPage) fail("offers outside a fa/ar product page");
+        else if (o["@type"] !== "Product" || !Array.isArray(o.offers) || o.offers.length === 0) fail("offers must be a non-empty list on a Product");
+        else for (const offer of o.offers) checkOffer(offer);
+        for (const [k, v] of Object.entries(o)) if (k !== "offers") visit(v);
+        return;
+      }
+      if (o["@type"] === "Offer" || o["@type"] === "UnitPriceSpecification" || "price" in o || "priceCurrency" in o) fail(`${String(o["@type"] ?? "a node")} with a price outside Product.offers`);
+      Object.values(o).forEach(visit);
+    };
+    const checkOffer = (offer: unknown): void => {
+      const o = (offer ?? {}) as Record<string, unknown>;
+      const xid = OFFER_ID.exec(String(o["@id"] ?? ""))?.[1];
+      const row = xid ? byVariant.get(xid) : undefined;
+      const where = xid ?? String(o["@id"] ?? "?");
+      if (!row) return void fail(`${where}: an offer without a published price`);
+      const spec = (o.priceSpecification ?? {}) as Record<string, unknown>;
+      const qty = (spec.referenceQuantity ?? {}) as Record<string, unknown>;
+      const same = (obj: Record<string, unknown>, keys: string[]) => Object.keys(obj).sort().join(",") === [...keys].sort().join(",");
+      if (o["@type"] !== "Offer" || !same(o, OFFER_KEYS)) fail(`${where}: offer keys ${Object.keys(o).sort().join(",")}`);
+      if (spec["@type"] !== "UnitPriceSpecification" || !same(spec, SPEC_KEYS)) fail(`${where}: priceSpecification keys ${Object.keys(spec).sort().join(",")}`);
+      if (qty["@type"] !== "QuantitativeValue" || !same(qty, QUANTITY_KEYS) || qty.value !== 1 || qty.unitCode !== "KGM") fail(`${where}: referenceQuantity must be 1 KGM`);
+      if (o.price !== row.price_irr_per_kg || spec.price !== row.price_irr_per_kg) fail(`${where}: price ${JSON.stringify(o.price)}/${JSON.stringify(spec.price)} is not the lowest published price (${row.price_irr_per_kg})`);
+      if (o.priceCurrency !== "IRR" || spec.priceCurrency !== "IRR" || spec.valueAddedTaxIncluded !== true) fail(`${where}: must be IRR, VAT included`);
+    };
+    visit(doc);
+  }
   return out;
 }

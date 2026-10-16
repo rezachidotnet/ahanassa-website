@@ -1,6 +1,6 @@
 import { getPublicDb } from "../db/public.ts";
 import { isStaticExportBuild } from "../static/locale-params.ts";
-import { irrToToman, type PublishedPriceHistoryRow, type PublishedPriceRow } from "../contracts/snapshot-prices.ts";
+import { factoryRowAsPriceRow, irrToToman, orderFactoryRows, type PublishedFactoryPriceRow, type PublishedPriceHistoryRow, type PublishedPriceRow } from "../contracts/snapshot-prices.ts";
 import type { PriceBlockData } from "./price-block-presentation.ts";
 import { priceBlockDataFromRow } from "./product-page-price.ts";
 import { isDailyPriceEligible } from "./daily-price-eligibility.ts";
@@ -40,6 +40,13 @@ export async function listProductPagePrices(variantXids: readonly string[]): Pro
   return prices;
 }
 
+/** W20.7 — the JSON-LD offers: the lowest published price (IRR/kg) of each of `variantXids` that has one, in that order. `[]` outside the static build. */
+export async function listLowestPricesIrr(variantXids: readonly string[]): Promise<{ variantXid: string; priceIrrPerKg: number }[]> {
+  if (!isStaticExportBuild() || variantXids.length === 0) return [];
+  const byXid = new Map((await eligiblePriceRows()).map((r) => [r.canonical_variant_id, r.price_irr_per_kg]));
+  return variantXids.flatMap((xid) => (byXid.has(xid) ? [{ variantXid: xid, priceIrrPerKg: byXid.get(xid)! }] : []));
+}
+
 /** W9.6 — the price page: every eligible published price, keyed by xid. `null` outside the static build. */
 export async function listAllPublishedPrices(): Promise<Map<string, PriceBlockData> | null> {
   if (!isStaticExportBuild()) return null;
@@ -51,4 +58,24 @@ export async function listDailyPriceHistory(variantXid: string): Promise<DailyPo
   if (!isStaticExportBuild()) return [];
   const { results } = await getPublicDb().prepare("SELECT * FROM published_price_history WHERE canonical_variant_id = ? ORDER BY day").bind(variantXid).all<PublishedPriceHistoryRow>();
   return (results ?? []).map((r) => ({ day: r.day, price: irrToToman(r.price_irr_per_kg) }));
+}
+
+/** W20.7 — one factory's price of a variant on the fa price page (`lowest`: the variant's published_prices row). */
+export interface FactoryPrice {
+  data: PriceBlockData;
+  lowest: boolean;
+}
+
+/**
+ * W20.7 — every factory's price per priced variant (snapshot `published_factory_prices`), in display order
+ * (orderFactoryRows: the lowest first). Only variants that have an eligible lowest price; a variant without
+ * factory rows is absent (the page then shows its lowest only). `null` outside the static build.
+ */
+export async function listAllFactoryPrices(): Promise<Map<string, FactoryPrice[]> | null> {
+  if (!isStaticExportBuild()) return null;
+  const eligible = new Set((await eligiblePriceRows()).map((r) => r.canonical_variant_id));
+  const { results } = await getPublicDb().prepare("SELECT * FROM published_factory_prices ORDER BY canonical_variant_id").all<PublishedFactoryPriceRow>();
+  const byVariant = new Map<string, PublishedFactoryPriceRow[]>();
+  for (const r of results ?? []) if (eligible.has(r.canonical_variant_id)) byVariant.set(r.canonical_variant_id, [...(byVariant.get(r.canonical_variant_id) ?? []), r]);
+  return new Map([...byVariant].map(([xid, rows]) => [xid, orderFactoryRows(rows).map((r) => ({ data: priceBlockDataFromRow(factoryRowAsPriceRow(r)), lowest: r.is_lowest === 1 }))]));
 }

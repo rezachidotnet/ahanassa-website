@@ -25,6 +25,12 @@ export { formatArabicDate, isPriceLocale, PRICE_DISCLAIMER, PRICE_LOCALES, price
 
 export const PRICE_CELL_ATTRIBUTE = "data-aa-price-cell";
 export const PRICE_BLOCK_ATTRIBUTE = "data-aa-price-block";
+/**
+ * W20.7 — on a fa price cell that shows one factory's price (the /prices table), the factory row's position in
+ * the variant's display order (orderFactoryRows, 0 = the lowest). The gate checks the cell against THAT snapshot
+ * row; a cell without it is checked against the variant's lowest. Never on ar or en.
+ */
+export const PRICE_RANK_ATTRIBUTE = "data-aa-price-rank";
 /** `data-aa-price-block` value when the template has no priced variant (missing-price variant). */
 export const PRICE_BLOCK_ON_REQUEST = "request";
 

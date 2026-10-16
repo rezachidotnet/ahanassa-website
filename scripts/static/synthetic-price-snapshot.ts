@@ -69,7 +69,7 @@ else if (!argv.includes("--no-history") && !opt("pricing-body")) {
 }
 const history = historyBody === null ? { rows: [], warnings: [], summary: "no history" } : validatePricingHistory({ status: "ok", http_status: 200, etag: null, body: historyBody }, result.rows, fetchedAt);
 for (const w of history.warnings) console.error(`[synthetic-price-snapshot] ${w}`);
-const snapshot = buildSnapshot({ ...base.tables, published_prices: result.rows, published_price_history: history.rows }, { kind: base.source.kind, description: `${base.source.description} + ${label}`, fetched_at: base.source.fetched_at }, base.created_at);
+const snapshot = buildSnapshot({ ...base.tables, published_prices: result.rows, published_price_history: history.rows, published_factory_prices: result.factoryRows }, { kind: base.source.kind, description: `${base.source.description} + ${label}`, fetched_at: base.source.fetched_at }, base.created_at);
 fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true });
 fs.writeFileSync(path.resolve(out), JSON.stringify(snapshot, null, 1) + "\n");
-console.log(JSON.stringify({ snapshot_version: snapshot.snapshot_version, published_prices: result.rows.length, on_request: result.counts.prices_on_request, history: history.summary }));
+console.log(JSON.stringify({ snapshot_version: snapshot.snapshot_version, published_prices: result.rows.length, factory_prices: result.factoryRows.length, on_request: result.counts.prices_on_request, history: history.summary }));

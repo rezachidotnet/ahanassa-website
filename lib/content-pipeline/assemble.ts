@@ -230,7 +230,8 @@ export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivat
   }
 
   // W9.4/W9.6: prices and their daily history, Odoo-owned and build-only.
-  const prices = validatePricing(odoo.prices, odoo.products, odoo.fetched_at).rows;
+  const pricing = validatePricing(odoo.prices, odoo.products, odoo.fetched_at);
+  const prices = pricing.rows;
 
   // --- editorial layer: carried verbatim from DB_PUBLIC -------------------------
   return {
@@ -247,6 +248,8 @@ export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivat
     published_prices: prices,
     // W9.6: the daily points of the 30-day chart (empty, never an error, when the history is unusable).
     published_price_history: validatePricingHistory(odoo.price_history, prices, odoo.fetched_at).rows,
+    // W20.7: every factory's price (fa price page); empty when Odoo has no factory_prices or any of it is unusable.
+    published_factory_prices: pricing.factoryRows,
     // W11.1: build-only articles, already sorted by (locale, slug).
     published_articles: [...articles],
   };
