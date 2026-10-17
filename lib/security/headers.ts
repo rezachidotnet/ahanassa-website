@@ -1,3 +1,5 @@
+import { livechatCspOrigins } from "../../config/livechat.ts";
+
 /**
  * Baseline security headers — the single source for both runtimes:
  * `proxy.ts` (legacy SSR Worker) applies them per response via
@@ -30,7 +32,14 @@ export const GTM_SCRIPT_ORIGIN = "https://*.googletagmanager.com";
 export const GA4_IMG_ORIGINS = ["https://*.google-analytics.com", "https://*.googletagmanager.com"] as const;
 export const GA4_CONNECT_ORIGINS = ["https://*.google-analytics.com", "https://*.analytics.google.com", "https://*.googletagmanager.com"] as const;
 
-export function buildCspReportOnly(connectSrc: readonly string[] = []): string {
+/**
+ * W21.2: the Odoo live-chat widget (config/livechat.ts) — ONLY while live chat is on; while off the policy carries
+ * no Odoo origin at all. On: the loader and the widget bundle (script-src), its stylesheet, fonts and avatars
+ * (style-src, font-src, img-src), its JSON-RPC calls and the bus websocket (connect-src https + wss) and any frame
+ * it opens (frame-src). The page itself still loads none of it until a visitor clicks «چت با کارشناس».
+ */
+export function buildCspReportOnly(connectSrc: readonly string[] = [], livechat: { https: string; wss: string } | null = livechatCspOrigins()): string {
+  const odoo = livechat ? [livechat.https] : [];
   return [
     "default-src 'self'",
     "base-uri 'self'",
@@ -40,13 +49,13 @@ export function buildCspReportOnly(connectSrc: readonly string[] = []): string {
     // Cloudflare Turnstile (RFQ form) requires its own script/frame/connect
     // origin — the narrowest addition that unblocks it, not a broad
     // relaxation (CLAUDE.md "CSP / Security Headers").
-    `script-src 'self' https://challenges.cloudflare.com ${GTM_SCRIPT_ORIGIN}`,
-    "style-src 'self' 'unsafe-inline'",
-    ["img-src 'self' data:", ...GA4_IMG_ORIGINS].join(" "),
-    "font-src 'self'",
-    ["connect-src 'self' https://challenges.cloudflare.com", ...connectSrc, ...GA4_CONNECT_ORIGINS].join(" "),
+    [`script-src 'self' https://challenges.cloudflare.com ${GTM_SCRIPT_ORIGIN}`, ...odoo].join(" "),
+    ["style-src 'self' 'unsafe-inline'", ...odoo].join(" "),
+    ["img-src 'self' data:", ...GA4_IMG_ORIGINS, ...odoo].join(" "),
+    ["font-src 'self'", ...odoo].join(" "),
+    ["connect-src 'self' https://challenges.cloudflare.com", ...connectSrc, ...GA4_CONNECT_ORIGINS, ...(livechat ? [livechat.https, livechat.wss] : [])].join(" "),
     // W20.2: /about office maps — OpenStreetMap's own embed, loaded only after the visitor clicks «نمایش نقشه».
-    "frame-src 'self' https://challenges.cloudflare.com https://www.openstreetmap.org",
+    ["frame-src 'self' https://challenges.cloudflare.com https://www.openstreetmap.org", ...odoo].join(" "),
     "upgrade-insecure-requests",
   ].join("; ");
 }

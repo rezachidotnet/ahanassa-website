@@ -9,23 +9,23 @@ import {
   HOME_EXPERT_LOCATION,
   homeExpertCopy,
   homeExpertListHref,
-  homeExpertLiveChat,
   homeExpertProfile,
   homeExpertProofs,
   homeExpertWhatsAppHref,
-  LIVECHAT_ENABLED,
-  LIVECHAT_URL,
   RFQ_FILES_ANCHOR,
 } from "./home-expert.ts";
 import { homepageCopy } from "./homepage.ts";
 import { WHATSAPP_BUSINESS_NUMBER } from "./whatsapp.ts";
 import { SALES_EXPERT, WORKING_HOURS, WORKING_HOURS_TEXT } from "./company.ts";
+import { livechatButton } from "./livechat.ts";
+import { livechatConfig } from "../../config/livechat.ts";
 import { ANALYTICS_EVENTS, buildEvent, expertClickEvent, isRfqHref, linkLocation, rfqCtaLocation } from "../analytics/events.ts";
 
 /** W20.3 — the homepage «با کارشناس فروش صحبت کنید» section (components/home/expert-contact.tsx), redesign A2. */
 
 const component = readFileSync(new URL("../../components/home/expert-contact.tsx", import.meta.url), "utf8");
 const island = readFileSync(new URL("../../components/home/expert-open-status.tsx", import.meta.url), "utf8");
+const chatButton = readFileSync(new URL("../../components/livechat/livechat-button.tsx", import.meta.url), "utf8");
 const runtime = readFileSync(new URL("../../components/analytics/analytics-runtime.tsx", import.meta.url), "utf8");
 
 /** The source of one inner component (`function Name(` up to the next top-level function). */
@@ -95,7 +95,7 @@ test("RFQ: the localized /contact form at its attachments heading, counted as an
   assert.equal((fn("ConciergeCard").match(/bg-navy/g) ?? []).length, 1, "A: one navy (primary) tile");
   assert.equal((fn("SplitBand").match(/variant="primary"/g) ?? []).length, 1, "B: one primary button");
   assert.match(fn("SplitBand"), /<ButtonLink href=\{actions\.rfq\} data-expert-action="rfq" variant="primary"/);
-  assert.ok(!/variant(?:=|: )"primary"/.test(fn("ChatButton")), "live chat is secondary");
+  assert.match(chatButton, /: cn\(buttonVariants\(\{ variant: "secondary", size: "button" \}\), "bg-background h-auto min-h-12 w-full py-3"\)/, "live chat (inline) is secondary");
 });
 
 test("analytics: expert_* events per action with expert_variant, on top of the home_expert site-wide events", () => {
@@ -112,7 +112,8 @@ test("analytics: expert_* events per action with expert_variant, on top of the h
   for (const action of ["call", "whatsapp", "rfq"]) {
     for (const name of ["ConciergeCard", "SplitBand"]) assert.ok(fn(name).includes(`data-expert-action="${action}"`), `${name}: ${action}`);
   }
-  assert.ok(fn("ChatButton").includes('data-expert-action="chat"'));
+  assert.match(chatButton, /chat\.location === "home_expert" \? \{ "data-expert-action": "chat" \}/);
+  assert.match(chatButton, /trackEvent\("expert_chat_click"/, "the chat <button> reports its own expert action");
   assert.match(runtime, /expertClickEvent\(link\.getAttribute\("data-expert-action"\)\)/);
   assert.match(runtime, /closest\("\[data-expert-variant\]"\)/);
   // The A1 events keep counting the section.
@@ -183,14 +184,11 @@ test("expert photo: a configured photo must be a real file under public/", () =>
   assert.ok(existsSync(new URL(`../../public${SALES_EXPERT.photo.src}`, import.meta.url)), `${SALES_EXPERT.photo.src} must exist in public/`);
 });
 
-test("live chat: hidden until LIVECHAT_ENABLED and a URL are both set; no dead button in either layout", () => {
-  assert.equal(LIVECHAT_ENABLED, false, "W21 turns it on");
-  assert.equal(LIVECHAT_URL, null);
-  for (const locale of LOCALES) assert.equal(homeExpertLiveChat(locale), null);
-  assert.equal(homeExpertLiveChat("fa", true, null), null, "a flag alone renders no dead button");
-  assert.equal(homeExpertLiveChat("fa", false, "/chat"), null);
-  assert.equal(homeExpertLiveChat("fa", true, "javascript:alert(1)"), null, "https or same-site path only");
-  assert.deepEqual(homeExpertLiveChat("fa", true, "/chat"), { href: "/chat", label: "چت با کارشناس" });
-  assert.equal(homeExpertLiveChat("en", true, "https://chat.example.test/")?.label, "Chat with an expert");
-  for (const name of ["ConciergeCard", "SplitBand"]) assert.match(fn(name), /\{actions\.chat && <ChatButton chat=\{actions\.chat\}/, name);
+test("live chat (W21.2): no button while config/livechat.ts is off; both layouts render the facade when on", () => {
+  for (const locale of LOCALES) assert.equal(livechatButton(locale, "home_expert"), null);
+  const on = livechatConfig(true, "https://odoo.ahanassa.com/im_livechat/loader/1");
+  assert.equal(livechatButton("fa", "home_expert", on)?.copy.label, "چت با کارشناس");
+  assert.equal(livechatButton("en", "home_expert", on)?.copy.label, "Chat with an expert");
+  for (const name of ["ConciergeCard", "SplitBand"]) assert.match(fn(name), /\{actions\.chat && <LivechatButton chat=\{actions\.chat\} variant="inline"/, name);
+  assert.match(component, /chat: livechatButton\(locale, HOME_EXPERT_LOCATION\)/);
 });

@@ -49,7 +49,7 @@ The staging and production builds are byte-identical except for robots, sitemap,
 |---|---|---|
 | `rfq_submit` | The RFQ API accepted a request (the tracking-number panel appears) | `rfq_tracking_number` (only this) |
 | `phone_click` | Any `tel:` link is clicked (header, footer, hero, mobile menu, CTA) | `link_location`: `header` / `footer` / `mobile_menu` / `main` / `home_expert` (the homepage «با کارشناس فروش صحبت کنید» section, W20.3) |
-| `whatsapp_click` | Any `wa.me` / WhatsApp link is clicked | `link_location` (as `phone_click`, plus `sticky` = the floating WhatsApp button on en/ar pages, W20.1) |
+| `whatsapp_click` | Any `wa.me` / WhatsApp link is clicked | `link_location` (as `phone_click`, plus `sticky` = the floating WhatsApp button on en/ar pages, W20.1; the WhatsApp link in the fallback panel of the floating fa live-chat button, W21.2, reports `other` — the `chat_load_error` just before it tells you it came from the chat) |
 | `calculator_use` | The visitor's first change to the weight calculator on this page view | `calculator_product_group` (e.g. `REBAR`), `calculator_mode` |
 | `price_page_view` | `/prices` or `/ar/prices` is viewed (when it has prices) | `price_date` (the newest price date shown, `YYYY-MM-DD`) |
 | `basket_add` | A product joins the RFQ basket: the visitor arrives at `/contact` from a product, price or calculator link. A duplicate of a row already in the basket, a full list or a reload sends nothing | `basket_size` (filled rows after the add), `product_family`, `product_slug`, `add_source`: `product` / `price` / `calculator` (the page the visitor came from; left out when it was another page or unknown) |
@@ -64,7 +64,9 @@ The staging and production builds are byte-identical except for robots, sitemap,
 | `gauge_view` | W18.2: the price-position gauge of a fa product page is at least half on screen (once per page view) | `gauge_position`: `low` / `mid` / `high`, `gauge_window`: `30` / `90` (the longest shown), `product_slug` |
 | `chart_to_rfq` | W18.2: «قیمت قطعی برای حجم شما» is clicked (it also sends `rfq_cta_click`) | `cta_location`: `gauge` (product page) / `chart_page`, `product_slug`, `product_family` |
 | `indicator_page_view` | W18.2: `/en/market-indicators` or `/ar/market-indicators` loads | `page_lang`: `en` / `ar`, `indicator_count` |
-| `expert_call_click` / `expert_whatsapp_click` / `expert_rfq_click` / `expert_chat_click` | An action in the homepage «با کارشناس فروش صحبت کنید» section is clicked: phone, WhatsApp, the RFQ («ارسال فاکتور یا لیست خرید») or live chat (W21, only when configured). Sent **in addition to** `phone_click` / `whatsapp_click` / `rfq_cta_click` (`home_expert`), so do not add both into one total | `expert_variant`: `A` (Concierge card) / `B` (Split band) — the layout the site was built with (W20.3 redesign) |
+| `expert_call_click` / `expert_whatsapp_click` / `expert_rfq_click` / `expert_chat_click` | An action in the homepage «با کارشناس فروش صحبت کنید» section is clicked: phone, WhatsApp, the RFQ («ارسال فاکتور یا لیست خرید») or live chat (W21.2, only while live chat is on; the chat button is a `<button>`, not a link). Sent **in addition to** `phone_click` / `whatsapp_click` / `rfq_cta_click` (`home_expert`), so do not add both into one total | `expert_variant`: `A` (Concierge card) / `B` (Split band) — the layout the site was built with (W20.3 redesign) |
+| `chat_open` | W21.2, only while live chat is on (`config/livechat.ts`): «چت با کارشناس» was clicked and the Odoo live-chat window opened (Odoo reported an operator online and its widget loaded). The Odoo script loads only on this click, never with the page | `chat_location`: `home_expert` (the button in the homepage expert section; it also sends `expert_chat_click`) / `sticky` (the floating button on fa pages) |
+| `chat_load_error` | W21.2: the live chat could not open within 8 seconds of the click, and the visitor was shown WhatsApp and «ارسال لیست خرید» instead | `chat_location` (as `chat_open`), `chat_error`: `no_operator` (no operator online) / `no_channel` (Odoo's loader returned no channel) / `script_error` (an Odoo script failed to load) / `timeout` (8 s without an open window) |
 
 Values:
 - `product_family` is the catalog's public category code, the same code as the price hubs and category pages: `REBAR`, `BEAM` (IPE/INP), `ANGLE`, `CHANNEL`, `BOX_SECTION`, `SHEET_PLATE`, `PIPE`.
@@ -114,6 +116,8 @@ Variables → User-Defined Variables → New. Create each of these as a **Data L
 | `DLV - calculator_entry` | `calculator_entry` |
 | `DLV - article_slug` | `article_slug` |
 | `DLV - article_lang` | `article_lang` |
+| `DLV - chat_location` | `chat_location` (W21.2) |
+| `DLV - chat_error` | `chat_error` (W21.2) |
 
 ## 5. Step 3 — one trigger and one GA4 event tag per event
 
@@ -152,6 +156,8 @@ Do this for each of the 12 events. (The D-ARTICLE-METRICS tags and triggers — 
 | `GA4 - gauge_view` | `gauge_view` | `gauge_position` = `{{DLV - gauge_position}}`, `gauge_window` = `{{DLV - gauge_window}}`, `product_slug` = `{{DLV - product_slug}}` |
 | `GA4 - chart_to_rfq` | `chart_to_rfq` | `cta_location` = `{{DLV - cta_location}}`, `product_slug` = `{{DLV - product_slug}}`, `product_family` = `{{DLV - product_family}}` |
 | `GA4 - indicator_page_view` | `indicator_page_view` | `page_lang` = `{{DLV - page_lang}}`, `indicator_count` = `{{DLV - indicator_count}}` |
+| `GA4 - chat_open` | `chat_open` | `chat_location` = `{{DLV - chat_location}}` |
+| `GA4 - chat_load_error` | `chat_load_error` | `chat_location` = `{{DLV - chat_location}}`, `chat_error` = `{{DLV - chat_error}}` |
 
 Do **not** add a Custom HTML tag. The site's CSP allows scripts only from the site itself, Turnstile and `*.googletagmanager.com`.
 
@@ -165,7 +171,7 @@ In analytics.google.com, open the property that owns `G-C8MZB6DXPZ`:
 2. Admin → Data collection: leave Google signals **off** unless you decide otherwise. The CSP has no doubleclick origin.
 3. Admin → Data retention: 14 months.
 4. Admin → Events. The events appear after they first fire, up to 24 hours later. Mark `rfq_submit` as a **key event**. Optionally also mark `phone_click` and `whatsapp_click`.
-5. Admin → Custom definitions → Create custom dimension (scope **Event**) for each of these: `page_locale`, `link_location`, `calculator_product_group`, `calculator_mode`, `price_date`, `file_type`, `product_family`, `product_slug`, `add_source`, `cta_location`, `calculator_entry`, `article_slug`, `article_lang`. (`cta_location` is one dimension for both `rfq_cta_click` and `article_cta_click`; read it together with the event name.) Then create a custom metric (unit: standard) for `basket_size` and `file_count`. `rfq_tracking_number` is optional; register it only if you want to find a single request in GA4.
+5. Admin → Custom definitions → Create custom dimension (scope **Event**) for each of these: `page_locale`, `link_location`, `calculator_product_group`, `calculator_mode`, `price_date`, `file_type`, `product_family`, `product_slug`, `add_source`, `cta_location`, `calculator_entry`, `article_slug`, `article_lang`, `chat_location`, `chat_error`. (`cta_location` is one dimension for both `rfq_cta_click` and `article_cta_click`; read it together with the event name.) Then create a custom metric (unit: standard) for `basket_size` and `file_count`. `rfq_tracking_number` is optional; register it only if you want to find a single request in GA4.
 
 ### CSP (DAR-066, resolved 2026-10-13)
 
@@ -176,6 +182,8 @@ The Content-Security-Policy is still **Report-Only**, and it already allows ever
 | `script-src` | `https://*.googletagmanager.com` |
 | `img-src` | `https://*.google-analytics.com https://*.googletagmanager.com` |
 | `connect-src` | `https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com` |
+
+W21.2: while live chat is on (`config/livechat.ts`), the policy also allows `https://odoo.ahanassa.com` in `script-src`, `style-src`, `img-src`, `font-src` and `frame-src`, and `https://odoo.ahanassa.com wss://odoo.ahanassa.com` in `connect-src` (the Odoo widget and its websocket). While live chat is off, the policy has no Odoo origin at all.
 
 GTM Preview's own panel (`tagmanager.google.com`) is not allowed. It is a debugging tool, and under an enforced CSP Preview would only lose its on-page badge. If you add Google signals or Ads tags later, their origins must be added first.
 
