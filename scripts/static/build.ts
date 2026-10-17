@@ -33,6 +33,7 @@ import { articleCoverPath } from "../../lib/articles/routes.ts";
 import { generateDownloads } from "../../lib/downloads/generate.ts";
 import { summarizeSkipped, type DownloadCatalog } from "../../lib/downloads/model.ts";
 import { loadSourceNames } from "../../lib/static/source-name-scan.ts";
+import { writeShareImages, type ChartShareSource } from "../../lib/og/write-share-images.ts";
 
 const repo = path.resolve(import.meta.dirname, "../..");
 const args = new Map<string, string>();
@@ -129,7 +130,15 @@ const robots = (await load("app/robots.ts")).default;
 const sitemap = (await load("app/sitemap.ts")).default;
 const { COMPANY_PUBLIC_EMAILS, COMPANY_PUBLIC_NUMBERS } = await load("lib/content/contact-channels.ts");
 // W18.2: the fa chart pages of this build (their en/ar paths get a redirect; lib/static/static-rules.ts).
-const chartSlugs: string[] = (await (await load("lib/pricing/price-chart-data.ts")).listPriceChartProducts()).map((p: { slug: string }) => p.slug);
+const priceChartData = await load("lib/pricing/price-chart-data.ts");
+const chartSlugs: string[] = (await priceChartData.listPriceChartProducts()).map((p: { slug: string }) => p.slug);
+// W18.3: what each chart page and the en/ar indicators page show, for their share images (same reads as the pages).
+const chartShares: ChartShareSource[] = [];
+for (const slug of chartSlugs) {
+  const chart = await priceChartData.loadPriceChart(slug);
+  if (chart) chartShares.push({ slug, xid: chart.product.xid, productName: chart.product.productName, size: chart.product.size, tomanPerKg: chart.row.price.tomanPerKg, day: chart.currentDay, series: chart.series });
+}
+const shareIndicators = await (await load("lib/indicators/repository.ts")).listIndicators();
 
 fs.mkdirSync(path.join(publicDir, "data"), { recursive: true });
 const indexRows: RfqVariantIndexRow[] = [];
@@ -170,6 +179,11 @@ counts.download_spec_sheets = downloads.specSheets;
 counts.download_catalogs = downloads.catalogs;
 log(`downloads: ${downloads.drawings.length} section drawing(s), ${downloads.specSheets} spec sheet(s), ${downloads.catalogs} catalog(s); largest PDF ${Math.max(0, ...downloads.files.filter((f) => f.path.endsWith(".pdf")).map((f) => f.bytes))} B`);
 for (const g of summarizeSkipped(downloads.skipped)) log(`downloads: no drawing for ${g.sizes.length} ${g.formCode} size(s) (${g.sizes[0]} … ${g.sizes[g.sizes.length - 1]}): ${g.reason}`);
+
+// W18.3: share images (og:image) of the chart pages and the en/ar indicators page, text-gated before rasterizing.
+const shareImages = await writeShareImages(publicDir, { charts: chartShares, indicators: shareIndicators, snapshot, logoFile: path.join(repo, "public/brand/ahan-asa-mark-jpg-512w.jpg"), sourceNames: loadSourceNames() });
+counts.share_images = shareImages.files.length;
+log(`share images: ${shareImages.files.length} file(s) (${chartShares.length} chart page(s)${shareIndicators.length ? " + en/ar indicators" : ""}); largest ${Math.max(0, ...shareImages.files.map((f) => f.bytes))} B`);
 
 // W11.1: article covers, SVG (snapshot) → PNG (og:image) + WebP (cards); the SVG is never published.
 for (const a of snapshot.tables.published_articles) {
