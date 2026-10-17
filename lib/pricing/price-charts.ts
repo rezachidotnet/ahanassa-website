@@ -73,7 +73,24 @@ export const PRICE_CHART_COPY = {
   datasetName: (product: string, size: string) => `قیمت روزانه ${product} (${size}) — آهن آسا`,
   datasetVariable: "قیمت روزانه (تومان به ازای هر کیلوگرم، با ارزش افزوده)",
   datasetUnit: "تومان/کیلوگرم",
+  /** W18.3: the share links (components/prices/chart-share.tsx). */
+  shareWhatsapp: "اشتراک در واتساپ",
+  shareTelegram: "اشتراک در تلگرام",
 } as const;
+
+/**
+ * W18.3 — a chart page's plain share URLs (no script, no SDK): WhatsApp's `wa.me/?text=` (no number: the visitor picks
+ * the chat) and Telegram's `t.me/share/url`. The text is the page title and URL only — never a price. Strict RFC 3986
+ * encoding: a product name like «میلگرد آجدار A3 (Aj400)» must not leave a bare «)» that ends the link in the page's
+ * Markdown mirror (lib/static/markdown-mirror.ts).
+ */
+export function chartShareLinks(url: string, title: string): { whatsapp: string; telegram: string } {
+  const enc = (s: string) => encodeURIComponent(s).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  return {
+    whatsapp: `https://wa.me/?text=${enc(`${title}\n${url}`)}`,
+    telegram: `https://t.me/share/url?url=${enc(url)}&text=${enc(title)}`,
+  };
+}
 
 /** A chart day's label: «۱۵ مهر ۱۴۰۵» (Tehran day, Persian calendar). */
 export function chartDayLabel(day: string): string {

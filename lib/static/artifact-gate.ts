@@ -73,6 +73,16 @@ export function forbiddenPublicPath(p: string): string | null {
   return null;
 }
 
+/** W18.3: the og:image / twitter:image URLs a page's <head> names. */
+export function shareImageUrls(html: string): string[] {
+  const out: string[] = [];
+  for (const m of html.matchAll(/<meta\b[^>]*(?:property|name)="(?:og:image|twitter:image)"[^>]*>/gi)) {
+    const content = /content="([^"]*)"/.exec(m[0])?.[1];
+    if (content) out.push(content.replace(/&amp;/g, "&"));
+  }
+  return out;
+}
+
 /**
  * `sourceNames` (W9.6): the private price-source names to refuse in every public file; by default read from
  * AHANASSA_PRICE_SOURCE_NAMES_FILE (lib/static/source-name-scan.ts). `stats.sourceNameScan` says whether it ran.
@@ -138,6 +148,10 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
     for (const m of html.matchAll(/<link\b[^>]*rel="(canonical|alternate)"[^>]*>/gi)) {
       const href = /href="([^"]*)"/.exec(m[0])?.[1] ?? "";
       if (!href.startsWith(`${PRODUCTION_ORIGIN}/`) && href !== PRODUCTION_ORIGIN) failures.push(`${e.path}: ${m[1]} not on ${PRODUCTION_ORIGIN}: ${href}`);
+    }
+    // W18.3: a share image (og:image / twitter:image) on the site's origin is a file of this artifact.
+    for (const src of shareImageUrls(html)) {
+      if (src.startsWith(`${PRODUCTION_ORIGIN}/`) && !publicPaths.has(decodeURI(src.slice(PRODUCTION_ORIGIN.length + 1)))) failures.push(`${e.path}: share image not in the artifact: ${src}`);
     }
   }
   if (publicPaths.has("_headers") && parsed.success) {

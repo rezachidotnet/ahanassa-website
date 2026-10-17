@@ -7,12 +7,10 @@ import { siteConfig } from "@/lib/metadata/site";
 import { datasetSchema, jsonLdGraph } from "@/lib/seo/schema";
 import { PRICE_DISCLAIMER } from "@/lib/pricing/product-page-price";
 import { PRICE_PAGE_COPY, PRICE_PAGE_ROUTE } from "@/lib/pricing/price-page";
-import { loadPriceTableRows } from "@/lib/pricing/price-page-data";
-import { listDailyPriceHistory } from "@/lib/pricing/product-page-price-repository";
-import { tehranDay } from "@/lib/pricing/price-history";
 import { priceWindows } from "@/lib/pricing/price-position";
-import { chartSeries, PRICE_CHART_COPY, priceChartPath } from "@/lib/pricing/price-charts";
-import { listPriceChartProducts, priceChartForSlug } from "@/lib/pricing/price-chart-data";
+import { PRICE_CHART_COPY, priceChartPath } from "@/lib/pricing/price-charts";
+import { listPriceChartProducts, loadPriceChart } from "@/lib/pricing/price-chart-data";
+import { chartShareImagePath, SHARE_IMAGE_SIZE } from "@/lib/og/share-image-paths";
 import { priceRfqHref } from "@/lib/pricing/price-rfq";
 import { listIndicators } from "@/lib/indicators/repository";
 import { PageHero } from "@/components/ui/page-hero";
@@ -21,6 +19,7 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { PriceChart } from "@/components/prices/price-chart";
 import { PriceDecision } from "@/components/products/price-decision";
 import { IndicatorStrip } from "@/components/indicators/indicator-strip";
+import { ChartShare } from "@/components/prices/chart-share";
 
 interface PageProps {
   params: Promise<{ locale: string; slug: string }>;
@@ -37,14 +36,7 @@ export async function generateStaticParams({ params }: { params: { locale: strin
 
 /** The chart, its row and its history, or null (no chart page for this slug or locale this build). */
 async function resolve(rawLocale: string, slug: string) {
-  if (rawLocale !== "fa") return null;
-  const product = await priceChartForSlug(slug);
-  if (!product) return null;
-  const row = (await loadPriceTableRows("fa")).find((r) => r.xid === product.xid);
-  const currentDay = row ? tehranDay(row.price.pricedAt) : null;
-  if (!row || !currentDay) return null;
-  const series = chartSeries(await listDailyPriceHistory(product.xid), currentDay);
-  return series.length ? { product, row, currentDay, series } : null;
+  return rawLocale === "fa" ? loadPriceChart(slug) : null;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -59,6 +51,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     description: PRICE_CHART_COPY.description(chart.product.productName, chart.product.size),
     indexable: publicPageIndexable(),
     languageAlternates: buildLanguageAlternatesFromEntries([{ locale: "fa", path }]),
+    // W18.3: the build-time share image (scripts/static/build.ts); its alt names the page, never the price.
+    image: { url: `${siteConfig.baseUrl}${chartShareImagePath(slug, "png")}`, ...SHARE_IMAGE_SIZE, alt: PRICE_CHART_COPY.title(chart.product.productName) },
   });
 }
 
@@ -93,6 +87,7 @@ async function ChartContent({ slug }: { slug: string }) {
             <ButtonLink href={localizedPath("fa", PRICE_PAGE_ROUTE)} variant="link">
               {t.pricesPage}
             </ButtonLink>
+            <ChartShare slug={slug} url={url} title={t.title(product.productName)} />
           </div>
         </div>
       </section>
