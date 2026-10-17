@@ -1,0 +1,1773 @@
+{
+ "about": "W20.5: per public section SKU of fixtures/snapshot/w98-flat-2026-10-14.snapshot.json, the dimensions and nominal weight the Public Catalog API v1 serves since ahanassa_marketplace 19.0.54.0.0 (EN 10365:2017 cl. 5, EN 10056-1:2017, EN 10219-2:2006 Annex B; SHS/RHS kg/m per EN 10219-2 since W9.5). Dimensions from the module's own tables (models/section_dimensions.py standard_dimensions) merged over the snapshot's; kg/m and per-bar weight from the 2026-10-15 production-copy upgrade inventory.",
+ "variants": {
+  "AA-PF-RHS-S100X50X3-L6": {
+   "dimensions": {
+    "height_mm": 100,
+    "inner_radius_mm": 3,
+    "length_mm": 6000,
+    "outer_radius_mm": 6,
+    "thickness_mm": 3,
+    "width_mm": 50
+   },
+   "nominal_weight": {
+    "kg_m": 6.6,
+    "per_branch": 39.6
+   }
+  },
+  "AA-PF-RHS-S100X50X4-L6": {
+   "dimensions": {
+    "height_mm": 100,
+    "inner_radius_mm": 4,
+    "length_mm": 6000,
+    "outer_radius_mm": 8,
+    "thickness_mm": 4,
+    "width_mm": 50
+   },
+   "nominal_weight": {
+    "kg_m": 8.59,
+    "per_branch": 51.6
+   }
+  },
+  "AA-PF-RHS-S100X50X5-L6": {
+   "dimensions": {
+    "height_mm": 100,
+    "inner_radius_mm": 5,
+    "length_mm": 6000,
+    "outer_radius_mm": 10,
+    "thickness_mm": 5,
+    "width_mm": 50
+   },
+   "nominal_weight": {
+    "kg_m": 10.48,
+    "per_branch": 62.9
+   }
+  },
+  "AA-PF-RHS-S100X50X6-L6": {
+   "dimensions": {
+    "height_mm": 100,
+    "inner_radius_mm": 6,
+    "length_mm": 6000,
+    "outer_radius_mm": 12,
+    "thickness_mm": 6,
+    "width_mm": 50
+   },
+   "nominal_weight": {
+    "kg_m": 12.27,
+    "per_branch": 73.6
+   }
+  },
+  "AA-PF-RHS-S120X60X4-L6": {
+   "dimensions": {
+    "height_mm": 120,
+    "inner_radius_mm": 4,
+    "length_mm": 6000,
+    "outer_radius_mm": 8,
+    "thickness_mm": 4,
+    "width_mm": 60
+   },
+   "nominal_weight": {
+    "kg_m": 10.48,
+    "per_branch": 62.9
+   }
+  },
+  "AA-PF-RHS-S120X60X5-L6": {
+   "dimensions": {
+    "height_mm": 120,
+    "inner_radius_mm": 5,
+    "length_mm": 6000,
+    "outer_radius_mm": 10,
+    "thickness_mm": 5,
+    "width_mm": 60
+   },
+   "nominal_weight": {
+    "kg_m": 12.84,
+    "per_branch": 77
+   }
+  },
+  "AA-PF-RHS-S120X60X6-L6": {
+   "dimensions": {
+    "height_mm": 120,
+    "inner_radius_mm": 6,
+    "length_mm": 6000,
+    "outer_radius_mm": 12,
+    "thickness_mm": 6,
+    "width_mm": 60
+   },
+   "nominal_weight": {
+    "kg_m": 15.1,
+    "per_branch": 90.6
+   }
+  },
+  "AA-PF-RHS-S120X80X4-L6": {
+   "dimensions": {
+    "height_mm": 120,
+    "inner_radius_mm": 4,
+    "length_mm": 6000,
+    "outer_radius_mm": 8,
+    "thickness_mm": 4,
+    "width_mm": 80
+   },
+   "nominal_weight": {
+    "kg_m": 11.73,
+    "per_branch": 70.4
+   }
+  },
+  "AA-PF-RHS-S120X80X5-L6": {
+   "dimensions": {
+    "height_mm": 120,
+    "inner_radius_mm": 5,
+    "length_mm": 6000,
+    "outer_radius_mm": 10,
+    "thickness_mm": 5,
+    "width_mm": 80
+   },
+   "nominal_weight": {
+    "kg_m": 14.41,
+    "per_branch": 86.5
+   }
+  },
+  "AA-PF-RHS-S120X80X6-L6": {
+   "dimensions": {
+    "height_mm": 120,
+    "inner_radius_mm": 6,
+    "length_mm": 6000,
+    "outer_radius_mm": 12,
+    "thickness_mm": 6,
+    "width_mm": 80
+   },
+   "nominal_weight": {
+    "kg_m": 16.98,
+    "per_branch": 101.9
+   }
+  },
+  "AA-PF-RHS-S140X80X5-L6": {
+   "dimensions": {
+    "height_mm": 140,
+    "inner_radius_mm": 5,
+    "length_mm": 6000,
+    "outer_radius_mm": 10,
+    "thickness_mm": 5,
+    "width_mm": 80
+   },
+   "nominal_weight": {
+    "kg_m": 15.98,
+    "per_branch": 95.9
+   }
+  },
+  "AA-PF-RHS-S140X80X6-L6": {
+   "dimensions": {
+    "height_mm": 140,
+    "inner_radius_mm": 6,
+    "length_mm": 6000,
+    "outer_radius_mm": 12,
+    "thickness_mm": 6,
+    "width_mm": 80
+   },
+   "nominal_weight": {
+    "kg_m": 18.87,
+    "per_branch": 113.2
+   }
+  },
+  "AA-PF-RHS-S140X80X8-L6": {
+   "dimensions": {
+    "height_mm": 140,
+    "inner_radius_mm": 12,
+    "length_mm": 6000,
+    "outer_radius_mm": 20,
+    "thickness_mm": 8,
+    "width_mm": 80
+   },
+   "nominal_weight": {
+    "kg_m": 23.9,
+    "per_branch": 143.4
+   }
+  },
+  "AA-PF-RHS-S150X100X5-L6": {
+   "dimensions": {
+    "height_mm": 150,
+    "inner_radius_mm": 5,
+    "length_mm": 6000,
+    "outer_radius_mm": 10,
+    "thickness_mm": 5,
+    "width_mm": 100
+   },
+   "nominal_weight": {
+    "kg_m": 18.33,
+    "per_branch": 110
+   }
+  },
+  "AA-PF-RHS-S150X100X6-L6": {
+   "dimensions": {
+    "height_mm": 150,
+    "inner_radius_mm": 6,
+    "length_mm": 6000,
+    "outer_radius_mm": 12,
+    "thickness_mm": 6,
+    "width_mm": 100
+   },
+   "nominal_weight": {
+    "kg_m": 21.69,
+    "per_branch": 130.2
+   }
+  },
+  "AA-PF-RHS-S150X100X8-L6": {
+   "dimensions": {
+    "height_mm": 150,
+    "inner_radius_mm": 12,
+    "length_mm": 6000,
+    "outer_radius_mm": 20,
+    "thickness_mm": 8,
+    "width_mm": 100
+   },
+   "nominal_weight": {
+    "kg_m": 27.67,
+    "per_branch": 166
+   }
+  },
+  "AA-PF-RHS-S160X80X5-L6": {
+   "dimensions": {
+    "height_mm": 160,
+    "inner_radius_mm": 5,
+    "length_mm": 6000,
+    "outer_radius_mm": 10,
+    "thickness_mm": 5,
+    "width_mm": 80
+   },
+   "nominal_weight": {
+    "kg_m": 17.55,
+    "per_branch": 105.3
+   }
+  },
+  "AA-PF-RHS-S160X80X6-L6": {
+   "dimensions": {
+    "height_mm": 160,
+    "inner_radius_mm": 6,
+    "length_mm": 6000,
+    "outer_radius_mm": 12,
+    "thickness_mm": 6,
+    "width_mm": 80
+   },
+   "nominal_weight": {
+    "kg_m": 20.75,
+    "per_branch": 124.5
+   }
+  },
+  "AA-PF-RHS-S160X80X8-L6": {
+   "dimensions": {
+    "height_mm": 160,
+    "inner_radius_mm": 12,
+    "length_mm": 6000,
+    "outer_radius_mm": 20,
+    "thickness_mm": 8,
+    "width_mm": 80
+   },
+   "nominal_weight": {
+    "kg_m": 26.41,
+    "per_branch": 158.5
+   }
+  },
+  "AA-PF-RHS-S180X100X5-L6": {
+   "dimensions": {
+    "height_mm": 180,
+    "inner_radius_mm": 5,
+    "length_mm": 6000,
+    "outer_radius_mm": 10,
+    "thickness_mm": 5,
+    "width_mm": 100
+   },
+   "nominal_weight": {
+    "kg_m": 20.69,
+    "per_branch": 124.1
+   }
+  },
+  "AA-PF-RHS-S180X100X6-L6": {
+   "dimensions": {
+    "height_mm": 180,
+    "inner_radius_mm": 6,
+    "length_mm": 6000,
+    "outer_radius_mm": 12,
+    "thickness_mm": 6,
+    "width_mm": 100
+   },
+   "nominal_weight": {
+    "kg_m": 24.52,
+    "per_branch": 147.1
+   }
+  },
+  "AA-PF-RHS-S180X100X8-L6": {
+   "dimensions": {
+    "height_mm": 180,
+    "inner_radius_mm": 12,
+    "length_mm": 6000,
+    "outer_radius_mm": 20,
+    "thickness_mm": 8,
+    "width_mm": 100
+   },
+   "nominal_weight": {
+    "kg_m": 31.43,
+    "per_branch": 188.6
+   }
+  },
+  "AA-PF-RHS-S200X100X10-L6": {
+   "dimensions": {
+    "height_mm": 200,
+    "inner_radius_mm": 15,
+    "length_mm": 6000,
+    "outer_radius_mm": 25,
+    "thickness_mm": 10,
+    "width_mm": 100
+   },
+   "nominal_weight": {
+    "kg_m": 41.26,
+    "per_branch": 247.6
+   }
+  },
+  "AA-PF-RHS-S200X100X5-L6": {
+   "dimensions": {
+    "height_mm": 200,
+    "inner_radius_mm": 5,
+    "length_mm": 6000,
+    "outer_radius_mm": 10,
+    "thickness_mm": 5,
+    "width_mm": 100
+   },
+   "nominal_weight": {
+    "kg_m": 22.26,
+    "per_branch": 133.6
+   }
+  },
+  "AA-PF-RHS-S200X100X6-L6": {
+   "dimensions": {
+    "height_mm": 200,
+    "inner_radius_mm": 6,
+    "length_mm": 6000,
+    "outer_radius_mm": 12,
+    "thickness_mm": 6,
+    "width_mm": 100
+   },
+   "nominal_weight": {
+    "kg_m": 26.4,
+    "per_branch": 158.4
+   }
+  },
+  "AA-PF-RHS-S200X100X8-L6": {
+   "dimensions": {
+    "height_mm": 200,
+    "inner_radius_mm": 12,
+    "length_mm": 6000,
+    "outer_radius_mm": 20,
+    "thickness_mm": 8,
+    "width_mm": 100
+   },
+   "nominal_weight": {
+    "kg_m": 33.95,
+    "per_branch": 203.7
+   }
+  },
+  "AA-PF-RHS-S250X150X10-L6": {
+   "dimensions": {
+    "height_mm": 250,
+    "inner_radius_mm": 15,
+    "length_mm": 6000,
+    "outer_radius_mm": 25,
+    "thickness_mm": 10,
+    "width_mm": 150
+   },
+   "nominal_weight": {
+    "kg_m": 56.96,
+    "per_branch": 341.8
+   }
+  },
+  "AA-PF-RHS-S250X150X6-L6": {
+   "dimensions": {
+    "height_mm": 250,
+    "inner_radius_mm": 6,
+    "length_mm": 6000,
+    "outer_radius_mm": 12,
+    "thickness_mm": 6,
+    "width_mm": 150
+   },
+   "nominal_weight": {
+    "kg_m": 35.82,
+    "per_branch": 214.9
+   }
+  },
+  "AA-PF-RHS-S250X150X8-L6": {
+   "dimensions": {
+    "height_mm": 250,
+    "inner_radius_mm": 12,
+    "length_mm": 6000,
+    "outer_radius_mm": 20,
+    "thickness_mm": 8,
+    "width_mm": 150
+   },
+   "nominal_weight": {
+    "kg_m": 46.51,
+    "per_branch": 279
+   }
+  },
+  "AA-PF-RHS-S300X200X10-L6": {
+   "dimensions": {
+    "height_mm": 300,
+    "inner_radius_mm": 15,
+    "length_mm": 6000,
+    "outer_radius_mm": 25,
+    "thickness_mm": 10,
+    "width_mm": 200
+   },
+   "nominal_weight": {
+    "kg_m": 72.66,
+    "per_branch": 436
+   }
+  },
+  "AA-PF-RHS-S300X200X6-L6": {
+   "dimensions": {
+    "height_mm": 300,
+    "inner_radius_mm": 6,
+    "length_mm": 6000,
+    "outer_radius_mm": 12,
+    "thickness_mm": 6,
+    "width_mm": 200
+   },
+   "nominal_weight": {
+    "kg_m": 45.24,
+    "per_branch": 271.5
+   }
+  },
+  "AA-PF-RHS-S300X200X8-L6": {
+   "dimensions": {
+    "height_mm": 300,
+    "inner_radius_mm": 12,
+    "length_mm": 6000,
+    "outer_radius_mm": 20,
+    "thickness_mm": 8,
+    "width_mm": 200
+   },
+   "nominal_weight": {
+    "kg_m": 59.07,
+    "per_branch": 354.4
+   }
+  },
+  "AA-PF-RHS-S60X40X2P5-L6": {
+   "dimensions": {
+    "height_mm": 60,
+    "inner_radius_mm": 2.5,
+    "length_mm": 6000,
+    "outer_radius_mm": 5,
+    "thickness_mm": 2.5,
+    "width_mm": 40
+   },
+   "nominal_weight": {
+    "kg_m": 3.6,
+    "per_branch": 21.6
+   }
+  },
+  "AA-PF-RHS-S60X40X3-L6": {
+   "dimensions": {
+    "height_mm": 60,
+    "inner_radius_mm": 3,
+    "length_mm": 6000,
+    "outer_radius_mm": 6,
+    "thickness_mm": 3,
+    "width_mm": 40
+   },
+   "nominal_weight": {
+    "kg_m": 4.25,
+    "per_branch": 25.5
+   }
+  },
+  "AA-PF-RHS-S60X40X4-L6": {
+   "dimensions": {
+    "height_mm": 60,
+    "inner_radius_mm": 4,
+    "length_mm": 6000,
+    "outer_radius_mm": 8,
+    "thickness_mm": 4,
+    "width_mm": 40
+   },
+   "nominal_weight": {
+    "kg_m": 5.45,
+    "per_branch": 32.7
+   }
+  },
+  "AA-PF-RHS-S80X40X3-L6": {
+   "dimensions": {
+    "height_mm": 80,
+    "inner_radius_mm": 3,
+    "length_mm": 6000,
+    "outer_radius_mm": 6,
+    "thickness_mm": 3,
+    "width_mm": 40
+   },
+   "nominal_weight": {
+    "kg_m": 5.19,
+    "per_branch": 31.1
+   }
+  },
+  "AA-PF-RHS-S80X40X4-L6": {
+   "dimensions": {
+    "height_mm": 80,
+    "inner_radius_mm": 4,
+    "length_mm": 6000,
+    "outer_radius_mm": 8,
+    "thickness_mm": 4,
+    "width_mm": 40
+   },
+   "nominal_weight": {
+    "kg_m": 6.71,
+    "per_branch": 40.3
+   }
+  },
+  "AA-PF-RHS-S80X40X5-L6": {
+   "dimensions": {
+    "height_mm": 80,
+    "inner_radius_mm": 5,
+    "length_mm": 6000,
+    "outer_radius_mm": 10,
+    "thickness_mm": 5,
+    "width_mm": 40
+   },
+   "nominal_weight": {
+    "kg_m": 8.13,
+    "per_branch": 48.8
+   }
+  },
+  "AA-PF-SHS-S100X100X4-L6": {
+   "dimensions": {
+    "height_mm": 100,
+    "inner_radius_mm": 4,
+    "length_mm": 6000,
+    "outer_radius_mm": 8,
+    "thickness_mm": 4,
+    "width_mm": 100
+   },
+   "nominal_weight": {
+    "kg_m": 11.73,
+    "per_branch": 70.4
+   }
+  },
+  "AA-PF-SHS-S100X100X5-L6": {
+   "dimensions": {
+    "height_mm": 100,
+    "inner_radius_mm": 5,
+    "length_mm": 6000,
+    "outer_radius_mm": 10,
+    "thickness_mm": 5,
+    "width_mm": 100
+   },
+   "nominal_weight": {
+    "kg_m": 14.41,
+    "per_branch": 86.5
+   }
+  },
+  "AA-PF-SHS-S100X100X6-L6": {
+   "dimensions": {
+    "height_mm": 100,
+    "inner_radius_mm": 6,
+    "length_mm": 6000,
+    "outer_radius_mm": 12,
+    "thickness_mm": 6,
+    "width_mm": 100
+   },
+   "nominal_weight": {
+    "kg_m": 16.98,
+    "per_branch": 101.9
+   }
+  },
+  "AA-PF-SHS-S100X100X8-L6": {
+   "dimensions": {
+    "height_mm": 100,
+    "inner_radius_mm": 12,
+    "length_mm": 6000,
+    "outer_radius_mm": 20,
+    "thickness_mm": 8,
+    "width_mm": 100
+   },
+   "nominal_weight": {
+    "kg_m": 21.39,
+    "per_branch": 128.3
+   }
+  },
+  "AA-PF-SHS-S120X120X10-L6": {
+   "dimensions": {
+    "height_mm": 120,
+    "inner_radius_mm": 15,
+    "length_mm": 6000,
+    "outer_radius_mm": 25,
+    "thickness_mm": 10,
+    "width_mm": 120
+   },
+   "nominal_weight": {
+    "kg_m": 31.84,
+    "per_branch": 191.1
+   }
+  },
+  "AA-PF-SHS-S120X120X5-L6": {
+   "dimensions": {
+    "height_mm": 120,
+    "inner_radius_mm": 5,
+    "length_mm": 6000,
+    "outer_radius_mm": 10,
+    "thickness_mm": 5,
+    "width_mm": 120
+   },
+   "nominal_weight": {
+    "kg_m": 17.55,
+    "per_branch": 105.3
+   }
+  },
+  "AA-PF-SHS-S120X120X6-L6": {
+   "dimensions": {
+    "height_mm": 120,
+    "inner_radius_mm": 6,
+    "length_mm": 6000,
+    "outer_radius_mm": 12,
+    "thickness_mm": 6,
+    "width_mm": 120
+   },
+   "nominal_weight": {
+    "kg_m": 20.75,
+    "per_branch": 124.5
+   }
+  },
+  "AA-PF-SHS-S120X120X8-L6": {
+   "dimensions": {
+    "height_mm": 120,
+    "inner_radius_mm": 12,
+    "length_mm": 6000,
+    "outer_radius_mm": 20,
+    "thickness_mm": 8,
+    "width_mm": 120
+   },
+   "nominal_weight": {
+    "kg_m": 26.41,
+    "per_branch": 158.5
+   }
+  },
+  "AA-PF-SHS-S150X150X10-L6": {
+   "dimensions": {
+    "height_mm": 150,
+    "inner_radius_mm": 15,
+    "length_mm": 6000,
+    "outer_radius_mm": 25,
+    "thickness_mm": 10,
+    "width_mm": 150
+   },
+   "nominal_weight": {
+    "kg_m": 41.26,
+    "per_branch": 247.6
+   }
+  },
+  "AA-PF-SHS-S150X150X6-L6": {
+   "dimensions": {
+    "height_mm": 150,
+    "inner_radius_mm": 6,
+    "length_mm": 6000,
+    "outer_radius_mm": 12,
+    "thickness_mm": 6,
+    "width_mm": 150
+   },
+   "nominal_weight": {
+    "kg_m": 26.4,
+    "per_branch": 158.4
+   }
+  },
+  "AA-PF-SHS-S150X150X8-L6": {
+   "dimensions": {
+    "height_mm": 150,
+    "inner_radius_mm": 12,
+    "length_mm": 6000,
+    "outer_radius_mm": 20,
+    "thickness_mm": 8,
+    "width_mm": 150
+   },
+   "nominal_weight": {
+    "kg_m": 33.95,
+    "per_branch": 203.7
+   }
+  },
+  "AA-PF-SHS-S200X200X10-L6": {
+   "dimensions": {
+    "height_mm": 200,
+    "inner_radius_mm": 15,
+    "length_mm": 6000,
+    "outer_radius_mm": 25,
+    "thickness_mm": 10,
+    "width_mm": 200
+   },
+   "nominal_weight": {
+    "kg_m": 56.96,
+    "per_branch": 341.8
+   }
+  },
+  "AA-PF-SHS-S200X200X12-L6": {
+   "dimensions": {
+    "height_mm": 200,
+    "inner_radius_mm": 24,
+    "length_mm": 6000,
+    "outer_radius_mm": 36,
+    "thickness_mm": 12,
+    "width_mm": 200
+   },
+   "nominal_weight": {
+    "kg_m": 65.99,
+    "per_branch": 395.9
+   }
+  },
+  "AA-PF-SHS-S200X200X8-L6": {
+   "dimensions": {
+    "height_mm": 200,
+    "inner_radius_mm": 12,
+    "length_mm": 6000,
+    "outer_radius_mm": 20,
+    "thickness_mm": 8,
+    "width_mm": 200
+   },
+   "nominal_weight": {
+    "kg_m": 46.51,
+    "per_branch": 279
+   }
+  },
+  "AA-PF-SHS-S40X40X2P5-L6": {
+   "dimensions": {
+    "height_mm": 40,
+    "inner_radius_mm": 2.5,
+    "length_mm": 6000,
+    "outer_radius_mm": 5,
+    "thickness_mm": 2.5,
+    "width_mm": 40
+   },
+   "nominal_weight": {
+    "kg_m": 2.82,
+    "per_branch": 16.9
+   }
+  },
+  "AA-PF-SHS-S40X40X3-L6": {
+   "dimensions": {
+    "height_mm": 40,
+    "inner_radius_mm": 3,
+    "length_mm": 6000,
+    "outer_radius_mm": 6,
+    "thickness_mm": 3,
+    "width_mm": 40
+   },
+   "nominal_weight": {
+    "kg_m": 3.3,
+    "per_branch": 19.8
+   }
+  },
+  "AA-PF-SHS-S40X40X4-L6": {
+   "dimensions": {
+    "height_mm": 40,
+    "inner_radius_mm": 4,
+    "length_mm": 6000,
+    "outer_radius_mm": 8,
+    "thickness_mm": 4,
+    "width_mm": 40
+   },
+   "nominal_weight": {
+    "kg_m": 4.2,
+    "per_branch": 25.2
+   }
+  },
+  "AA-PF-SHS-S50X50X2P5-L6": {
+   "dimensions": {
+    "height_mm": 50,
+    "inner_radius_mm": 2.5,
+    "length_mm": 6000,
+    "outer_radius_mm": 5,
+    "thickness_mm": 2.5,
+    "width_mm": 50
+   },
+   "nominal_weight": {
+    "kg_m": 3.6,
+    "per_branch": 21.6
+   }
+  },
+  "AA-PF-SHS-S50X50X3-L6": {
+   "dimensions": {
+    "height_mm": 50,
+    "inner_radius_mm": 3,
+    "length_mm": 6000,
+    "outer_radius_mm": 6,
+    "thickness_mm": 3,
+    "width_mm": 50
+   },
+   "nominal_weight": {
+    "kg_m": 4.25,
+    "per_branch": 25.5
+   }
+  },
+  "AA-PF-SHS-S50X50X4-L6": {
+   "dimensions": {
+    "height_mm": 50,
+    "inner_radius_mm": 4,
+    "length_mm": 6000,
+    "outer_radius_mm": 8,
+    "thickness_mm": 4,
+    "width_mm": 50
+   },
+   "nominal_weight": {
+    "kg_m": 5.45,
+    "per_branch": 32.7
+   }
+  },
+  "AA-PF-SHS-S50X50X5-L6": {
+   "dimensions": {
+    "height_mm": 50,
+    "inner_radius_mm": 5,
+    "length_mm": 6000,
+    "outer_radius_mm": 10,
+    "thickness_mm": 5,
+    "width_mm": 50
+   },
+   "nominal_weight": {
+    "kg_m": 6.56,
+    "per_branch": 39.4
+   }
+  },
+  "AA-PF-SHS-S60X60X3-L6": {
+   "dimensions": {
+    "height_mm": 60,
+    "inner_radius_mm": 3,
+    "length_mm": 6000,
+    "outer_radius_mm": 6,
+    "thickness_mm": 3,
+    "width_mm": 60
+   },
+   "nominal_weight": {
+    "kg_m": 5.19,
+    "per_branch": 31.1
+   }
+  },
+  "AA-PF-SHS-S60X60X4-L6": {
+   "dimensions": {
+    "height_mm": 60,
+    "inner_radius_mm": 4,
+    "length_mm": 6000,
+    "outer_radius_mm": 8,
+    "thickness_mm": 4,
+    "width_mm": 60
+   },
+   "nominal_weight": {
+    "kg_m": 6.71,
+    "per_branch": 40.3
+   }
+  },
+  "AA-PF-SHS-S60X60X5-L6": {
+   "dimensions": {
+    "height_mm": 60,
+    "inner_radius_mm": 5,
+    "length_mm": 6000,
+    "outer_radius_mm": 10,
+    "thickness_mm": 5,
+    "width_mm": 60
+   },
+   "nominal_weight": {
+    "kg_m": 8.13,
+    "per_branch": 48.8
+   }
+  },
+  "AA-PF-SHS-S60X60X6-L6": {
+   "dimensions": {
+    "height_mm": 60,
+    "inner_radius_mm": 6,
+    "length_mm": 6000,
+    "outer_radius_mm": 12,
+    "thickness_mm": 6,
+    "width_mm": 60
+   },
+   "nominal_weight": {
+    "kg_m": 9.45,
+    "per_branch": 56.7
+   }
+  },
+  "AA-PF-SHS-S80X80X3-L6": {
+   "dimensions": {
+    "height_mm": 80,
+    "inner_radius_mm": 3,
+    "length_mm": 6000,
+    "outer_radius_mm": 6,
+    "thickness_mm": 3,
+    "width_mm": 80
+   },
+   "nominal_weight": {
+    "kg_m": 7.07,
+    "per_branch": 42.4
+   }
+  },
+  "AA-PF-SHS-S80X80X4-L6": {
+   "dimensions": {
+    "height_mm": 80,
+    "inner_radius_mm": 4,
+    "length_mm": 6000,
+    "outer_radius_mm": 8,
+    "thickness_mm": 4,
+    "width_mm": 80
+   },
+   "nominal_weight": {
+    "kg_m": 9.22,
+    "per_branch": 55.3
+   }
+  },
+  "AA-PF-SHS-S80X80X5-L6": {
+   "dimensions": {
+    "height_mm": 80,
+    "inner_radius_mm": 5,
+    "length_mm": 6000,
+    "outer_radius_mm": 10,
+    "thickness_mm": 5,
+    "width_mm": 80
+   },
+   "nominal_weight": {
+    "kg_m": 11.27,
+    "per_branch": 67.6
+   }
+  },
+  "AA-PF-SHS-S80X80X6-L6": {
+   "dimensions": {
+    "height_mm": 80,
+    "inner_radius_mm": 6,
+    "length_mm": 6000,
+    "outer_radius_mm": 12,
+    "thickness_mm": 6,
+    "width_mm": 80
+   },
+   "nominal_weight": {
+    "kg_m": 13.21,
+    "per_branch": 79.3
+   }
+  },
+  "AA-BM-INP-S100-L12": {
+   "dimensions": {
+    "flange_slope_pct": 14,
+    "flange_thickness_mm": 6.8,
+    "height_mm": 100,
+    "length_mm": 12000,
+    "root_radius_mm": 4.5,
+    "toe_radius_mm": 2.7,
+    "web_thickness_mm": 4.5,
+    "width_mm": 50
+   },
+   "nominal_weight": {
+    "kg_m": 8.3,
+    "per_branch": 99.6
+   }
+  },
+  "AA-BM-INP-S120-L12": {
+   "dimensions": {
+    "flange_slope_pct": 14,
+    "flange_thickness_mm": 7.7,
+    "height_mm": 120,
+    "length_mm": 12000,
+    "root_radius_mm": 5.1,
+    "toe_radius_mm": 3.1,
+    "web_thickness_mm": 5.1,
+    "width_mm": 58
+   },
+   "nominal_weight": {
+    "kg_m": 11.1,
+    "per_branch": 133.2
+   }
+  },
+  "AA-BM-INP-S140-L12": {
+   "dimensions": {
+    "flange_slope_pct": 14,
+    "flange_thickness_mm": 8.6,
+    "height_mm": 140,
+    "length_mm": 12000,
+    "root_radius_mm": 5.7,
+    "toe_radius_mm": 3.4,
+    "web_thickness_mm": 5.7,
+    "width_mm": 66
+   },
+   "nominal_weight": {
+    "kg_m": 14.3,
+    "per_branch": 171.6
+   }
+  },
+  "AA-BM-INP-S160-L12": {
+   "dimensions": {
+    "flange_slope_pct": 14,
+    "flange_thickness_mm": 9.5,
+    "height_mm": 160,
+    "length_mm": 12000,
+    "root_radius_mm": 6.3,
+    "toe_radius_mm": 3.8,
+    "web_thickness_mm": 6.3,
+    "width_mm": 74
+   },
+   "nominal_weight": {
+    "kg_m": 17.9,
+    "per_branch": 214.8
+   }
+  },
+  "AA-BM-INP-S180-L12": {
+   "dimensions": {
+    "flange_slope_pct": 14,
+    "flange_thickness_mm": 10.4,
+    "height_mm": 180,
+    "length_mm": 12000,
+    "root_radius_mm": 6.9,
+    "toe_radius_mm": 4.1,
+    "web_thickness_mm": 6.9,
+    "width_mm": 82
+   },
+   "nominal_weight": {
+    "kg_m": 21.9,
+    "per_branch": 262.8
+   }
+  },
+  "AA-BM-INP-S200-L12": {
+   "dimensions": {
+    "flange_slope_pct": 14,
+    "flange_thickness_mm": 11.3,
+    "height_mm": 200,
+    "length_mm": 12000,
+    "root_radius_mm": 7.5,
+    "toe_radius_mm": 4.5,
+    "web_thickness_mm": 7.5,
+    "width_mm": 90
+   },
+   "nominal_weight": {
+    "kg_m": 26.2,
+    "per_branch": 314.4
+   }
+  },
+  "AA-BM-INP-S220-L12": {
+   "dimensions": {
+    "flange_slope_pct": 14,
+    "flange_thickness_mm": 12.2,
+    "height_mm": 220,
+    "length_mm": 12000,
+    "root_radius_mm": 8.1,
+    "toe_radius_mm": 4.9,
+    "web_thickness_mm": 8.1,
+    "width_mm": 98
+   },
+   "nominal_weight": {
+    "kg_m": 31.1,
+    "per_branch": 373.2
+   }
+  },
+  "AA-BM-INP-S240-L12": {
+   "dimensions": {
+    "flange_slope_pct": 14,
+    "flange_thickness_mm": 13.1,
+    "height_mm": 240,
+    "length_mm": 12000,
+    "root_radius_mm": 8.7,
+    "toe_radius_mm": 5.2,
+    "web_thickness_mm": 8.7,
+    "width_mm": 106
+   },
+   "nominal_weight": {
+    "kg_m": 36.2,
+    "per_branch": 434.4
+   }
+  },
+  "AA-BM-INP-S260-L12": {
+   "dimensions": {
+    "flange_slope_pct": 14,
+    "flange_thickness_mm": 14.1,
+    "height_mm": 260,
+    "length_mm": 12000,
+    "root_radius_mm": 9.4,
+    "toe_radius_mm": 5.6,
+    "web_thickness_mm": 9.4,
+    "width_mm": 113
+   },
+   "nominal_weight": {
+    "kg_m": 41.9,
+    "per_branch": 502.8
+   }
+  },
+  "AA-BM-INP-S280-L12": {
+   "dimensions": {
+    "flange_slope_pct": 14,
+    "flange_thickness_mm": 15.2,
+    "height_mm": 280,
+    "length_mm": 12000,
+    "root_radius_mm": 10.1,
+    "toe_radius_mm": 6.1,
+    "web_thickness_mm": 10.1,
+    "width_mm": 119
+   },
+   "nominal_weight": {
+    "kg_m": 47.9,
+    "per_branch": 574.8
+   }
+  },
+  "AA-BM-INP-S300-L12": {
+   "dimensions": {
+    "flange_slope_pct": 14,
+    "flange_thickness_mm": 16.2,
+    "height_mm": 300,
+    "length_mm": 12000,
+    "root_radius_mm": 10.8,
+    "toe_radius_mm": 6.5,
+    "web_thickness_mm": 10.8,
+    "width_mm": 125
+   },
+   "nominal_weight": {
+    "kg_m": 54.2,
+    "per_branch": 650.4
+   }
+  },
+  "AA-BM-INP-S320-L12": {
+   "dimensions": {
+    "flange_slope_pct": 14,
+    "flange_thickness_mm": 17.3,
+    "height_mm": 320,
+    "length_mm": 12000,
+    "root_radius_mm": 11.5,
+    "toe_radius_mm": 6.9,
+    "web_thickness_mm": 11.5,
+    "width_mm": 131
+   },
+   "nominal_weight": {
+    "kg_m": 61,
+    "per_branch": 732
+   }
+  },
+  "AA-BM-INP-S340-L12": {
+   "dimensions": {
+    "flange_slope_pct": 14,
+    "flange_thickness_mm": 18.3,
+    "height_mm": 340,
+    "length_mm": 12000,
+    "root_radius_mm": 12.2,
+    "toe_radius_mm": 7.3,
+    "web_thickness_mm": 12.2,
+    "width_mm": 137
+   },
+   "nominal_weight": {
+    "kg_m": 68,
+    "per_branch": 816
+   }
+  },
+  "AA-BM-INP-S360-L12": {
+   "dimensions": {
+    "flange_slope_pct": 14,
+    "flange_thickness_mm": 19.5,
+    "height_mm": 360,
+    "length_mm": 12000,
+    "root_radius_mm": 13,
+    "toe_radius_mm": 7.8,
+    "web_thickness_mm": 13,
+    "width_mm": 143
+   },
+   "nominal_weight": {
+    "kg_m": 76.1,
+    "per_branch": 913.2
+   }
+  },
+  "AA-BM-INP-S380-L12": {
+   "dimensions": {
+    "flange_slope_pct": 14,
+    "flange_thickness_mm": 20.5,
+    "height_mm": 380,
+    "length_mm": 12000,
+    "root_radius_mm": 13.7,
+    "toe_radius_mm": 8.2,
+    "web_thickness_mm": 13.7,
+    "width_mm": 149
+   },
+   "nominal_weight": {
+    "kg_m": 84,
+    "per_branch": 1008
+   }
+  },
+  "AA-BM-INP-S400-L12": {
+   "dimensions": {
+    "flange_slope_pct": 14,
+    "flange_thickness_mm": 21.6,
+    "height_mm": 400,
+    "length_mm": 12000,
+    "root_radius_mm": 14.4,
+    "toe_radius_mm": 8.6,
+    "web_thickness_mm": 14.4,
+    "width_mm": 155
+   },
+   "nominal_weight": {
+    "kg_m": 92.4,
+    "per_branch": 1108.8
+   }
+  },
+  "AA-BM-INP-S450-L12": {
+   "dimensions": {
+    "flange_slope_pct": 14,
+    "flange_thickness_mm": 24.3,
+    "height_mm": 450,
+    "length_mm": 12000,
+    "root_radius_mm": 16.2,
+    "toe_radius_mm": 9.7,
+    "web_thickness_mm": 16.2,
+    "width_mm": 170
+   },
+   "nominal_weight": {
+    "kg_m": 115,
+    "per_branch": 1380
+   }
+  },
+  "AA-BM-INP-S500-L12": {
+   "dimensions": {
+    "flange_slope_pct": 14,
+    "flange_thickness_mm": 27,
+    "height_mm": 500,
+    "length_mm": 12000,
+    "root_radius_mm": 18,
+    "toe_radius_mm": 10.8,
+    "web_thickness_mm": 18,
+    "width_mm": 185
+   },
+   "nominal_weight": {
+    "kg_m": 141,
+    "per_branch": 1692
+   }
+  },
+  "AA-BM-INP-S550-L12": {
+   "dimensions": {
+    "flange_slope_pct": 14,
+    "flange_thickness_mm": 30,
+    "height_mm": 550,
+    "length_mm": 12000,
+    "root_radius_mm": 19,
+    "toe_radius_mm": 11.9,
+    "web_thickness_mm": 19,
+    "width_mm": 200
+   },
+   "nominal_weight": {
+    "kg_m": 166,
+    "per_branch": 1992
+   }
+  },
+  "AA-BM-INP-S600-L12": {
+   "dimensions": {
+    "flange_slope_pct": 14,
+    "flange_thickness_mm": 32.4,
+    "height_mm": 600,
+    "length_mm": 12000,
+    "root_radius_mm": 21.6,
+    "toe_radius_mm": 13,
+    "web_thickness_mm": 21.6,
+    "width_mm": 215
+   },
+   "nominal_weight": {
+    "kg_m": 199,
+    "per_branch": 2388
+   }
+  },
+  "AA-BM-INP-S80-L12": {
+   "dimensions": {
+    "flange_slope_pct": 14,
+    "flange_thickness_mm": 5.9,
+    "height_mm": 80,
+    "length_mm": 12000,
+    "root_radius_mm": 3.9,
+    "toe_radius_mm": 2.3,
+    "web_thickness_mm": 3.9,
+    "width_mm": 42
+   },
+   "nominal_weight": {
+    "kg_m": 5.9,
+    "per_branch": 70.8
+   }
+  },
+  "AA-BM-IPE-S100-L12": {
+   "dimensions": {
+    "flange_thickness_mm": 5.7,
+    "height_mm": 100,
+    "length_mm": 12000,
+    "root_radius_mm": 7,
+    "web_thickness_mm": 4.1,
+    "width_mm": 55
+   },
+   "nominal_weight": {
+    "kg_m": 8.1,
+    "per_branch": 97.2
+   }
+  },
+  "AA-BM-IPE-S120-L12": {
+   "dimensions": {
+    "flange_thickness_mm": 6.3,
+    "height_mm": 120,
+    "length_mm": 12000,
+    "root_radius_mm": 7,
+    "web_thickness_mm": 4.4,
+    "width_mm": 64
+   },
+   "nominal_weight": {
+    "kg_m": 10.4,
+    "per_branch": 124.8
+   }
+  },
+  "AA-BM-IPE-S140-L12": {
+   "dimensions": {
+    "flange_thickness_mm": 6.9,
+    "height_mm": 140,
+    "length_mm": 12000,
+    "root_radius_mm": 7,
+    "web_thickness_mm": 4.7,
+    "width_mm": 73
+   },
+   "nominal_weight": {
+    "kg_m": 12.9,
+    "per_branch": 154.8
+   }
+  },
+  "AA-BM-IPE-S160-L12": {
+   "dimensions": {
+    "flange_thickness_mm": 7.4,
+    "height_mm": 160,
+    "length_mm": 12000,
+    "root_radius_mm": 9,
+    "web_thickness_mm": 5,
+    "width_mm": 82
+   },
+   "nominal_weight": {
+    "kg_m": 15.8,
+    "per_branch": 189.6
+   }
+  },
+  "AA-BM-IPE-S180-L12": {
+   "dimensions": {
+    "flange_thickness_mm": 8,
+    "height_mm": 180,
+    "length_mm": 12000,
+    "root_radius_mm": 9,
+    "web_thickness_mm": 5.3,
+    "width_mm": 91
+   },
+   "nominal_weight": {
+    "kg_m": 18.8,
+    "per_branch": 225.6
+   }
+  },
+  "AA-BM-IPE-S200-L12": {
+   "dimensions": {
+    "flange_thickness_mm": 8.5,
+    "height_mm": 200,
+    "length_mm": 12000,
+    "root_radius_mm": 12,
+    "web_thickness_mm": 5.6,
+    "width_mm": 100
+   },
+   "nominal_weight": {
+    "kg_m": 22.4,
+    "per_branch": 268.8
+   }
+  },
+  "AA-BM-IPE-S220-L12": {
+   "dimensions": {
+    "flange_thickness_mm": 9.2,
+    "height_mm": 220,
+    "length_mm": 12000,
+    "root_radius_mm": 12,
+    "web_thickness_mm": 5.9,
+    "width_mm": 110
+   },
+   "nominal_weight": {
+    "kg_m": 26.2,
+    "per_branch": 314.4
+   }
+  },
+  "AA-BM-IPE-S240-L12": {
+   "dimensions": {
+    "flange_thickness_mm": 9.8,
+    "height_mm": 240,
+    "length_mm": 12000,
+    "root_radius_mm": 15,
+    "web_thickness_mm": 6.2,
+    "width_mm": 120
+   },
+   "nominal_weight": {
+    "kg_m": 30.7,
+    "per_branch": 368.4
+   }
+  },
+  "AA-BM-IPE-S270-L12": {
+   "dimensions": {
+    "flange_thickness_mm": 10.2,
+    "height_mm": 270,
+    "length_mm": 12000,
+    "root_radius_mm": 15,
+    "web_thickness_mm": 6.6,
+    "width_mm": 135
+   },
+   "nominal_weight": {
+    "kg_m": 36.1,
+    "per_branch": 433.2
+   }
+  },
+  "AA-BM-IPE-S300-L12": {
+   "dimensions": {
+    "flange_thickness_mm": 10.7,
+    "height_mm": 300,
+    "length_mm": 12000,
+    "root_radius_mm": 15,
+    "web_thickness_mm": 7.1,
+    "width_mm": 150
+   },
+   "nominal_weight": {
+    "kg_m": 42.2,
+    "per_branch": 506.4
+   }
+  },
+  "AA-BM-IPE-S330-L12": {
+   "dimensions": {
+    "flange_thickness_mm": 11.5,
+    "height_mm": 330,
+    "length_mm": 12000,
+    "root_radius_mm": 18,
+    "web_thickness_mm": 7.5,
+    "width_mm": 160
+   },
+   "nominal_weight": {
+    "kg_m": 49.1,
+    "per_branch": 589.2
+   }
+  },
+  "AA-BM-IPE-S360-L12": {
+   "dimensions": {
+    "flange_thickness_mm": 12.7,
+    "height_mm": 360,
+    "length_mm": 12000,
+    "root_radius_mm": 18,
+    "web_thickness_mm": 8,
+    "width_mm": 170
+   },
+   "nominal_weight": {
+    "kg_m": 57.1,
+    "per_branch": 685.2
+   }
+  },
+  "AA-BM-IPE-S400-L12": {
+   "dimensions": {
+    "flange_thickness_mm": 13.5,
+    "height_mm": 400,
+    "length_mm": 12000,
+    "root_radius_mm": 21,
+    "web_thickness_mm": 8.6,
+    "width_mm": 180
+   },
+   "nominal_weight": {
+    "kg_m": 66.3,
+    "per_branch": 795.6
+   }
+  },
+  "AA-BM-IPE-S450-L12": {
+   "dimensions": {
+    "flange_thickness_mm": 14.6,
+    "height_mm": 450,
+    "length_mm": 12000,
+    "root_radius_mm": 21,
+    "web_thickness_mm": 9.4,
+    "width_mm": 190
+   },
+   "nominal_weight": {
+    "kg_m": 77.6,
+    "per_branch": 931.2
+   }
+  },
+  "AA-BM-IPE-S500-L12": {
+   "dimensions": {
+    "flange_thickness_mm": 16,
+    "height_mm": 500,
+    "length_mm": 12000,
+    "root_radius_mm": 21,
+    "web_thickness_mm": 10.2,
+    "width_mm": 200
+   },
+   "nominal_weight": {
+    "kg_m": 90.7,
+    "per_branch": 1088.4
+   }
+  },
+  "AA-BM-IPE-S550-L12": {
+   "dimensions": {
+    "flange_thickness_mm": 17.2,
+    "height_mm": 550,
+    "length_mm": 12000,
+    "root_radius_mm": 24,
+    "web_thickness_mm": 11.1,
+    "width_mm": 210
+   },
+   "nominal_weight": {
+    "kg_m": 106,
+    "per_branch": 1272
+   }
+  },
+  "AA-BM-IPE-S600-L12": {
+   "dimensions": {
+    "flange_thickness_mm": 19,
+    "height_mm": 600,
+    "length_mm": 12000,
+    "root_radius_mm": 24,
+    "web_thickness_mm": 12,
+    "width_mm": 220
+   },
+   "nominal_weight": {
+    "kg_m": 122,
+    "per_branch": 1464
+   }
+  },
+  "AA-BM-IPE-S80-L12": {
+   "dimensions": {
+    "flange_thickness_mm": 5.2,
+    "height_mm": 80,
+    "length_mm": 12000,
+    "root_radius_mm": 5,
+    "web_thickness_mm": 3.8,
+    "width_mm": 46
+   },
+   "nominal_weight": {
+    "kg_m": 6,
+    "per_branch": 72
+   }
+  },
+  "AA-AN-EQ-S100X100X10": {
+   "dimensions": {
+    "height_mm": 100,
+    "root_radius_mm": 12,
+    "thickness_mm": 10,
+    "toe_radius_mm": 6,
+    "width_mm": 100
+   },
+   "nominal_weight": {
+    "kg_m": 15
+   }
+  },
+  "AA-AN-EQ-S50X50X5": {
+   "dimensions": {
+    "height_mm": 50,
+    "root_radius_mm": 7,
+    "thickness_mm": 5,
+    "toe_radius_mm": 3.5,
+    "width_mm": 50
+   },
+   "nominal_weight": {
+    "kg_m": 3.77
+   }
+  },
+  "AA-AN-EQ-S60X60X6": {
+   "dimensions": {
+    "height_mm": 60,
+    "root_radius_mm": 8,
+    "thickness_mm": 6,
+    "toe_radius_mm": 4,
+    "width_mm": 60
+   },
+   "nominal_weight": {
+    "kg_m": 5.42
+   }
+  },
+  "AA-AN-EQ-S75X75X7": {
+   "dimensions": {
+    "height_mm": 75,
+    "root_radius_mm": 9,
+    "thickness_mm": 7,
+    "toe_radius_mm": 4.5,
+    "width_mm": 75
+   },
+   "nominal_weight": {
+    "kg_m": 7.93
+   }
+  },
+  "AA-AN-EQ-S80X80X8": {
+   "dimensions": {
+    "height_mm": 80,
+    "root_radius_mm": 10,
+    "thickness_mm": 8,
+    "toe_radius_mm": 5,
+    "width_mm": 80
+   },
+   "nominal_weight": {
+    "kg_m": 9.63
+   }
+  },
+  "AA-CH-UPE-S100": {
+   "dimensions": {
+    "flange_thickness_mm": 7.5,
+    "height_mm": 100,
+    "root_radius_mm": 10,
+    "web_thickness_mm": 4.5,
+    "width_mm": 55
+   },
+   "nominal_weight": {
+    "kg_m": 9.8
+   }
+  },
+  "AA-CH-UPE-S120": {
+   "dimensions": {
+    "flange_thickness_mm": 8,
+    "height_mm": 120,
+    "root_radius_mm": 12,
+    "web_thickness_mm": 5,
+    "width_mm": 60
+   },
+   "nominal_weight": {
+    "kg_m": 12.1
+   }
+  },
+  "AA-CH-UPE-S140": {
+   "dimensions": {
+    "flange_thickness_mm": 9,
+    "height_mm": 140,
+    "root_radius_mm": 12,
+    "web_thickness_mm": 5,
+    "width_mm": 65
+   },
+   "nominal_weight": {
+    "kg_m": 14.5
+   }
+  },
+  "AA-CH-UPE-S160": {
+   "dimensions": {
+    "flange_thickness_mm": 9.5,
+    "height_mm": 160,
+    "root_radius_mm": 12,
+    "web_thickness_mm": 5.5,
+    "width_mm": 70
+   },
+   "nominal_weight": {
+    "kg_m": 17
+   }
+  },
+  "AA-CH-UPE-S180": {
+   "dimensions": {
+    "flange_thickness_mm": 10.5,
+    "height_mm": 180,
+    "root_radius_mm": 12,
+    "web_thickness_mm": 5.5,
+    "width_mm": 75
+   },
+   "nominal_weight": {
+    "kg_m": 19.7
+   }
+  },
+  "AA-CH-UPE-S200": {
+   "dimensions": {
+    "flange_thickness_mm": 11,
+    "height_mm": 200,
+    "root_radius_mm": 13,
+    "web_thickness_mm": 6,
+    "width_mm": 80
+   },
+   "nominal_weight": {
+    "kg_m": 22.8
+   }
+  },
+  "AA-CH-UPE-S80": {
+   "dimensions": {
+    "flange_thickness_mm": 7,
+    "height_mm": 80,
+    "root_radius_mm": 10,
+    "web_thickness_mm": 4,
+    "width_mm": 50
+   },
+   "nominal_weight": {
+    "kg_m": 7.9
+   }
+  },
+  "AA-CH-UPN-S100": {
+   "dimensions": {
+    "flange_slope_pct": 8,
+    "flange_thickness_mm": 8.5,
+    "height_mm": 100,
+    "root_radius_mm": 8.5,
+    "toe_radius_mm": 4.5,
+    "web_thickness_mm": 6,
+    "width_mm": 50
+   },
+   "nominal_weight": {
+    "kg_m": 10.6
+   }
+  },
+  "AA-CH-UPN-S120": {
+   "dimensions": {
+    "flange_slope_pct": 8,
+    "flange_thickness_mm": 9,
+    "height_mm": 120,
+    "root_radius_mm": 9,
+    "toe_radius_mm": 4.5,
+    "web_thickness_mm": 7,
+    "width_mm": 55
+   },
+   "nominal_weight": {
+    "kg_m": 13.4
+   }
+  },
+  "AA-CH-UPN-S140": {
+   "dimensions": {
+    "flange_slope_pct": 8,
+    "flange_thickness_mm": 10,
+    "height_mm": 140,
+    "root_radius_mm": 10,
+    "toe_radius_mm": 5,
+    "web_thickness_mm": 7,
+    "width_mm": 60
+   },
+   "nominal_weight": {
+    "kg_m": 16
+   }
+  },
+  "AA-CH-UPN-S160": {
+   "dimensions": {
+    "flange_slope_pct": 8,
+    "flange_thickness_mm": 10.5,
+    "height_mm": 160,
+    "root_radius_mm": 10.5,
+    "toe_radius_mm": 5.5,
+    "web_thickness_mm": 7.5,
+    "width_mm": 65
+   },
+   "nominal_weight": {
+    "kg_m": 18.8
+   }
+  },
+  "AA-CH-UPN-S180": {
+   "dimensions": {
+    "flange_slope_pct": 8,
+    "flange_thickness_mm": 11,
+    "height_mm": 180,
+    "root_radius_mm": 11,
+    "toe_radius_mm": 5.5,
+    "web_thickness_mm": 8,
+    "width_mm": 70
+   },
+   "nominal_weight": {
+    "kg_m": 22
+   }
+  },
+  "AA-CH-UPN-S200": {
+   "dimensions": {
+    "flange_slope_pct": 8,
+    "flange_thickness_mm": 11.5,
+    "height_mm": 200,
+    "root_radius_mm": 11.5,
+    "toe_radius_mm": 6,
+    "web_thickness_mm": 8.5,
+    "width_mm": 75
+   },
+   "nominal_weight": {
+    "kg_m": 25.3
+   }
+  },
+  "AA-CH-UPN-S80": {
+   "dimensions": {
+    "flange_slope_pct": 8,
+    "flange_thickness_mm": 8,
+    "height_mm": 80,
+    "root_radius_mm": 8,
+    "toe_radius_mm": 4,
+    "web_thickness_mm": 6,
+    "width_mm": 45
+   },
+   "nominal_weight": {
+    "kg_m": 8.6
+   }
+  }
+ }
+}
