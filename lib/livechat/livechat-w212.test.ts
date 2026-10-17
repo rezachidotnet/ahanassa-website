@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { locales } from "../../config/locales.ts";
-import { LIVECHAT_ENABLED, LIVECHAT_FRAME_URL, LIVECHAT_FRAME_URL_PATTERN, LIVECHAT_ORIGIN, LIVECHAT_PAGE_ORIGIN, LIVECHAT_STATUS_PATH, LIVECHAT_TIMEOUT_MS, livechatConfig, livechatFrameOrigin, livechatFrameUrl } from "../../config/livechat.ts";
+import { LIVECHAT_ENABLED, LIVECHAT_FRAME_URL, LIVECHAT_FRAME_URL_PATTERN, LIVECHAT_ORIGIN, LIVECHAT_PAGE_ORIGIN, LIVECHAT_STATUS_TIMEOUT_MS, LIVECHAT_TIMEOUT_MS, livechatConfig, livechatFrameOrigin, livechatFrameUrl } from "../../config/livechat.ts";
 import { buildCspReportOnly, buildSecurityHeaders } from "../security/headers.ts";
 import { buildHeadersFile } from "../static/static-rules.ts";
 import { STATIC_TARGETS } from "../static/targets.ts";
@@ -10,7 +10,7 @@ import { hasStickyLivechat, livechatCopy, livechatProps } from "../content/livec
 import { WORKING_HOURS } from "../content/company.ts";
 import { ANALYTICS_EVENTS } from "../analytics/events.ts";
 import { buildLivechatEvent, LIVECHAT_EVENTS } from "./events.ts";
-import { LIVECHAT_FRAME_EVENTS, LIVECHAT_FRAME_SOURCE, livechatFrameEvent } from "./frame-events.ts";
+import { LIVECHAT_FRAME_EVENTS, LIVECHAT_FRAME_SOURCE, LIVECHAT_STATUS_TYPE, livechatFrameEvent, livechatStatusMessage } from "./frame-events.ts";
 import { ARTICLE_SCROLL_SHARE, isTeaserDwellPage, productPageSlug, stickyLivechatMode, TEASER_DWELL_MS } from "./placement.ts";
 
 /** W21.2 — the website side of the Odoo live chat: an iframe panel opened by a click, OFF until config/livechat.ts is on. */
@@ -24,19 +24,19 @@ const button = read("components/livechat/livechat-button.tsx");
 test("config: ships OFF; on only with the flag AND a frame URL matching §6 (https://odoo.ahanassa.com/im_livechat/support/<id>)", () => {
   assert.equal(LIVECHAT_ENABLED, false, "W21.2 ships off until Odoo W21.1 is deployed");
   assert.equal(LIVECHAT_FRAME_URL, null);
-  assert.equal(String(LIVECHAT_FRAME_URL_PATTERN), String(/^https:\/\/odoo\.ahanassa\.com\/im_livechat\/support\/\d+$/), "the §6 pattern, verbatim");
-  assert.equal(LIVECHAT_STATUS_PATH, null, "W21.1 §6 defines no status page: no teaser");
+  assert.equal(String(LIVECHAT_FRAME_URL_PATTERN), String(/^https:\/\/odoo\.ahanassa\.com\/im_livechat\/support\/(\d+)$/), "the §6 pattern (the channel id captured)");
+  assert.equal(LIVECHAT_STATUS_TIMEOUT_MS, 5000, "§6.3: the status frame goes after ~5 s without a message");
   assert.equal(livechatConfig(), null);
   assert.equal(LIVECHAT_ORIGIN, "https://odoo.ahanassa.com");
   assert.equal(LIVECHAT_PAGE_ORIGIN, "https://www.ahanassa.com");
   assert.equal(LIVECHAT_TIMEOUT_MS, 8000);
-  assert.deepEqual(ON, { origin: "https://odoo.ahanassa.com", supportUrl: "https://odoo.ahanassa.com/im_livechat/support/2", statusUrl: null });
+  assert.deepEqual(ON, { origin: "https://odoo.ahanassa.com", supportUrl: "https://odoo.ahanassa.com/im_livechat/support/2", statusUrl: "https://odoo.ahanassa.com/im_livechat/status/2" });
   assert.equal(livechatConfig(true, null), null, "a flag alone");
   assert.equal(livechatConfig(false, FRAME), null, "a URL alone");
   for (const bad of ["http://odoo.ahanassa.com/im_livechat/support/2", "https://odoo.ahanassa.com/im_livechat/support/x", "https://odoo.ahanassa.com/im_livechat/support/2?lang=fa", "https://odoo.ahanassa.com/im_livechat/support/2/", "https://odoo.ahanassa.com.evil.example/im_livechat/support/2", "https://evil.example/im_livechat/support/2", "https://odoo.ahanassa.com/im_livechat/loader/2", "https://u:p@odoo.ahanassa.com/im_livechat/support/2", "/im_livechat/support/2"]) assert.equal(livechatConfig(true, bad), null, bad);
   assert.equal(LIVECHAT_ORIGIN, "https://odoo.ahanassa.com");
-  assert.equal(livechatConfig(true, FRAME, "/ahanassa_livechat/status/2")!.statusUrl, "https://odoo.ahanassa.com/ahanassa_livechat/status/2");
-  for (const bad of ["//evil.example/x/2", "/x/2?y=1", "https://evil.example/x/2", "/x/y", "/x/2#h"]) assert.equal(livechatConfig(true, FRAME, bad)!.statusUrl, null, bad);
+  // §6.3: the status page is the frame URL's channel id on /im_livechat/status/.
+  assert.equal(livechatConfig(true, "https://odoo.ahanassa.com/im_livechat/support/17")!.statusUrl, "https://odoo.ahanassa.com/im_livechat/status/17");
   assert.equal(livechatFrameOrigin(ON), "https://odoo.ahanassa.com");
   assert.equal(livechatFrameOrigin(), null);
 });
@@ -117,13 +117,18 @@ test("teaser rules: 45 s on price/product/chart pages or the 2nd product page; o
   assert.equal(productPageSlug("/products/category"), null);
   assert.equal(productPageSlug("/products/category/rebar"), null);
   assert.equal(productPageSlug("/products"), null);
-  // Never without an availability source, never assumed online, never outside sales hours, once per session.
-  assert.match(button, /if \(!chat\.config\.statusUrl\) return; \/\/ no availability source: the teaser never shows/);
-  assert.match(button, /if \(data\?\.type === STATUS_MESSAGE\) finish\(data\.online === true\);/);
-  assert.match(button, /e\.origin !== chat\.config\.origin \|\| e\.source !== statusFrame\.current\?\.contentWindow/);
-  assert.match(button, /const id = setTimeout\(\(\) => finish\(false\), chat\.timeoutMs\);/);
+  // Only the status frame's own message (§6.3), never assumed online, never outside sales hours, once per session,
+  // at most one probe a minute; the frame exists only while probing (after a trigger) and goes after the message or 5 s.
+  assert.match(button, /if \(e\.source !== statusFrame\.current\?\.contentWindow\) return;\n      const online = livechatStatusMessage\(e\.origin, e\.data, chat\.config\.origin\);\n      if \(online !== null\) finish\(online\);/);
+  assert.match(button, /const finish = \(online: boolean\) => \{\n      setProbing\(false\);\n      setTrigger\(null\);\n      if \(!online \|\| /);
+  assert.match(button, /const id = setTimeout\(\(\) => finish\(false\), chat\.statusTimeoutMs\);/);
+  assert.match(button, /\{probing && <iframe ref=\{statusFrame\} src=\{chat\.config\.statusUrl\} title=\{copy\.online\} aria-hidden="true" tabIndex=\{-1\} hidden \/>\}/);
+  assert.equal((button.match(/setProbing\(true\)/g) ?? []).length, 1, "one place starts a probe: the trigger effect");
+  assert.match(button, /const PROBE_INTERVAL_MS = 60_000;/);
+  assert.match(button, /if \(Date\.now\(\) - Number\(store\?\.getItem\(PROBE_KEY\) \?\? 0\) < PROBE_INTERVAL_MS\) return;/);
+  assert.equal(livechatProps("fa", ON)!.statusTimeoutMs, 5000);
   assert.match(button, /if \(!openState\(new Date\(\), chat\.hours\)\?\.open\) return;/);
-  assert.match(button, /session\(\)\?\.getItem\(TEASER_KEY\)/);
+  assert.match(button, /if \(store\?\.getItem\(TEASER_KEY\)\) return;/);
   assert.match(button, /session\(\)\?\.setItem\(TEASER_KEY, "1"\)/);
   // Desktop bubble with ✕, mobile dot; the teaser never opens the panel (only a click does).
   assert.match(button, /window\.matchMedia\("\(min-width: 768px\)"\)\.matches \? "bubble" : "dot"/);
@@ -222,4 +227,17 @@ test("frame events wiring: ready stops the 8 s timer (chat_open), minimized hide
   assert.doesNotMatch(button, /onLoad=/);
   // The site close control only hides the panel (the chat goes on).
   assert.match(button, /function closePanel\(\) \{\n  const \{ opener \} = panel;\n  setPanel\(\{ \.\.\.panel, open: false \}\);/);
+});
+
+test("status message (§6.3/§6.4): only {type: ahanassa-livechat-status, online: boolean} from https://odoo.ahanassa.com", () => {
+  const O = "https://odoo.ahanassa.com";
+  assert.equal(LIVECHAT_STATUS_TYPE, "ahanassa-livechat-status");
+  assert.equal(livechatStatusMessage(O, { type: "ahanassa-livechat-status", online: true }, O), true);
+  assert.equal(livechatStatusMessage(O, { type: "ahanassa-livechat-status", online: false }, O), false);
+  assert.equal(livechatStatusMessage(O, { type: "ahanassa-livechat-status", online: true, later: 1 }, O), true, "extra keys are ignored (§6.4)");
+  for (const origin of ["http://odoo.ahanassa.com", "https://www.ahanassa.com", "https://odoo.ahanassa.com.evil.example", "null"]) assert.equal(livechatStatusMessage(origin, { type: "ahanassa-livechat-status", online: true }, O), null, origin);
+  for (const data of [null, "online", { online: true }, { type: "ahanassa-livechat-status" }, { type: "ahanassa-livechat-status", online: "true" }, { type: "ahanassa-livechat-status", online: 1 }, { source: "ahanassa-livechat", event: "ready", online: true }, { type: "other", online: true }]) assert.equal(livechatStatusMessage(O, data, O), null, JSON.stringify(data));
+  // The two message kinds never cross: a status message is no frame event, a frame event is no status.
+  assert.equal(livechatFrameEvent(O, { type: "ahanassa-livechat-status", online: true }, O), null);
+  assert.equal(livechatStatusMessage(O, { source: "ahanassa-livechat", event: "closed" }, O), null);
 });

@@ -19,3 +19,17 @@ export function livechatFrameEvent(messageOrigin: string, data: unknown, origin:
   if (source !== LIVECHAT_FRAME_SOURCE || typeof event !== "string") return null;
   return (LIVECHAT_FRAME_EVENTS as readonly string[]).includes(event) ? (event as LivechatFrameEvent) : null;
 }
+
+/**
+ * The status page's one message (§6.3/§6.4, https://odoo.ahanassa.com/im_livechat/status/<channel>):
+ * `{type: "ahanassa-livechat-status", online: boolean}` — online = a chat started now reaches a person (an operator
+ * online, in hours, under the session limit). Returns `online`, or null for anything else (wrong origin, shape or
+ * type; extra keys are ignored, as §6.4 allows them to be added later).
+ */
+export const LIVECHAT_STATUS_TYPE = "ahanassa-livechat-status";
+
+export function livechatStatusMessage(messageOrigin: string, data: unknown, origin: string): boolean | null {
+  if (messageOrigin !== origin || typeof data !== "object" || data === null) return null;
+  const { type, online } = data as { type?: unknown; online?: unknown };
+  return type === LIVECHAT_STATUS_TYPE && typeof online === "boolean" ? online : null;
+}

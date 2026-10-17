@@ -21,40 +21,38 @@ export const LIVECHAT_ENABLED: boolean = false;
 /** e.g. "https://odoo.ahanassa.com/im_livechat/support/2" — validated by LIVECHAT_FRAME_URL_PATTERN (§6). */
 export const LIVECHAT_FRAME_URL: string | null = null;
 
-/**
- * Optional: an Odoo page that reports "an operator is online" to the parent window without loading Odoo JS on
- * the site. W21.1's final contract (PR #29 §6) has none, so this stays null and the teaser never shows: no operator
- * is ever assumed online. Path only, on LIVECHAT_ORIGIN; the expected message is in docs/analytics/GTM_SETUP.md.
- */
-export const LIVECHAT_STATUS_PATH: string | null = null;
-
 /** The only origin the chat may load from; the CSP frame-src allows exactly this origin. */
 export const LIVECHAT_ORIGIN = "https://odoo.ahanassa.com";
 
 /** The `page` sent to Odoo when the site itself is not served over https (local preview): never an http:// URL. */
 export const LIVECHAT_PAGE_ORIGIN = "https://www.ahanassa.com";
 
-/** The click → loaded budget: past it, the visitor gets the WhatsApp / purchase-list links instead. */
+/** The click → ready budget: past it, the visitor gets the WhatsApp / purchase-list links instead. */
 export const LIVECHAT_TIMEOUT_MS = 8_000;
+
+/** The status page's budget (§6.3): no message within it → the hidden frame is removed and no teaser shows. */
+export const LIVECHAT_STATUS_TIMEOUT_MS = 5_000;
 
 export interface LivechatConfig {
   origin: string;
   /** https://odoo.ahanassa.com/im_livechat/support/<channel id> — `?lang=…&page=…` is added at click time. */
   supportUrl: string;
-  /** The availability page (LIVECHAT_STATUS_PATH), or null. */
-  statusUrl: string | null;
+  /**
+   * https://odoo.ahanassa.com/im_livechat/status/<channel id> (§6.3, same channel id): a hidden frame that posts one
+   * {type: "ahanassa-livechat-status", online} message — online = a chat started now reaches a person. The teaser only.
+   */
+  statusUrl: string;
 }
 
-const STATUS_PATH = /^\/[a-z0-9_]+(?:\/[a-z0-9_]+)*\/\d+$/;
-
 /** The frame base URL as §6 validates it: exactly https://odoo.ahanassa.com/im_livechat/support/<digits>. */
-export const LIVECHAT_FRAME_URL_PATTERN = /^https:\/\/odoo\.ahanassa\.com\/im_livechat\/support\/\d+$/;
+export const LIVECHAT_FRAME_URL_PATTERN = /^https:\/\/odoo\.ahanassa\.com\/im_livechat\/support\/(\d+)$/;
 
-/** The effective config, or null (off). Only a frame URL matching §6 and (optional) a plain status path pass. */
-export function livechatConfig(enabled: boolean = LIVECHAT_ENABLED, frameUrl: string | null = LIVECHAT_FRAME_URL, statusPath: string | null = LIVECHAT_STATUS_PATH): LivechatConfig | null {
-  if (!enabled || !frameUrl || !LIVECHAT_FRAME_URL_PATTERN.test(frameUrl)) return null;
+/** The effective config, or null (off). Only a frame URL matching §6 passes; the status page uses its channel id. */
+export function livechatConfig(enabled: boolean = LIVECHAT_ENABLED, frameUrl: string | null = LIVECHAT_FRAME_URL): LivechatConfig | null {
+  const channel = enabled && frameUrl ? LIVECHAT_FRAME_URL_PATTERN.exec(frameUrl)?.[1] : undefined;
+  if (!channel) return null;
   const origin = LIVECHAT_ORIGIN;
-  return { origin, supportUrl: frameUrl, statusUrl: statusPath && STATUS_PATH.test(statusPath) ? `${origin}${statusPath}` : null };
+  return { origin, supportUrl: frameUrl!, statusUrl: `${origin}/im_livechat/status/${channel}` };
 }
 
 /** The chat iframe's URL for a page: `lang` = the page locale, `page` = the page's https URL without query or hash. */

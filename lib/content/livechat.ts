@@ -1,5 +1,5 @@
 import { localizedPath, type Locale } from "../../config/locales.ts";
-import { LIVECHAT_PAGE_ORIGIN, LIVECHAT_TIMEOUT_MS, livechatConfig, type LivechatConfig } from "../../config/livechat.ts";
+import { LIVECHAT_PAGE_ORIGIN, LIVECHAT_STATUS_TIMEOUT_MS, LIVECHAT_TIMEOUT_MS, livechatConfig, type LivechatConfig } from "../../config/livechat.ts";
 import { GROUP_CARD_COPY, WORKING_HOURS } from "./company.ts";
 import type { OpeningSpec } from "./expert-open-state.ts";
 import { homeExpertCopy, homeExpertWhatsAppHref } from "./home-expert.ts";
@@ -81,6 +81,8 @@ export interface LivechatProps {
   locale: Locale;
   config: LivechatConfig;
   timeoutMs: number;
+  /** The status page's budget (5 s): no message → the hidden frame goes and no teaser shows. */
+  statusTimeoutMs: number;
   /** The `page` origin when the site is not served over https (local preview). */
   pageOrigin: string;
   copy: LivechatCopy;
@@ -98,6 +100,7 @@ export function livechatProps(locale: Locale, config: LivechatConfig | null = li
     locale,
     config,
     timeoutMs: LIVECHAT_TIMEOUT_MS,
+    statusTimeoutMs: LIVECHAT_STATUS_TIMEOUT_MS,
     pageOrigin: LIVECHAT_PAGE_ORIGIN,
     copy: livechatCopy(locale),
     whatsappHref: homeExpertWhatsAppHref(locale),

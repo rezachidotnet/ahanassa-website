@@ -11,7 +11,7 @@ import { openState } from "@/lib/content/expert-open-state";
 import type { LivechatLocation, LivechatProps } from "@/lib/content/livechat";
 import { WHATSAPP_REL } from "@/lib/content/whatsapp";
 import { trackLivechatEvent } from "@/lib/livechat/events";
-import { livechatFrameEvent } from "@/lib/livechat/frame-events";
+import { livechatFrameEvent, livechatStatusMessage } from "@/lib/livechat/frame-events";
 import { ARTICLE_SCROLL_SHARE, isTeaserDwellPage, productPageSlug, stickyLivechatMode, TEASER_DWELL_MS } from "@/lib/livechat/placement";
 import { cn } from "@/lib/utils";
 
@@ -32,17 +32,20 @@ import { cn } from "@/lib/utils";
  *   expert_chat_click itself (the delegated listener of analytics-runtime.tsx sees links only).
  * - LivechatButton `floating`: fa only, the en/ar floating-WhatsApp corner, with the placement rules of
  *   lib/livechat/placement.ts (a fade, `invisible` while hidden, no transition under prefers-reduced-motion) and the
- *   teaser: only when Odoo's status page says an operator is online (no Odoo JS here either: a hidden iframe that
- *   posts one message), in sales hours, once per session, after 45 s on a price/product/chart page or on the 2nd
- *   product page. Desktop: a dismissible bubble; mobile: a dot on the button.
+ *   teaser: only when Odoo's status page (§6.3, /im_livechat/status/<channel>: a hidden iframe created only after a
+ *   trigger, removed after its one message or 5 s) says a chat now reaches a person, in sales hours, once per
+ *   session, after 45 s on a price/product/chart page or on the 2nd product page. Desktop: a dismissible bubble;
+ *   mobile: a dot on the button. No Odoo JS here either.
  *
  * Everything is position: fixed or absolute inside a fixed box, so nothing ever moves the page (no CLS).
  */
 
 const PANEL_ID = "aa-livechat-panel";
-const STATUS_MESSAGE = "ahanassa-livechat-status";
 const TEASER_KEY = "aa-livechat-teaser";
 const PRODUCTS_KEY = "aa-livechat-products";
+const PROBE_KEY = "aa-livechat-probe";
+/** §6.3: the status page is asked at most once a minute (each load is a request to Odoo's single HTTP worker). */
+const PROBE_INTERVAL_MS = 60_000;
 
 // --- the one panel's open state, shared by every button on the page --------------------------------------------
 
@@ -328,7 +331,6 @@ function FloatingLivechat({ chat }: { chat: LivechatProps }) {
   // Teaser triggers: 45 s on a price/product/chart page, or the 2nd product page of the session.
   useEffect(() => {
     setTrigger(null);
-    if (!chat.config.statusUrl) return; // no availability source: the teaser never shows
     const slug = productPageSlug(pathname);
     if (slug) {
       const store = session();
@@ -350,16 +352,20 @@ function FloatingLivechat({ chat }: { chat: LivechatProps }) {
   // A trigger fired: once per session, in sales hours, while the button shows and the panel is closed → ask Odoo.
   useEffect(() => {
     if (!trigger || teaser || state.open || !placed) return;
+    if (!openState(new Date(), chat.hours)?.open) return;
     try {
-      if (session()?.getItem(TEASER_KEY)) return;
+      const store = session();
+      if (store?.getItem(TEASER_KEY)) return;
+      if (Date.now() - Number(store?.getItem(PROBE_KEY) ?? 0) < PROBE_INTERVAL_MS) return;
+      store?.setItem(PROBE_KEY, String(Date.now()));
     } catch {
       // Storage blocked: at most once per page view (teaser state).
     }
-    if (!openState(new Date(), chat.hours)?.open) return;
     setProbing(true);
   }, [trigger, placed, state.open, teaser, chat.hours]);
 
-  // The availability answer: one postMessage from Odoo's status page ({type, online: true}); anything else = no teaser.
+  // The availability answer (§6.3): one {type: "ahanassa-livechat-status", online} from the status frame, only from
+  // https://odoo.ahanassa.com and only from that iframe. The frame goes after the message or 5 s (= no teaser).
   useEffect(() => {
     if (!probing) return;
     const finish = (online: boolean) => {
@@ -376,12 +382,12 @@ function FloatingLivechat({ chat }: { chat: LivechatProps }) {
       trackLivechatEvent("chat_teaser_shown", { chat_location: "sticky", chat_teaser: form, chat_trigger: trigger ?? undefined });
     };
     const onMessage = (e: MessageEvent) => {
-      if (e.origin !== chat.config.origin || e.source !== statusFrame.current?.contentWindow) return;
-      const data = e.data as { type?: unknown; online?: unknown } | null;
-      if (data?.type === STATUS_MESSAGE) finish(data.online === true);
+      if (e.source !== statusFrame.current?.contentWindow) return;
+      const online = livechatStatusMessage(e.origin, e.data, chat.config.origin);
+      if (online !== null) finish(online);
     };
     window.addEventListener("message", onMessage);
-    const id = setTimeout(() => finish(false), chat.timeoutMs);
+    const id = setTimeout(() => finish(false), chat.statusTimeoutMs);
     return () => {
       window.removeEventListener("message", onMessage);
       clearTimeout(id);
@@ -432,7 +438,7 @@ function FloatingLivechat({ chat }: { chat: LivechatProps }) {
           </span>
         )}
       </button>
-      {probing && chat.config.statusUrl && <iframe ref={statusFrame} src={chat.config.statusUrl} title={copy.online} aria-hidden="true" tabIndex={-1} hidden sandbox="allow-scripts allow-same-origin" />}
+      {probing && <iframe ref={statusFrame} src={chat.config.statusUrl} title={copy.online} aria-hidden="true" tabIndex={-1} hidden />}
     </div>
   );
 }
