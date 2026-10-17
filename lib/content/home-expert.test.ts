@@ -186,7 +186,7 @@ test("expert photo: a configured photo must be a real file under public/", () =>
 
 test("live chat (W21.2): no button while config/livechat.ts is off; both layouts render the button when on", () => {
   for (const locale of LOCALES) assert.equal(livechatProps(locale), null);
-  const on = livechatConfig(true, 2);
+  const on = livechatConfig(true, "https://odoo.ahanassa.com/im_livechat/support/2");
   assert.equal(livechatProps("fa", on)?.copy.label, "چت با کارشناس");
   assert.equal(livechatProps("en", on)?.copy.label, "Chat with an expert");
   for (const name of ["ConciergeCard", "SplitBand"]) assert.match(fn(name), /\{actions\.chat && <LivechatButton chat=\{actions\.chat\} variant="inline"/, name);

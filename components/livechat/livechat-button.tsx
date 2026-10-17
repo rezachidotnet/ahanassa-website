@@ -11,6 +11,7 @@ import { openState } from "@/lib/content/expert-open-state";
 import type { LivechatLocation, LivechatProps } from "@/lib/content/livechat";
 import { WHATSAPP_REL } from "@/lib/content/whatsapp";
 import { trackLivechatEvent } from "@/lib/livechat/events";
+import { livechatFrameEvent } from "@/lib/livechat/frame-events";
 import { ARTICLE_SCROLL_SHARE, isTeaserDwellPage, productPageSlug, stickyLivechatMode, TEASER_DWELL_MS } from "@/lib/livechat/placement";
 import { cn } from "@/lib/utils";
 
@@ -18,12 +19,15 @@ import { cn } from "@/lib/utils";
  * W21.2 — «چت با کارشناس». Owner decision 2026-10-17: no Odoo JS on the site; a click opens ONE panel per page
  * (LivechatHost, rendered once by the layout) holding Odoo's support page in an iframe
  * (`/im_livechat/support/<channel>?lang=<locale>&page=<this page's https URL>`). The panel never opens on its own.
+ * Contract: ahanassa-odoo PR #29, docs/runbooks/W21_1_LIVECHAT.md §6 (frame URL, panel, postMessage events).
  *
  * - LivechatHost: a dialog, ~380×600 bottom inline-end, full screen at ≤ 480 px. It takes focus when it opens, keeps
  *   Tab inside (sentinels around it: Tab cannot be caught inside a cross-origin iframe), and Esc (outside the
- *   iframe) or its close button closes it and returns focus to the button that opened it. Closed, it stays mounted,
- *   so the conversation survives close/reopen. chat_open when the iframe loads; if it has not loaded within 8 s,
- *   chat_load_error (`timeout`) and WhatsApp + «ارسال لیست خرید» instead — the next open tries again.
+ *   iframe) or its close button hides it and returns focus to the button that opened it; the iframe stays, so the
+ *   chat goes on. The frame's messages (lib/livechat/frame-events.ts — only from https://odoo.ahanassa.com, only
+ *   from this iframe, only ready/opened/minimized/closed): `ready` stops the spinner and the 8 s timer (chat_open);
+ *   `minimized` hides the panel and keeps the iframe; `closed` hides it and removes the iframe (next click = new
+ *   chat). No `ready` within 8 s: chat_load_error (`timeout`) and WhatsApp + «ارسال لیست خرید»; the next open retries.
  * - LivechatButton `inline`: the expert section's live-chat slot (components/home/expert-contact.tsx). It reports
  *   expert_chat_click itself (the delegated listener of analytics-runtime.tsx sees links only).
  * - LivechatButton `floating`: fa only, the en/ar floating-WhatsApp corner, with the placement rules of
@@ -87,7 +91,7 @@ function pageUrl(pageOrigin: string): string {
 
 // --- the panel -----------------------------------------------------------------------------------------------------
 
-type FrameStatus = "loading" | "loaded" | "error";
+type FrameStatus = "loading" | "ready" | "error";
 
 export function LivechatHost({ chat }: { chat: LivechatProps }) {
   const { copy } = chat;
@@ -96,13 +100,14 @@ export function LivechatHost({ chat }: { chat: LivechatProps }) {
   const statusRef = useRef<FrameStatus | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const frameRef = useRef<HTMLIFrameElement>(null);
   statusRef.current = frame?.status ?? null;
 
-  // Open: the iframe is created on the first open (and again after a failed one); a loaded one is reused.
+  // Open: the iframe is created on the first open (and again after a failed or closed chat); a ready one is reused.
   useEffect(() => {
     if (!state.open) return;
     closeRef.current?.focus();
-    if (statusRef.current === "loaded") trackLivechatEvent("chat_open", { chat_location: panel.location });
+    if (statusRef.current === "ready") trackLivechatEvent("chat_open", { chat_location: panel.location });
     else if (statusRef.current !== "loading") setFrame((f) => ({ key: (f?.key ?? 0) + 1, src: livechatFrameUrl(chat.config, chat.locale, pageUrl(chat.pageOrigin)), status: "loading" }));
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") closePanel();
@@ -118,7 +123,7 @@ export function LivechatHost({ chat }: { chat: LivechatProps }) {
     };
   }, [state.open, chat]);
 
-  // The 8 s budget: an iframe gives no error event, so "not loaded in time" is the failure.
+  // The 8 s budget: no `ready` from the frame in time is the failure (an iframe has no error event).
   useEffect(() => {
     if (frame?.status !== "loading") return;
     const id = setTimeout(() => {
@@ -129,11 +134,24 @@ export function LivechatHost({ chat }: { chat: LivechatProps }) {
     return () => clearTimeout(id);
   }, [frame?.key, frame?.status, chat.timeoutMs]);
 
-  const onLoad = () => {
-    if (statusRef.current !== "loading") return;
-    setFrame((f) => (f ? { ...f, status: "loaded" } : f));
-    trackLivechatEvent("chat_open", { chat_location: panel.location });
-  };
+  // The frame's events (§6).
+  useEffect(() => {
+    if (!frame || frame.status === "error") return;
+    const onMessage = (e: MessageEvent) => {
+      if (e.source !== frameRef.current?.contentWindow) return;
+      const event = livechatFrameEvent(e.origin, e.data, chat.config.origin);
+      if (event === "ready") {
+        if (statusRef.current !== "loading") return;
+        setFrame((f) => (f && f.status === "loading" ? { ...f, status: "ready" } : f));
+        if (panel.open) trackLivechatEvent("chat_open", { chat_location: panel.location });
+      } else if (event === "minimized" || event === "closed") {
+        if (panel.open) closePanel();
+        if (event === "closed") setFrame(null);
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [frame?.key, frame?.status, chat.config.origin]);
 
   // Focus trap: the sentinels send Tab back to the other end of the dialog.
   const focusEdge = (edge: "first" | "last") => {
@@ -175,9 +193,8 @@ export function LivechatHost({ chat }: { chat: LivechatProps }) {
             key={frame.key}
             src={frame.src}
             title={copy.frameTitle}
-            onLoad={onLoad}
+            ref={frameRef}
             data-livechat-focus=""
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
             className="absolute inset-0 size-full border-0"
           />
         )}

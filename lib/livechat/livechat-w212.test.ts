@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { locales } from "../../config/locales.ts";
-import { LIVECHAT_CHANNEL_ID, LIVECHAT_ENABLED, LIVECHAT_ORIGIN, LIVECHAT_PAGE_ORIGIN, LIVECHAT_STATUS_PATH, LIVECHAT_TIMEOUT_MS, livechatConfig, livechatFrameOrigin, livechatFrameUrl } from "../../config/livechat.ts";
+import { LIVECHAT_ENABLED, LIVECHAT_FRAME_URL, LIVECHAT_FRAME_URL_PATTERN, LIVECHAT_ORIGIN, LIVECHAT_PAGE_ORIGIN, LIVECHAT_STATUS_PATH, LIVECHAT_TIMEOUT_MS, livechatConfig, livechatFrameOrigin, livechatFrameUrl } from "../../config/livechat.ts";
 import { buildCspReportOnly, buildSecurityHeaders } from "../security/headers.ts";
 import { buildHeadersFile } from "../static/static-rules.ts";
 import { STATIC_TARGETS } from "../static/targets.ts";
@@ -10,30 +10,33 @@ import { hasStickyLivechat, livechatCopy, livechatProps } from "../content/livec
 import { WORKING_HOURS } from "../content/company.ts";
 import { ANALYTICS_EVENTS } from "../analytics/events.ts";
 import { buildLivechatEvent, LIVECHAT_EVENTS } from "./events.ts";
+import { LIVECHAT_FRAME_EVENTS, LIVECHAT_FRAME_SOURCE, livechatFrameEvent } from "./frame-events.ts";
 import { ARTICLE_SCROLL_SHARE, isTeaserDwellPage, productPageSlug, stickyLivechatMode, TEASER_DWELL_MS } from "./placement.ts";
 
 /** W21.2 — the website side of the Odoo live chat: an iframe panel opened by a click, OFF until config/livechat.ts is on. */
 
 const read = (p: string) => readFileSync(new URL(`../../${p}`, import.meta.url), "utf8");
-const ON = livechatConfig(true, 2)!;
+const FRAME = "https://odoo.ahanassa.com/im_livechat/support/2";
+const ON = livechatConfig(true, FRAME)!;
 const directives = (csp: string) => Object.fromEntries(csp.split("; ").map((d) => [d.split(" ")[0], d.split(" ").slice(1)]));
 const button = read("components/livechat/livechat-button.tsx");
 
-test("config: ships OFF; on only with the flag AND a channel id; https only", () => {
+test("config: ships OFF; on only with the flag AND a frame URL matching §6 (https://odoo.ahanassa.com/im_livechat/support/<id>)", () => {
   assert.equal(LIVECHAT_ENABLED, false, "W21.2 ships off until Odoo W21.1 is deployed");
-  assert.equal(LIVECHAT_CHANNEL_ID, null);
-  assert.equal(LIVECHAT_STATUS_PATH, null, "no availability source yet: no teaser");
+  assert.equal(LIVECHAT_FRAME_URL, null);
+  assert.equal(String(LIVECHAT_FRAME_URL_PATTERN), String(/^https:\/\/odoo\.ahanassa\.com\/im_livechat\/support\/\d+$/), "the §6 pattern, verbatim");
+  assert.equal(LIVECHAT_STATUS_PATH, null, "W21.1 §6 defines no status page: no teaser");
   assert.equal(livechatConfig(), null);
   assert.equal(LIVECHAT_ORIGIN, "https://odoo.ahanassa.com");
   assert.equal(LIVECHAT_PAGE_ORIGIN, "https://www.ahanassa.com");
   assert.equal(LIVECHAT_TIMEOUT_MS, 8000);
   assert.deepEqual(ON, { origin: "https://odoo.ahanassa.com", supportUrl: "https://odoo.ahanassa.com/im_livechat/support/2", statusUrl: null });
   assert.equal(livechatConfig(true, null), null, "a flag alone");
-  assert.equal(livechatConfig(false, 2), null, "an id alone");
-  for (const id of [0, -1, 1.5, Number.NaN]) assert.equal(livechatConfig(true, id), null, String(id));
-  for (const origin of ["http://odoo.ahanassa.com", "https://odoo.ahanassa.com/", "https://u:p@odoo.ahanassa.com", "javascript:alert(1)", "odoo.ahanassa.com"]) assert.equal(livechatConfig(true, 2, origin), null, origin);
-  assert.equal(livechatConfig(true, 2, LIVECHAT_ORIGIN, "/ahanassa_livechat/status/2")!.statusUrl, "https://odoo.ahanassa.com/ahanassa_livechat/status/2");
-  for (const bad of ["//evil.example/x/2", "/x/2?y=1", "https://evil.example/x/2", "/x/y", "/x/2#h"]) assert.equal(livechatConfig(true, 2, LIVECHAT_ORIGIN, bad)!.statusUrl, null, bad);
+  assert.equal(livechatConfig(false, FRAME), null, "a URL alone");
+  for (const bad of ["http://odoo.ahanassa.com/im_livechat/support/2", "https://odoo.ahanassa.com/im_livechat/support/x", "https://odoo.ahanassa.com/im_livechat/support/2?lang=fa", "https://odoo.ahanassa.com/im_livechat/support/2/", "https://odoo.ahanassa.com.evil.example/im_livechat/support/2", "https://evil.example/im_livechat/support/2", "https://odoo.ahanassa.com/im_livechat/loader/2", "https://u:p@odoo.ahanassa.com/im_livechat/support/2", "/im_livechat/support/2"]) assert.equal(livechatConfig(true, bad), null, bad);
+  assert.equal(LIVECHAT_ORIGIN, "https://odoo.ahanassa.com");
+  assert.equal(livechatConfig(true, FRAME, "/ahanassa_livechat/status/2")!.statusUrl, "https://odoo.ahanassa.com/ahanassa_livechat/status/2");
+  for (const bad of ["//evil.example/x/2", "/x/2?y=1", "https://evil.example/x/2", "/x/y", "/x/2#h"]) assert.equal(livechatConfig(true, FRAME, bad)!.statusUrl, null, bad);
   assert.equal(livechatFrameOrigin(ON), "https://odoo.ahanassa.com");
   assert.equal(livechatFrameOrigin(), null);
 });
@@ -192,7 +195,31 @@ test("a11y + no CLS (source): dialog, focus in/trap/return, Esc, 380×600 / full
   // The 8 s fallback: an iframe has no error event, so "not loaded in time" is the failure; the next open retries.
   assert.match(button, /\}, chat\.timeoutMs\);\n    return \(\) => clearTimeout\(id\);\n  \}, \[frame\?\.key, frame\?\.status, chat\.timeoutMs\]\);/);
   assert.match(button, /else if \(statusRef\.current !== "loading"\) setFrame/);
+  // §6: no sandbox and no allow attribute on the chat iframe.
+  assert.doesNotMatch(button.slice(button.indexOf("<iframe"), button.indexOf("/>", button.indexOf("<iframe"))), /sandbox|allow=/);
   const css = read("styles/theme-extensions.css");
   assert.match(css, /body:has\(form button\[type="submit"\]\) \[data-sticky-livechat\]/, "never over a form's submit (RFQ)");
   assert.match(css, /body:has\(\[data-sticky-whatsapp\], \[data-sticky-livechat\]\) \[data-site-footer-bottom\]/);
+});
+
+test("frame events (§6): only https://odoo.ahanassa.com, only source ahanassa-livechat, only ready/opened/minimized/closed", () => {
+  const O = "https://odoo.ahanassa.com";
+  assert.equal(LIVECHAT_FRAME_SOURCE, "ahanassa-livechat");
+  assert.deepEqual([...LIVECHAT_FRAME_EVENTS], ["ready", "opened", "minimized", "closed"]);
+  for (const event of LIVECHAT_FRAME_EVENTS) assert.equal(livechatFrameEvent(O, { source: "ahanassa-livechat", event }, O), event);
+  // wrong origin (incl. http, a look-alike, the site itself, a sandboxed "null")
+  for (const origin of ["http://odoo.ahanassa.com", "https://odoo.ahanassa.com.evil.example", "https://www.ahanassa.com", "null", ""]) assert.equal(livechatFrameEvent(origin, { source: "ahanassa-livechat", event: "closed" }, O), null, origin);
+  // wrong shape / source / type
+  for (const data of [null, undefined, "closed", 1, [], {}, { event: "closed" }, { source: "odoo", event: "closed" }, { source: "ahanassa-livechat" }, { source: "ahanassa-livechat", event: "open" }, { source: "ahanassa-livechat", event: "status" }, { source: "ahanassa-livechat", event: "__proto__" }, { source: "ahanassa-livechat", event: ["ready"] }]) assert.equal(livechatFrameEvent(O, data, O), null, JSON.stringify(data));
+});
+
+test("frame events wiring: ready stops the 8 s timer (chat_open), minimized hides and keeps, closed hides and removes", () => {
+  assert.match(button, /if \(e\.source !== frameRef\.current\?\.contentWindow\) return;\n      const event = livechatFrameEvent\(e\.origin, e\.data, chat\.config\.origin\);/);
+  assert.match(button, /if \(event === "ready"\) \{\n        if \(statusRef\.current !== "loading"\) return;\n        setFrame\(\(f\) => \(f && f\.status === "loading" \? \{ \.\.\.f, status: "ready" \} : f\)\);\n        if \(panel\.open\) trackLivechatEvent\("chat_open"/);
+  assert.match(button, /\} else if \(event === "minimized" \|\| event === "closed"\) \{\n        if \(panel\.open\) closePanel\(\);\n        if \(event === "closed"\) setFrame\(null\);\n      \}/);
+  // The 8 s timer runs only while loading, so ready cancels it; no onLoad shortcut.
+  assert.match(button, /if \(frame\?\.status !== "loading"\) return;\n    const id = setTimeout/);
+  assert.doesNotMatch(button, /onLoad=/);
+  // The site close control only hides the panel (the chat goes on).
+  assert.match(button, /function closePanel\(\) \{\n  const \{ opener \} = panel;\n  setPanel\(\{ \.\.\.panel, open: false \}\);/);
 });
