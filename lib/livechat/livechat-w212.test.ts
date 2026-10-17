@@ -2,36 +2,49 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { locales } from "../../config/locales.ts";
-import { LIVECHAT_ENABLED, LIVECHAT_LOADER_URL, LIVECHAT_ORIGIN, LIVECHAT_TIMEOUT_MS, livechatConfig, livechatCspOrigins } from "../../config/livechat.ts";
+import { LIVECHAT_CHANNEL_ID, LIVECHAT_ENABLED, LIVECHAT_ORIGIN, LIVECHAT_PAGE_ORIGIN, LIVECHAT_STATUS_PATH, LIVECHAT_TIMEOUT_MS, livechatConfig, livechatFrameOrigin, livechatFrameUrl } from "../../config/livechat.ts";
 import { buildCspReportOnly, buildSecurityHeaders } from "../security/headers.ts";
 import { buildHeadersFile } from "../static/static-rules.ts";
 import { STATIC_TARGETS } from "../static/targets.ts";
-import { hasStickyLivechat, livechatButton, livechatCopy } from "../content/livechat.ts";
+import { hasStickyLivechat, livechatCopy, livechatProps } from "../content/livechat.ts";
+import { WORKING_HOURS } from "../content/company.ts";
 import { ANALYTICS_EVENTS } from "../analytics/events.ts";
 import { buildLivechatEvent, LIVECHAT_EVENTS } from "./events.ts";
-import { findOdooWidget, isLivechatOnline, openOdooLivechat, readLivechatAvailability, resetOdooLivechatForTests, subscribeLivechatOnline } from "./odoo-widget.ts";
+import { ARTICLE_SCROLL_SHARE, isTeaserDwellPage, productPageSlug, stickyLivechatMode, TEASER_DWELL_MS } from "./placement.ts";
 
-/** W21.2 — the website side of the Odoo live chat: a click-to-load facade, OFF until config/livechat.ts is on. */
+/** W21.2 — the website side of the Odoo live chat: an iframe panel opened by a click, OFF until config/livechat.ts is on. */
 
 const read = (p: string) => readFileSync(new URL(`../../${p}`, import.meta.url), "utf8");
-const LOADER = "https://odoo.ahanassa.com/im_livechat/loader/1";
-const ON = livechatConfig(true, LOADER)!;
+const ON = livechatConfig(true, 2)!;
 const directives = (csp: string) => Object.fromEntries(csp.split("; ").map((d) => [d.split(" ")[0], d.split(" ").slice(1)]));
+const button = read("components/livechat/livechat-button.tsx");
 
-test("config: ships OFF; on only with the flag AND a loader URL on odoo.ahanassa.com", () => {
+test("config: ships OFF; on only with the flag AND a channel id; https only", () => {
   assert.equal(LIVECHAT_ENABLED, false, "W21.2 ships off until Odoo W21.1 is deployed");
-  assert.equal(LIVECHAT_LOADER_URL, null);
+  assert.equal(LIVECHAT_CHANNEL_ID, null);
+  assert.equal(LIVECHAT_STATUS_PATH, null, "no availability source yet: no teaser");
   assert.equal(livechatConfig(), null);
   assert.equal(LIVECHAT_ORIGIN, "https://odoo.ahanassa.com");
+  assert.equal(LIVECHAT_PAGE_ORIGIN, "https://www.ahanassa.com");
   assert.equal(LIVECHAT_TIMEOUT_MS, 8000);
-  assert.deepEqual(ON, { loaderUrl: LOADER, assetsUrl: "https://odoo.ahanassa.com/im_livechat/assets_embed.js", origin: "https://odoo.ahanassa.com" });
+  assert.deepEqual(ON, { origin: "https://odoo.ahanassa.com", supportUrl: "https://odoo.ahanassa.com/im_livechat/support/2", statusUrl: null });
   assert.equal(livechatConfig(true, null), null, "a flag alone");
-  assert.equal(livechatConfig(false, LOADER), null, "a URL alone");
-  for (const bad of ["http://odoo.ahanassa.com/im_livechat/loader/1", "https://evil.example/im_livechat/loader/1", "https://odoo.ahanassa.com.evil.example/im_livechat/loader/1", "https://odoo.ahanassa.com/im_livechat/loader/x", "https://odoo.ahanassa.com/web", "https://odoo.ahanassa.com/im_livechat/loader/1?x=1", "https://u:p@odoo.ahanassa.com/im_livechat/loader/1", "javascript:alert(1)", "/im_livechat/loader/1"]) {
-    assert.equal(livechatConfig(true, bad), null, bad);
-  }
-  assert.deepEqual(livechatCspOrigins(ON), { https: "https://odoo.ahanassa.com", wss: "wss://odoo.ahanassa.com" });
-  assert.equal(livechatCspOrigins(), null);
+  assert.equal(livechatConfig(false, 2), null, "an id alone");
+  for (const id of [0, -1, 1.5, Number.NaN]) assert.equal(livechatConfig(true, id), null, String(id));
+  for (const origin of ["http://odoo.ahanassa.com", "https://odoo.ahanassa.com/", "https://u:p@odoo.ahanassa.com", "javascript:alert(1)", "odoo.ahanassa.com"]) assert.equal(livechatConfig(true, 2, origin), null, origin);
+  assert.equal(livechatConfig(true, 2, LIVECHAT_ORIGIN, "/ahanassa_livechat/status/2")!.statusUrl, "https://odoo.ahanassa.com/ahanassa_livechat/status/2");
+  for (const bad of ["//evil.example/x/2", "/x/2?y=1", "https://evil.example/x/2", "/x/y", "/x/2#h"]) assert.equal(livechatConfig(true, 2, LIVECHAT_ORIGIN, bad)!.statusUrl, null, bad);
+  assert.equal(livechatFrameOrigin(ON), "https://odoo.ahanassa.com");
+  assert.equal(livechatFrameOrigin(), null);
+});
+
+test("iframe URL: /im_livechat/support/<id>?lang=<locale>&page=<encoded https page URL>", () => {
+  assert.equal(livechatFrameUrl(ON, "fa", "https://www.ahanassa.com/prices/rebar"), "https://odoo.ahanassa.com/im_livechat/support/2?lang=fa&page=https%3A%2F%2Fwww.ahanassa.com%2Fprices%2Frebar");
+  assert.equal(livechatFrameUrl(ON, "ar", "https://www.ahanassa.com/ar"), "https://odoo.ahanassa.com/im_livechat/support/2?lang=ar&page=https%3A%2F%2Fwww.ahanassa.com%2Far");
+  // The page URL: the site's own https origin, else the canonical https origin; never a query string or hash.
+  assert.match(button, /function pageUrl\(pageOrigin: string\): string \{\n  return `\$\{location\.protocol === "https:" \? location\.origin : pageOrigin\}\$\{location\.pathname\}`;/);
+  assert.equal(livechatProps("fa", ON)!.pageOrigin, "https://www.ahanassa.com");
+  assert.doesNotMatch(button, /http:\/\//);
 });
 
 test("CSP OFF: no Odoo origin anywhere in the policy or the static _headers", () => {
@@ -40,50 +53,80 @@ test("CSP OFF: no Odoo origin anywhere in the policy or the static _headers", ()
   for (const env of ["staging", "production"] as const) assert.doesNotMatch(buildHeadersFile(env, STATIC_TARGETS[env].rfqApiOrigin), /odoo/i);
 });
 
-test("CSP ON: odoo.ahanassa.com in script-src, connect-src (https + wss) and frame-src — and nowhere broader", () => {
-  const csp = directives(buildCspReportOnly(["https://api.ahanassa.com"], livechatCspOrigins(ON)));
-  assert.ok(csp["script-src"].includes("https://odoo.ahanassa.com"));
-  assert.ok(csp["connect-src"].includes("https://odoo.ahanassa.com"));
-  assert.ok(csp["connect-src"].includes("wss://odoo.ahanassa.com"));
-  assert.ok(csp["frame-src"].includes("https://odoo.ahanassa.com"));
-  // The widget's own stylesheet, fonts and avatars.
-  for (const d of ["style-src", "font-src", "img-src"]) assert.ok(csp[d].includes("https://odoo.ahanassa.com"), d);
-  // Everything else as before: no wildcard, no 'unsafe-eval', no inline script, the existing origins kept.
-  assert.ok(!csp["script-src"].includes("'unsafe-inline'") && !csp["script-src"].includes("'unsafe-eval'"));
-  assert.ok(!Object.values(csp).flat().some((v) => /^(?:wss?:|https:)$|odoo\.ahanassa\.com\/|\*\.ahanassa/.test(v)));
-  assert.deepEqual(csp["connect-src"].slice(0, 3), ["'self'", "https://challenges.cloudflare.com", "https://api.ahanassa.com"]);
-  assert.deepEqual(csp["default-src"], ["'self'"]);
+test("CSP ON: frame-src https://odoo.ahanassa.com — and nothing else changes (no script/style/img/font/connect, no 'unsafe-eval')", () => {
+  const on = directives(buildCspReportOnly(["https://api.ahanassa.com"], livechatFrameOrigin(ON)));
   const off = directives(buildCspReportOnly(["https://api.ahanassa.com"], null));
-  for (const d of Object.keys(off)) assert.deepEqual(csp[d].filter((v) => !/odoo\.ahanassa\.com$/.test(v)), off[d], d);
+  assert.deepEqual(on["frame-src"], [...off["frame-src"], "https://odoo.ahanassa.com"]);
+  for (const d of Object.keys(off)) if (d !== "frame-src") assert.deepEqual(on[d], off[d], d);
+  assert.deepEqual(Object.keys(on), Object.keys(off));
+  assert.ok(!Object.values(on).flat().includes("'unsafe-eval'"));
+  assert.ok(!Object.values(on).flat().some((v) => /^(?:wss?|http):|wss:\/\/odoo/.test(v)));
+  // The artifact gate's exact connect-src check is unchanged: live chat adds no connection.
+  assert.doesNotMatch(read("lib/static/artifact-gate.ts"), /livechat/i);
 });
 
-test("artifact gate expects the Odoo connect-src origins exactly when live chat is on", () => {
-  const gate = read("lib/static/artifact-gate.ts");
-  assert.match(gate, /const livechat = livechatCspOrigins\(\);/);
-  assert.match(gate, /\.\.\.GA4_CONNECT_ORIGINS, \.\.\.\(livechat \? \[livechat\.https, livechat\.wss\] : \[\]\)\]/);
-});
-
-test("placement: expert-section slot in every locale; floating button on fa only; nothing while off", () => {
+test("placement: expert-section button in every locale; floating button on fa only; nothing while off", () => {
   for (const locale of locales) {
-    assert.equal(livechatButton(locale, "home_expert"), null, locale);
-    assert.equal(livechatButton(locale, "sticky"), null, locale);
-    assert.ok(livechatButton(locale, "home_expert", ON), locale);
+    assert.equal(livechatProps(locale), null, locale);
+    assert.ok(livechatProps(locale, ON), locale);
   }
   assert.equal(hasStickyLivechat("fa"), true);
   assert.equal(hasStickyLivechat("en"), false);
   assert.equal(hasStickyLivechat("ar"), false);
-  assert.ok(livechatButton("fa", "sticky", ON));
-  assert.equal(livechatButton("en", "sticky", ON), null, "en keeps the floating WhatsApp button");
-  assert.equal(livechatButton("ar", "sticky", ON), null, "ar keeps the floating WhatsApp button");
-  const fa = livechatButton("fa", "sticky", ON)!;
+  const fa = livechatProps("fa", ON)!;
   assert.equal(fa.timeoutMs, 8000);
   assert.equal(fa.rfqHref, "/contact");
-  assert.equal(livechatButton("ar", "home_expert", ON)!.rfqHref, "/ar/contact");
+  assert.equal(livechatProps("ar", ON)!.rfqHref, "/ar/contact");
   assert.match(fa.whatsappHref ?? "", /^https:\/\/wa\.me\/\d+\?text=/);
-  // The sticky WhatsApp is untouched; the layout renders the fa button next to it.
+  assert.equal(fa.hours, WORKING_HOURS, "the same Tehran sales hours as W21.1's channel calendar");
+  // One panel per page (the layout), for every locale; the floating button on fa; the WhatsApp button untouched.
   const layout = read("app/[locale]/layout.tsx");
-  assert.match(layout, /<StickyWhatsApp locale=\{locale\} \/>[\s\S]*<StickyLivechat locale=\{locale\} \/>/);
-  assert.match(read("components/livechat/sticky-livechat.tsx"), /if \(!chat\) return null;/);
+  assert.match(layout, /<StickyWhatsApp locale=\{locale\} \/>[\s\S]*<SiteLivechat locale=\{locale\} \/>/);
+  const site = read("components/livechat/site-livechat.tsx");
+  assert.match(site, /if \(!chat\) return null;/);
+  assert.match(site, /\{hasStickyLivechat\(locale\) && <LivechatButton chat=\{chat\} variant="floating" \/>\}\n      <LivechatHost chat=\{chat\} \/>/);
+});
+
+test("floating button rules: home after the hero / not beside the expert section, /contact never, articles at 30 %, else from load", () => {
+  assert.equal(stickyLivechatMode("/"), "home");
+  for (const p of ["/contact", "/contact/", "/contact/thanks"]) assert.equal(stickyLivechatMode(p), "never", p);
+  for (const p of ["/articles/rebar-weight", "/articles/category/guides"]) assert.equal(stickyLivechatMode(p), "article", p);
+  for (const p of ["/prices", "/prices/rebar", "/prices/chart/rebar-a3", "/products", "/products/rebar-12", "/products/category/rebar", "/about", "/articles", "/market-indicators"]) assert.equal(stickyLivechatMode(p), "always", p);
+  assert.equal(ARTICLE_SCROLL_SHARE, 0.3);
+  // The markers the home rule observes.
+  assert.match(read("components/home/hero.tsx"), /<section data-home-hero="" /);
+  assert.match(read("components/home/expert-contact.tsx"), /data-expert-variant=\{variant\}/);
+  assert.match(button, /document\.querySelector\("\[data-home-hero\]"\)/);
+  assert.match(button, /const update = \(\) => setPlaced\(scrolled && !heroIn && !expertIn\);/);
+  // The server render already matches the rule (no flash, no hydration mismatch); /contact renders nothing.
+  assert.match(button, /useState\(mode === "always"\)/);
+  assert.match(button, /if \(mode === "never"\) return null;/);
+  // Hidden = faded and out of the tab order; no motion under prefers-reduced-motion; fixed, so no CLS.
+  assert.match(button, /visible \? "visible opacity-100" : "invisible opacity-0"/);
+  assert.match(button, /transition-\[opacity,visibility\] duration-300 motion-reduce:transition-none/);
+});
+
+test("teaser rules: 45 s on price/product/chart pages or the 2nd product page; online + sales hours + once per session", () => {
+  assert.equal(TEASER_DWELL_MS, 45_000);
+  for (const p of ["/prices", "/prices/rebar", "/prices/chart/rebar-a3", "/products", "/products/rebar-12", "/products/category/rebar"]) assert.equal(isTeaserDwellPage(p), true, p);
+  for (const p of ["/", "/about", "/articles/x", "/contact", "/pricesx"]) assert.equal(isTeaserDwellPage(p), false, p);
+  assert.equal(productPageSlug("/products/rebar-12"), "rebar-12");
+  assert.equal(productPageSlug("/products/category"), null);
+  assert.equal(productPageSlug("/products/category/rebar"), null);
+  assert.equal(productPageSlug("/products"), null);
+  // Never without an availability source, never assumed online, never outside sales hours, once per session.
+  assert.match(button, /if \(!chat\.config\.statusUrl\) return; \/\/ no availability source: the teaser never shows/);
+  assert.match(button, /if \(data\?\.type === STATUS_MESSAGE\) finish\(data\.online === true\);/);
+  assert.match(button, /e\.origin !== chat\.config\.origin \|\| e\.source !== statusFrame\.current\?\.contentWindow/);
+  assert.match(button, /const id = setTimeout\(\(\) => finish\(false\), chat\.timeoutMs\);/);
+  assert.match(button, /if \(!openState\(new Date\(\), chat\.hours\)\?\.open\) return;/);
+  assert.match(button, /session\(\)\?\.getItem\(TEASER_KEY\)/);
+  assert.match(button, /session\(\)\?\.setItem\(TEASER_KEY, "1"\)/);
+  // Desktop bubble with ✕, mobile dot; the teaser never opens the panel (only a click does).
+  assert.match(button, /window\.matchMedia\("\(min-width: 768px\)"\)\.matches \? "bubble" : "dot"/);
+  assert.match(button, /onClick=\{\(\) => setTeaser\(null\)\} aria-label=\{copy\.dismiss\}/);
+  assert.equal((button.match(/openPanel\(/g) ?? []).length, 3, "openPanel: defined once, called only from the two click handlers");
+  assert.equal(livechatCopy("fa").teaser, "سؤالی درباره قیمت یا موجودی دارید؟ کارشناس آنلاین است");
 });
 
 test("copy: fa/en/ar complete; the fa labels are the brief's", () => {
@@ -93,24 +136,26 @@ test("copy: fa/en/ar complete; the fa labels are the brief's", () => {
   assert.doesNotMatch(Object.values(livechatCopy("fa")).join(" "), /دقیقه|ثانیه|فوری|۲۴/, "no response-time promise");
 });
 
-test("events: chat_open and chat_load_error, allowlisted and PII-free, outside the shared ANALYTICS_EVENTS, documented in GTM_SETUP", () => {
+test("events: chat_open, chat_load_error, chat_teaser_shown — allowlisted, PII-free, outside ANALYTICS_EVENTS, documented", () => {
   assert.deepEqual(LIVECHAT_EVENTS.chat_open, ["chat_location"]);
   assert.deepEqual(LIVECHAT_EVENTS.chat_load_error, ["chat_location", "chat_error"]);
+  assert.deepEqual(LIVECHAT_EVENTS.chat_teaser_shown, ["chat_location", "chat_teaser", "chat_trigger"]);
   for (const name of Object.keys(LIVECHAT_EVENTS)) assert.ok(!Object.hasOwn(ANALYTICS_EVENTS, name), `${name}: one definition only`);
   assert.deepEqual(buildLivechatEvent("chat_open", { chat_location: "sticky" }), { event: "chat_open", chat_location: "sticky" });
   assert.deepEqual(buildLivechatEvent("chat_load_error", { chat_location: "home_expert", chat_error: "timeout", email: "a@b.c" } as never), { event: "chat_load_error", chat_location: "home_expert", chat_error: "timeout" });
+  assert.deepEqual(buildLivechatEvent("chat_teaser_shown", { chat_location: "sticky", chat_teaser: "dot", chat_trigger: "second_product" }), { event: "chat_teaser_shown", chat_location: "sticky", chat_teaser: "dot", chat_trigger: "second_product" });
   assert.deepEqual(buildLivechatEvent("chat_open", { chat_location: "a b@c" }), { event: "chat_open" }, "a non-token value is dropped");
-  const button = read("components/livechat/livechat-button.tsx");
-  assert.match(button, /trackLivechatEvent\("chat_open", \{ chat_location: chat\.location \}\)/);
-  assert.match(button, /trackLivechatEvent\("chat_load_error", \{ chat_location: chat\.location, chat_error: result\.reason/);
+  assert.match(button, /trackLivechatEvent\("chat_open", \{ chat_location: panel\.location \}\)/);
+  assert.match(button, /trackLivechatEvent\("chat_load_error", \{ chat_location: panel\.location, chat_error: "timeout" \}\)/);
+  assert.match(button, /trackLivechatEvent\("chat_teaser_shown", \{ chat_location: "sticky", chat_teaser: form, chat_trigger: trigger \?\? undefined \}\)/);
   // The expert section's chat button is a <button>: it reports expert_chat_click itself (the delegated listener sees links only).
-  assert.match(button, /if \(chat\.location === "home_expert"\) trackEvent\("expert_chat_click", \{ expert_variant:/);
+  assert.match(button, /trackEvent\("expert_chat_click", \{ expert_variant:/);
   assert.match(read("components/analytics/analytics-runtime.tsx"), /closest\("a\[href\]"\)/, "the shared runtime is unchanged");
   const doc = read("docs/analytics/GTM_SETUP.md");
-  for (const name of ["chat_open", "chat_load_error", "chat_location", "chat_error", "GA4 - chat_open", "GA4 - chat_load_error", "DLV - chat_location", "DLV - chat_error"]) assert.ok(doc.includes(name), name);
+  for (const name of ["chat_open", "chat_load_error", "chat_teaser_shown", "chat_location", "chat_error", "chat_teaser", "chat_trigger", "GA4 - chat_open", "GA4 - chat_load_error", "GA4 - chat_teaser_shown", "DLV - chat_location", "DLV - chat_error", "DLV - chat_teaser", "DLV - chat_trigger", "ahanassa-livechat-status"]) assert.ok(doc.includes(name), name);
 });
 
-test("zero bytes when off: the static build swaps the button for a server-only stub; only the alias imports it", () => {
+test("zero bytes when off: the static build swaps the module for a server-only stub; only the alias imports it", () => {
   const vite = read("scripts/static/vite.config.static.ts");
   assert.match(vite, /LIVECHAT_BUTTON_SPECIFIER = "@\/components\/livechat\/livechat-button"/);
   assert.match(vite, /return off && LIVECHAT_BUTTON_IMPORT\.test\(source\) \? stub : null;/);
@@ -118,125 +163,36 @@ test("zero bytes when off: the static build swaps the button for a server-only s
   const stub = read("components/livechat/livechat-off.ts");
   assert.doesNotMatch(stub, /^["']use client["']/m);
   assert.match(stub, /export function LivechatButton\(\): null/);
+  assert.match(stub, /export function LivechatHost\(\): null/);
   // Every importer uses the exact specifier the plugin swaps (a relative import would bypass it).
-  for (const file of ["components/home/expert-contact.tsx", "components/livechat/sticky-livechat.tsx"]) assert.match(read(file), /import \{ LivechatButton \} from "@\/components\/livechat\/livechat-button";/, file);
+  assert.match(read("components/home/expert-contact.tsx"), /import \{ LivechatButton \} from "@\/components\/livechat\/livechat-button";/);
+  assert.match(read("components/livechat/site-livechat.tsx"), /import \{ LivechatButton, LivechatHost \} from "@\/components\/livechat\/livechat-button";/);
   // Nothing else in the shared, always-loaded client code mentions live chat.
-  for (const file of ["lib/analytics/events.ts", "components/analytics/analytics-runtime.tsx"]) assert.doesNotMatch(read(file).replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, ""), /livechat|chat_open|chat_load_error/i, file);
+  for (const file of ["lib/analytics/events.ts", "components/analytics/analytics-runtime.tsx"]) assert.doesNotMatch(read(file).replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, ""), /livechat|chat_open|chat_load_error|chat_teaser/i, file);
+  // No Odoo script on the site, ever: the chat and the status page are iframes.
+  assert.doesNotMatch(button.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, ""), /createElement\("script"\)|<script|im_livechat|odoo\.ahanassa/);
 });
 
-test("a11y + no CLS (source): a real <button>, busy state, status line, focusable panel, Esc, absolute panel", () => {
-  const button = read("components/livechat/livechat-button.tsx");
-  assert.match(button, /<button\s+ref=\{buttonRef\}\s+type="button"/);
-  assert.match(button, /aria-busy=\{status === "loading" \|\| undefined\}/);
-  assert.match(button, /aria-expanded=\{status === "error"\}/);
-  assert.match(button, /role="status"/);
-  assert.match(button, /e\.key === "Escape"/);
-  assert.match(button, /buttonRef\.current\?\.focus\(\)/, "focus returns to the button");
-  assert.match(button, /panelRef\.current\?\.focus\(\)/, "the panel takes focus");
+test("a11y + no CLS (source): dialog, focus in/trap/return, Esc, 380×600 / full screen ≤ 480 px, fallback after 8 s", () => {
+  assert.match(button, /role="dialog"\n      aria-modal="true"\n      aria-labelledby=\{`\$\{PANEL_ID\}-title`\}/);
+  assert.match(button, /closeRef\.current\?\.focus\(\);/, "focus moves into the panel");
+  assert.match(button, /if \(opener\?\.isConnected\) opener\.focus\(\);/, "focus returns to the opener");
+  assert.match(button, /<span tabIndex=\{0\} onFocus=\{\(\) => focusEdge\("last"\)\} \/>/);
+  assert.match(button, /<span tabIndex=\{0\} onFocus=\{\(\) => focusEdge\("first"\)\} \/>/);
+  assert.match(button, /if \(e\.key === "Escape"\) closePanel\(\);/);
   assert.match(button, /aria-label=\{copy\.close\}/);
-  assert.match(button, /absolute end-0 bottom-full/, "the fallback panel never moves the page");
-  assert.match(button, /fixed end-4 bottom-\[max\(1rem,env\(safe-area-inset-bottom\)\)\]/, "the en/ar floating WhatsApp spot");
+  assert.match(button, /title=\{copy\.frameTitle\}/);
+  assert.match(button, /aria-haspopup="dialog"/);
+  assert.match(button, /fixed inset-0 z-50/);
+  assert.match(button, /min-\[481px\]:h-\[min\(600px,calc\(100dvh-2rem\)\)\] min-\[481px\]:w-\[380px\]/);
+  assert.match(button, /role="status" className="sr-only"/);
   assert.match(button, /motion-reduce:animate-none/);
+  assert.match(button, /fixed end-4 bottom-\[max\(1rem,env\(safe-area-inset-bottom\)\)\]/, "the en/ar floating WhatsApp spot");
   assert.doesNotMatch(button, /\b(?:left|right|ml|mr|pl|pr)-\d/, "logical properties only (RTL)");
-  assert.doesNotMatch(button, /im_livechat|odoo\.ahanassa/, "no Odoo URL in the component: it comes from config");
-  // The online dot exists only from the shared store (set only by a successful open).
-  assert.match(button, /\{online && \(/);
+  // The 8 s fallback: an iframe has no error event, so "not loaded in time" is the failure; the next open retries.
+  assert.match(button, /\}, chat\.timeoutMs\);\n    return \(\) => clearTimeout\(id\);\n  \}, \[frame\?\.key, frame\?\.status, chat\.timeoutMs\]\);/);
+  assert.match(button, /else if \(statusRef\.current !== "loading"\) setFrame/);
   const css = read("styles/theme-extensions.css");
-  assert.match(css, /body:has\(form button\[type="submit"\]\) \[data-sticky-livechat\]/);
+  assert.match(css, /body:has\(form button\[type="submit"\]\) \[data-sticky-livechat\]/, "never over a form's submit (RFQ)");
   assert.match(css, /body:has\(\[data-sticky-whatsapp\], \[data-sticky-livechat\]\) \[data-site-footer-bottom\]/);
-});
-
-// --- the widget loader, against a fake DOM ----------------------------------------------------------------------
-
-type ScriptPlan = Partial<Record<"loader" | "assets", "load" | "error" | "never">>;
-
-function fakeWindow(plan: ScriptPlan, onLoader: (win: Record<string, unknown>) => void = () => {}, mount = true) {
-  const added: string[] = [];
-  let clicks = 0;
-  let root: unknown = null;
-  const launcher = { click: () => clicks++ };
-  const win: Record<string, unknown> = {};
-  const doc = {
-    head: {
-      appendChild(script: { src: string; dataset: Record<string, string>; onload: () => void; onerror: () => void }) {
-        added.push(script.src);
-        const role = script.dataset.livechat as "loader" | "assets";
-        const behaviour = plan[role] ?? "load";
-        setTimeout(() => {
-          if (behaviour === "error") return script.onerror();
-          if (behaviour === "never") return;
-          if (role === "loader") onLoader(win);
-          if (role === "assets" && mount) root = { shadowRoot: { querySelector: (s: string) => (s === ".o-livechat-LivechatButton" ? launcher : null) } };
-          script.onload();
-        }, 5);
-      },
-    },
-    createElement: () => ({ dataset: {} }),
-    querySelector: (s: string) => (s === ".o-livechat-root" ? root : s === 'script[data-livechat="assets"]' ? (added.some((a) => a.endsWith("assets_embed.js")) ? {} : null) : null),
-  };
-  win.document = doc;
-  return { win: win as unknown as Window, added, clicks: () => clicks };
-}
-
-const available = (flag: Record<string, unknown>) => (win: Record<string, unknown>) => {
-  win.odoo = { __session_info__: { livechatData: flag } };
-};
-
-test("loader: loads the loader, then the bundle, then opens Odoo's launcher; online only after that", async () => {
-  resetOdooLivechatForTests();
-  let notified = 0;
-  const unsubscribe = subscribeLivechatOnline(() => notified++);
-  const w = fakeWindow({}, available({ isAvailable: true }));
-  assert.equal(isLivechatOnline(), false);
-  assert.deepEqual(await openOdooLivechat(ON, 1000, w.win), { ok: true });
-  assert.deepEqual(w.added, [ON.loaderUrl, ON.assetsUrl]);
-  assert.equal(w.clicks(), 1);
-  assert.equal(isLivechatOnline(), true);
-  assert.equal(notified, 1);
-  // A second click reuses the loaded widget: no new script, one more launcher click.
-  assert.deepEqual(await openOdooLivechat(ON, 1000, w.win), { ok: true });
-  assert.equal(w.added.length, 2);
-  assert.equal(w.clicks(), 2);
-  unsubscribe();
-});
-
-test("loader: no operator / no channel / script error / timeout → fallback reason, never online", async () => {
-  const cases: Array<[string, ReturnType<typeof fakeWindow>, string]> = [
-    ["no operator", fakeWindow({}, available({ isAvailable: false })), "no_operator"],
-    ["no operator (can_load_livechat)", fakeWindow({}, available({ can_load_livechat: false })), "no_operator"],
-    ["no channel", fakeWindow({}), "no_channel"],
-    ["loader 404", fakeWindow({ loader: "error" }), "script_error"],
-    ["bundle 404", fakeWindow({ assets: "error" }, available({ isAvailable: true })), "script_error"],
-    ["loader hangs", fakeWindow({ loader: "never" }), "timeout"],
-    ["widget never mounts", fakeWindow({}, available({ isAvailable: true }), false), "timeout"],
-  ];
-  for (const [name, w, reason] of cases) {
-    resetOdooLivechatForTests();
-    assert.deepEqual(await openOdooLivechat(ON, 300, w.win), { ok: false, reason }, name);
-    assert.equal(isLivechatOnline(), false, name);
-    assert.equal(w.clicks(), 0, name);
-    if (reason === "no_operator" || name === "no channel" || name === "loader 404") assert.ok(!w.added.includes(ON.assetsUrl), `${name}: the bundle is never loaded`);
-  }
-});
-
-test("loader: an error is retried by the next click; the bundle is never added twice", async () => {
-  resetOdooLivechatForTests();
-  let available_ = false;
-  const w = fakeWindow({}, (win) => available({ isAvailable: available_ })(win));
-  assert.deepEqual(await openOdooLivechat(ON, 300, w.win), { ok: false, reason: "no_operator" });
-  available_ = true;
-  assert.deepEqual(await openOdooLivechat(ON, 300, w.win), { ok: true });
-  assert.equal(w.added.filter((s) => s === ON.assetsUrl).length, 1);
-  resetOdooLivechatForTests();
-});
-
-test("availability + widget readers tolerate missing or odd globals", () => {
-  assert.equal(readLivechatAvailability(undefined), null);
-  assert.equal(readLivechatAvailability({}), null);
-  assert.equal(readLivechatAvailability({ odoo: { __session_info__: {} } }), null);
-  assert.deepEqual(readLivechatAvailability({ odoo: { __session_info__: { livechatData: { isAvailable: "yes" } } } }), { available: false }, "only a real true counts");
-  assert.deepEqual(readLivechatAvailability({ odoo: { __session_info__: { livechatData: { can_load_livechat: true } } } }), { available: true });
-  assert.equal(findOdooWidget({ querySelector: () => null } as never), null);
-  assert.equal(findOdooWidget({ querySelector: () => ({ shadowRoot: null }) } as never), null);
-  assert.deepEqual(findOdooWidget({ querySelector: () => ({ shadowRoot: { querySelector: (s: string) => (s === ".o-mail-ChatWindow" ? {} : null) } }) } as never), { launcher: null, chatOpen: true });
 });

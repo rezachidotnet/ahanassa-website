@@ -17,7 +17,7 @@ import {
   homeExpertProofs,
   homeExpertWhatsAppHref,
 } from "@/lib/content/home-expert";
-import { livechatButton } from "@/lib/content/livechat";
+import { livechatProps } from "@/lib/content/livechat";
 import { WHATSAPP_REL } from "@/lib/content/whatsapp";
 import { cn } from "@/lib/utils";
 
@@ -38,8 +38,8 @@ const HEADING_ID = "home-expert-heading";
  *
  * Both: the RFQ is the one primary action (CTA_STRATEGY §3.1, §4); phone and WhatsApp stay secondary. The expert
  * avatar renders only with a configured real photo and first name (SALES_EXPERT), and the «چت با کارشناس» button
- * only while live chat is on (config/livechat.ts; W21.2 components/livechat/livechat-button.tsx, which loads Odoo's
- * widget on click and falls back to WhatsApp and the purchase list) — never a placeholder person or a dead button.
+ * only while live chat is on (config/livechat.ts; W21.2 components/livechat/livechat-button.tsx, which opens Odoo's
+ * chat in an iframe panel on click and falls back to WhatsApp and the purchase list) — never a placeholder person or a dead button.
  *
  * Analytics: every action carries `data-expert-action`, which the delegated listener
  * (components/analytics/analytics-runtime.tsx) reports as expert_call_click / expert_whatsapp_click /
@@ -57,7 +57,7 @@ export function ExpertContact({ locale }: { locale: Locale }) {
   const actions: Actions = {
     rfq: homeExpertListHref(locale),
     whatsapp: homeExpertWhatsAppHref(locale),
-    chat: livechatButton(locale, HOME_EXPERT_LOCATION),
+    chat: livechatProps(locale),
   };
   const expert = homeExpertProfile(locale);
 
@@ -76,7 +76,7 @@ export function ExpertContact({ locale }: { locale: Locale }) {
 }
 
 type Expert = ReturnType<typeof homeExpertProfile>;
-type Actions = { rfq: string; whatsapp: string | null; chat: ReturnType<typeof livechatButton> };
+type Actions = { rfq: string; whatsapp: string | null; chat: ReturnType<typeof livechatProps> };
 
 /** A: the elevated two-pane card. */
 function ConciergeCard({ locale, expert, actions }: { locale: Locale; expert: Expert; actions: Actions }) {

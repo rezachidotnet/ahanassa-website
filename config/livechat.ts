@@ -1,54 +1,68 @@
 /**
- * Live chat (W21.2) — the ONE place the Odoo im_livechat widget is switched on. Website side only: the
- * Odoo side (W21.1, the im_livechat channel and its operators) is deployed separately, so this ships OFF.
+ * Live chat (W21.2) — the ONE place the Odoo live chat is switched on. Website side only: the Odoo side (W21.1,
+ * ahanassa-odoo PR #29: the im_livechat channel, its operators and chatbot) is deployed separately, so this ships OFF.
  *
- * Switching on = both values below in one commit: LIVECHAT_ENABLED = true AND LIVECHAT_LOADER_URL = the
- * channel's loader URL from Odoo (Live Chat → Channels → the channel → Widget tab, the first <script src>).
- * A flag alone, a URL alone, or a URL on any other origin keeps everything off — no button that goes nowhere.
+ * Owner decision 2026-10-17: no Odoo JS on the site and no 'unsafe-eval' — the chat is Odoo's own support page in
+ * an iframe panel (components/livechat/livechat-button.tsx), opened only by a click on «چت با کارشناس». The only
+ * CSP change while on is `frame-src https://odoo.ahanassa.com` (lib/security/headers.ts).
  *
- * While off the site carries none of it: no button, no client JS, no Odoo origin in the CSP
- * (lib/security/headers.ts). While on, the page still loads NO Odoo JS until a visitor clicks
- * «چت با کارشناس» (components/livechat/livechat-button.tsx, lib/livechat/odoo-widget.ts).
+ * Switching on = both values below in one commit: LIVECHAT_ENABLED = true AND LIVECHAT_CHANNEL_ID = the channel id
+ * from W21.1's D6 step (`env.ref('ahanassa_livechat.channel_sales').id`; it is not 1). A flag alone or an id alone
+ * keeps everything off — no button that goes nowhere.
  *
  * Why a committed config and not a per-target env var: the staging and production artifacts must be
  * byte-identical outside the r4 allowlist (lib/static/target-diff-gate.ts), like config/analytics.ts.
  */
 export const LIVECHAT_ENABLED: boolean = false;
 
-/** e.g. "https://odoo.ahanassa.com/im_livechat/loader/1" — the channel id comes from W21.1. */
-export const LIVECHAT_LOADER_URL: string | null = null;
+/** The im_livechat channel id from W21.1 (e.g. 2). */
+export const LIVECHAT_CHANNEL_ID: number | null = null;
 
-/** The only origin the widget may load from; the CSP allows exactly this origin (and its wss://). */
+/**
+ * Optional: an Odoo page that reports "an operator is online" to the parent window without loading Odoo JS on
+ * the site (W21.1 to provide; the contract is in docs/analytics/GTM_SETUP.md «chat_teaser_shown»). Path only, on
+ * LIVECHAT_ORIGIN, e.g. "/ahanassa_livechat/status/2". Null = the teaser never shows: no operator is ever assumed online.
+ */
+export const LIVECHAT_STATUS_PATH: string | null = null;
+
+/** The only origin the chat may load from; the CSP frame-src allows exactly this origin. */
 export const LIVECHAT_ORIGIN = "https://odoo.ahanassa.com";
 
-/** The click → open budget: past it, the visitor gets the WhatsApp / purchase-list links instead. */
+/** The `page` sent to Odoo when the site itself is not served over https (local preview): never an http:// URL. */
+export const LIVECHAT_PAGE_ORIGIN = "https://www.ahanassa.com";
+
+/** The click → loaded budget: past it, the visitor gets the WhatsApp / purchase-list links instead. */
 export const LIVECHAT_TIMEOUT_MS = 8_000;
 
 export interface LivechatConfig {
-  /** https://odoo.ahanassa.com/im_livechat/loader/<channel id> — sets `odoo.__session_info__.livechatData`. */
-  loaderUrl: string;
-  /** The widget bundle that reads livechatData and mounts the chat (Odoo 17+ embed code, second <script>). */
-  assetsUrl: string;
   origin: string;
+  /** https://odoo.ahanassa.com/im_livechat/support/<channel id> — `?lang=…&page=…` is added at click time. */
+  supportUrl: string;
+  /** The availability page (LIVECHAT_STATUS_PATH), or null. */
+  statusUrl: string | null;
 }
 
-const LOADER_PATH = /^\/im_livechat\/loader\/\d+$/;
+const STATUS_PATH = /^\/[a-z0-9_]+(?:\/[a-z0-9_]+)*\/\d+$/;
 
-/** The effective config, or null (off). Only a loader URL on LIVECHAT_ORIGIN, path /im_livechat/loader/<id>, passes. */
-export function livechatConfig(enabled: boolean = LIVECHAT_ENABLED, loaderUrl: string | null = LIVECHAT_LOADER_URL, origin: string = LIVECHAT_ORIGIN): LivechatConfig | null {
-  if (!enabled || !loaderUrl) return null;
+/** The effective config, or null (off). Only an https origin, a positive integer channel id and (optional) a plain status path pass. */
+export function livechatConfig(enabled: boolean = LIVECHAT_ENABLED, channelId: number | null = LIVECHAT_CHANNEL_ID, origin: string = LIVECHAT_ORIGIN, statusPath: string | null = LIVECHAT_STATUS_PATH): LivechatConfig | null {
+  if (!enabled || channelId === null || !Number.isSafeInteger(channelId) || channelId < 1) return null;
   let url: URL;
   try {
-    url = new URL(loaderUrl);
+    url = new URL(origin);
   } catch {
     return null;
   }
-  if (url.origin !== origin || !LOADER_PATH.test(url.pathname) || url.search || url.hash || url.username || url.password) return null;
-  return { loaderUrl: url.href, assetsUrl: `${origin}/im_livechat/assets_embed.js`, origin };
+  if (url.protocol !== "https:" || url.origin !== origin) return null;
+  return { origin, supportUrl: `${origin}/im_livechat/support/${channelId}`, statusUrl: statusPath && STATUS_PATH.test(statusPath) ? `${origin}${statusPath}` : null };
 }
 
-/** The CSP origins while on: the https origin and its websocket (Odoo's bus runs on wss://<host>/websocket). */
-export function livechatCspOrigins(config: LivechatConfig | null = livechatConfig()): { https: string; wss: string } | null {
-  if (!config) return null;
-  return { https: config.origin, wss: config.origin.replace(/^https:/, "wss:") };
+/** The chat iframe's URL for a page: `lang` = the page locale, `page` = the page's https URL without query or hash. */
+export function livechatFrameUrl(config: LivechatConfig, locale: "fa" | "en" | "ar", pageUrl: string): string {
+  return `${config.supportUrl}?lang=${locale}&page=${encodeURIComponent(pageUrl)}`;
+}
+
+/** The CSP frame-src origin while on (https only), else null. */
+export function livechatFrameOrigin(config: LivechatConfig | null = livechatConfig()): string | null {
+  return config ? config.origin : null;
 }

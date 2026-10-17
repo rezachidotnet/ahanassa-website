@@ -7,13 +7,15 @@ import { SAFE_TOKEN } from "../analytics/events.ts";
  * must be a short PII-free token (SAFE_TOKEN), else it is dropped.
  */
 export const LIVECHAT_EVENTS = {
-  /** The Odoo chat window opened after a click; `chat_location`: home_expert (expert section) | sticky (floating fa button). */
+  /** The chat panel opened and Odoo's chat page loaded in it; `chat_location`: home_expert (expert section) | sticky (floating fa button). */
   chat_open: ["chat_location"],
-  /**
-   * The chat could not open and the WhatsApp / purchase-list links were shown instead; `chat_error`: no_operator
-   * (no operator online) | no_channel (the loader set no channel) | script_error | timeout (8 s).
-   */
+  /** Odoo's chat page did not load within 8 s and the WhatsApp / purchase-list links were shown instead; `chat_error`: timeout. */
   chat_load_error: ["chat_location", "chat_error"],
+  /**
+   * The floating button's teaser appeared (Odoo reported an operator online, in sales hours, once per session);
+   * `chat_teaser`: bubble (desktop) | dot (mobile); `chat_trigger`: dwell (45 s on a price/product/chart page) | second_product.
+   */
+  chat_teaser_shown: ["chat_location", "chat_teaser", "chat_trigger"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type LivechatEventName = keyof typeof LIVECHAT_EVENTS;
