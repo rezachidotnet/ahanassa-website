@@ -9,6 +9,7 @@ import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { AnalyticsRuntime } from "@/components/analytics/analytics-runtime";
 import { StickyWhatsApp } from "@/components/layout/sticky-whatsapp";
+import { SiteLivechat } from "@/components/livechat/site-livechat";
 import { listHeaderProductFamilyShortcuts, type HeaderProductFamilyShortcut } from "@/lib/catalog/editorial-repository";
 import { listPublicProcessingGroups, type PublicProcessingGroup } from "@/lib/processing/public-repository";
 import { hasArticles } from "@/lib/articles/repository";
@@ -102,6 +103,8 @@ export default async function LocaleLayout({
         <SiteFooter locale={locale} hasArticles={articlesPublished} hasIndicators={indicatorsPublished} />
         {/* W20.1: floating WhatsApp button, en/ar only (renders nothing on fa). */}
         <StickyWhatsApp locale={locale} />
+        {/* W21.2: the live-chat panel + the fa floating «چت با کارشناس», only while config/livechat.ts is on (renders nothing otherwise). */}
+        <SiteLivechat locale={locale} />
         {/* W16.4: dataLayer + phone/WhatsApp clicks + GTM after load (config/analytics.ts); renders nothing. */}
         <AnalyticsRuntime locale={locale} />
       </body>
