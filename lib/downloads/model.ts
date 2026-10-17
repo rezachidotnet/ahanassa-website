@@ -78,7 +78,7 @@ export function planDrawings(catalog: DownloadCatalog): DrawingPlan {
   for (const category of catalogChapters(catalog)) {
     for (const t of category.templates) {
       for (const v of sortBySize(t.variants)) {
-        const p = planSectionDrawing({ formCode: v.formCode, commercialSize: v.size, dimensions: v.dimensions, standard: v.standard });
+        const p = planSectionDrawing({ formCode: v.formCode, commercialSize: v.size, dimensions: v.dimensions, standard: v.standard, kgPerM: v.nominalWeight?.kg_m ?? null });
         if (!p) continue;
         const slug = p.status === "drawn" ? p.drawing.slug : p.slug;
         if (seen.has(slug)) continue;

@@ -13,7 +13,14 @@ import type { DownloadCatalog, DownloadCategory } from "./model.ts";
  */
 interface Row extends Record<string, unknown> {}
 
-export function catalogFromSnapshot(file: string, locale: Locale): DownloadCatalog {
+/** A variant's dimensions / nominal weight by SKU, replacing the snapshot's (W20.5 fixture, see catalogFromSnapshot). */
+export type VariantOverlay = Readonly<Record<string, { dimensions?: Record<string, number>; nominal_weight?: Record<string, number> }>>;
+
+/**
+ * `overlay` (W20.5): per SKU, the dimensions / nominal weight that replace the snapshot's — e.g. the full section
+ * geometry of lib/downloads/fixtures/w205-sections.json, which Odoo serves since ahanassa_marketplace 19.0.54.
+ */
+export function catalogFromSnapshot(file: string, locale: Locale, overlay: VariantOverlay = {}): DownloadCatalog {
   const s = JSON.parse(fs.readFileSync(path.resolve(file), "utf8")) as { tables: Record<string, Row[]> };
   const t = s.tables;
   const categoriesAll = (loc: Locale) =>
@@ -50,8 +57,8 @@ export function catalogFromSnapshot(file: string, locale: Locale): DownloadCatal
           sku: String(v.sku),
           size: String(v.commercial_size ?? v.section_size ?? v.sku),
           formCode: (v.form_code as string) ?? null,
-          dimensions: v.dimensions_json ? JSON.parse(String(v.dimensions_json)) : null,
-          nominalWeight: v.nominal_weight_json ? JSON.parse(String(v.nominal_weight_json)) : null,
+          dimensions: overlay[String(v.sku)]?.dimensions ?? (v.dimensions_json ? JSON.parse(String(v.dimensions_json)) : null),
+          nominalWeight: overlay[String(v.sku)]?.nominal_weight ?? (v.nominal_weight_json ? JSON.parse(String(v.nominal_weight_json)) : null),
           standard: (v.standard_name as string) ?? null,
           grade: (v.grade_name as string) ?? null,
         })),
