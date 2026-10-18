@@ -47,6 +47,8 @@ export const OBSERVATION_MS = 24 * 3_600_000;
 export const MAX_COVERED_GAP_MS = 24 * 3_600_000;
 export const HEALTH_WORKFLOW = "ops-health.yml";
 export const HEALTH_PRODUCTION_JOB = "health (production-prep)";
+/** §20.2a: the ops-health check title (scripts/ops/health/checks.ts ODOO_TITLE; annotation "ALERT: Odoo unreachable"). */
+export const ODOO_ALERT = "Odoo unreachable";
 
 const FULL_SHA = /^[0-9a-f]{40}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -357,10 +359,24 @@ export function evaluateContentRebuild(manifest, liveSha) {
 
 // Observation (§20.2) --------------------------------------------------------------------------------------------
 
+/** The checks a failed ops-health job ALERTed on, from its "ALERT: <title>" annotations (scripts/ops/health run.ts). */
+export function alertTitles(annotations) {
+  return (annotations ?? []).flatMap((a) => (typeof a?.title === "string" && a.title.startsWith("ALERT: ") ? [a.title.slice("ALERT: ".length)] : []));
+}
+
 /**
- * Production ops-health outcomes since `since`: [{ run_id, started_at, conclusion }] of the health-production job.
- * A completed successful run means its production job passed (started ≈ run start); any other run is read job by job
- * (per-job concurrency: the production job can finish while the staging job of the same run is still waiting).
+ * §20.2a: a failed run whose ALERTs are known and are all "Odoo unreachable" — an external (Odoo) incident. Unknown
+ * ALERTs (annotations not read, a timed-out job) or a failure with no ALERT annotation are never external.
+ */
+export function odooOnly(run) {
+  return run.conclusion === "failure" && Array.isArray(run.alerts) && run.alerts.length > 0 && run.alerts.every((t) => t === ODOO_ALERT);
+}
+
+/**
+ * Production ops-health outcomes since `since`: [{ run_id, started_at, conclusion, alerts? }] of the health-production
+ * job. A completed successful run means its production job passed (started ≈ run start); any other run is read job by
+ * job (per-job concurrency: the production job can finish while the staging job of the same run is still waiting).
+ * A failed job also carries `alerts`, the checks it ALERTed on (§20.2a), or null when they could not be read.
  */
 export async function productionHealthRuns(gh, since) {
   const out = [];
@@ -377,7 +393,19 @@ export async function productionHealthRuns(gh, since) {
       const job = jobs.find((j) => j.name === HEALTH_PRODUCTION_JOB);
       // A health job that hung until its timeout may be the symptom itself: it counts as an ALERT.
       if (job && job.status === "completed" && ["success", "failure", "timed_out"].includes(job.conclusion) && job.started_at) {
-        out.push({ run_id: String(run.id), started_at: job.started_at, conclusion: job.conclusion === "success" ? "success" : "failure" });
+        if (job.conclusion === "success") {
+          out.push({ run_id: String(run.id), started_at: job.started_at, conclusion: "success" });
+          continue;
+        }
+        let alerts = null;
+        if (job.conclusion === "failure" && job.id) {
+          try {
+            alerts = alertTitles(await gh.json(`/check-runs/${job.id}/annotations?per_page=100`));
+          } catch {
+            alerts = null; // unknown: counts as a release ALERT
+          }
+        }
+        out.push({ run_id: String(run.id), started_at: job.started_at, conclusion: "failure", alerts });
       }
     }
     if (workflow_runs.length < 100) break;
@@ -388,18 +416,22 @@ export async function productionHealthRuns(gh, since) {
 /**
  * Pure. state:
  *   ALERT      a production health job of the window failed (the window ends with the first job that starts at or
- *              after live_since + 24 h, which still reports on the end of the window);
+ *              after live_since + 24 h, which still reports on the end of the window). With `externalOdoo` (a HIGH
+ *              release, §20.2a) a failed job whose only ALERT is "Odoo unreachable" is listed in `external` instead:
+ *              it covers its window like a passing job and is not a release ALERT;
  *   OBSERVING  no job has started after the end yet;
  *   GAP        two consecutive jobs (or live_since and the first job) are more than 24 h apart: no run covers it;
  *   PASSED     24 h covered, no ALERT.
  */
-export function observe(liveSince, runs, now = new Date()) {
+export function observe(liveSince, runs, now = new Date(), { externalOdoo = false } = {}) {
   const start = Date.parse(liveSince);
   const end = start + OBSERVATION_MS;
   const after = runs.filter((r) => Date.parse(r.started_at) > start).sort((a, b) => Date.parse(a.started_at) - Date.parse(b.started_at));
   const coverIdx = after.findIndex((r) => Date.parse(r.started_at) >= end);
   const window = coverIdx === -1 ? after : after.slice(0, coverIdx + 1);
-  const alerts = window.filter((r) => r.conclusion === "failure");
+  const failed = window.filter((r) => r.conclusion === "failure");
+  const external = externalOdoo ? failed.filter(odooOnly) : [];
+  const alerts = failed.filter((r) => !external.includes(r));
   const gaps = [];
   let prev = start;
   for (const r of window) {
@@ -408,7 +440,7 @@ export function observe(liveSince, runs, now = new Date()) {
     prev = t;
   }
   if (coverIdx === -1 && now.getTime() - prev > 30 * 60_000) gaps.push({ from: new Date(prev).toISOString(), to: null, minutes: Math.round((now.getTime() - prev) / 60_000), covered: now.getTime() - prev <= MAX_COVERED_GAP_MS });
-  const base = { observation_started_at: new Date(start).toISOString(), observation_ends_at: new Date(end).toISOString(), runs: window, alerts, gaps };
+  const base = { observation_started_at: new Date(start).toISOString(), observation_ends_at: new Date(end).toISOString(), runs: window, alerts, external, gaps };
   if (alerts.length) return { state: "ALERT", ...base };
   if (gaps.some((g) => !g.covered)) return { state: "GAP", ...base };
   if (coverIdx === -1) return { state: "OBSERVING", ...base };
@@ -431,7 +463,7 @@ export function ledgerRows(markdown) {
 /**
  * Pure: what the watch does now.
  *   none          nothing to do (no code event, or already recorded)
- *   observing     the release is in its 24 h window, no ALERT
+ *   observing     the release is in its 24 h window, no ALERT (external (Odoo) incidents, §20.2a, are not ALERTs)
  *   stable        PASSED: append the STABLE_100 row (bot PR)
  *   rollback      LOW release + ALERT (or operation=rollback): roll back, then the ROLLED_BACK row
  *   alert         HIGH release + ALERT: the owner decides (§20.2); nothing automatic
@@ -459,28 +491,41 @@ export function decide({ event, observation, rows, operation = "watch" }) {
       if (event.risk === "LOW" && target) return { action: "rollback", reason: `LOW release ${event.code_sha}: ops-health production ALERT in the window (${observation.alerts.map((a) => a.run_id).join(", ")})` };
       return { action: "alert", reason: `${event.risk} release ${event.code_sha}: ops-health production ALERT in the window (${observation.alerts.map((a) => a.run_id).join(", ")}) — the owner decides: rollback or fix (§20.2)` };
     case "GAP":
-      return { action: "gap", reason: "a monitoring gap no ops-health run covers; the owner decides (§20.2)" };
+      return { action: "gap", reason: `a monitoring gap no ops-health run covers; the owner decides (§20.2)${externalNote(observation)}` };
     case "OBSERVING":
-      return { action: "observing", reason: `observation until ${observation.observation_ends_at}` };
+      return { action: "observing", reason: `observation until ${observation.observation_ends_at}${externalNote(observation)}` };
     case "PASSED":
-      return { action: "stable", reason: `24 h observed (${observation.runs.length} ops-health production runs, no ALERT)` };
+      return { action: "stable", reason: `24 h observed (${observation.runs.length} ops-health production runs, no ALERT${externalNote(observation)})` };
     default:
       throw new Error(`unknown observation state ${observation.state}`);
   }
 }
 
+function externalNote(observation) {
+  const ext = observation.external ?? [];
+  return ext.length ? `; ${ext.length} external (Odoo) incident(s), not attributed to the release (§20.2a): ${ext.map((r) => r.run_id).join(", ")}` : "";
+}
+
+const fresh = (runs, now) => now.getTime() - Math.max(...(runs ?? []).map((r) => Date.parse(r.started_at))) < 75 * 60_000;
+
+/**
+ * Pure (§20.2a): while the release is observed (observing, gap, stable), an external (Odoo) incident whose newest run
+ * is under 75 min old e-mails the owner, as the same ALERT did before.
+ */
+export function externalIncidentIsNew(d, observation, now = new Date()) {
+  return ["observing", "gap", "stable"].includes(d?.action) && fresh(observation?.external, now);
+}
+
 /**
  * Pure: whether this watch run should fail to e-mail the owner about a state that needs them (a rollback always does,
  * in the workflow). Throttled, as the watch runs hourly: an ALERT when its newest failed run is under 75 min old (each
- * new failed ops-health run e-mails once more); a gap or an unidentified release once a day (the 08:52 UTC watch).
+ * new failed ops-health run e-mails once more); a gap or an unidentified release once a day (the 08:52 UTC watch); an
+ * external (Odoo) incident (§20.2a) like an ALERT, once per new failed run.
  */
 export function shouldNotify(d, observation, now = new Date()) {
-  if (d.action === "alert") {
-    const newest = Math.max(...(observation?.alerts ?? []).map((a) => Date.parse(a.started_at)));
-    return now.getTime() - newest < 75 * 60_000;
-  }
-  if (d.action === "gap" || d.action === "unknown") return now.getUTCHours() === 8;
-  return false;
+  if (d.action === "alert") return fresh(observation?.alerts, now);
+  if ((d.action === "gap" || d.action === "unknown") && now.getUTCHours() === 8) return true;
+  return externalIncidentIsNew(d, observation, now);
 }
 
 // CLI -------------------------------------------------------------------------------------------------------------
@@ -537,12 +582,13 @@ async function main(argv) {
     const live = await resolveLive({ app, ledgerRef, gh, allowUnreachable: true });
     const rows = ledgerRows(git(app, ["show", `${ledgerRef}:${LEDGER_PATH}`]));
     const event = live.ok ? live.event : null;
-    const observation = event && event.kind === "release" ? observe(event.live_since, await productionHealthRuns(gh, event.live_since)) : null;
+    // §20.2a: only a HIGH release (a pre-W9.7 release without a class counts as HIGH) sets Odoo-only ALERTs aside.
+    const observation = event && event.kind === "release" ? observe(event.live_since, await productionHealthRuns(gh, event.live_since), new Date(), { externalOdoo: event.risk !== "LOW" }) : null;
     const d = live.ok ? decide({ event, observation, rows, operation: arg(argv, "operation") ?? "watch" }) : { action: "none", reason: live.reason, unresolved: true };
-    const result = { ...d, notify: shouldNotify(d, observation), live: { ok: live.ok, sha: live.sha, snapshot: live.snapshot, eligible: live.eligible, reason: live.reason, www_unreachable: live.www_unreachable ?? null }, event, observation };
+    const result = { ...d, notify: shouldNotify(d, observation), external_new: externalIncidentIsNew(d, observation), live: { ok: live.ok, sha: live.sha, snapshot: live.snapshot, eligible: live.eligible, reason: live.reason, www_unreachable: live.www_unreachable ?? null }, event, observation };
     console.log(JSON.stringify(result));
     if (arg(argv, "out")) writeFileSync(arg(argv, "out"), JSON.stringify(result, null, 1) + "\n");
-    output({ action: d.action, reason: d.reason, risk: event?.risk ?? "", code_sha: event?.code_sha ?? "", notify: result.notify });
+    output({ action: d.action, reason: d.reason, risk: event?.risk ?? "", code_sha: event?.code_sha ?? "", notify: result.notify, external_new: result.external_new });
     return 0;
   }
   throw new Error(`unknown mode ${JSON.stringify(mode)} (live | content-check | record | watch)`);

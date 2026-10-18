@@ -21,6 +21,8 @@ const RUN_URL = (id) => `https://github.com/rezachidotnet/ahanassa-website/actio
 const code = (v) => (v ? `\`${v}\`` : "-");
 const text = (v) => String(v).replace(/[|\r\n]+/g, " ").replace(/\s+/g, " ").trim();
 const secondIso = (iso) => new Date(iso).toISOString().replace(/\.\d+Z$/, "Z");
+/** §20.2a: the observation's external (Odoo) incidents — failed ops-health runs whose only ALERT was "Odoo unreachable". */
+const externalRuns = (o) => o.external ?? [];
 
 /** Pure: the row for a release whose observation PASSED (§20.3 mapping). */
 export function stableRow(watch, watchRunId) {
@@ -29,9 +31,11 @@ export function stableRow(watch, watchRunId) {
   if (watch.action !== "stable" || e?.kind !== "release" || o?.state !== "PASSED") throw new Error("not a PASSED release observation");
   if (!FULL_SHA.test(e.code_sha) || !UUID.test(e.deployed_worker_version_id ?? "") || !UUID.test(e.previous_worker_version_id ?? "")) throw new Error("the release record lacks its SHA or Worker versions");
   const gaps = o.gaps.length ? o.gaps.map((g) => `${g.from} to ${g.to ?? "now"} (${g.minutes} min, covered by the next run)`).join("; ") : "none over 30 min";
+  const ext = externalRuns(o);
+  const external = ext.length ? ` External (Odoo) incidents, not attributed to the release (§20.2a): ${ext.map((r) => r.run_id).join(", ")}.` : "";
   const notes = text(
     `v11 static release (RELEASE_POLICY.md §20), ${e.risk} (W9.7 classifier). Published by content-publish.yml run ${e.run_id} (snapshot ${e.snapshot_version}); PROMOTION_RUN_ID = that run (§20.3 substitute). ` +
-      `Observation ${o.observation_started_at} to ${o.observation_ended_at}: ${o.runs.length} ops-health production runs (${o.runs[0]?.run_id ?? "-"} … ${o.runs.at(-1)?.run_id ?? "-"}), no ALERT; gaps: ${gaps}. ` +
+      `Observation ${o.observation_started_at} to ${o.observation_ended_at}: ${o.runs.length} ops-health production runs (${o.runs[0]?.run_id ?? "-"} … ${o.runs.at(-1)?.run_id ?? "-"}), no ALERT; gaps: ${gaps}.${external} ` +
       `Appended automatically by v11-release-watch.yml run ${watchRunId} (§20.8); the owner's merge of this row is the §12 attestation.`,
   );
   return `| ${code(e.code_sha)} | ${code(e.deployed_worker_version_id)} | STABLE_100 | 100 | ${code(e.run_id)} | ${code(e.run_id)} | ${code(e.run_id)} | ${code(e.previous_worker_version_id)} | ${e.risk} | PASS | ${secondIso(e.live_since)} | ${notes} |`;
@@ -67,13 +71,16 @@ export function prBody({ state, watch, rollback, watchRunId }) {
   if (state === "STABLE_100") {
     const e = watch.event;
     const o = watch.observation;
-    const runs = o.runs.map((r) => `| [${r.run_id}](${RUN_URL(r.run_id)}) | ${r.started_at} | ${r.conclusion} |`).join("\n");
+    const ext = externalRuns(o);
+    const outcome = (r) => (ext.some((x) => x.run_id === r.run_id) ? "failure — external (Odoo unreachable only), §20.2a" : r.conclusion);
+    const runs = o.runs.map((r) => `| [${r.run_id}](${RUN_URL(r.run_id)}) | ${r.started_at} | ${outcome(r)} |`).join("\n");
     return [
       `Automatic ledger row (RELEASE_POLICY.md §20.8): **${e.code_sha.slice(0, 7)}** observed 24 h on www.ahanassa.com with no ops-health production ALERT.`,
       "",
       `- release: content-publish.yml run [${e.run_id}](${RUN_URL(e.run_id)}), risk **${e.risk}**, snapshot \`${e.snapshot_version}\``,
       `- observation: ${o.observation_started_at} → ${o.observation_ended_at}, ${o.runs.length} runs, 0 ALERT`,
       `- gaps over 30 min: ${o.gaps.length ? o.gaps.map((g) => `${g.from} → ${g.to ?? "now"} (${g.minutes} min)`).join("; ") : "none"}`,
+      ext.length ? `- external (Odoo) incidents, not attributed to the release (§20.2a): ${ext.map((r) => `[${r.run_id}](${RUN_URL(r.run_id)}) ${r.started_at}`).join("; ")}` : null,
       watch.prefix_runs ? `- ⚠️ ${watch.prefix_runs} run(s) of the window ran before the ops-health lookback fix (W9.7): check the gaps above before merging` : null,
       `- watch run: [${watchRunId}](${RUN_URL(watchRunId)})`,
       "",

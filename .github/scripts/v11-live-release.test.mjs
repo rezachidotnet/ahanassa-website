@@ -15,7 +15,10 @@ import {
   kindOf,
   legacyRecord,
   makeRecord,
+  alertTitles,
+  externalIncidentIsNew,
   observe,
+  odooOnly,
   productionHealthRuns,
   recordForSnapshot,
   resolveLive,
@@ -303,6 +306,119 @@ test("productionHealthRuns: successful runs count whole; others are read job by 
   };
   const runs = await productionHealthRuns(gh, LIVE);
   assert.deepEqual(runs.map((r) => [r.run_id, r.conclusion]), [["1", "success"], ["2", "failure"]]);
+});
+
+// §20.2a (owner decision 2026-10-18): Odoo unreachable is an external incident for a HIGH release ----------------
+
+const ODOO = ["Odoo unreachable"];
+const withFailure = (h, alerts) => {
+  const runs = every15(0, 24.3);
+  const r = runs.find((x) => Date.parse(x.started_at) >= Date.parse(at(h)));
+  Object.assign(r, { conclusion: "failure", alerts });
+  return { runs, failed: r };
+};
+
+test("alertTitles / odooOnly: only a failed run whose known ALERTs are all 'Odoo unreachable' is external", () => {
+  assert.deepEqual(
+    alertTitles([
+      { title: "ALERT: Odoo unreachable", message: "consecutive failed checks: 2" },
+      { title: "WATCH: cron cpuTime — x", message: "" },
+      { title: null, message: "Process completed with exit code 1." },
+      { title: "ALERT: intake 5xx — api.ahanassa.com", message: "" },
+    ]),
+    ["Odoo unreachable", "intake 5xx — api.ahanassa.com"],
+  );
+  assert.equal(odooOnly({ conclusion: "failure", alerts: ODOO }), true);
+  assert.equal(odooOnly({ conclusion: "failure", alerts: ["Odoo unreachable", "Odoo unreachable"] }), true);
+  for (const other of ["intake 5xx — api.ahanassa.com", "cron silent — ahanassa-v11-rfq-production", "exceededCpu / 1102 — w", "RFQ in terminal failure", "content publish stale", "ops health could not run"]) {
+    assert.equal(odooOnly({ conclusion: "failure", alerts: ["Odoo unreachable", other] }), false, `Odoo + ${other}`);
+    assert.equal(odooOnly({ conclusion: "failure", alerts: [other] }), false, other);
+  }
+  assert.equal(odooOnly({ conclusion: "failure", alerts: [] }), false, "a failure with no ALERT annotation is not explained");
+  assert.equal(odooOnly({ conclusion: "failure", alerts: null }), false, "annotations not read = unknown = release ALERT");
+  assert.equal(odooOnly({ conclusion: "failure" }), false, "a timed-out job carries no alerts");
+  assert.equal(odooOnly({ conclusion: "success", alerts: ODOO }), false);
+});
+
+test("observe (§20.2a): HIGH — an Odoo-only ALERT is external, not a release ALERT; the 24 h still PASS", () => {
+  const { runs, failed } = withFailure(5, ODOO);
+  const o = observe(LIVE, runs, new Date(at(24, 30)), { externalOdoo: true });
+  assert.equal(o.state, "PASSED");
+  assert.deepEqual(o.alerts, []);
+  assert.deepEqual(o.external.map((r) => r.run_id), [failed.run_id]);
+  assert.equal(o.runs.length, runs.filter((r) => Date.parse(r.started_at) <= Date.parse(o.observation_ended_at)).length, "the external run still covers its window");
+  const mid = observe(LIVE, runs.filter((r) => Date.parse(r.started_at) < Date.parse(at(12))), new Date(at(12, 5)), { externalOdoo: true });
+  assert.equal(mid.state, "OBSERVING");
+  assert.equal(mid.external.length, 1);
+});
+
+test("observe (§20.2a): any other ALERT, alone or next to Odoo, or an unknown one, keeps today's behaviour", () => {
+  for (const alerts of [["Odoo unreachable", "intake 5xx — api.ahanassa.com"], ["cron silent — ahanassa-v11-rfq-production"], ["RFQ in terminal failure"], ["exceededCpu / 1102 — ahanassa-v11-rfq-production"], ["content publish stale"], [], null]) {
+    const { runs, failed } = withFailure(5, alerts);
+    const o = observe(LIVE, runs, new Date(at(25)), { externalOdoo: true });
+    assert.equal(o.state, "ALERT", JSON.stringify(alerts));
+    assert.deepEqual(o.alerts.map((r) => r.run_id), [failed.run_id]);
+    assert.deepEqual(o.external, []);
+  }
+  const both = withFailure(5, ODOO).runs;
+  const other = both.find((r) => Date.parse(r.started_at) >= Date.parse(at(9)));
+  Object.assign(other, { conclusion: "failure", alerts: ["intake 5xx — api.ahanassa.com"] });
+  const o = observe(LIVE, both, new Date(at(25)), { externalOdoo: true });
+  assert.equal(o.state, "ALERT", "an external incident never hides a real ALERT");
+  assert.deepEqual([o.alerts.length, o.external.length], [1, 1]);
+});
+
+test("observe (§20.2a): LOW keeps today's behaviour — an Odoo-only ALERT is an ALERT (default: no external)", () => {
+  const { runs } = withFailure(5, ODOO);
+  const o = observe(LIVE, runs, new Date(at(25)));
+  assert.equal(o.state, "ALERT");
+  assert.deepEqual(o.external, []);
+});
+
+test("decide + notify (§20.2a): HIGH + Odoo-only = STABLE_100 with the incident listed, e-mailed once per new run; LOW + Odoo-only = rollback", () => {
+  const high = { kind: "release", code_sha: sha("b"), risk: "HIGH", previous_worker_version_id: vid(1), previous_snapshot_version: snap(1), previous_code_sha: sha("a") };
+  const { runs, failed } = withFailure(5, ODOO);
+  const passed = observe(LIVE, runs, new Date(at(24, 30)), { externalOdoo: true });
+  const d = decide({ event: high, observation: passed, rows: [] });
+  assert.equal(d.action, "stable");
+  assert.match(d.reason, new RegExp(`no ALERT; 1 external \\(Odoo\\) incident\\(s\\), not attributed to the release \\(§20\\.2a\\): ${failed.run_id}`));
+  const observing = observe(LIVE, runs.filter((r) => Date.parse(r.started_at) < Date.parse(at(6))), new Date(at(5, 30)), { externalOdoo: true });
+  const d2 = decide({ event: high, observation: observing, rows: [] });
+  assert.equal(d2.action, "observing");
+  assert.match(d2.reason, /external \(Odoo\) incident/);
+  assert.equal(externalIncidentIsNew(d2, observing, new Date(at(5, 30))), true);
+  assert.equal(externalIncidentIsNew({ action: "none" }, observing, new Date(at(5, 30))), false, "a recorded release is no longer observed");
+  assert.equal(shouldNotify(d2, observing, new Date(at(5, 30))), true, "the owner is still e-mailed");
+  assert.equal(shouldNotify(d2, observing, new Date(at(7))), false, "once per new failed run");
+  assert.equal(shouldNotify(d, passed, new Date(at(24, 30))), false);
+  assert.equal(externalIncidentIsNew(d2, null, new Date(at(5, 30))), false);
+  const low = { ...high, risk: "LOW" };
+  assert.equal(decide({ event: low, observation: observe(LIVE, runs, new Date(at(25))), rows: [] }).action, "rollback", "LOW: unchanged");
+});
+
+test("productionHealthRuns (§20.2a): a failed production job carries its ALERT titles; unreadable annotations = unknown", async () => {
+  const gh = {
+    async json(p) {
+      if (p.includes("/workflows/ops-health.yml/runs")) {
+        return {
+          workflow_runs: [
+            { id: 6, head_branch: "main", status: "completed", conclusion: "failure", run_started_at: at(6) },
+            { id: 7, head_branch: "main", status: "completed", conclusion: "failure", run_started_at: at(7) },
+            { id: 8, head_branch: "main", status: "completed", conclusion: "failure", run_started_at: at(8) },
+          ],
+        };
+      }
+      if (p.startsWith("/actions/runs/6/jobs")) return { jobs: [{ id: 60, name: "health (production-prep)", status: "completed", conclusion: "failure", started_at: at(6, 1) }] };
+      if (p.startsWith("/actions/runs/7/jobs")) return { jobs: [{ id: 70, name: "health (production-prep)", status: "completed", conclusion: "failure", started_at: at(7, 1) }] };
+      if (p.startsWith("/actions/runs/8/jobs")) return { jobs: [{ id: 80, name: "health (production-prep)", status: "completed", conclusion: "timed_out", started_at: at(8, 1) }] };
+      if (p.startsWith("/check-runs/60/annotations")) return [{ title: "ALERT: Odoo unreachable", message: "consecutive failed checks: 2" }, { title: null, message: "Process completed with exit code 1." }];
+      if (p.startsWith("/check-runs/70/annotations")) throw new Error("GitHub API 403");
+      throw new Error(`unexpected ${p}`);
+    },
+  };
+  const runs = await productionHealthRuns(gh, LIVE);
+  assert.deepEqual(runs.map((r) => [r.run_id, r.conclusion, r.alerts]), [["6", "failure", ["Odoo unreachable"]], ["7", "failure", null], ["8", "failure", null]]);
+  assert.deepEqual(runs.map(odooOnly), [true, false, false]);
 });
 
 test("decide: LOW + ALERT = automatic rollback; HIGH + ALERT = owner; PASSED = STABLE_100 row; recorded = nothing", () => {
