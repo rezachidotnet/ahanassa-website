@@ -11,8 +11,9 @@ import { priceGateInput } from "../static/price-gate.ts";
 import { indicatorGateInput } from "../static/indicator-gate.ts";
 import { shareImageUrls } from "../static/artifact-gate.ts";
 import { tehranDay } from "../pricing/price-history.ts";
-import { chartSeries, chartShareLinks, PRICE_CHART_COPY } from "../pricing/price-charts.ts";
-import { INDICATOR_COPY } from "../indicators/presentation.ts";
+import { chartSeries, chartShareLinks, chartShareText, PRICE_CHART_COPY } from "../pricing/price-charts.ts";
+import { allowedIndicatorTexts, INDICATOR_COPY } from "../indicators/presentation.ts";
+import { checkAgentTexts } from "../static/markdown-mirror.ts";
 import { ANALYTICS_EVENTS, buildEvent, CHART_SHARE_ATTRIBUTE, chartShareParams, clickEventFor } from "../analytics/events.ts";
 import { checkShareImage, indicatorSharePoints, indicatorsShareImage, priceChartShareImage, rtlText, SHARE_IMAGE_COPY, type ShareImage } from "./share-images.ts";
 import { chartShareImagePath, indicatorsShareImagePath, SHARE_IMAGE_SIZE } from "./share-image-paths.ts";
@@ -201,4 +202,58 @@ test("pages: og:image/twitter:image name the share image (alt without a price); 
   assert.match(gate, /share image not in the artifact/);
   const build = fs.readFileSync(path.join(REPO, "scripts/static/build.ts"), "utf8");
   assert.match(build, /writeShareImages\(publicDir, \{ charts: chartShares, indicators: shareIndicators, snapshot, .*sourceNames: loadSourceNames\(\) \}\)/);
+});
+
+test("Bale: no web share URL, so «اشتراک در بله» copies the title + link, shows «لینک کپی شد» and sends chart_share (bale)", () => {
+  assert.deepEqual(chartShareParams("bale", "rebar-aj400"), { share_method: "bale", product_slug: "rebar-aj400" });
+  assert.equal(PRICE_CHART_COPY.shareBale, "اشتراک در بله");
+  assert.equal(PRICE_CHART_COPY.linkCopied, "لینک کپی شد");
+  const url = "https://www.ahanassa.com/prices/chart/rebar-aj400";
+  const title = PRICE_CHART_COPY.title(PRODUCT);
+  // The same text as the WhatsApp share: title + URL, never a price.
+  assert.equal(chartShareText(url, title), `${title}\n${url}`);
+  assert.equal(decodeURIComponent(chartShareLinks(url, title).whatsapp.slice("https://wa.me/?text=".length)), chartShareText(url, title));
+  const copy = fs.readFileSync(path.join(REPO, "components/prices/chart-copy-link.tsx"), "utf8");
+  assert.ok(copy.startsWith('"use client"'));
+  assert.match(copy, /\[CHART_SHARE_ATTRIBUTE\]: "bale"/);
+  assert.match(copy, /trackEvent\("chart_share", share\)/);
+  assert.match(copy, /navigator\.clipboard\.writeText/);
+  // The toast: a live region always in the DOM, fixed when shown (no layout shift).
+  assert.match(copy, /role="status" className=\{cn\("bg-navy pointer-events-none fixed [^"]*", copied \? "opacity-100" : "opacity-0"\)\}/);
+  assert.doesNotMatch(copy, /<a\b/, "a button, not a link: the click listener's link path never sees it");
+  const share = fs.readFileSync(path.join(REPO, "components/prices/chart-share.tsx"), "utf8");
+  assert.match(share, /<ChartCopyLink slug=\{slug\} text=\{chartShareText\(url, title\)\} label=\{t\.shareBale\} copiedLabel=\{t\.linkCopied\}/);
+  const gtm = fs.readFileSync(path.join(REPO, "docs/analytics/GTM_SETUP.md"), "utf8");
+  assert.match(gtm, /`share_method`: `whatsapp` \/ `telegram` \/ `bale`/);
+});
+
+test("en/ar indicator strip: home (under the hero), /export, /ar/prices; every card links to the locale's market-indicators page", () => {
+  const src = (f: string) => fs.readFileSync(path.join(REPO, f), "utf8");
+  assert.match(src("app/[locale]/page.tsx"), /<PriceStrip [^\n]*\/>\n[^\n]*\n[^\n]*\n\s*\{locale === "fa" \? <HomeIndicators \/> : isMarketIndicatorsLocale\(locale\) && <MarketIndicatorStrip locale=\{locale\} \/>\}/);
+  assert.match(src("app/[locale]/export/page.tsx"), /isMarketIndicatorsLocale\(locale\) && <MarketIndicatorStrip locale=\{locale\} headingId="export-indicators-heading" \/>/);
+  assert.match(src("app/[locale]/prices/page.tsx"), /return <IndicatorStrip locale="ar" indicators=\{indicators\} link=\{\{ href: localizedPath\("ar", MARKET_INDICATORS_ROUTE\), label: MARKET_INDICATORS_COPY\.ar\.title \}\} \/>/);
+  const strip = src("components/indicators/market-indicator-strip.tsx");
+  assert.match(strip, /link=\{\{ href: localizedPath\(locale, MARKET_INDICATORS_ROUTE\), label: MARKET_INDICATORS_COPY\[locale\]\.title \}\}/);
+  assert.match(strip, /locale: MarketIndicatorsLocale/, "en/ar only: fa has no market-indicators page");
+  const card = src("components/indicators/indicator-card.tsx");
+  // The name is the (stretched) link: no new visible text, so the indicator gate's allow-list is unchanged.
+  assert.match(card, /<Link href=\{href\} className="[^"]*after:absolute after:inset-0[^"]*">\n\s*\{v\.name\}\n\s*<\/Link>/);
+  assert.match(card, /className="hover:text-navy relative z-10 underline/, "the source link stays clickable above the stretched link");
+  assert.doesNotMatch(card, /success|danger|text-green|text-red/);
+  // en: never a glyph, the change reads +/−; the reference label is the owner's text.
+  assert.equal(INDICATOR_COPY.en.reference, "Reference index — not an Ahan Asa selling price");
+  assert.equal(INDICATOR_COPY.ar.reference, "مؤشر مرجعي — ليس سعر بيع لدى آهن آسا");
+});
+
+test("agent texts: the en strip's own «IRR per USD» is not a currency mention; any other currency word, or a price amount, still is", () => {
+  const texts = ALL.flatMap((i) => allowedIndicatorTexts("en", i));
+  const usd = ALL.find((i) => i.code === "usd_irr_official_cbi");
+  assert.ok(usd && texts.some((t) => t.includes("IRR")), "the fixture's USD/IRR unit names the currency");
+  const strip = `- [${usd.names.en}](https://www.ahanassa.com/en/market-indicators) ${INDICATOR_COPY.en.reference} 1,801,719 IRR per USD Date: 7 Oct 2026\n`;
+  assert.ok(checkAgentTexts([{ path: "en.md", content: strip }], []).some((f) => /currency/.test(f)), "without the indicator texts it fails");
+  assert.deepEqual(checkAgentTexts([{ path: "en.md", content: strip }, { path: "en/export.md", content: strip }], [], texts), []);
+  assert.ok(checkAgentTexts([{ path: "en.md", content: `${strip}Rebar from 50,000 rials\n` }], [], texts).some((f) => /currency/.test(f)));
+  assert.ok(checkAgentTexts([{ path: "en.md", content: `${strip}Rebar 480,000 today\n` }], [{ price_irr_per_kg: 480_000, factory_name_fa: "x", location_fa: "y" }], texts).some((f) => /price amount/.test(f)));
+  // ar is not an en page: the strip texts change nothing there.
+  assert.deepEqual(checkAgentTexts([{ path: "ar.md", content: strip }], [], texts), []);
 });

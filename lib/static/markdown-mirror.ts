@@ -315,11 +315,18 @@ const normName = (s: string) => s.replace(/ي/g, "ی").replace(/ك/g, "ک").repl
  * Artifact gate (W16.7) for the agent texts: `llms.txt` / `llms-full.txt` and the en Markdown pages carry no price
  * amount of this run's snapshot (Toman or IRR, any digit script, with or without grouping) and no factory or
  * delivery-location name, and llms.txt and the en pages no currency word (llms-full.txt is llms.txt + those pages); the ar Markdown pages no factory or location name (ar = price + date only).
+ *
+ * `indicatorTexts` (W18.3): the en texts of the build's market indicators that name a currency (the USD/IRR rate's
+ * unit «IRR per USD», its name, its source). The en home and export pages show the indicator strip, so those exact
+ * texts are taken out before the currency-word rule — and only those: any other currency word still fails, and the
+ * snapshot-amount and factory/location rules see the whole page.
  */
 export function checkAgentTexts(
   files: ReadonlyArray<{ path: string; content: string }>,
   rows: ReadonlyArray<{ price_irr_per_kg: number; factory_name_fa: string; location_fa: string }>,
+  indicatorTexts: readonly string[] = [],
 ): string[] {
+  const currencyIndicatorTexts = [...new Set(indicatorTexts.filter((t) => CURRENCY_WORD.test(t)))].sort((a, b) => b.length - a.length);
   const failures: string[] = [];
   const amounts = new Set(rows.flatMap((r) => [r.price_irr_per_kg, Math.round(r.price_irr_per_kg / 10)]).filter((a) => a >= 1000));
   const names = [...new Set(rows.flatMap((r) => [r.factory_name_fa, r.location_fa]).map(normName))].filter((n) => n.length >= 3);
@@ -332,7 +339,8 @@ export function checkAgentTexts(
     for (const n of names) if (text.includes(n)) failures.push(`agent text: ${path} names a factory or delivery location of the price snapshot`);
     if (ar || MARKET_INDICATOR_MARKDOWN.includes(path)) continue;
     // No currency word: llms.txt, and every en page (its .md mirror is the page's visible text).
-    if (path !== "llms-full.txt" && CURRENCY_WORD.test(content)) failures.push(`agent text: ${path} mentions a currency`);
+    const withoutIndicators = en ? currencyIndicatorTexts.reduce((s, t) => s.split(t).join(" "), content) : content;
+    if (path !== "llms-full.txt" && CURRENCY_WORD.test(withoutIndicators)) failures.push(`agent text: ${path} mentions a currency`);
     for (const m of asciiDigits(content).matchAll(/\d[\d,٬]*/g)) {
       const value = Number(m[0].replace(/[,٬]/g, ""));
       if (amounts.has(value)) failures.push(`agent text: ${path} has a price amount of the snapshot (${m[0]})`);

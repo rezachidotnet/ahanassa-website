@@ -76,7 +76,15 @@ export const PRICE_CHART_COPY = {
   /** W18.3: the share links (components/prices/chart-share.tsx). */
   shareWhatsapp: "اشتراک در واتساپ",
   shareTelegram: "اشتراک در تلگرام",
+  /** Bale publishes no web share URL (docs.bale.ai, bale.ai), so its button copies the title + link (components/prices/chart-copy-link.tsx). */
+  shareBale: "اشتراک در بله",
+  linkCopied: "لینک کپی شد",
 } as const;
+
+/** The shared text: the page title, then its URL — never a price (WhatsApp's share text, and what «اشتراک در بله» copies). */
+export function chartShareText(url: string, title: string): string {
+  return `${title}\n${url}`;
+}
 
 /**
  * W18.3 — a chart page's plain share URLs (no script, no SDK): WhatsApp's `wa.me/?text=` (no number: the visitor picks
@@ -87,7 +95,7 @@ export const PRICE_CHART_COPY = {
 export function chartShareLinks(url: string, title: string): { whatsapp: string; telegram: string } {
   const enc = (s: string) => encodeURIComponent(s).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
   return {
-    whatsapp: `https://wa.me/?text=${enc(`${title}\n${url}`)}`,
+    whatsapp: `https://wa.me/?text=${enc(chartShareText(url, title))}`,
     telegram: `https://t.me/share/url?url=${enc(url)}&text=${enc(title)}`,
   };
 }
