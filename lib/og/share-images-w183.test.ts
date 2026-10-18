@@ -204,9 +204,9 @@ test("pages: og:image/twitter:image name the share image (alt without a price); 
   assert.match(build, /writeShareImages\(publicDir, \{ charts: chartShares, indicators: shareIndicators, snapshot, .*sourceNames: loadSourceNames\(\) \}\)/);
 });
 
-test("Bale: no web share URL, so «اشتراک در بله» copies the title + link, shows «لینک کپی شد» and sends chart_share (bale)", () => {
+test("Bale: no web share URL, so «کپی لینک برای بله» copies the title + link, shows «لینک کپی شد» and sends chart_share (bale)", () => {
   assert.deepEqual(chartShareParams("bale", "rebar-aj400"), { share_method: "bale", product_slug: "rebar-aj400" });
-  assert.equal(PRICE_CHART_COPY.shareBale, "اشتراک در بله");
+  assert.equal(PRICE_CHART_COPY.shareBale, "کپی لینک برای بله");
   assert.equal(PRICE_CHART_COPY.linkCopied, "لینک کپی شد");
   const url = "https://www.ahanassa.com/prices/chart/rebar-aj400";
   const title = PRICE_CHART_COPY.title(PRODUCT);

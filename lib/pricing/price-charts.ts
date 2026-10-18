@@ -77,11 +77,11 @@ export const PRICE_CHART_COPY = {
   shareWhatsapp: "اشتراک در واتساپ",
   shareTelegram: "اشتراک در تلگرام",
   /** Bale publishes no web share URL (docs.bale.ai, bale.ai), so its button copies the title + link (components/prices/chart-copy-link.tsx). */
-  shareBale: "اشتراک در بله",
+  shareBale: "کپی لینک برای بله",
   linkCopied: "لینک کپی شد",
 } as const;
 
-/** The shared text: the page title, then its URL — never a price (WhatsApp's share text, and what «اشتراک در بله» copies). */
+/** The shared text: the page title, then its URL — never a price (WhatsApp's share text, and what «کپی لینک برای بله» copies). */
 export function chartShareText(url: string, title: string): string {
   return `${title}\n${url}`;
 }

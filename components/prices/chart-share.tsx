@@ -9,7 +9,7 @@ const LINK = "text-navy hover:text-copper inline-flex min-h-11 items-center gap-
  * W18.3 — «اشتراک در واتساپ» / «اشتراک در تلگرام» on a fa chart page: plain server-rendered links to the apps' share URLs
  * (lib/pricing/price-charts.ts chartShareLinks), no script of their own. The site's one delegated click listener
  * reports chart_share (components/analytics/analytics-runtime.tsx) from `data-chart-share` + `data-chart-slug`, and
- * not whatsapp_click. «اشتراک در بله» is a copy-link button (Bale has no web share URL; components/prices/
+ * not whatsapp_click. «کپی لینک برای بله» is a copy-link button (Bale has no web share URL; components/prices/
  * chart-copy-link.tsx), the one client island here. The shared page's preview is its build-time share image
  * (lib/og/share-images.ts).
  */

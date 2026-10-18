@@ -27,7 +27,7 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 /**
- * W18.3 — «اشتراک در بله» on a fa chart page. Bale publishes no web share URL (docs.bale.ai, bale.ai, ble.ir), so the
+ * W18.3 — «کپی لینک برای بله» on a fa chart page. Bale publishes no web share URL (docs.bale.ai, bale.ai, ble.ir), so the
  * button copies the page title + link (the same text as the WhatsApp share) and shows «لینک کپی شد». It reports
  * chart_share itself (share_method=bale): the site's click listener only reads links. The toast is always fixed and
  * only its opacity changes, so showing it moves nothing (no CLS); its live region is always in the DOM, so screen

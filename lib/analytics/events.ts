@@ -54,7 +54,7 @@ export const ANALYTICS_EVENTS = {
   /** W18.2: «قیمت قطعی برای حجم شما» was clicked; `cta_location`: gauge (product page) | chart_page. */
   chart_to_rfq: ["cta_location", "product_slug", "product_family"],
   /**
-   * W18.3: a fa chart page's «اشتراک در واتساپ» / «اشتراک در تلگرام» link or «اشتراک در بله» (copy-link) button was
+   * W18.3: a fa chart page's «اشتراک در واتساپ» / «اشتراک در تلگرام» link or «کپی لینک برای بله» (copy-link) button was
    * clicked; `share_method`: whatsapp | telegram | bale. Sent instead of whatsapp_click: sharing is not a contact with Ahan Asa.
    */
   chart_share: ["share_method", "product_slug"],
