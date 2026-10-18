@@ -200,6 +200,7 @@ Local commands assume a checkout of `feat/v11-static-site` with `npx wrangler lo
   1. Check `curl -sS -o /dev/null -w '%{http_code} %{time_total}\n' https://odoo.ahanassa.com/api/v1/catalog/meta` from another network.
   2. Check the Odoo server and its reverse proxy.
   3. Note: reachability from outside Iran is a known risk (§16).
+- **During a v11 release observation (owner decision 2026-10-18, `RELEASE_POLICY.md` §20.2a):** a production run whose **only** ALERT is this one is an **external (Odoo) incident**, not an ALERT of a `HIGH` release. The site does not depend on Odoo: it is a static build, and RFQs queue in D1. The e-mail still arrives, and the release watch lists the run as external and e-mails it once more. The incident does not block the release's `STABLE_100` row. The same ALERT next to any other ALERT, and every ALERT during a `LOW` release's observation, counts as before. The watch matches the annotation title `ALERT: Odoo unreachable` exactly, so keep the check's title unchanged (`checks.ts` `ODOO_TITLE`).
 
 ### published prices stale (> 5 days, W9.4)
 

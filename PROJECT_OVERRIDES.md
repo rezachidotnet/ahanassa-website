@@ -465,4 +465,17 @@ AUTO_APPROVE_COMMENT              = "auto-approved after 6 h per owner decision"
 
 ---
 
+## 16. Odoo outages are not attributed to a website release — OWNER-CONFIRMED
+
+```text
+EXTERNAL_INCIDENT                 = an ops-health production run whose ONLY ALERT is "Odoo unreachable"
+EXTERNAL_INCIDENT_SCOPE           = the observation window of a HIGH v11 release (LOW unchanged: any ALERT rolls back)
+EXTERNAL_INCIDENT_EFFECT          = listed as external in the release-watch summary and STABLE_100 evidence; owner still e-mailed; does not block STABLE_100
+EXTERNAL_INCIDENT_NEVER_WHEN      = any other ALERT in the same run, annotations unreadable, job timed out, no ALERT annotation
+```
+
+**Status:** OWNER-CONFIRMED 2026-10-18, approved as a HIGH change. The site is designed to be independent of Odoo: a static build, with RFQs queued in D1. An Odoo outage during a release's observation is therefore not evidence against the release. Every other ALERT (site, RFQ intake 5xx, cron silent, CPU, RFQ in terminal failure, content stale) is attributed to the release exactly as before. Full rule: `docs/release/RELEASE_POLICY.md` §20.2a; implementation: `.github/scripts/v11-live-release.mjs` and `.github/workflows/v11-release-watch.yml` on `main`.
+
+---
+
 **End of `PROJECT_OVERRIDES.md`**
