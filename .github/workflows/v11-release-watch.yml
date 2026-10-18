@@ -11,10 +11,11 @@
 #   - ALERT, risk HIGH        -> nothing automatic (§20.2: the owner decides between a rollback and a fix). One tap:
 #                                Actions → v11 release watch → Run workflow → operation = rollback.
 #   - uncovered gap           -> the owner decides; reported in the summary.
-#   - HIGH, a run whose ONLY ALERT is "Odoo unreachable" (§20.2a, owner decision 2026-10-18) -> an external (Odoo)
-#                                incident, not a release ALERT: listed in the summary and the STABLE_100 evidence,
-#                                e-mailed to the owner (job `notify`, once per new run), never blocks the row. The site
-#                                does not depend on Odoo (static build; RFQs queue in D1). LOW is unchanged.
+#   - a run whose ONLY ALERT is "Odoo unreachable", LOW or HIGH (§20.2a, owner decisions 2026-10-18) -> an external
+#                                (Odoo) incident, not a release ALERT: never the automatic LOW rollback; listed in the
+#                                summary and the STABLE_100 evidence, e-mailed to the owner (job `notify`, once per new
+#                                run), never blocks the row. The site does not depend on Odoo (static build; RFQs queue
+#                                in D1).
 # A rollback is never rolled back; the watch never writes the ledger branch directly (bot PRs only).
 #
 # Lives on `main` (scheduled/dispatchable only from the default branch); it checks out feat/v11-static-site for the
@@ -311,7 +312,7 @@ jobs:
           fi
 
   # GitHub e-mails the owner for a failed run: an automatic rollback (done or failed) must reach the owner, and so must a
-  # HIGH ALERT or an external (Odoo) incident (§20.2a) (once per new failed ops-health run), a gap or an unidentified
+  # HIGH ALERT or an external (Odoo) incident of any release (§20.2a) (once per new failed ops-health run), a gap or an unidentified
   # release (once a day).
   notify:
     name: notify (owner e-mail on a rollback)

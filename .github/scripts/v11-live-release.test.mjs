@@ -308,7 +308,7 @@ test("productionHealthRuns: successful runs count whole; others are read job by 
   assert.deepEqual(runs.map((r) => [r.run_id, r.conclusion]), [["1", "success"], ["2", "failure"]]);
 });
 
-// §20.2a (owner decision 2026-10-18): Odoo unreachable is an external incident for a HIGH release ----------------
+// §20.2a (owner decisions 2026-10-18): Odoo unreachable is an external incident for HIGH and LOW releases ----------
 
 const ODOO = ["Odoo unreachable"];
 const withFailure = (h, alerts) => {
@@ -340,14 +340,14 @@ test("alertTitles / odooOnly: only a failed run whose known ALERTs are all 'Odoo
   assert.equal(odooOnly({ conclusion: "success", alerts: ODOO }), false);
 });
 
-test("observe (§20.2a): HIGH — an Odoo-only ALERT is external, not a release ALERT; the 24 h still PASS", () => {
+test("observe (§20.2a): an Odoo-only ALERT is external, not a release ALERT; the 24 h still PASS", () => {
   const { runs, failed } = withFailure(5, ODOO);
-  const o = observe(LIVE, runs, new Date(at(24, 30)), { externalOdoo: true });
+  const o = observe(LIVE, runs, new Date(at(24, 30)));
   assert.equal(o.state, "PASSED");
   assert.deepEqual(o.alerts, []);
   assert.deepEqual(o.external.map((r) => r.run_id), [failed.run_id]);
   assert.equal(o.runs.length, runs.filter((r) => Date.parse(r.started_at) <= Date.parse(o.observation_ended_at)).length, "the external run still covers its window");
-  const mid = observe(LIVE, runs.filter((r) => Date.parse(r.started_at) < Date.parse(at(12))), new Date(at(12, 5)), { externalOdoo: true });
+  const mid = observe(LIVE, runs.filter((r) => Date.parse(r.started_at) < Date.parse(at(12))), new Date(at(12, 5)));
   assert.equal(mid.state, "OBSERVING");
   assert.equal(mid.external.length, 1);
 });
@@ -355,7 +355,7 @@ test("observe (§20.2a): HIGH — an Odoo-only ALERT is external, not a release 
 test("observe (§20.2a): any other ALERT, alone or next to Odoo, or an unknown one, keeps today's behaviour", () => {
   for (const alerts of [["Odoo unreachable", "intake 5xx — api.ahanassa.com"], ["cron silent — ahanassa-v11-rfq-production"], ["RFQ in terminal failure"], ["exceededCpu / 1102 — ahanassa-v11-rfq-production"], ["content publish stale"], [], null]) {
     const { runs, failed } = withFailure(5, alerts);
-    const o = observe(LIVE, runs, new Date(at(25)), { externalOdoo: true });
+    const o = observe(LIVE, runs, new Date(at(25)));
     assert.equal(o.state, "ALERT", JSON.stringify(alerts));
     assert.deepEqual(o.alerts.map((r) => r.run_id), [failed.run_id]);
     assert.deepEqual(o.external, []);
@@ -363,26 +363,40 @@ test("observe (§20.2a): any other ALERT, alone or next to Odoo, or an unknown o
   const both = withFailure(5, ODOO).runs;
   const other = both.find((r) => Date.parse(r.started_at) >= Date.parse(at(9)));
   Object.assign(other, { conclusion: "failure", alerts: ["intake 5xx — api.ahanassa.com"] });
-  const o = observe(LIVE, both, new Date(at(25)), { externalOdoo: true });
+  const o = observe(LIVE, both, new Date(at(25)));
   assert.equal(o.state, "ALERT", "an external incident never hides a real ALERT");
   assert.deepEqual([o.alerts.length, o.external.length], [1, 1]);
 });
 
-test("observe (§20.2a): LOW keeps today's behaviour — an Odoo-only ALERT is an ALERT (default: no external)", () => {
-  const { runs } = withFailure(5, ODOO);
-  const o = observe(LIVE, runs, new Date(at(25)));
-  assert.equal(o.state, "ALERT");
-  assert.deepEqual(o.external, []);
+test("decide (§20.2a): LOW + Odoo-only = no rollback, external incident, STABLE_100, e-mailed; LOW + Odoo + other ALERT = rollback", () => {
+  const low = { kind: "release", code_sha: sha("b"), risk: "LOW", previous_worker_version_id: vid(1), previous_snapshot_version: snap(1), previous_code_sha: sha("a") };
+  const { runs, failed } = withFailure(5, ODOO);
+  const early = observe(LIVE, runs.filter((r) => Date.parse(r.started_at) < Date.parse(at(6))), new Date(at(5, 30)));
+  const d1 = decide({ event: low, observation: early, rows: [] });
+  assert.equal(d1.action, "observing", "never the automatic LOW rollback");
+  assert.match(d1.reason, new RegExp(`external \\(Odoo\\) incident\\(s\\), not attributed to the release \\(§20\\.2a\\): ${failed.run_id}`));
+  assert.equal(shouldNotify(d1, early, new Date(at(5, 30))), true, "e-mailed as today");
+  const passed = observe(LIVE, runs, new Date(at(24, 30)));
+  assert.equal(decide({ event: low, observation: passed, rows: [] }).action, "stable");
+  for (const alerts of [["Odoo unreachable", "intake 5xx — api.ahanassa.com"], ["Odoo unreachable", "cron silent — ahanassa-v11-rfq-production"], [], null]) {
+    const r = withFailure(5, alerts);
+    const d = decide({ event: low, observation: observe(LIVE, r.runs, new Date(at(5, 30))), rows: [] });
+    assert.equal(d.action, "rollback", JSON.stringify(alerts));
+    assert.match(d.reason, new RegExp(r.failed.run_id));
+  }
+  const mixed = withFailure(5, ODOO).runs;
+  Object.assign(mixed.find((r) => Date.parse(r.started_at) >= Date.parse(at(9))), { conclusion: "failure", alerts: ["RFQ in terminal failure"] });
+  assert.equal(decide({ event: low, observation: observe(LIVE, mixed, new Date(at(10))), rows: [] }).action, "rollback", "an Odoo incident in another run never shields a real ALERT");
 });
 
-test("decide + notify (§20.2a): HIGH + Odoo-only = STABLE_100 with the incident listed, e-mailed once per new run; LOW + Odoo-only = rollback", () => {
+test("decide + notify (§20.2a): HIGH + Odoo-only = STABLE_100 with the incident listed, e-mailed once per new run", () => {
   const high = { kind: "release", code_sha: sha("b"), risk: "HIGH", previous_worker_version_id: vid(1), previous_snapshot_version: snap(1), previous_code_sha: sha("a") };
   const { runs, failed } = withFailure(5, ODOO);
-  const passed = observe(LIVE, runs, new Date(at(24, 30)), { externalOdoo: true });
+  const passed = observe(LIVE, runs, new Date(at(24, 30)));
   const d = decide({ event: high, observation: passed, rows: [] });
   assert.equal(d.action, "stable");
   assert.match(d.reason, new RegExp(`no ALERT; 1 external \\(Odoo\\) incident\\(s\\), not attributed to the release \\(§20\\.2a\\): ${failed.run_id}`));
-  const observing = observe(LIVE, runs.filter((r) => Date.parse(r.started_at) < Date.parse(at(6))), new Date(at(5, 30)), { externalOdoo: true });
+  const observing = observe(LIVE, runs.filter((r) => Date.parse(r.started_at) < Date.parse(at(6))), new Date(at(5, 30)));
   const d2 = decide({ event: high, observation: observing, rows: [] });
   assert.equal(d2.action, "observing");
   assert.match(d2.reason, /external \(Odoo\) incident/);
@@ -392,8 +406,6 @@ test("decide + notify (§20.2a): HIGH + Odoo-only = STABLE_100 with the incident
   assert.equal(shouldNotify(d2, observing, new Date(at(7))), false, "once per new failed run");
   assert.equal(shouldNotify(d, passed, new Date(at(24, 30))), false);
   assert.equal(externalIncidentIsNew(d2, null, new Date(at(5, 30))), false);
-  const low = { ...high, risk: "LOW" };
-  assert.equal(decide({ event: low, observation: observe(LIVE, runs, new Date(at(25))), rows: [] }).action, "rollback", "LOW: unchanged");
 });
 
 test("productionHealthRuns (§20.2a): a failed production job carries its ALERT titles; unreadable annotations = unknown", async () => {

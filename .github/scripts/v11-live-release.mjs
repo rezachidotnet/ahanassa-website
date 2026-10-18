@@ -416,21 +416,21 @@ export async function productionHealthRuns(gh, since) {
 /**
  * Pure. state:
  *   ALERT      a production health job of the window failed (the window ends with the first job that starts at or
- *              after live_since + 24 h, which still reports on the end of the window). With `externalOdoo` (a HIGH
- *              release, §20.2a) a failed job whose only ALERT is "Odoo unreachable" is listed in `external` instead:
- *              it covers its window like a passing job and is not a release ALERT;
+ *              after live_since + 24 h, which still reports on the end of the window). A failed job whose only ALERT
+ *              is "Odoo unreachable" (§20.2a, LOW and HIGH alike) is listed in `external` instead: it covers its
+ *              window like a passing job and is not a release ALERT (never a LOW rollback);
  *   OBSERVING  no job has started after the end yet;
  *   GAP        two consecutive jobs (or live_since and the first job) are more than 24 h apart: no run covers it;
  *   PASSED     24 h covered, no ALERT.
  */
-export function observe(liveSince, runs, now = new Date(), { externalOdoo = false } = {}) {
+export function observe(liveSince, runs, now = new Date()) {
   const start = Date.parse(liveSince);
   const end = start + OBSERVATION_MS;
   const after = runs.filter((r) => Date.parse(r.started_at) > start).sort((a, b) => Date.parse(a.started_at) - Date.parse(b.started_at));
   const coverIdx = after.findIndex((r) => Date.parse(r.started_at) >= end);
   const window = coverIdx === -1 ? after : after.slice(0, coverIdx + 1);
   const failed = window.filter((r) => r.conclusion === "failure");
-  const external = externalOdoo ? failed.filter(odooOnly) : [];
+  const external = failed.filter(odooOnly);
   const alerts = failed.filter((r) => !external.includes(r));
   const gaps = [];
   let prev = start;
@@ -582,8 +582,7 @@ async function main(argv) {
     const live = await resolveLive({ app, ledgerRef, gh, allowUnreachable: true });
     const rows = ledgerRows(git(app, ["show", `${ledgerRef}:${LEDGER_PATH}`]));
     const event = live.ok ? live.event : null;
-    // §20.2a: only a HIGH release (a pre-W9.7 release without a class counts as HIGH) sets Odoo-only ALERTs aside.
-    const observation = event && event.kind === "release" ? observe(event.live_since, await productionHealthRuns(gh, event.live_since), new Date(), { externalOdoo: event.risk !== "LOW" }) : null;
+    const observation = event && event.kind === "release" ? observe(event.live_since, await productionHealthRuns(gh, event.live_since)) : null;
     const d = live.ok ? decide({ event, observation, rows, operation: arg(argv, "operation") ?? "watch" }) : { action: "none", reason: live.reason, unresolved: true };
     const result = { ...d, notify: shouldNotify(d, observation), external_new: externalIncidentIsNew(d, observation), live: { ok: live.ok, sha: live.sha, snapshot: live.snapshot, eligible: live.eligible, reason: live.reason, www_unreachable: live.www_unreachable ?? null }, event, observation };
     console.log(JSON.stringify(result));
