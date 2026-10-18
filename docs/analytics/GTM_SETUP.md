@@ -55,7 +55,7 @@ The staging and production builds are byte-identical except for robots, sitemap,
 | `basket_add` | A product joins the RFQ basket: the visitor arrives at `/contact` from a product, price or calculator link. A duplicate of a row already in the basket, a full list or a reload sends nothing | `basket_size` (filled rows after the add), `product_family`, `product_slug`, `add_source`: `product` / `price` / `calculator` (the page the visitor came from; left out when it was another page or unknown) |
 | `file_upload` | A file passes the attachment checks and joins the RFQ (once per accepted file; refused files send nothing) | `file_count` (files attached after this one), `file_type` (the policy's extension, e.g. `pdf`; never the file name) |
 | `product_view` | A product page (`/products/<slug>`) loads | `product_family`, `product_slug` |
-| `rfq_cta_click` | Any RFQ link (to `/contact` or `/request`: «استعلام قیمت»/«ارسال لیست خرید» buttons, the header CTA, the basket badge) is clicked **outside an article** | `cta_location`: `header` (header or mobile menu) / `home_expert` (the homepage expert section, W20.3) / `home` / `product` / `category` / `price` / `calculator` (the page it was on; left out in the footer and on other pages); `product_family` when the page or the calculator's selected product has one |
+| `rfq_cta_click` | Any RFQ link (to `/contact` or `/request`: «استعلام قیمت»/«ارسال لیست خرید» buttons, the header CTA, the basket badge) is clicked **outside an article** | `cta_location`: `header` (header or mobile menu) / `home_expert` (the homepage expert section, W20.3) / `home` / `product` / `category` / `price` / `calculator` / `downloads` (the page it was on — `downloads` = «استعلام این سایز» on the Download Center, W20.8; left out in the footer and on other pages); `product_family` when the page or the calculator's selected product has one |
 | `calculator_open` | The weight calculator page loads | `calculator_entry`: `home_cta` / `category` / `product` / `price` (the previous page on this site) / `direct` (anything else: no referrer, another site, another page) |
 | `article_read` | The reader reaches 75% of an article's body (an invisible line at 75% of the body enters the screen; once per page view) | `article_slug`, `article_lang` (`fa` / `en` / `ar`) |
 | `article_cta_click` | An RFQ («استعلام قیمت») button or link **inside an article** is clicked | `article_slug`, `article_lang`, `cta_location`: `inline` (a link in the article text) / `product_card` (the button under the related products) / `bottom` (the «استعلام قیمت» box beside, or on mobile below, the article) |
@@ -65,10 +65,16 @@ The staging and production builds are byte-identical except for robots, sitemap,
 | `chart_to_rfq` | W18.2: «قیمت قطعی برای حجم شما» is clicked (it also sends `rfq_cta_click`) | `cta_location`: `gauge` (product page) / `chart_page`, `product_slug`, `product_family` |
 | `indicator_page_view` | W18.2: `/en/market-indicators` or `/ar/market-indicators` loads | `page_lang`: `en` / `ar`, `indicator_count` |
 | `expert_call_click` / `expert_whatsapp_click` / `expert_rfq_click` / `expert_chat_click` | An action in the homepage «با کارشناس فروش صحبت کنید» section is clicked: phone, WhatsApp, the RFQ («ارسال فاکتور یا لیست خرید») or live chat (W21, only when configured). Sent **in addition to** `phone_click` / `whatsapp_click` / `rfq_cta_click` (`home_expert`), so do not add both into one total | `expert_variant`: `A` (Concierge card) / `B` (Split band) — the layout the site was built with (W20.3 redesign) |
+| `download_file` | W20.8: a file link on `/downloads` is clicked (a size's DXF or PDF, a spec sheet, a catalog in any language, the item-list template) | `file_type`: `dxf` / `pdf` (a size's drawing sheet) / `spec_sheet` / `catalog` / `template`; `product_family` (drawings and spec sheets); `product_slug` (the product page of a size's drawing) |
+| `download_zip` | W20.8: a family's «دانلود همه (ZIP)» on `/downloads` is clicked | `product_family` |
+| `download_filter` | W20.8: a filter on `/downloads` is changed: a file-type or family chip, «پاک کردن فیلترها», or the size search (once per typing pause of 1.2 s, never the text typed) | `filter_type`: `search` / `file_type` / `family` / `clear` |
+| `download_to_rfq` | W20.8: «استعلام این سایز» on `/downloads` is clicked (it also sends `rfq_cta_click` with `cta_location=downloads`, so do not add both into one total) | `product_family`, `product_slug` |
 
 Values:
 - `product_family` is the catalog's public category code, the same code as the price hubs and category pages: `REBAR`, `BEAM` (IPE/INP), `ANGLE`, `CHANNEL`, `BOX_SECTION`, `SHEET_PLATE`, `PIPE`.
 - `product_slug` / `article_slug` are the page's URL slug, e.g. `rebar-aj340`. Never the title.
+- `file_type` is shared by `file_upload` (an attachment's extension) and `download_file` (the kind of file downloaded). Read it together with the event name.
+- The Download Center's search text never reaches the dataLayer: `download_filter` says only that the search was used.
 - The page-of-origin values (`add_source`, `calculator_entry`) come only from the path of the previous page on this site (the browser's referrer). No query string, no other site's address.
 - An RFQ click inside an article sends only `article_cta_click`; a click anywhere else sends only `rfq_cta_click`. The header CTA on an article page is outside the article, so it is `rfq_cta_click` with `cta_location=header`.
 
@@ -114,6 +120,7 @@ Variables → User-Defined Variables → New. Create each of these as a **Data L
 | `DLV - calculator_entry` | `calculator_entry` |
 | `DLV - article_slug` | `article_slug` |
 | `DLV - article_lang` | `article_lang` |
+| `DLV - filter_type` | `filter_type` |
 
 ## 5. Step 3 — one trigger and one GA4 event tag per event
 
@@ -152,6 +159,10 @@ Do this for each of the 12 events. (The D-ARTICLE-METRICS tags and triggers — 
 | `GA4 - gauge_view` | `gauge_view` | `gauge_position` = `{{DLV - gauge_position}}`, `gauge_window` = `{{DLV - gauge_window}}`, `product_slug` = `{{DLV - product_slug}}` |
 | `GA4 - chart_to_rfq` | `chart_to_rfq` | `cta_location` = `{{DLV - cta_location}}`, `product_slug` = `{{DLV - product_slug}}`, `product_family` = `{{DLV - product_family}}` |
 | `GA4 - indicator_page_view` | `indicator_page_view` | `page_lang` = `{{DLV - page_lang}}`, `indicator_count` = `{{DLV - indicator_count}}` |
+| `GA4 - download_file` | `download_file` | `file_type` = `{{DLV - file_type}}`, `product_family` = `{{DLV - product_family}}`, `product_slug` = `{{DLV - product_slug}}` |
+| `GA4 - download_zip` | `download_zip` | `product_family` = `{{DLV - product_family}}` |
+| `GA4 - download_filter` | `download_filter` | `filter_type` = `{{DLV - filter_type}}` |
+| `GA4 - download_to_rfq` | `download_to_rfq` | `product_family` = `{{DLV - product_family}}`, `product_slug` = `{{DLV - product_slug}}` |
 
 Do **not** add a Custom HTML tag. The site's CSP allows scripts only from the site itself, Turnstile and `*.googletagmanager.com`.
 
@@ -161,11 +172,12 @@ In analytics.google.com, open the property that owns `G-C8MZB6DXPZ`:
 
 1. Admin → Data streams → the `www.ahanassa.com` web stream (its Measurement ID must be `G-C8MZB6DXPZ`) → Enhanced measurement:
    - Keep page views, scrolls, outbound clicks, site search and file downloads on.
+   - W20.8: GA4's automatic `file_download` also fires for the Download Center's PDF and ZIP links (not for DXF, which is not in GA4's extension list). Use `download_file` / `download_zip` for the Download Center: they cover every file type and carry the family and product.
    - Turn **Form interactions** off. Our `rfq_submit` is the real conversion, and GA4's automatic form event would double-count.
 2. Admin → Data collection: leave Google signals **off** unless you decide otherwise. The CSP has no doubleclick origin.
 3. Admin → Data retention: 14 months.
 4. Admin → Events. The events appear after they first fire, up to 24 hours later. Mark `rfq_submit` as a **key event**. Optionally also mark `phone_click` and `whatsapp_click`.
-5. Admin → Custom definitions → Create custom dimension (scope **Event**) for each of these: `page_locale`, `link_location`, `calculator_product_group`, `calculator_mode`, `price_date`, `file_type`, `product_family`, `product_slug`, `add_source`, `cta_location`, `calculator_entry`, `article_slug`, `article_lang`. (`cta_location` is one dimension for both `rfq_cta_click` and `article_cta_click`; read it together with the event name.) Then create a custom metric (unit: standard) for `basket_size` and `file_count`. `rfq_tracking_number` is optional; register it only if you want to find a single request in GA4.
+5. Admin → Custom definitions → Create custom dimension (scope **Event**) for each of these: `page_locale`, `link_location`, `calculator_product_group`, `calculator_mode`, `price_date`, `file_type`, `product_family`, `product_slug`, `add_source`, `cta_location`, `calculator_entry`, `article_slug`, `article_lang`, `filter_type` (W20.8). (`cta_location` is one dimension for both `rfq_cta_click` and `article_cta_click`; read it together with the event name.) Then create a custom metric (unit: standard) for `basket_size` and `file_count`. `rfq_tracking_number` is optional; register it only if you want to find a single request in GA4.
 
 ### CSP (DAR-066, resolved 2026-10-13)
 
