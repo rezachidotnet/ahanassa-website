@@ -9,6 +9,8 @@ import { Hero } from "@/components/home/hero";
 import { PriceStrip } from "@/components/home/price-strip";
 import { IndicatorStrip } from "@/components/indicators/indicator-strip";
 import { listIndicators } from "@/lib/indicators/repository";
+import { isMarketIndicatorsLocale } from "@/lib/indicators/page";
+import { MarketIndicatorStrip } from "@/components/indicators/market-indicator-strip";
 import { ProductShowcase } from "@/components/home/product-showcase";
 import { BuyerValue } from "@/components/home/buyer-value";
 import { Industries } from "@/components/home/industries";
@@ -204,8 +206,9 @@ export default async function HomePage({ params }: PageProps) {
     <>
       <Hero locale={locale} />
       <PriceStrip locale={locale} items={priceStripItems} />
-      {/* W18.2: the fa price strip's market-indicator items (reference indices; nothing without indicators). */}
-      {locale === "fa" && <HomeIndicators />}
+      {/* W18.2: the fa price strip's market-indicator items (reference indices; nothing without indicators).
+          W18.3: the same cards on en/ar, each linking to the market-indicators page. */}
+      {locale === "fa" ? <HomeIndicators /> : isMarketIndicatorsLocale(locale) && <MarketIndicatorStrip locale={locale} />}
       <ProductShowcase locale={locale} items={homepageCategories} />
       <BuyerValue locale={locale} />
       <Industries locale={locale} />

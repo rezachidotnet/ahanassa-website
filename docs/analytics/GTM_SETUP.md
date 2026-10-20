@@ -63,6 +63,7 @@ The staging and production builds are byte-identical except for robots, sitemap,
 | `chart_range_change` | W18.2: the 30/90-day switch of a chart page is used | `chart_range`: `30` / `90`, `product_slug` |
 | `gauge_view` | W18.2: the price-position gauge of a fa product page is at least half on screen (once per page view) | `gauge_position`: `low` / `mid` / `high`, `gauge_window`: `30` / `90` (the longest shown), `product_slug` |
 | `chart_to_rfq` | W18.2: «قیمت قطعی برای حجم شما» is clicked (it also sends `rfq_cta_click`) | `cta_location`: `gauge` (product page) / `chart_page`, `product_slug`, `product_family` |
+| `chart_share` | W18.3: «اشتراک در واتساپ», «اشتراک در تلگرام» or «کپی لینک برای بله» on a fa chart page is clicked. Bale has no web share URL, so its button copies the page title + link (toast «لینک کپی شد»); the event is sent on the click. Sent **instead of** `whatsapp_click` (sharing is not a contact) | `share_method`: `whatsapp` / `telegram` / `bale`, `product_slug` |
 | `indicator_page_view` | W18.2: `/en/market-indicators` or `/ar/market-indicators` loads | `page_lang`: `en` / `ar`, `indicator_count` |
 | `expert_call_click` / `expert_whatsapp_click` / `expert_rfq_click` / `expert_chat_click` | An action in the homepage «با کارشناس فروش صحبت کنید» section is clicked: phone, WhatsApp, the RFQ («ارسال فاکتور یا لیست خرید») or live chat (W21, only when configured). Sent **in addition to** `phone_click` / `whatsapp_click` / `rfq_cta_click` (`home_expert`), so do not add both into one total | `expert_variant`: `A` (Concierge card) / `B` (Split band) — the layout the site was built with (W20.3 redesign) |
 | `download_file` | W20.8: a file link on `/downloads` is clicked (a size's DXF or PDF, a spec sheet, a catalog in any language, the item-list template) | `file_type`: `dxf` / `pdf` (a size's drawing sheet) / `spec_sheet` / `catalog` / `template`; `product_family` (drawings and spec sheets); `product_slug` (the product page of a size's drawing) |
@@ -120,6 +121,7 @@ Variables → User-Defined Variables → New. Create each of these as a **Data L
 | `DLV - calculator_entry` | `calculator_entry` |
 | `DLV - article_slug` | `article_slug` |
 | `DLV - article_lang` | `article_lang` |
+| `DLV - share_method` | `share_method` |
 | `DLV - filter_type` | `filter_type` |
 
 ## 5. Step 3 — one trigger and one GA4 event tag per event
@@ -158,6 +160,7 @@ Do this for each of the 12 events. (The D-ARTICLE-METRICS tags and triggers — 
 | `GA4 - chart_range_change` | `chart_range_change` | `chart_range` = `{{DLV - chart_range}}`, `product_slug` = `{{DLV - product_slug}}` |
 | `GA4 - gauge_view` | `gauge_view` | `gauge_position` = `{{DLV - gauge_position}}`, `gauge_window` = `{{DLV - gauge_window}}`, `product_slug` = `{{DLV - product_slug}}` |
 | `GA4 - chart_to_rfq` | `chart_to_rfq` | `cta_location` = `{{DLV - cta_location}}`, `product_slug` = `{{DLV - product_slug}}`, `product_family` = `{{DLV - product_family}}` |
+| `GA4 - chart_share` | `chart_share` | `share_method` = `{{DLV - share_method}}`, `product_slug` = `{{DLV - product_slug}}` |
 | `GA4 - indicator_page_view` | `indicator_page_view` | `page_lang` = `{{DLV - page_lang}}`, `indicator_count` = `{{DLV - indicator_count}}` |
 | `GA4 - download_file` | `download_file` | `file_type` = `{{DLV - file_type}}`, `product_family` = `{{DLV - product_family}}`, `product_slug` = `{{DLV - product_slug}}` |
 | `GA4 - download_zip` | `download_zip` | `product_family` = `{{DLV - product_family}}` |
