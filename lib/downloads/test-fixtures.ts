@@ -41,7 +41,7 @@ export function catalogFromSnapshot(file: string, locale: Locale, overlay: Varia
       if (!seo) return [];
       dates.push(String(p.updated_at), String(seo.updated_at));
       const variants = t.product_variants.filter((v) => v.product_id === p.id && v.is_active === 1 && v.is_public === 1);
-      return [{ seo, variants }];
+      return [{ p, seo, variants }];
     });
   const out: DownloadCategory[] = categories.map((c) => ({
     code: c.code,
@@ -50,11 +50,13 @@ export function catalogFromSnapshot(file: string, locale: Locale, overlay: Varia
     nameFa: faNames.get(c.code) ?? c.name,
     templates: templates
       .filter(({ variants }) => variants.some((v) => categoryContainsVariant(c, claimed, v.group_code as string, v.form_code as string)))
-      .map(({ seo, variants }) => ({
+      .map(({ p, seo, variants }) => ({
         slug: String(seo.slug),
         name: String(seo.h1),
+        updatedAt: [String(p.updated_at), String(seo.updated_at)].sort().at(-1) as string,
         variants: variants.map((v) => ({
           sku: String(v.sku),
+          xid: String(v.xid),
           size: String(v.commercial_size ?? v.section_size ?? v.sku),
           formCode: (v.form_code as string) ?? null,
           dimensions: overlay[String(v.sku)]?.dimensions ?? (v.dimensions_json ? JSON.parse(String(v.dimensions_json)) : null),

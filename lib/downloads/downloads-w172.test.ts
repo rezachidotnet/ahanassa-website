@@ -246,8 +246,12 @@ test("locale wiring: the footer's catalog PDF link and every catalog link open t
   assert.match(footer, /<Link href=\{fullCatalogPath\(locale\)\}/);
   assert.match(footer, /<Link href=\{localizedPath\(locale, "\/products"\)\}/, "the /products link stays");
   const page = read("app/[locale]/downloads/page.tsx");
-  assert.match(page, /href=\{c\.href\(locale\)\}/, "the primary catalog link is the page's locale");
-  assert.match(page, /href=\{specSheetPath\(c\.segment, locale\)\}/);
+  // W20.8: the primary links come from the page model (lib/downloads/center.ts), built for the page's locale.
+  assert.match(page, /buildDownloadCenter\(catalog,/);
+  assert.match(page, /href=\{q\.file\.href\}/, "the primary catalog link is the page's locale");
+  const center = read("lib/downloads/center.ts");
+  assert.match(center, /sections: file\(sectionsCatalogPath\(locale\)\), raw: file\(rawMaterialsCatalogPath\(locale\)\)/);
+  assert.match(center, /specSheet: file\(specSheetPath\(chapter\.segment, locale\)\)/);
   assert.match(page, /ITEM_LIST_TEMPLATE_PATH\(locale\)/);
   assert.match(page, /generateStaticParams/);
   assert.ok(!/\bDWG\b/.test(page + JSON.stringify(DOWNLOADS_COPY)), "never claims DWG");
