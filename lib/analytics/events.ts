@@ -32,7 +32,7 @@ export const ANALYTICS_EVENTS = {
   basket_add: ["basket_size", "product_family", "product_slug", "add_source"],
   /** A product page was loaded (app/[locale]/products/[slug]/page.tsx). */
   product_view: ["product_family", "product_slug"],
-  /** An RFQ link (`/contact`, `/request`) outside an article was clicked; `cta_location`: product | price | category | home | header | calculator | home_expert. */
+  /** An RFQ link (`/contact`, `/request`) outside an article was clicked; `cta_location`: product | price | category | home | header | calculator | home_expert | downloads. */
   rfq_cta_click: ["cta_location", "product_family"],
   /** The weight calculator page was loaded; `calculator_entry`: home_cta | category | product | price | direct (same-origin referrer path only). */
   calculator_open: ["calculator_entry"],
@@ -67,6 +67,18 @@ export const ANALYTICS_EVENTS = {
   expert_whatsapp_click: ["expert_variant"],
   expert_rfq_click: ["expert_variant"],
   expert_chat_click: ["expert_variant"],
+  /**
+   * W20.8 — the Download Center (/downloads, components/downloads/download-center-filter.tsx). A file link was clicked:
+   * `file_type` dxf | pdf (a size's drawing sheet) | spec_sheet | catalog | template; `product_family` = public
+   * category code (drawings and spec sheets); `product_slug` = the product page slug of a size's drawing.
+   */
+  download_file: ["file_type", "product_family", "product_slug"],
+  /** W20.8: a family's «دانلود همه (ZIP)» was clicked. */
+  download_zip: ["product_family"],
+  /** W20.8: the visitor changed a filter (once per change; search once per typing pause); `filter_type` search | file_type | family | clear. */
+  download_filter: ["filter_type"],
+  /** W20.8: «استعلام این سایز» was clicked (it also sends rfq_cta_click). */
+  download_to_rfq: ["product_family", "product_slug"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type AnalyticsEventName = keyof typeof ANALYTICS_EVENTS;
@@ -130,7 +142,7 @@ export function expertClickEvent(action: string | null | undefined): ExpertClick
 }
 
 /** The kind of public page a path is, for the funnel events; null for every other page. */
-export type FunnelPage = "home" | "product" | "category" | "price" | "calculator";
+export type FunnelPage = "home" | "product" | "category" | "price" | "calculator" | "downloads";
 
 /** The page kind of a pathname: the locale prefix, `.html` and a trailing slash are ignored. */
 export function funnelPage(pathname: string): FunnelPage | null {
@@ -141,6 +153,8 @@ export function funnelPage(pathname: string): FunnelPage | null {
   // W18.2: a fa chart page (/prices/chart/<slug>) counts as a price page.
   if (/^\/prices(?:\/chart)?(?:\/[^/]+)?$/.test(path)) return "price";
   if (path === "/tools/weight-calculator") return "calculator";
+  // W20.8: the Download Center's «استعلام این سایز».
+  if (path === "/downloads") return "downloads";
   return null;
 }
 

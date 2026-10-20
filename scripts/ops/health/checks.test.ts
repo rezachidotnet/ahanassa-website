@@ -9,6 +9,7 @@ import {
   evaluateIntake,
   evaluateOdoo,
   evaluateRfqs,
+  ODOO_TITLE,
   odooFailuresFromAnnotations,
   percentile,
   RFQ_COUNTS_SQL,
@@ -139,6 +140,19 @@ test("Odoo (W17.3): an ALERT from before the counter counts as 1; an unreadable 
   const unknown = evaluateOdoo({ httpStatus: 503, latencyMs: 20 }, THRESHOLDS, null);
   assert.equal(unknown.status, "ALERT");
   assert.match(unknown.detail ?? "", /previous result unknown/);
+});
+
+test("Odoo (RELEASE_POLICY.md §20.2a): the ALERT annotation title is exactly 'ALERT: Odoo unreachable' — v11-release-watch reads it", () => {
+  // .github/scripts/v11-live-release.mjs on main (ODOO_ALERT) treats a run whose only ALERT title is this one as an
+  // external (Odoo) incident for a HIGH release. Renaming the check silently turns every Odoo outage back into a
+  // release ALERT (fail-safe, but a policy change): change both together.
+  assert.equal(ODOO_TITLE, "Odoo unreachable");
+  const alert = evaluateOdoo({ httpStatus: 502, latencyMs: 80 }, THRESHOLDS, 1);
+  assert.equal(alert.status, "ALERT");
+  assert.equal(alert.title, ODOO_TITLE);
+  const [line] = annotations([alert]);
+  const title = /^::error title=([^:]+)::/.exec(line)![1].replace(/%3A/g, ":").replace(/%2C/g, ",").replace(/%25/g, "%");
+  assert.equal(title, "ALERT: Odoo unreachable");
 });
 
 test("a source that cannot be read is an ALERT, never a pass", () => {

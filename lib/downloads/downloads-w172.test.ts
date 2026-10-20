@@ -43,7 +43,7 @@ test("bidi: Latin and numbers inside fa/ar keep their order; brackets pair (UBA 
 
 // --- drawings --------------------------------------------------------------------------------------------------
 
-test("drawings: a size is drawn only with its complete cross-section; missing keys are named, tapered sections never drawn", () => {
+test("drawings: a size is drawn only with its complete cross-section; missing keys are named", () => {
   const pipe = planSectionDrawing(PIPE);
   assert.equal(pipe?.status, "drawn");
   assert.equal(pipe?.status === "drawn" && pipe.drawing.slug, "pipe-114.3x6.02");
@@ -57,14 +57,16 @@ test("drawings: a size is drawn only with its complete cross-section; missing ke
   assert.equal(shs?.status === "skipped" && shs.reason, "missing outer_radius_mm");
   const angle = planSectionDrawing({ formCode: "EQUAL_ANGLE", commercialSize: "50X50X5", standard: null, dimensions: { width_mm: 50, height_mm: 50, thickness_mm: 5 } });
   assert.equal(angle?.status === "skipped" && angle.reason, "missing root_radius_mm, toe_radius_mm");
-  assert.equal(planSectionDrawing({ formCode: "INP", commercialSize: "IPN 100", standard: null, dimensions: { height_mm: 100 } })?.status, "skipped");
+  // W20.5: a tapered section needs its toe radius and flange slope too.
+  const ipn = planSectionDrawing({ formCode: "INP", commercialSize: "IPN 100", standard: null, dimensions: { height_mm: 100 } });
+  assert.equal(ipn?.status === "skipped" && ipn.reason, "missing width_mm, web_thickness_mm, flange_thickness_mm, root_radius_mm, toe_radius_mm, flange_slope_pct");
   // Not a section: rebar, sheet, coil.
   for (const formCode of ["RIBBED_REBAR", "HOT_ROLLED_PLATE", "GALVANIZED_COIL"]) assert.equal(planSectionDrawing({ ...PIPE, formCode }), null);
   // Every shape the generator knows draws once its keys are present.
   const full = { width_mm: 100, height_mm: 120, thickness_mm: 6, outer_radius_mm: 12, root_radius_mm: 10, toe_radius_mm: 5, web_thickness_mm: 6, flange_thickness_mm: 9, outside_diameter_mm: 100, wall_thickness_mm: 5 };
-  for (const [formCode, spec] of Object.entries(SECTION_SHAPES)) {
-    const p = planSectionDrawing({ formCode, commercialSize: null, standard: null, dimensions: full });
-    assert.equal(p?.status, spec.shape === "tapered" ? "skipped" : "drawn", formCode);
+  for (const formCode of Object.keys(SECTION_SHAPES)) {
+    const p = planSectionDrawing({ formCode, commercialSize: null, standard: null, dimensions: { ...full, flange_slope_pct: formCode === "INP" ? 14 : 8 } });
+    assert.equal(p?.status, "drawn", formCode);
   }
 });
 
@@ -133,8 +135,8 @@ test("drawings from the W17.4 snapshot: the 12 seamless pipe sizes; every other 
   assert.equal(groups.RHS_FORM, "missing outer_radius_mm");
   assert.equal(groups.SHS_FORM, "missing outer_radius_mm");
   assert.equal(groups.EQUAL_ANGLE, "missing root_radius_mm, toe_radius_mm");
-  assert.match(groups.INP, /tapered/);
-  assert.match(groups.UPN, /tapered/);
+  assert.equal(groups.INP, "missing width_mm, web_thickness_mm, flange_thickness_mm, root_radius_mm, toe_radius_mm, flange_slope_pct");
+  assert.equal(groups.UPN, "missing web_thickness_mm, flange_thickness_mm, root_radius_mm, toe_radius_mm, flange_slope_pct");
 });
 
 // --- PDFs ------------------------------------------------------------------------------------------------------
@@ -244,8 +246,12 @@ test("locale wiring: the footer's catalog PDF link and every catalog link open t
   assert.match(footer, /<Link href=\{fullCatalogPath\(locale\)\}/);
   assert.match(footer, /<Link href=\{localizedPath\(locale, "\/products"\)\}/, "the /products link stays");
   const page = read("app/[locale]/downloads/page.tsx");
-  assert.match(page, /href=\{c\.href\(locale\)\}/, "the primary catalog link is the page's locale");
-  assert.match(page, /href=\{specSheetPath\(c\.segment, locale\)\}/);
+  // W20.8: the primary links come from the page model (lib/downloads/center.ts), built for the page's locale.
+  assert.match(page, /buildDownloadCenter\(catalog,/);
+  assert.match(page, /href=\{q\.file\.href\}/, "the primary catalog link is the page's locale");
+  const center = read("lib/downloads/center.ts");
+  assert.match(center, /sections: file\(sectionsCatalogPath\(locale\)\), raw: file\(rawMaterialsCatalogPath\(locale\)\)/);
+  assert.match(center, /specSheet: file\(specSheetPath\(chapter\.segment, locale\)\)/);
   assert.match(page, /ITEM_LIST_TEMPLATE_PATH\(locale\)/);
   assert.match(page, /generateStaticParams/);
   assert.ok(!/\bDWG\b/.test(page + JSON.stringify(DOWNLOADS_COPY)), "never claims DWG");

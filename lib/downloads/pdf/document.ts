@@ -209,7 +209,8 @@ export class BrandDocument {
       lefts.push(this.dir === "rtl" ? this.right - acc - w : this.left + acc);
       acc += w;
     }
-    const headerLines = columns.map((c, i) => wrapText(this.fonts.bold, c.label, size - 0.5, widths[i] - 8, this.dir).slice(0, 2));
+    // Every line of a header (no cap): a unit like "(mm)" on a third line must not be dropped (W20.5 columns).
+    const headerLines = columns.map((c, i) => wrapText(this.fonts.bold, c.label, size - 0.5, widths[i] - 8, this.dir));
     const headerH = Math.max(...headerLines.map((l) => l.length)) * (size + 3) + 9;
     const cellX = (i: number, align: "start" | "center") =>
       align === "center" ? { x: lefts[i] + widths[i] / 2, align: "center" as const } : this.dir === "rtl" ? { x: lefts[i] + widths[i] - 5, align: "right" as const } : { x: lefts[i] + 5, align: "left" as const };

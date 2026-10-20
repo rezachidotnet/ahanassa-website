@@ -10,6 +10,8 @@ import { compareCommercialSize } from "../catalog/specification-presenter.ts";
  */
 export interface DownloadVariant {
   sku: string;
+  /** W20.8: canonical variant id, only for the RFQ hand-off link (`/contact?variant=`) and the price lookup. */
+  xid: string;
   /** Odoo's commercial size, the table's first column. */
   size: string;
   formCode: string | null;
@@ -23,6 +25,8 @@ export interface DownloadTemplate {
   slug: string;
   /** The template's published h1 in this locale. */
   name: string;
+  /** W20.8: the newest product / editorial update of this template, ISO (the family's "last updated" line). */
+  updatedAt: string;
   variants: DownloadVariant[];
 }
 
@@ -66,8 +70,15 @@ export function catalogChapters(catalog: DownloadCatalog): DownloadCategory[] {
     .filter((c) => c.templates.length > 0);
 }
 
+/** W20.8: the catalog row a drawing was made from (the /downloads row, the per-size PDF sheet). */
+export interface DrawnSize {
+  categoryCode: string;
+  templateSlug: string;
+  variant: DownloadVariant;
+}
+
 export interface DrawingPlan {
-  drawn: Array<SectionDrawing & { categoryCode: string }>;
+  drawn: Array<SectionDrawing & DrawnSize>;
   skipped: Array<Extract<SectionPlan, { status: "skipped" }> & { categoryCode: string; size: string }>;
 }
 
@@ -78,12 +89,12 @@ export function planDrawings(catalog: DownloadCatalog): DrawingPlan {
   for (const category of catalogChapters(catalog)) {
     for (const t of category.templates) {
       for (const v of sortBySize(t.variants)) {
-        const p = planSectionDrawing({ formCode: v.formCode, commercialSize: v.size, dimensions: v.dimensions, standard: v.standard });
+        const p = planSectionDrawing({ formCode: v.formCode, commercialSize: v.size, dimensions: v.dimensions, standard: v.standard, kgPerM: v.nominalWeight?.kg_m ?? null });
         if (!p) continue;
         const slug = p.status === "drawn" ? p.drawing.slug : p.slug;
         if (seen.has(slug)) continue;
         seen.add(slug);
-        if (p.status === "drawn") plan.drawn.push({ ...p.drawing, categoryCode: category.code });
+        if (p.status === "drawn") plan.drawn.push({ ...p.drawing, categoryCode: category.code, templateSlug: t.slug, variant: v });
         else plan.skipped.push({ ...p, categoryCode: category.code, size: v.size });
       }
     }
