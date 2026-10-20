@@ -13,6 +13,8 @@ import type { OdooSource } from "../../lib/content-pipeline/odoo-source.ts";
 import { nextSnapshotVersion, versionTimestamp } from "../../lib/content-pipeline/version.ts";
 import { buildVersionedSnapshot } from "../../lib/static/snapshot-io.ts";
 import type { PublishedArticleRow } from "../../lib/contracts/snapshot-articles.ts";
+import type { PublishedIndicatorPointRow, PublishedIndicatorRow } from "../../lib/contracts/snapshot-indicators.ts";
+import fs from "node:fs";
 import { log as logger, parseArgs, paths, readJson, runStep, summary, workDir, writeJson } from "./common.ts";
 
 const args = parseArgs();
@@ -26,7 +28,9 @@ await runStep("snapshot", async () => {
   const d1 = readJson<D1Source>(p.d1);
   // W11.1: the article rows the validate step accepted (never re-fetched or re-checked here).
   const articles = readJson<PublishedArticleRow[]>(p.articles);
-  const tables = assembleSnapshotTables(odoo, d1, odoo.fetched_at, articles);
+  // W18.2: the indicator rows the validate step accepted (absent in a work dir validated before W18.2 = none).
+  const indicators = fs.existsSync(p.indicators) ? readJson<{ rows: PublishedIndicatorRow[]; points: PublishedIndicatorPointRow[] }>(p.indicators) : { rows: [], points: [] };
+  const tables = assembleSnapshotTables(odoo, d1, odoo.fetched_at, articles, indicators);
   const version = nextSnapshotVersion(new Date(), d1.publication.versions.map((v) => v.version));
   const snapshot = buildVersionedSnapshot(
     tables,
@@ -36,5 +40,5 @@ await runStep("snapshot", async () => {
   );
   writeJson(p.snapshot, snapshot);
   log(`${version} content_sha256 ${snapshot.content_sha256}`);
-  summary(`### Content snapshot\n- \`${version}\` (monotonic; previous ${d1.publication.versions.map((v) => `\`${v.version}\``).join(", ") || "none"})\n- content_sha256 \`${snapshot.content_sha256}\`\n- articles: ${articles.length}`);
+  summary(`### Content snapshot\n- \`${version}\` (monotonic; previous ${d1.publication.versions.map((v) => `\`${v.version}\``).join(", ") || "none"})\n- content_sha256 \`${snapshot.content_sha256}\`\n- articles: ${articles.length}\n- market indicators: ${indicators.rows.length} (${indicators.points.length} points)`);
 });

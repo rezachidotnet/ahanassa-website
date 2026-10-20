@@ -11,7 +11,10 @@ import { isPricePagePublished, PRICE_PAGE_ROUTE } from "@/lib/pricing/price-page
 import { PageHero } from "@/components/ui/page-hero";
 import { ButtonLink } from "@/components/ui/button";
 import Link from "@/components/ui/link";
+import { listIndicators } from "@/lib/indicators/repository";
+import { isMarketIndicatorsLocale, MARKET_INDICATORS_COPY, MARKET_INDICATORS_ROUTE } from "@/lib/indicators/page";
 import { cardVariants } from "@/components/ui/surface-variants";
+import { MarketIndicatorStrip } from "@/components/indicators/market-indicator-strip";
 
 interface PageProps {
   params: Promise<{ locale: string }>;
@@ -117,9 +120,20 @@ export default async function ExportPage({ params }: PageProps) {
                 </Link>
               </p>
             )}
+            {/* W18.2 (owner 2026-10-16): the market-indicators page, when this build publishes it. */}
+            {isMarketIndicatorsLocale(locale) && (await listIndicators()).length > 0 && (
+              <p className="text-muted-foreground text-sm">
+                {MARKET_INDICATORS_COPY[locale].exportNote}{" "}
+                <Link href={localizedPath(locale, MARKET_INDICATORS_ROUTE)} className={LINK}>
+                  {MARKET_INDICATORS_COPY[locale].title}
+                </Link>
+              </p>
+            )}
           </div>
         </div>
       </section>
+      {/* W18.3: the market reference indicators, each card linking to the market-indicators page. */}
+      {isMarketIndicatorsLocale(locale) && <MarketIndicatorStrip locale={locale} headingId="export-indicators-heading" />}
     </>
   );
 }

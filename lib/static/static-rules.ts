@@ -5,6 +5,8 @@ import { WEIGHT_CALCULATOR_LOCALES, WEIGHT_CALCULATOR_ROUTE } from "../weight-ca
 import { PRICE_PAGE_LOCALES, PRICE_PAGE_ROUTE } from "../pricing/price-page.ts";
 import { PRICE_HUB_CATEGORY_CODES, priceHubPath, priceHubSegment } from "../pricing/price-hubs.ts";
 import { EXPORT_LOCALES, EXPORT_ROUTE } from "../content/export.ts";
+import { PRICE_CHART_LOCALES, priceChartPath } from "../pricing/price-charts.ts";
+import { MARKET_INDICATORS_LOCALES, MARKET_INDICATORS_ROUTE } from "../indicators/page.ts";
 
 /**
  * Static replacements for what `proxy.ts` and the metadata routes did on the
@@ -91,6 +93,20 @@ export function unpublishedExportRedirects(): string[] {
   return locales.filter((l) => !EXPORT_LOCALES.includes(l)).map((l) => `${localizedPath(l, EXPORT_ROUTE)} ${localizedPath(l, "/")} 302`);
 }
 
+/**
+ * W18.2 — the language selector links every page to the same path in each locale:
+ * - a fa chart page (`/prices/chart/<slug>`, fa only) sends en to its products index and ar to its daily price page
+ *   (en never has a price), one rule per chart page of this build (`chartSlugs`);
+ * - the market-indicators page (en/ar only) sends fa to `/prices`, where the fa indicators are.
+ */
+export function unpublishedIndicatorAndChartRedirects(chartSlugs: readonly string[] = []): string[] {
+  const chartTarget = (l: Locale) => ((PRICE_PAGE_LOCALES as readonly string[]).includes(l) ? localizedPath(l, PRICE_PAGE_ROUTE) : localizedPath(l, "/products"));
+  return [
+    ...locales.filter((l) => !(MARKET_INDICATORS_LOCALES as readonly string[]).includes(l)).map((l) => `${localizedPath(l, MARKET_INDICATORS_ROUTE)} ${localizedPath(l, PRICE_PAGE_ROUTE)} 302`),
+    ...chartSlugs.flatMap((slug) => locales.filter((l) => !(PRICE_CHART_LOCALES as readonly string[]).includes(l)).map((l) => `${localizedPath(l, priceChartPath(slug))} ${chartTarget(l)} 302`)),
+  ];
+}
+
 /** The snapshot's `route_redirects` row fields this file needs (lib/contracts/snapshot-v1.ts). */
 export interface RouteRedirectInput {
   locale: Locale;
@@ -126,8 +142,8 @@ export function routeRedirectRules(rows: readonly RouteRedirectInput[]): string[
 export const LEGACY_PERMANENT_RULES = ["/fa / 308", "/fa/* /:splat 308", "/request /contact 308", "/en/request /en/contact 308", "/ar/request /ar/contact 308"] as const;
 
 /** `_redirects`: the fixed legacy rules, the catalog's slug-change register, then the temporary unpublished-locale rules. */
-export function buildRedirectsFile(routeRedirects: readonly RouteRedirectInput[] = []): string {
-  return [...LEGACY_PERMANENT_RULES, ...routeRedirectRules(routeRedirects), ...unpublishedCalculatorRedirects(), ...unpublishedPricePageRedirects(), ...unpublishedExportRedirects(), ""].join("\n");
+export function buildRedirectsFile(routeRedirects: readonly RouteRedirectInput[] = [], chartSlugs: readonly string[] = []): string {
+  return [...LEGACY_PERMANENT_RULES, ...routeRedirectRules(routeRedirects), ...unpublishedCalculatorRedirects(), ...unpublishedPricePageRedirects(), ...unpublishedExportRedirects(), ...unpublishedIndicatorAndChartRedirects(chartSlugs), ""].join("\n");
 }
 
 /** `.assetsignore`: defence in depth — these must never be uploaded even if present (the artifact gate also rejects them). */

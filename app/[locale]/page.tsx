@@ -7,9 +7,14 @@ import { organizationSchema, localBusinessSchema, websiteSchema, jsonLdGraph } f
 import { JsonLd } from "@/components/seo/JsonLd";
 import { Hero } from "@/components/home/hero";
 import { PriceStrip } from "@/components/home/price-strip";
+import { IndicatorStrip } from "@/components/indicators/indicator-strip";
+import { listIndicators } from "@/lib/indicators/repository";
+import { isMarketIndicatorsLocale } from "@/lib/indicators/page";
+import { MarketIndicatorStrip } from "@/components/indicators/market-indicator-strip";
 import { ProductShowcase } from "@/components/home/product-showcase";
 import { BuyerValue } from "@/components/home/buyer-value";
 import { Industries } from "@/components/home/industries";
+import { ExpertContact } from "@/components/home/expert-contact";
 import { FinalCta } from "@/components/home/final-cta";
 import type { PublicPriceStripItem } from "@/lib/pricing/types";
 import type { PublicCatalogCategory } from "@/lib/catalog/types";
@@ -22,7 +27,13 @@ export { generateLocaleStaticParams as generateStaticParams } from "@/lib/static
  *
  *   Header -> Hero -> Price Strip [conditional] ->
  *   Product Showcase -> Buyer Value -> Verified Evidence [conditional] ->
- *   Industries / Use Cases [conditional] -> Final CTA -> Footer
+ *   Industries / Use Cases [conditional] -> Talk to a Sales Expert ->
+ *   Final CTA -> Footer
+ *
+ * Talk to a Sales Expert: W20.3, owner instruction 2026-10-16 — amendment A1
+ * of the composition freeze (its §21, docs/homepage/HOMEPAGE_SUPERSESSION_REGISTER.md).
+ * Always present; equal channel options (phone, WhatsApp, RFQ form, hours),
+ * so the Final CTA keeps the one primary action.
  *
  * Weight calculator: no section of its own. The W10.1 Calculator CTA block
  * after the Hero (D-W10-5) was removed by the owner on 2026-10-09 (W10.3);
@@ -144,6 +155,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   });
 }
 
+/** W18.2 — the fa home page's indicator strip. Its own async boundary (r4, as the price pages). */
+async function HomeIndicators() {
+  await Promise.resolve();
+  return <IndicatorStrip locale="fa" indicators={await listIndicators()} />;
+}
+
 export default async function HomePage({ params }: PageProps) {
   const { locale: rawLocale } = await params;
   const locale = isLocale(rawLocale) ? rawLocale : "fa";
@@ -189,9 +206,13 @@ export default async function HomePage({ params }: PageProps) {
     <>
       <Hero locale={locale} />
       <PriceStrip locale={locale} items={priceStripItems} />
+      {/* W18.2: the fa price strip's market-indicator items (reference indices; nothing without indicators).
+          W18.3: the same cards on en/ar, each linking to the market-indicators page. */}
+      {locale === "fa" ? <HomeIndicators /> : isMarketIndicatorsLocale(locale) && <MarketIndicatorStrip locale={locale} />}
       <ProductShowcase locale={locale} items={homepageCategories} />
       <BuyerValue locale={locale} />
       <Industries locale={locale} />
+      <ExpertContact locale={locale} />
       <FinalCta locale={locale} />
 
       <JsonLd data={jsonLdGraph([organizationSchema(locale), localBusinessSchema(locale), websiteSchema()])} />

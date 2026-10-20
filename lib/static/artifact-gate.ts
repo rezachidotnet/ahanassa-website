@@ -5,6 +5,8 @@ import { artifactManifest, publicManifest, publicRfqCatalog, PRIVATE_DIR, PUBLIC
 import { scanPublicFile, type LeakFinding } from "./leak-scan.ts";
 import { internalIdsFromSnapshot, scanPublication } from "./publication-gate.ts";
 import { priceGateInput, scanPrices, visibleText } from "./price-gate.ts";
+import { indicatorGateInput, scanIndicators } from "./indicator-gate.ts";
+import { allowedIndicatorTexts } from "../indicators/presentation.ts";
 import { loadSourceNames, redactSourceNames, scanSourceNames } from "./source-name-scan.ts";
 import { checkAgentTexts, checkMarkdownMirrors } from "./markdown-mirror.ts";
 import { scanArticlePages } from "./article-gate.ts";
@@ -72,11 +74,21 @@ export function forbiddenPublicPath(p: string): string | null {
   return null;
 }
 
+/** W18.3: the og:image / twitter:image URLs a page's <head> names. */
+export function shareImageUrls(html: string): string[] {
+  const out: string[] = [];
+  for (const m of html.matchAll(/<meta\b[^>]*(?:property|name)="(?:og:image|twitter:image)"[^>]*>/gi)) {
+    const content = /content="([^"]*)"/.exec(m[0])?.[1];
+    if (content) out.push(content.replace(/&amp;/g, "&"));
+  }
+  return out;
+}
+
 /**
  * `sourceNames` (W9.6): the private price-source names to refuse in every public file; by default read from
  * AHANASSA_PRICE_SOURCE_NAMES_FILE (lib/static/source-name-scan.ts). `stats.sourceNameScan` says whether it ran.
  */
-export function runArtifactGate(artifactDir: string, options: { companyPhones?: readonly string[]; sourceNames?: readonly string[] | null } = {}): GateResult {
+export function runArtifactGate(artifactDir: string, options: { companyPhones?: readonly string[]; companyEmails?: readonly string[]; sourceNames?: readonly string[] | null } = {}): GateResult {
   const failures: string[] = [];
   const publicDir = path.join(artifactDir, PUBLIC_DIR);
   const privateDir = path.join(artifactDir, PRIVATE_DIR);
@@ -138,6 +150,10 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
       const href = /href="([^"]*)"/.exec(m[0])?.[1] ?? "";
       if (!href.startsWith(`${PRODUCTION_ORIGIN}/`) && href !== PRODUCTION_ORIGIN) failures.push(`${e.path}: ${m[1]} not on ${PRODUCTION_ORIGIN}: ${href}`);
     }
+    // W18.3: a share image (og:image / twitter:image) on the site's origin is a file of this artifact.
+    for (const src of shareImageUrls(html)) {
+      if (src.startsWith(`${PRODUCTION_ORIGIN}/`) && !publicPaths.has(decodeURI(src.slice(PRODUCTION_ORIGIN.length + 1)))) failures.push(`${e.path}: share image not in the artifact: ${src}`);
+    }
   }
   if (publicPaths.has("_headers") && parsed.success) {
     const headers = readPublic("_headers");
@@ -161,7 +177,7 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
   const leaks: LeakFinding[] = [];
   for (const e of publicEntries) {
     if (!/\.(html|json|txt|xml|js|css|md|svg|dxf)$/.test(e.path) && !e.path.startsWith("_") && e.path !== ".assetsignore") continue;
-    leaks.push(...scanPublicFile(e.path, readPublic(e.path), options.companyPhones ?? []));
+    leaks.push(...scanPublicFile(e.path, readPublic(e.path), options.companyPhones ?? [], options.companyEmails ?? []));
   }
   for (const l of leaks) failures.push(`leak ${l.kind} in ${l.file}: ${l.match}`);
 
@@ -176,14 +192,21 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
   const textFiles = publicEntries.filter((e) => /\.(html|json|txt|xml|js|css|md)$/.test(e.path)).map((e) => ({ path: e.path, content: readPublic(e.path) }));
   for (const f of scanPublication(textFiles, internalIdsFromSnapshot(snapshotDoc))) failures.push(`publication ${f.kind} in ${f.file}: ${f.match}`);
   // 7. Price gate (W9.4): rendered price text = the snapshot row's allow-listed fields, Persian pages only.
-  for (const f of scanPrices(textFiles, priceGateInput(snapshotDoc))) failures.push(`price ${f.kind} in ${f.file}: ${f.match}`);
+  const priceInput = priceGateInput(snapshotDoc);
+  for (const f of scanPrices(textFiles, priceInput)) failures.push(`price ${f.kind} in ${f.file}: ${f.match}`);
+  // 7b. Indicator gate (W18.2): every indicator carries its reference label, source and date, and only its own texts.
+  const indicatorInput = indicatorGateInput(snapshotDoc);
+  for (const f of scanIndicators(textFiles, indicatorInput)) failures.push(`indicator ${f.kind} in ${f.file}: ${f.match}`);
+  // W20.7: every factory's price counts like the lowest for the article and agent-text rules (amounts, names).
+  const everyPriceRow = [...priceInput.rows, ...[...priceInput.factoryRows.values()].flat()];
   // 8b. Article pages (W11.1): en no price data, ar no factory/location, no external image, no JSON-LD.
-  for (const f of scanArticlePages(textFiles, priceGateInput(snapshotDoc).rows)) failures.push(`article ${f.kind} in ${f.file}: ${f.match}`);
+  for (const f of scanArticlePages(textFiles, everyPriceRow)) failures.push(`article ${f.kind} in ${f.file}: ${f.match}`);
   // 8c. Agents (W16.7): each .md page mirror says nothing its HTML page does not; llms*.txt and en .md carry no
   //     price amount, currency or factory/place; ar .md no factory/place. (Leak, publication, article and
   //     source-name scans already cover .md and llms*.txt as text files.)
   failures.push(...checkMarkdownMirrors(textFiles, visibleText));
-  failures.push(...checkAgentTexts(textFiles, priceGateInput(snapshotDoc).rows));
+  // W18.3: the en indicator strip's own currency texts («IRR per USD») are not a price mention.
+  failures.push(...checkAgentTexts(textFiles, everyPriceRow, [...indicatorInput.indicators.values()].flatMap((i) => allowedIndicatorTexts("en", i))));
   // 8. Price-source names (W9.6): never in any public file. The names never live in this public repository.
   const sourceNames = options.sourceNames === undefined ? loadSourceNames() : options.sourceNames;
   // Never a name in the output: a finding is the file (redacted when its path holds a name) + the list index.

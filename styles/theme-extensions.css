@@ -365,15 +365,135 @@
  * W20.1 — the floating WhatsApp button of the en/ar pages (components/layout/sticky-whatsapp.tsx). It is not
  * shown on a page with a submit form (today the enquiry form of /contact), so it never sits over a form's buttons, and the footer's bottom bar
  * gets room under it, so the last footer line is never covered at the end of the page.
+ * W21.2: the same for the floating «چت با کارشناس» button of the fa pages (components/livechat/livechat-button.tsx).
  */
 @layer utilities {
-  body:has(form button[type="submit"]) [data-sticky-whatsapp] {
+  body:has(form button[type="submit"]) [data-sticky-whatsapp],
+  body:has(form button[type="submit"]) [data-sticky-livechat] {
     display: none;
   }
-  body:has([data-sticky-whatsapp]) [data-site-footer-bottom] {
+  body:has([data-sticky-whatsapp], [data-sticky-livechat]) [data-site-footer-bottom] {
     padding-bottom: calc(56px + 2rem + env(safe-area-inset-bottom));
   }
   body:has(form button[type="submit"]) [data-site-footer-bottom] {
     padding-bottom: 0;
+  }
+}
+
+/**
+ * W18.2 — the 30/90-day range of a price chart page (components/prices/price-chart.tsx) without JavaScript: both
+ * windows are server-rendered, the checked radio decides which one is visible (90 by default). A browser without
+ * :has() shows both, one under the other. The radios' change event only reports chart_range_change.
+ */
+@layer utilities {
+  [data-chart-range-root]:has(input[data-chart-range="30"]:checked) [data-chart-window="90"],
+  [data-chart-range-root]:has(input[data-chart-range="90"]:checked) [data-chart-window="30"] {
+    display: none;
+  }
+}
+
+/*
+ * W20.8 — one size row of the Download Center (app/[locale]/downloads/page.tsx). Written once here rather than as
+ * utility classes on every row: /downloads lists every section size (137 today), and each repeated class string
+ * is carried twice (HTML + RSC payload). Same tokens as the utilities it replaces.
+ */
+@layer components {
+  .dl-row {
+    display: grid;
+    grid-template-columns: 3rem minmax(0, 1fr);
+    align-items: center;
+    column-gap: 1rem;
+    row-gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    scroll-margin-top: 12rem;
+  }
+  .dl-row > div:last-child {
+    grid-column: span 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .dl-row > div:nth-child(2) {
+    min-width: 0;
+  }
+  .dl-row > div:nth-child(2) > p:first-child {
+    color: var(--color-navy);
+    font-weight: 700;
+    text-align: start;
+  }
+  .dl-row > div:nth-child(2) > p + p {
+    color: var(--color-muted-foreground);
+    font-size: 0.875rem;
+  }
+  .dl-file {
+    display: inline-flex;
+    height: 2.5rem;
+    align-items: center;
+    gap: 0.375rem;
+    border: 1px solid color-mix(in oklab, var(--color-navy) 60%, transparent);
+    border-radius: var(--aa-radius-sm);
+    padding-inline: 0.75rem;
+    color: var(--color-navy);
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: border-color 160ms, background-color 160ms;
+  }
+  .dl-file svg {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+  }
+  .dl-file:hover {
+    border-color: var(--color-navy);
+    background: color-mix(in oklab, var(--color-navy) 5%, transparent);
+  }
+  .dl-file small,
+  #dl-results a small {
+    color: var(--color-muted-foreground);
+    font-size: 0.75rem;
+    font-weight: 400;
+  }
+  .dl-link {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    color: var(--color-navy);
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+  }
+  .dl-link:hover {
+    color: var(--color-copper);
+    text-decoration-thickness: 2px;
+  }
+  .dl-rfq {
+    color: var(--color-copper);
+  }
+  .dl-row > svg {
+    color: var(--color-navy);
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--aa-radius-sm);
+  }
+  .dl-row > svg path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.25;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+  }
+  @media (min-width: 640px) {
+    .dl-row {
+      grid-template-columns: 3rem minmax(9rem, 14rem) minmax(0, 1fr);
+      padding-inline: 1.5rem;
+    }
+    .dl-row > div:last-child {
+      grid-column: auto;
+      justify-content: flex-end;
+    }
   }
 }

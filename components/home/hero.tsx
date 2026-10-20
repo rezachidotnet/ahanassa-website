@@ -55,7 +55,7 @@ export function Hero({ locale }: { locale: Locale }) {
   const t = homepageCopy[locale].hero;
 
   return (
-    <section className="bg-navy relative isolate overflow-hidden">
+    <section data-home-hero="" className="bg-navy relative isolate overflow-hidden">
       <div className="hairline-grid absolute inset-0" aria-hidden="true" />
 
       <div className="container-x relative py-8 lg:py-16">

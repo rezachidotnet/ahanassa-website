@@ -1,3 +1,5 @@
+import { livechatFrameOrigin } from "../../config/livechat.ts";
+
 /**
  * Baseline security headers — the single source for both runtimes:
  * `proxy.ts` (legacy SSR Worker) applies them per response via
@@ -30,7 +32,12 @@ export const GTM_SCRIPT_ORIGIN = "https://*.googletagmanager.com";
 export const GA4_IMG_ORIGINS = ["https://*.google-analytics.com", "https://*.googletagmanager.com"] as const;
 export const GA4_CONNECT_ORIGINS = ["https://*.google-analytics.com", "https://*.analytics.google.com", "https://*.googletagmanager.com"] as const;
 
-export function buildCspReportOnly(connectSrc: readonly string[] = []): string {
+/**
+ * W21.2: the Odoo live chat (config/livechat.ts) is an iframe of Odoo's support page — so, ONLY while live chat is
+ * on, frame-src gains https://odoo.ahanassa.com and nothing else changes (no Odoo script, style, font, image or
+ * connection on the site itself; owner decision 2026-10-17: no 'unsafe-eval'). While off: no Odoo origin at all.
+ */
+export function buildCspReportOnly(connectSrc: readonly string[] = [], livechatFrame: string | null = livechatFrameOrigin()): string {
   return [
     "default-src 'self'",
     "base-uri 'self'",
@@ -46,7 +53,7 @@ export function buildCspReportOnly(connectSrc: readonly string[] = []): string {
     "font-src 'self'",
     ["connect-src 'self' https://challenges.cloudflare.com", ...connectSrc, ...GA4_CONNECT_ORIGINS].join(" "),
     // W20.2: /about office maps — OpenStreetMap's own embed, loaded only after the visitor clicks «نمایش نقشه».
-    "frame-src 'self' https://challenges.cloudflare.com https://www.openstreetmap.org",
+    ["frame-src 'self' https://challenges.cloudflare.com https://www.openstreetmap.org", ...(livechatFrame ? [livechatFrame] : [])].join(" "),
     "upgrade-insecure-requests",
   ].join("; ");
 }

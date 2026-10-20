@@ -1,11 +1,16 @@
-import { irrToToman, PUBLISHED_PRICE_COLUMNS, PUBLISHED_PRICE_HISTORY_COLUMNS, type PublishedPriceRow } from "../contracts/snapshot-prices.ts";
+import { factoryRowAsPriceRow, irrToToman, orderFactoryRows, PUBLISHED_FACTORY_PRICE_COLUMNS, PUBLISHED_PRICE_COLUMNS, PUBLISHED_PRICE_HISTORY_COLUMNS, type PublishedFactoryPriceRow, type PublishedPriceRow } from "../contracts/snapshot-prices.ts";
 import { PRICE_BLOCK_COPY } from "../pricing/price-block-presentation.ts";
-import { allowedPriceTexts, AR_PRICE_COPY, PRICE_BLOCK_ATTRIBUTE, PRICE_BLOCK_ON_REQUEST, PRICE_CELL_ATTRIBUTE, PRICE_CHANGE_COPY, PRICE_CHANGE_WORDS, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, PRICE_SPARKLINE_ATTRIBUTE, PRICE_TREND_COPY, priceDateLabel, renderedAmount, type PriceLocale } from "../pricing/product-page-price.ts";
+import { allowedPriceTexts, AR_PRICE_COPY, PRICE_BLOCK_ATTRIBUTE, PRICE_BLOCK_ON_REQUEST, PRICE_CELL_ATTRIBUTE, PRICE_CHANGE_COPY, PRICE_CHANGE_WORDS, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, PRICE_RANK_ATTRIBUTE, PRICE_SPARKLINE_ATTRIBUTE, PRICE_TREND_COPY, priceDateLabel, renderedAmount, type PriceLocale } from "../pricing/product-page-price.ts";
 import { PRICE_RFQ_COPY, RFQ_FACTORY_PARAM } from "../pricing/price-rfq.ts";
 import { isDailyPriceEligible } from "../pricing/daily-price-eligibility.ts";
 import { sparklineSeries, tehranDay, type DailyPoint } from "../pricing/price-history.ts";
 import { CALCULATOR_PRICE_PAGES, fileLocale } from "./leak-scan.ts";
 import { ARTICLE_TEXT_ATTRIBUTE } from "../articles/routes.ts";
+import { jsonLdBlocks } from "./publication-gate.ts";
+import { allowedChartTexts, allowedGaugeTexts, PRICE_CHART_ATTRIBUTE, PRICE_CHART_COPY, PRICE_CHART_WINDOW_DAYS, PRICE_DECISION_COPY, PRICE_GAUGE_ATTRIBUTE, PRICE_LINE_ATTRIBUTE } from "../pricing/price-charts.ts";
+import { priceWindows, windowPoints } from "../pricing/price-position.ts";
+import { pathPointCount } from "../charts/line-geometry.ts";
+import { INDICATOR_ATTRIBUTE, INDICATOR_LINE_ATTRIBUTE } from "../indicators/presentation.ts";
 
 /** fa/ar article pages and listings (W11.1): `articles/…`, `ar/articles/…` (and the `articles.html` listing). */
 const ARTICLE_PAGE = /^(ar\/)?articles(\.html$|\/)/;
@@ -20,7 +25,7 @@ const ARTICLE_PAGE = /^(ar\/)?articles(\.html$|\/)/;
  * 2. fa pages: the text inside every price element (`data-aa-price-cell` / `data-aa-price-block`) is
  *    exactly the allow-listed, rendered fields of THAT variant's snapshot row (amount in Toman, factory,
  *    delivery location, date, change) plus the fixed copy. A rendered amount outside a price element fails.
- * 3. ar pages: price cells only (no PriceBlock); their text is the amount + date label + the ar copy, and
+ * 3. ar pages: price cells only (no PriceBlock); their text is the amount + date and update-time label + the ar copy, and
  *    nothing of the fa-only fields appears anywhere in an ar file: no factory, no delivery location, no
  *    price timestamp, no Persian price copy or Persian-digit amount.
  * 4. en files: no price at all — no price element, no price copy, no amount, no factory/location, no
@@ -41,12 +46,33 @@ const ARTICLE_PAGE = /^(ar\/)?articles(\.html$|\/)/;
  * rules and the owner's merge — so rule 2's "no amount outside a price element" skips those regions there.
  * Rules 3 and 4 still apply to the whole file (ar never names a factory/location, en never has a price).
  *
+ * W20.7 (owner, 2026-10-16; Odoo W20.6 one price per (variant, factory)):
+ * 7. `published_factory_prices` rows carry exactly PUBLISHED_FACTORY_PRICE_COLUMNS. A fa price cell with
+ *    `data-aa-price-rank="<k>"` is checked against the k-th factory row of its variant (orderFactoryRows), not the
+ *    lowest; a rank the snapshot does not have fails. ar/en never carry a rank, and the factory rows' amounts,
+ *    factory and location names count like the lowest's in rules 2–4 (ar shows the lowest only, en nothing).
+ * 8. JSON-LD offers: only on fa/ar product pages (`products/<slug>.html`), only the variant's LOWEST
+ *    (published_prices) — one `Offer` per priced variant, `@id` `…#offer-<CVAR>`, `price` = the IRR/kg integer,
+ *    `priceCurrency` IRR, a per-kg `UnitPriceSpecification` with VAT included, nothing else (no factory, seller,
+ *    date or availability). Never on en, never another page, never a factory's non-lowest price.
+ *
+ * W18.2 (price intelligence):
+ * 9. A price-position gauge (`data-aa-price-gauge="<CVAR>"`, the fa product page's decision block and the chart
+ *    pages) and a chart page's chart (`data-aa-price-chart="<CVAR>"`) exist on fa pages only, for a priced variant
+ *    whose snapshot history gives the gauge at least one window; every text in them is the fixed copy or a number
+ *    recomputed here from the snapshot (lib/pricing/price-position.ts, lib/pricing/price-charts.ts) — the lowest,
+ *    average, highest, today and, on a chart, each day's price and date; every price line
+ *    (`data-aa-price-line="<n>"`) sits in one of them and draws exactly a window's number of daily points. The fa
+ *    drivers line nested in a gauge is the indicator gate's (lib/static/indicator-gate.ts). Gauge, chart and
+ *    indicator elements are left out of rule 2's "no amount outside a price element" (their numbers are checked
+ *    here, or are not prices at all).
+ *
  * The pricing-API field names, source-like keys and factory codes are refused in every public file by the
- * leak scan (lib/static/leak-scan.ts, kind `pricing_field`); JSON-LD offers/price by the publication gate.
+ * leak scan (lib/static/leak-scan.ts, kind `pricing_field`); JSON-LD types/keys by the publication gate.
  */
 export interface PriceFinding {
   file: string;
-  kind: "price_field_not_allowed" | "price_text_not_allowed" | "price_unknown_variant" | "price_outside_markup" | "price_on_en_page" | "price_fa_field_on_ar_page" | "calculator_price_not_allowed" | "price_excluded_variant" | "price_sparkline_not_allowed";
+  kind: "price_field_not_allowed" | "price_text_not_allowed" | "price_unknown_variant" | "price_outside_markup" | "price_on_en_page" | "price_fa_field_on_ar_page" | "calculator_price_not_allowed" | "price_excluded_variant" | "price_sparkline_not_allowed" | "price_jsonld_not_allowed" | "price_gauge_not_allowed";
   match: string;
 }
 
@@ -62,6 +88,8 @@ export interface PriceGateInput {
   variants: Map<string, VariantInfo>;
   /** W9.6: daily points (Toman) per variant, oldest first. */
   history: Map<string, DailyPoint[]>;
+  /** W20.7: every factory's price per variant, in display order (orderFactoryRows), as price rows. */
+  factoryRows: Map<string, PublishedPriceRow[]>;
   findings: PriceFinding[];
 }
 
@@ -74,6 +102,13 @@ export function priceGateInput(snapshot: unknown): PriceGateInput {
     for (const key of Object.keys(raw ?? {})) if (!(PUBLISHED_PRICE_COLUMNS as readonly string[]).includes(key)) findings.push({ file: "private-snapshot/snapshot.json", kind: "price_field_not_allowed", match: key });
     rows.push(raw as unknown as PublishedPriceRow);
   }
+  const byFactory = new Map<string, PublishedFactoryPriceRow[]>();
+  for (const raw of (tables.published_factory_prices ?? []) as Record<string, unknown>[]) {
+    for (const key of Object.keys(raw ?? {})) if (!(PUBLISHED_FACTORY_PRICE_COLUMNS as readonly string[]).includes(key)) findings.push({ file: "private-snapshot/snapshot.json", kind: "price_field_not_allowed", match: `published_factory_prices.${key}` });
+    const row = raw as unknown as PublishedFactoryPriceRow;
+    byFactory.set(row.canonical_variant_id, [...(byFactory.get(row.canonical_variant_id) ?? []), row]);
+  }
+  const factoryRows = new Map([...byFactory].map(([xid, list]) => [xid, orderFactoryRows(list).map(factoryRowAsPriceRow)]));
   const history = new Map<string, DailyPoint[]>();
   for (const raw of (tables.published_price_history ?? []) as Record<string, unknown>[]) {
     for (const key of Object.keys(raw ?? {})) if (!(PUBLISHED_PRICE_HISTORY_COLUMNS as readonly string[]).includes(key)) findings.push({ file: "private-snapshot/snapshot.json", kind: "price_field_not_allowed", match: `published_price_history.${key}` });
@@ -87,7 +122,7 @@ export function priceGateInput(snapshot: unknown): PriceGateInput {
     const code = (k: string) => (typeof v[k] === "string" ? (v[k] as string) : null);
     variants.set(v.xid, { xid: v.xid, size: String(v.commercial_size ?? v.section_size ?? v.sku ?? ""), eligible: isDailyPriceEligible({ familyCode: code("family_code"), groupCode: code("group_code"), formCode: code("form_code") }) });
   }
-  return { rows, variants, history, findings };
+  return { rows, variants, history, factoryRows, findings };
 }
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", "#39": "'", "#x27": "'" };
@@ -163,7 +198,9 @@ const PAGE_H1 = /<h1\b[^>]*>([\s\S]*?)<\/h1>/i;
 /** Persian copy that only a fa price element shows; never on ar or en. */
 const FA_PRICE_COPY = [PRICE_BLOCK_COPY.unit, PRICE_BLOCK_COPY.vat, PRICE_BLOCK_COPY.askToday, PRICE_BLOCK_COPY.missing, PRICE_COLUMN_COPY.fa.note, `${PRICE_BLOCK_COPY.title} `, PRICE_DISCLAIMER.fa, PRICE_RFQ_COPY.fa, PRICE_TREND_COPY.fa];
 /** W9.6: fa-only price markers — the chart and the factory RFQ prefill; never on ar or en. (▲/▼ is fa + ar, never en.) */
-const FA_ONLY_MARKERS = [PRICE_SPARKLINE_ATTRIBUTE, PRICE_TREND_COPY.fa, `&amp;${RFQ_FACTORY_PARAM}=`, `&${RFQ_FACTORY_PARAM}=`, `?${RFQ_FACTORY_PARAM}=`];
+const FA_ONLY_MARKERS = [PRICE_SPARKLINE_ATTRIBUTE, PRICE_TREND_COPY.fa, `&amp;${RFQ_FACTORY_PARAM}=`, `&${RFQ_FACTORY_PARAM}=`, `?${RFQ_FACTORY_PARAM}=`,
+  // W18.2: the gauge, the chart pages and their CTA are fa only.
+  PRICE_GAUGE_ATTRIBUTE, PRICE_CHART_ATTRIBUTE, PRICE_LINE_ATTRIBUTE, PRICE_DECISION_COPY.cta, PRICE_DECISION_COPY.title];
 const CHANGE_MARKERS = [PRICE_CHANGE_COPY.up, PRICE_CHANGE_COPY.down, ...Object.values(PRICE_CHANGE_WORDS.ar)];
 /** Arabic copy of the ar price cells; never on en. */
 const AR_COPY = [...Object.values(AR_PRICE_COPY), PRICE_DISCLAIMER.ar, PRICE_RFQ_COPY.ar];
@@ -211,9 +248,11 @@ export function scanCalculatorPrices(path: string, content: string, locale: Pric
 export function scanPrices(files: ReadonlyArray<{ path: string; content: string }>, input: PriceGateInput): PriceFinding[] {
   const findings: PriceFinding[] = [...input.findings];
   const byVariant = new Map(input.rows.map((r) => [r.canonical_variant_id, r]));
-  const amounts = { fa: [...new Set(input.rows.map((r) => renderedAmount(r, "fa")))], ar: [...new Set(input.rows.map((r) => renderedAmount(r, "ar")))] };
-  const names = [...new Set(input.rows.flatMap((r) => [r.factory_name_fa, r.location_fa]))];
-  const times = [...new Set(input.rows.flatMap((r) => [r.published_at, new Date(r.published_at).toISOString()]))];
+  // W20.7: the factory rows count like the lowest (their amounts, names and times are fa-only too).
+  const every = [...input.rows, ...[...input.factoryRows.values()].flat()];
+  const amounts = { fa: [...new Set(every.map((r) => renderedAmount(r, "fa")))], ar: [...new Set(every.map((r) => renderedAmount(r, "ar")))] };
+  const names = [...new Set(every.flatMap((r) => [r.factory_name_fa, r.location_fa]))];
+  const times = [...new Set(every.flatMap((r) => [r.published_at, new Date(r.published_at).toISOString()]))];
 
   for (const { path, content } of files) {
     const locale = fileLocale(path);
@@ -221,17 +260,24 @@ export function scanPrices(files: ReadonlyArray<{ path: string; content: string 
       // 4. No price on en — in the HTML, the RSC payload and any locale JSON.
       const forbidden = ["data-aa-price", "tomanPerKg", ...FA_PRICE_COPY, ...FA_ONLY_MARKERS, ...CHANGE_MARKERS, ...AR_COPY, ...amounts.fa, ...amounts.ar, ...names];
       for (const s of forbidden) if (content.includes(s)) findings.push({ file: path, kind: "price_on_en_page", match: s.trim() });
+      // 8. Never a JSON-LD offer on en.
+      if (path.endsWith(".html")) findings.push(...scanOfferJsonLd(path, content, byVariant));
       continue;
     }
     if (locale === "ar") {
       // 3. ar is price only: none of the fa-only fields, anywhere in the file (HTML and payload).
-      const forbidden = [PRICE_BLOCK_ATTRIBUTE, ...FA_PRICE_COPY, ...FA_ONLY_MARKERS, ...amounts.fa, ...names, ...times];
+      const forbidden = [PRICE_BLOCK_ATTRIBUTE, PRICE_RANK_ATTRIBUTE, ...FA_PRICE_COPY, ...FA_ONLY_MARKERS, ...amounts.fa, ...names, ...times];
       for (const s of forbidden) if (content.includes(s)) findings.push({ file: path, kind: "price_fa_field_on_ar_page", match: s.trim() });
     }
-    if (locale !== "fa" && locale !== "ar") continue;
+    if (locale !== "fa" && locale !== "ar") {
+      if (path.endsWith(".html")) findings.push(...scanOfferJsonLd(path, content, byVariant));
+      continue;
+    }
     // 5. The calculator's price map (fa/ar calculator pages only; elsewhere the leak scan refuses it).
     if (CALCULATOR_PRICE_PAGES.includes(path)) findings.push(...scanCalculatorPrices(path, content, locale, byVariant, input.variants));
     if (!path.endsWith(".html")) continue;
+    // 8. JSON-LD offers: the lowest only, on fa/ar product pages only.
+    findings.push(...scanOfferJsonLd(path, content, byVariant));
     // 2./3. Allow-listed text inside every price element, no amount outside one.
     const elements = priceElements(content);
     const h1 = visibleText(PAGE_H1.exec(content)?.[1] ?? "");
@@ -248,7 +294,17 @@ export function scanPrices(files: ReadonlyArray<{ path: string; content: string 
         continue;
       }
       if (variant && !variant.eligible) findings.push({ file: path, kind: "price_excluded_variant", match: `${el.attribute}="${el.value}": a per-ton material has a daily price element` });
-      const row = variant ? (byVariant.get(variant.xid) ?? null) : null;
+      // 7. A factory cell (fa /prices): its rank's factory row, never the lowest by default.
+      const rank = new RegExp(`\\s${PRICE_RANK_ATTRIBUTE}="([^"]*)"`).exec(/^<[^>]*>/.exec(el.html)?.[0] ?? "")?.[1];
+      let row = variant ? (byVariant.get(variant.xid) ?? null) : null;
+      if (rank !== undefined) {
+        const factoryRow = variant && locale === "fa" && /^\d+$/.test(rank) ? input.factoryRows.get(variant.xid)?.[Number(rank)] : undefined;
+        if (!factoryRow) {
+          findings.push({ file: path, kind: "price_unknown_variant", match: `${el.attribute}="${el.value}" ${PRICE_RANK_ATTRIBUTE}="${rank}": no such factory price` });
+          continue;
+        }
+        row = factoryRow;
+      }
       findings.push(...scanSparklines(path, el, row, input.history));
       if (el.attribute === PRICE_BLOCK_ATTRIBUTE && variant && !row) findings.push({ file: path, kind: "price_unknown_variant", match: `${el.attribute}="${el.value}" has no published price` });
       const productName = locale === "fa" && el.attribute === PRICE_BLOCK_ATTRIBUTE ? (variant ? `${h1} ${variant.size}` : h1) : undefined;
@@ -260,10 +316,59 @@ export function scanPrices(files: ReadonlyArray<{ path: string; content: string 
     // may quote a price: editorial text under the content repository's rules and the owner's review. Only there,
     // only on fa/ar; en article pages stay fully covered by rule 4 above.
     if (ARTICLE_PAGE.test(path)) outside = withoutElements(outside, elementsWithAttribute(outside, [ARTICLE_TEXT_ATTRIBUTE]));
+    // 9. (W18.2) Gauges and charts (fa): every number recomputed from the snapshot; then they leave rule 2's scan, as do
+    // the indicator elements (an index value is not a price; the indicator gate checks them).
+    if (locale === "fa") findings.push(...scanGaugesAndCharts(path, outside, h1, byVariant, input));
+    outside = withoutElements(outside, elementsWithAttribute(outside, [PRICE_GAUGE_ATTRIBUTE, PRICE_CHART_ATTRIBUTE, INDICATOR_ATTRIBUTE, INDICATOR_LINE_ATTRIBUTE]));
     const outsideText = visibleText(outside);
     for (const a of amounts[locale]) if (outsideText.includes(a)) findings.push({ file: path, kind: "price_outside_markup", match: a });
   }
   return findings;
+}
+
+/**
+ * 9. (W18.2) The fa gauges and chart pages: see the rule list above. `html` is the page without its price
+ * elements (a gauge never sits inside one); `h1` the page's H1 (a chart page's product name follows its prefix).
+ */
+export function scanGaugesAndCharts(path: string, html: string, h1: string, byVariant: ReadonlyMap<string, PublishedPriceRow>, input: PriceGateInput): PriceFinding[] {
+  const out: PriceFinding[] = [];
+  const fail = (match: string) => out.push({ file: path, kind: "price_gauge_not_allowed", match });
+  const elements = elementsWithAttribute(html, [PRICE_GAUGE_ATTRIBUTE, PRICE_CHART_ATTRIBUTE]);
+  let linesInside = 0;
+  for (const el of elements) {
+    const where = `${el.attribute}="${el.value}"`;
+    const row = byVariant.get(el.value);
+    const day = row ? tehranDay(row.published_at) : null;
+    if (!row || !day || input.variants.get(el.value)?.eligible === false) {
+      fail(`${where}: no eligible published price`);
+      continue;
+    }
+    const history = input.history.get(el.value) ?? [];
+    const windows = priceWindows(history, day);
+    if (windows.length === 0) {
+      fail(`${where}: the snapshot history gives no window`);
+      continue;
+    }
+    // Lines: each draws a window's points (a gauge: the 90-day trend; a chart: its 30- or 90-day view).
+    const counts = el.attribute === PRICE_GAUGE_ATTRIBUTE ? [windowPoints(history, day, PRICE_CHART_WINDOW_DAYS).length] : [30, 90].map((d) => windowPoints(history, day, d).length);
+    for (const m of el.html.matchAll(new RegExp(`<svg\\b[^>]*\\s${PRICE_LINE_ATTRIBUTE}="(\\d+)"[^>]*>([\\s\\S]*?)</svg>`, "g"))) {
+      linesInside++;
+      const line = /<path\b[^>]*\bd="([^"]*)"[^>]*stroke-linejoin/.exec(m[2])?.[1] ?? "";
+      if (!counts.includes(Number(m[1])) || pathPointCount(line) !== Number(m[1])) fail(`${where}: a line draws ${m[1]}/${pathPointCount(line)} point(s), the snapshot has ${counts.join(" or ")}`);
+    }
+    // Text: the drivers line (indicator gate) out, the rest is copy + recomputed numbers.
+    const text = visibleText(withoutElements(el.html, elementsWithAttribute(el.html, [INDICATOR_LINE_ATTRIBUTE, INDICATOR_ATTRIBUTE])));
+    const prefix = PRICE_CHART_COPY.title("");
+    const allowed =
+      el.attribute === PRICE_GAUGE_ATTRIBUTE
+        ? allowedGaugeTexts(windows, PRICE_CHART_WINDOW_DAYS, true)
+        : allowedChartTexts(h1.startsWith(prefix) ? h1.slice(prefix.length) : h1, windowPoints(history, day, PRICE_CHART_WINDOW_DAYS), day);
+    const left = residue(text, allowed);
+    if (left) fail(`${where}: ${left.slice(0, 120)}`);
+  }
+  const allLines = (html.match(new RegExp(`\\s${PRICE_LINE_ATTRIBUTE}="`, "g")) ?? []).length;
+  if (allLines !== linesInside) fail(`${allLines - linesInside} price line(s) outside a gauge or a chart`);
+  return out;
 }
 
 const SPARKLINE = new RegExp(`${PRICE_SPARKLINE_ATTRIBUTE}="([^"]*)"`, "g");
@@ -288,5 +393,61 @@ export function scanSparklines(path: string, el: PriceElement, row: PublishedPri
   const linePoints = (line.match(SPARKLINE_POINT) ?? []).length;
   if (!series) out.push({ file: path, kind: "price_sparkline_not_allowed", match: `${where}: the snapshot has fewer than the minimum daily points` });
   else if (drawn !== series.length || linePoints !== series.length) out.push({ file: path, kind: "price_sparkline_not_allowed", match: `${where}: draws ${drawn}/${linePoints} point(s), the snapshot has ${series.length}` });
+  return out;
+}
+
+/** Product pages: `products/<slug>.html` and `ar/products/<slug>.html` (en never; the lists/categories never). */
+const OFFER_PAGE = /^(ar\/)?products\/(?!category\/)[^/]+\.html$/;
+const OFFER_ID = /#offer-(CVAR-[A-Za-z0-9-]+)$/;
+const OFFER_KEYS = ["@id", "@type", "price", "priceCurrency", "priceSpecification"];
+const SPEC_KEYS = ["@type", "price", "priceCurrency", "referenceQuantity", "valueAddedTaxIncluded"];
+const QUANTITY_KEYS = ["@type", "unitCode", "value"];
+
+/**
+ * 8. (W20.7) Every JSON-LD `offers` / `Offer` / price key in a page: allowed only on a fa/ar product page, and
+ * each Offer is exactly the lowest published price of its variant, per kg, IRR, VAT included.
+ */
+export function scanOfferJsonLd(path: string, html: string, byVariant: ReadonlyMap<string, PublishedPriceRow>): PriceFinding[] {
+  const out: PriceFinding[] = [];
+  const fail = (match: string) => out.push({ file: path, kind: "price_jsonld_not_allowed", match });
+  const allowedPage = OFFER_PAGE.test(path) && fileLocale(path) !== "en";
+  for (const block of jsonLdBlocks(html)) {
+    let doc: unknown;
+    try {
+      doc = JSON.parse(block);
+    } catch {
+      continue; // the publication gate reports unparseable JSON-LD
+    }
+    const visit = (node: unknown): void => {
+      if (Array.isArray(node)) return node.forEach(visit);
+      if (!node || typeof node !== "object") return;
+      const o = node as Record<string, unknown>;
+      if ("offers" in o) {
+        if (!allowedPage) fail("offers outside a fa/ar product page");
+        else if (o["@type"] !== "Product" || !Array.isArray(o.offers) || o.offers.length === 0) fail("offers must be a non-empty list on a Product");
+        else for (const offer of o.offers) checkOffer(offer);
+        for (const [k, v] of Object.entries(o)) if (k !== "offers") visit(v);
+        return;
+      }
+      if (o["@type"] === "Offer" || o["@type"] === "UnitPriceSpecification" || "price" in o || "priceCurrency" in o) fail(`${String(o["@type"] ?? "a node")} with a price outside Product.offers`);
+      Object.values(o).forEach(visit);
+    };
+    const checkOffer = (offer: unknown): void => {
+      const o = (offer ?? {}) as Record<string, unknown>;
+      const xid = OFFER_ID.exec(String(o["@id"] ?? ""))?.[1];
+      const row = xid ? byVariant.get(xid) : undefined;
+      const where = xid ?? String(o["@id"] ?? "?");
+      if (!row) return void fail(`${where}: an offer without a published price`);
+      const spec = (o.priceSpecification ?? {}) as Record<string, unknown>;
+      const qty = (spec.referenceQuantity ?? {}) as Record<string, unknown>;
+      const same = (obj: Record<string, unknown>, keys: string[]) => Object.keys(obj).sort().join(",") === [...keys].sort().join(",");
+      if (o["@type"] !== "Offer" || !same(o, OFFER_KEYS)) fail(`${where}: offer keys ${Object.keys(o).sort().join(",")}`);
+      if (spec["@type"] !== "UnitPriceSpecification" || !same(spec, SPEC_KEYS)) fail(`${where}: priceSpecification keys ${Object.keys(spec).sort().join(",")}`);
+      if (qty["@type"] !== "QuantitativeValue" || !same(qty, QUANTITY_KEYS) || qty.value !== 1 || qty.unitCode !== "KGM") fail(`${where}: referenceQuantity must be 1 KGM`);
+      if (o.price !== row.price_irr_per_kg || spec.price !== row.price_irr_per_kg) fail(`${where}: price ${JSON.stringify(o.price)}/${JSON.stringify(spec.price)} is not the lowest published price (${row.price_irr_per_kg})`);
+      if (o.priceCurrency !== "IRR" || spec.priceCurrency !== "IRR" || spec.valueAddedTaxIncluded !== true) fail(`${where}: must be IRR, VAT included`);
+    };
+    visit(doc);
+  }
   return out;
 }

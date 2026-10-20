@@ -17,6 +17,41 @@ export interface DownloadsCopy {
   catalogs: { title: string; body: string; sections: string; sectionsBody: string; raw: string; rawBody: string; otherLanguages: string };
   templates: { title: string; itemList: string; itemListBody: string };
   languageNames: Record<Locale, string>;
+  /** W20.8 — the one-page Download Center: quick access, filter bar, results. */
+  center: {
+    quickTitle: string;
+    filterLabel: string;
+    search: string;
+    searchPlaceholder: string;
+    searchHint: string;
+    typeLegend: string;
+    types: Record<"all" | "dxf" | "pdf" | "catalog", string>;
+    familyLegend: string;
+    allFamilies: string;
+    /** «{n}» = formatted number. */
+    count: string;
+    noMatch: string;
+    clear: string;
+    openFilters: string;
+    closeFilters: string;
+    showResults: string;
+    resultsTitle: string;
+    size: string;
+    weight: string;
+    preview: string;
+    files: string;
+    sizesCount: string;
+    standard: string;
+    updated: string;
+    zip: string;
+    zipBody: string;
+    familySheet: string;
+    price: string;
+    rfq: string;
+    otherSheetsTitle: string;
+    otherSheetsBody: string;
+    catalogsTitle: string;
+  };
   pdf: {
     sectionsTitle: string;
     rawTitle: string;
@@ -65,6 +100,39 @@ export const DOWNLOADS_COPY: Record<Locale, DownloadsCopy> = {
     },
     templates: { title: "فرم‌ها", itemList: "فرم لیست اقلام (Excel)", itemListBody: "اقلام مورد نیاز را در این فایل بنویسید و در فرم درخواست پیوست کنید." },
     languageNames: { fa: "فارسی", en: "English", ar: "العربية" },
+    center: {
+      quickTitle: "دسترسی سریع",
+      filterLabel: "فیلتر فایل‌ها",
+      search: "جستجوی سایز",
+      searchPlaceholder: "مثلاً IPE 200، ۲۰۰ یا نبشی ۱۰",
+      searchHint: "عدد فارسی یا لاتین، با نام مقطع یا بدون آن.",
+      typeLegend: "نوع فایل",
+      types: { all: "همه", dxf: "نقشه DXF", pdf: "برگه مشخصات PDF", catalog: "کاتالوگ" },
+      familyLegend: "خانواده",
+      allFamilies: "همه",
+      count: "{n} سایز",
+      noMatch: "سایزی با این جستجو پیدا نشد. عدد را کوتاه‌تر بنویسید یا فیلترها را پاک کنید.",
+      clear: "پاک کردن فیلترها",
+      openFilters: "فیلترها",
+      closeFilters: "بستن",
+      showResults: "نمایش نتایج",
+      resultsTitle: "نقشه‌ها و برگه‌های مشخصات",
+      size: "سایز",
+      weight: "وزن (kg/m)",
+      preview: "مقطع",
+      files: "فایل‌ها",
+      sizesCount: "{n} سایز",
+      standard: "استاندارد",
+      updated: "به‌روزرسانی",
+      zip: "دانلود همه (ZIP)",
+      zipBody: "همهٔ نقشه‌های DXF و PDF این خانواده",
+      familySheet: "برگه مشخصات خانواده",
+      price: "قیمت امروز",
+      rfq: "استعلام این سایز",
+      otherSheetsTitle: "برگه مشخصات سایر محصولات",
+      otherSheetsBody: "این محصولات نقشهٔ مقطع ندارند؛ برگهٔ مشخصات هر خانواده ابعاد، وزن اسمی، استاندارد و گرید را دارد.",
+      catalogsTitle: "کاتالوگ‌ها و فرم‌ها",
+    },
     pdf: {
       sectionsTitle: "کاتالوگ مقاطع و محصولات فولادی",
       rawTitle: "کاتالوگ مواد اولیه فولاد",
@@ -111,6 +179,39 @@ export const DOWNLOADS_COPY: Record<Locale, DownloadsCopy> = {
     },
     templates: { title: "Templates", itemList: "Item-list template (Excel)", itemListBody: "List the items you need in this file and attach it to the request form." },
     languageNames: { fa: "فارسی", en: "English", ar: "العربية" },
+    center: {
+      quickTitle: "Quick access",
+      filterLabel: "Filter files",
+      search: "Search a size",
+      searchPlaceholder: "e.g. IPE 200, 200 or angle 100",
+      searchHint: "Latin, Persian or Arabic digits, with or without the section name.",
+      typeLegend: "File type",
+      types: { all: "All", dxf: "DXF drawing", pdf: "Spec sheet PDF", catalog: "Catalog" },
+      familyLegend: "Family",
+      allFamilies: "All",
+      count: "{n} sizes",
+      noMatch: "No size matches this search. Try fewer digits or clear the filters.",
+      clear: "Clear filters",
+      openFilters: "Filters",
+      closeFilters: "Close",
+      showResults: "Show results",
+      resultsTitle: "Drawings and spec sheets",
+      size: "Size",
+      weight: "Weight (kg/m)",
+      preview: "Section",
+      files: "Files",
+      sizesCount: "{n} sizes",
+      standard: "Standard",
+      updated: "Updated",
+      zip: "Download all (ZIP)",
+      zipBody: "Every DXF and PDF drawing of this family",
+      familySheet: "Family spec sheet",
+      price: "Today's price",
+      rfq: "Request this size",
+      otherSheetsTitle: "Spec sheets of other products",
+      otherSheetsBody: "These products have no section drawing; each family's spec sheet lists dimensions, nominal weights, standard and grade.",
+      catalogsTitle: "Catalogs and templates",
+    },
     pdf: {
       sectionsTitle: "Sections & Steel Products Catalog",
       rawTitle: "Steel Raw Materials Catalog",
@@ -157,6 +258,39 @@ export const DOWNLOADS_COPY: Record<Locale, DownloadsCopy> = {
     },
     templates: { title: "النماذج", itemList: "نموذج قائمة البنود (Excel)", itemListBody: "اكتب البنود التي تحتاجها في هذا الملف وأرفقه بنموذج الطلب." },
     languageNames: { fa: "فارسی", en: "English", ar: "العربية" },
+    center: {
+      quickTitle: "وصول سريع",
+      filterLabel: "تصفية الملفات",
+      search: "ابحث عن مقاس",
+      searchPlaceholder: "مثلًا IPE 200 أو 200 أو زاوية 100",
+      searchHint: "أرقام عربية أو لاتينية أو فارسية، مع اسم المقطع أو من دونه.",
+      typeLegend: "نوع الملف",
+      types: { all: "الكل", dxf: "رسم DXF", pdf: "ورقة مواصفات PDF", catalog: "كتالوج" },
+      familyLegend: "العائلة",
+      allFamilies: "الكل",
+      count: "{n} مقاس",
+      noMatch: "لا يوجد مقاس يطابق هذا البحث. اكتب أرقامًا أقل أو امسح عوامل التصفية.",
+      clear: "مسح عوامل التصفية",
+      openFilters: "التصفية",
+      closeFilters: "إغلاق",
+      showResults: "عرض النتائج",
+      resultsTitle: "الرسومات وأوراق المواصفات",
+      size: "المقاس",
+      weight: "الوزن (kg/m)",
+      preview: "المقطع",
+      files: "الملفات",
+      sizesCount: "{n} مقاس",
+      standard: "المعيار",
+      updated: "آخر تحديث",
+      zip: "تنزيل الكل (ZIP)",
+      zipBody: "جميع رسومات DXF وPDF لهذه العائلة",
+      familySheet: "ورقة مواصفات العائلة",
+      price: "سعر اليوم",
+      rfq: "اطلب هذا المقاس",
+      otherSheetsTitle: "أوراق مواصفات المنتجات الأخرى",
+      otherSheetsBody: "لا توجد رسومات مقاطع لهذه المنتجات؛ تتضمن ورقة مواصفات كل عائلة الأبعاد والوزن الاسمي والمعيار والدرجة.",
+      catalogsTitle: "الكتالوجات والنماذج",
+    },
     pdf: {
       sectionsTitle: "كتالوج المقاطع ومنتجات الصلب",
       rawTitle: "كتالوج المواد الأولية للصلب",

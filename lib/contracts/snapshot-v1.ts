@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { SNAPSHOT_VERSION_PATTERN } from "./snapshot-version.ts";
-import { PUBLISHED_PRICE_HISTORY_TABLE, PUBLISHED_PRICES_TABLE, publishedPriceHistoryRow, publishedPriceRow } from "./snapshot-prices.ts";
+import { PUBLISHED_FACTORY_PRICES_TABLE, PUBLISHED_PRICE_HISTORY_TABLE, PUBLISHED_PRICES_TABLE, publishedFactoryPriceRow, publishedPriceHistoryRow, publishedPriceRow } from "./snapshot-prices.ts";
 import { PUBLISHED_ARTICLES_TABLE, publishedArticleRow } from "./snapshot-articles.ts";
+import { PUBLISHED_INDICATOR_POINTS_TABLE, PUBLISHED_INDICATORS_TABLE, publishedIndicatorPointRow, publishedIndicatorRow } from "./snapshot-indicators.ts";
 
 /**
  * snapshot.v1 — the build-time public data snapshot (docs/contracts/SNAPSHOT_V1.md,
@@ -173,15 +174,20 @@ export const SNAPSHOT_TABLES = {
   [PUBLISHED_PRICES_TABLE]: publishedPriceRow,
   // W9.6: build-only daily price points (the sparkline).
   [PUBLISHED_PRICE_HISTORY_TABLE]: publishedPriceHistoryRow,
+  // W20.7: build-only, every factory's price of a priced variant (fa price page).
+  [PUBLISHED_FACTORY_PRICES_TABLE]: publishedFactoryPriceRow,
   // W11.1: build-only articles from the private content repository (lib/contracts/snapshot-articles.ts).
   [PUBLISHED_ARTICLES_TABLE]: publishedArticleRow,
+  // W18.2: build-only market indicators (reference indices, never a selling price; lib/contracts/snapshot-indicators.ts).
+  [PUBLISHED_INDICATORS_TABLE]: publishedIndicatorRow,
+  [PUBLISHED_INDICATOR_POINTS_TABLE]: publishedIndicatorPointRow,
 } as const;
 /**
  * Snapshot tables that exist only in the static build's in-memory database, never in the remote
  * DB_PUBLIC (no migrations_public file; never loaded or mirrored into D1). W9.4: the published prices;
- * W9.6: their daily history; W11.1: the articles.
+ * W9.6: their daily history; W20.7: every factory's price; W11.1: the articles; W18.2: the market indicators.
  */
-export const BUILD_ONLY_SNAPSHOT_TABLES: ReadonlySet<string> = new Set([PUBLISHED_PRICES_TABLE, PUBLISHED_PRICE_HISTORY_TABLE, PUBLISHED_ARTICLES_TABLE]);
+export const BUILD_ONLY_SNAPSHOT_TABLES: ReadonlySet<string> = new Set([PUBLISHED_PRICES_TABLE, PUBLISHED_PRICE_HISTORY_TABLE, PUBLISHED_FACTORY_PRICES_TABLE, PUBLISHED_ARTICLES_TABLE, PUBLISHED_INDICATORS_TABLE, PUBLISHED_INDICATOR_POINTS_TABLE]);
 export type SnapshotTableName = keyof typeof SNAPSHOT_TABLES;
 /**
  * W9.8: snapshot columns of a DB_PUBLIC table that exist only in the static build's in-memory database
@@ -226,7 +232,10 @@ export const snapshotV1 = z
         catalog_group_labels: z.array(catalogGroupLabelRow).default([]),
         published_prices: z.array(publishedPriceRow).default([]),
         published_price_history: z.array(publishedPriceHistoryRow).default([]),
+        published_factory_prices: z.array(publishedFactoryPriceRow).default([]),
         published_articles: z.array(publishedArticleRow).default([]),
+        published_indicators: z.array(publishedIndicatorRow).default([]),
+        published_indicator_points: z.array(publishedIndicatorPointRow).default([]),
       })
       .strict(),
   })
@@ -265,6 +274,36 @@ export const snapshotV1 = z
       const c = current.get(xid);
       if (c && (c.price_irr_per_kg !== n.price || c.published_at !== n.at)) ctx.addIssue({ code: "custom", path: ["tables", "published_price_history"], message: `${xid}: the newest history point is not the current published price` });
     }
+    // W20.7: factory rows only for a priced variant, one per factory, and exactly one of them is the variant's
+    // lowest — the published_prices row (same price and factory). A variant may have none (Odoo without factory_prices).
+    const factoryKeys = new Set<string>();
+    const lowestOf = new Map<string, number>();
+    s.tables.published_factory_prices.forEach((r, i) => {
+      const where = ["tables", "published_factory_prices", i];
+      const c = current.get(r.canonical_variant_id);
+      if (!c) ctx.addIssue({ code: "custom", path: [...where, "canonical_variant_id"], message: "factory price for a variant without a published price" });
+      const key = `${r.canonical_variant_id}|${r.factory_name_fa}`;
+      if (factoryKeys.has(key)) ctx.addIssue({ code: "custom", path: [...where, "factory_name_fa"], message: "duplicate factory for one variant" });
+      factoryKeys.add(key);
+      if (r.is_lowest === 1) {
+        lowestOf.set(r.canonical_variant_id, (lowestOf.get(r.canonical_variant_id) ?? 0) + 1);
+        if (c && (c.price_irr_per_kg !== r.price_irr_per_kg || c.factory_name_fa !== r.factory_name_fa)) ctx.addIssue({ code: "custom", path: where, message: "the lowest factory row differs from the published price" });
+      }
+      if (c && r.price_irr_per_kg < c.price_irr_per_kg) ctx.addIssue({ code: "custom", path: [...where, "price_irr_per_kg"], message: "a factory price below the variant's lowest" });
+    });
+    for (const xid of new Set(s.tables.published_factory_prices.map((r) => r.canonical_variant_id))) {
+      if (lowestOf.get(xid) !== 1) ctx.addIssue({ code: "custom", path: ["tables", "published_factory_prices"], message: `${xid}: ${lowestOf.get(xid) ?? 0} lowest rows (exactly one expected)` });
+    }
+    // W18.2: one row per indicator; every point belongs to one, one per (indicator, date); every indicator has a point.
+    const indicatorCodes = new Set(s.tables.published_indicators.map((r) => r.code));
+    if (indicatorCodes.size !== s.tables.published_indicators.length) ctx.addIssue({ code: "custom", path: ["tables", "published_indicators"], message: "duplicate indicator code" });
+    const pointKeys = new Set<string>();
+    s.tables.published_indicator_points.forEach((r, i) => {
+      if (!indicatorCodes.has(r.code)) ctx.addIssue({ code: "custom", path: ["tables", "published_indicator_points", i, "code"], message: "unknown indicator" });
+      if (pointKeys.has(`${r.code}|${r.date}`)) ctx.addIssue({ code: "custom", path: ["tables", "published_indicator_points", i], message: "duplicate (code, date)" });
+      pointKeys.add(`${r.code}|${r.date}`);
+    });
+    for (const code of indicatorCodes) if (!s.tables.published_indicator_points.some((r) => r.code === code)) ctx.addIssue({ code: "custom", path: ["tables", "published_indicators"], message: `${code}: no values` });
     // W11.1: one article per (locale, slug); a translation names an article of that locale that names it back.
     const articles = new Map(s.tables.published_articles.map((a) => [`${a.locale}:${a.slug}`, a]));
     if (articles.size !== s.tables.published_articles.length) ctx.addIssue({ code: "custom", path: ["tables", "published_articles"], message: "duplicate (locale, slug)" });

@@ -13,15 +13,20 @@ import { VariantHighlightFromQuery } from "@/components/products/variant-highlig
 import { CtaBand } from "@/components/ui/cta-band";
 import { TrackOnView } from "@/components/analytics/track-on-view";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { breadcrumbListSchema, jsonLdGraph, productSchema } from "@/lib/seo/schema";
+import { breadcrumbListSchema, jsonLdGraph, productOffersSchema, productSchema } from "@/lib/seo/schema";
 import { siteConfig } from "@/lib/metadata/site";
 import { primaryCta } from "@/lib/content/nav";
 import { PriceBlock } from "@/components/products/price-block";
-import { listDailyPriceHistory, listProductPagePrices } from "@/lib/pricing/product-page-price-repository";
+import { listDailyPriceHistory, listLowestPricesIrr, listProductPagePrices } from "@/lib/pricing/product-page-price-repository";
 import { firstPricedVariant, isPriceLocale, PRICE_BLOCK_ATTRIBUTE, PRICE_BLOCK_ON_REQUEST } from "@/lib/pricing/product-page-price";
 import { sparklineSeries, tehranDay } from "@/lib/pricing/price-history";
 import { PRICE_RFQ_COPY, priceRfqHref } from "@/lib/pricing/price-rfq";
 import { PriceSparkline } from "@/components/products/price-sparkline";
+import { PriceDecision } from "@/components/products/price-decision";
+import { priceWindows, windowPoints } from "@/lib/pricing/price-position";
+import { chartWindowStart, priceChartPath, PRICE_CHART_WINDOW_DAYS } from "@/lib/pricing/price-charts";
+import { priceChartForSlug } from "@/lib/pricing/price-chart-data";
+import { listIndicators } from "@/lib/indicators/repository";
 import { ProductRelatedLinks } from "@/components/products/product-related-links";
 import { GroupServicesBox } from "@/components/group/group-services-box";
 import { showGroupServices } from "@/lib/content/company";
@@ -79,8 +84,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
  * W9.4 — the daily price (owner decisions D-PRICE-DISPLAY / D-PRICE-AGE / D-W10-4, changed 2026-10-09):
  * fa — the W10.2 PriceBlock for the page's first priced variant (table order), or its missing-price
  * variant, and the «قیمت روز» column; ar — the price-only «سعر اليوم» column (no PriceBlock, no factory or
- * location); en — nothing. Prices come from the snapshot at build time; JSON-LD stays Product without
- * offers (architecture V1.1 §12).
+ * location); en — nothing. Prices come from the snapshot at build time. W20.7: the JSON-LD offers (the lowest
+ * per variant) are ProductOffers below, fa/ar only.
  *
  * r4 isolation (same technique as TargetEnquiryForm in contact/page.tsx and NotFoundContent in
  * not-found.tsx): this async boundary always suspends once, so React emits the price block and the
@@ -88,7 +93,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
  * the price markup can then never move the point where React splits that row, which would make the
  * staging and production artifacts differ outside the allowlist (lib/static/target-diff-gate.ts).
  */
-async function ProductSpecs({ locale, variants, title }: { locale: Locale; variants: ProductVariant[]; title: string }) {
+async function ProductSpecs({ locale, variants, title, slug }: { locale: Locale; variants: ProductVariant[]; title: string; slug: string }) {
   await Promise.resolve();
   // fa: PriceBlock + column; ar: price-only column; en: no price data at all (owner decision change 2026-10-09).
   const prices = isPriceLocale(locale) ? await listProductPagePrices(variants.map((v) => v.xid)) : null;
@@ -97,8 +102,15 @@ async function ProductSpecs({ locale, variants, title }: { locale: Locale; varia
   const mainPrice = main ? prices?.get(main.xid) : undefined;
   // W9.6: the 30-day chart of the main variant — only with ≥ 7 daily points (sparklineSeries), else nothing.
   const currentDay = mainPrice ? tehranDay(mainPrice.pricedAt) : null;
-  const series = main && currentDay ? sparklineSeries(await listDailyPriceHistory(main.xid), currentDay) : null;
+  const history = main && currentDay ? await listDailyPriceHistory(main.xid) : [];
+  const series = main && currentDay ? sparklineSeries(history, currentDay) : null;
   const contact = localizedPath(locale, "/contact");
+  // W18.2: the decision block — the 30/90-day position of today's price, a 90-day mini trend when the history reaches
+  // past 30 days, the market drivers line and «قیمت قطعی برای حجم شما» (fa only; nothing without a priced main variant).
+  const windows = main && currentDay ? priceWindows(history, currentDay) : [];
+  const has90 = windows.some((w) => w.window === 90);
+  const chart = windows.length ? await priceChartForSlug(slug) : null;
+  const indicators = windows.length ? await listIndicators() : [];
   return (
     <>
       {prices && locale === "fa" && (
@@ -113,6 +125,19 @@ async function ProductSpecs({ locale, variants, title }: { locale: Locale; varia
               trend={series && currentDay ? <PriceSparkline series={series} currentDay={currentDay} /> : undefined}
             />
           </div>
+          {main && mainPrice && currentDay && windows.length > 0 && (
+            <div className="mt-4">
+              <PriceDecision
+                xid={main.xid}
+                slug={slug}
+                windows={windows}
+                trend={has90 ? { series: windowPoints(history, currentDay, PRICE_CHART_WINDOW_DAYS), from: chartWindowStart(currentDay, PRICE_CHART_WINDOW_DAYS), to: currentDay, days: PRICE_CHART_WINDOW_DAYS } : null}
+                indicators={indicators}
+                rfqHref={priceRfqHref("fa", main.xid, mainPrice.factoryName)}
+                chartHref={chart ? localizedPath("fa", priceChartPath(chart.slug)) : null}
+              />
+            </div>
+          )}
         </div>
       )}
       <div className="mt-6">
@@ -120,6 +145,19 @@ async function ProductSpecs({ locale, variants, title }: { locale: Locale; varia
       </div>
     </>
   );
+}
+
+/**
+ * W20.7 (owner, 2026-10-16) — the Product node's `offers`: each priced variant's lowest price (lib/seo/schema.ts
+ * productOffersSchema), fa and ar only, nothing without a price. Its own async boundary, like ProductSpecs, so the
+ * page row that carries the target-specific robots value is unchanged (r4).
+ */
+async function ProductOffers({ locale, variants, url }: { locale: Locale; variants: ProductVariant[]; url: string }) {
+  await Promise.resolve();
+  if (!isPriceLocale(locale)) return null;
+  const offers = await listLowestPricesIrr(sortVariantsBySize(variants).map((v) => v.xid));
+  if (offers.length === 0) return null;
+  return <JsonLd data={jsonLdGraph([productOffersSchema({ url, offers })])} />;
 }
 
 /**
@@ -208,7 +246,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       <section className="border-border bg-background border-b py-16 lg:py-20">
         <div className="container-x">
           <h2 className="text-navy text-lg font-bold">{t.specs}</h2>
-          <ProductSpecs locale={locale} variants={variants} title={seo.h1 ?? product.commercialTemplateName} />
+          <ProductSpecs locale={locale} variants={variants} title={seo.h1 ?? product.commercialTemplateName} slug={slug} />
           <VariantHighlightFromQuery rows={variantRowIds} selectedLabel={variantSelectedLabel(locale)} />
 
           <ButtonLink href={localizedPath(locale, "/contact")} variant="primary" size="md" className="mt-10 h-auto min-h-12 py-3">
@@ -234,6 +272,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       )}
 
       <CtaBand locale={locale} />
+      <ProductOffers locale={locale} variants={variants} url={pageUrl} />
       <ProductAnalytics locale={locale} slug={slug} groupCode={variants[0]?.group.code ?? null} formCode={variants[0]?.form.code ?? null} />
     </>
   );

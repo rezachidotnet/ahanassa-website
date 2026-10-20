@@ -2,10 +2,11 @@ import type { CatalogApiProduct } from "../catalog/odoo-api-client.ts";
 import { normalizeCatalogTimestamp, slugifyFromSku, slugifyTemplateXid } from "../catalog/sync.ts";
 import type { SnapshotV1 } from "../contracts/snapshot-v1.ts";
 import type { PublishedArticleRow } from "../contracts/snapshot-articles.ts";
+import type { PublishedIndicatorPointRow, PublishedIndicatorRow } from "../contracts/snapshot-indicators.ts";
 import type { D1Source } from "./d1-source.ts";
 import type { OdooSource } from "./odoo-source.ts";
 import { validatePricing } from "./pricing.ts";
-import { validatePricingHistory } from "./pricing-history.ts";
+import { validatePricingHistory, withPreviousDay } from "./pricing-history.ts";
 
 /**
  * Builds the snapshot.v1 tables from one full Odoo fetch plus the
@@ -26,6 +27,8 @@ import { validatePricingHistory } from "./pricing-history.ts";
  *   snapshot with `is_active = 0` (soft deactivation; editorial rows survive).
  * - W11.1: `articles` are the rows the validate step accepted from the content
  *   repository (lib/content-pipeline/articles.ts); build-only, never from D1.
+ * - W18.2: `indicators` are the market-indicator rows the validate step accepted
+ *   (lib/content-pipeline/indicators.ts); build-only, never from D1.
  */
 
 type Tables = SnapshotV1["tables"];
@@ -82,7 +85,7 @@ function sameColumns(a: Record<string, unknown>, b: Record<string, unknown>, key
 
 const byKey = <T>(key: (row: T) => string) => (a: T, b: T) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0);
 
-export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivatedAt: string, articles: readonly PublishedArticleRow[] = []): Tables {
+export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivatedAt: string, articles: readonly PublishedArticleRow[] = [], indicators: { rows: readonly PublishedIndicatorRow[]; points: readonly PublishedIndicatorPointRow[] } = { rows: [], points: [] }): Tables {
   // --- templates + variants ---------------------------------------------------
   const existingProducts = d1.tables.catalog_products;
   const productByTemplate = new Map(existingProducts.map((p) => [p.template_xid, p]));
@@ -230,7 +233,9 @@ export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivat
   }
 
   // W9.4/W9.6: prices and their daily history, Odoo-owned and build-only.
-  const prices = validatePricing(odoo.prices, odoo.products, odoo.fetched_at).rows;
+  const pricing = validatePricing(odoo.prices, odoo.products, odoo.fetched_at);
+  const prices = pricing.rows;
+  const history = validatePricingHistory(odoo.price_history, prices, odoo.fetched_at);
 
   // --- editorial layer: carried verbatim from DB_PUBLIC -------------------------
   return {
@@ -244,10 +249,16 @@ export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivat
     catalog_group_labels: [...d1.tables.catalog_group_labels].sort(byKey((r) => `${r.group_code}|${r.locale}`)),
     // W9.4: Odoo-owned, build-only; only the allow-listed fields (empty when the pricing source has any error,
     // which validateSource reports and which stops the run).
-    published_prices: prices,
+    // W20.7 add-on: ▲/▼ against the previous Tehran day, not a same-day earlier publication.
+    published_prices: withPreviousDay(prices, history.previousDay),
     // W9.6: the daily points of the 30-day chart (empty, never an error, when the history is unusable).
-    published_price_history: validatePricingHistory(odoo.price_history, prices, odoo.fetched_at).rows,
+    published_price_history: history.rows,
+    // W20.7: every factory's price (fa price page); empty when Odoo has no factory_prices or any of it is unusable.
+    published_factory_prices: pricing.factoryRows,
     // W11.1: build-only articles, already sorted by (locale, slug).
     published_articles: [...articles],
+    // W18.2: build-only market indicators (reference indices), sorted by code / (code, date).
+    published_indicators: [...indicators.rows].sort(byKey((r) => r.code)),
+    published_indicator_points: [...indicators.points].sort(byKey((r) => `${r.code}|${r.date}`)),
   };
 }

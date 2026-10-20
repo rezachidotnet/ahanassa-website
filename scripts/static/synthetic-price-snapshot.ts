@@ -11,13 +11,15 @@
  *        [--history fixtures/pricing/synthetic-pricing-history.json]   (W9.6, the SYNTHETIC 30-day history; default)
  *        [--history-body <file>]                                       (a saved real /history body, local evidence only)
  *        [--no-history]                                                (no 30-day history at all)
+ *        [--indicators fixtures/indicators/synthetic-indicators.json]  (W18.2, the SYNTHETIC market indicators; off by default)
  *
  * The output's snapshot_version is content-derived (legacy form), so the static build accepts it.
  */
 import fs from "node:fs";
 import path from "node:path";
 import { validatePricing } from "../../lib/content-pipeline/pricing.ts";
-import { validatePricingHistory } from "../../lib/content-pipeline/pricing-history.ts";
+import { validatePricingHistory, withPreviousDay } from "../../lib/content-pipeline/pricing-history.ts";
+import { validateIndicators } from "../../lib/content-pipeline/indicators.ts";
 import { buildSnapshot, readSnapshotFile } from "../../lib/static/snapshot-io.ts";
 
 const argv = process.argv.slice(2);
@@ -67,9 +69,19 @@ else if (!argv.includes("--no-history") && !opt("pricing-body")) {
   if (fixture.synthetic !== true) throw new Error("the --history fixture must be marked synthetic: true");
   historyBody = fixture.response;
 }
-const history = historyBody === null ? { rows: [], warnings: [], summary: "no history" } : validatePricingHistory({ status: "ok", http_status: 200, etag: null, body: historyBody }, result.rows, fetchedAt);
+const history = historyBody === null ? { rows: [], warnings: [], summary: "no history", previousDay: new Map() } : validatePricingHistory({ status: "ok", http_status: 200, etag: null, body: historyBody }, result.rows, fetchedAt);
 for (const w of history.warnings) console.error(`[synthetic-price-snapshot] ${w}`);
-const snapshot = buildSnapshot({ ...base.tables, published_prices: result.rows, published_price_history: history.rows }, { kind: base.source.kind, description: `${base.source.description} + ${label}`, fetched_at: base.source.fetched_at }, base.created_at);
+// W18.2: market indicators, through the same allow-list as the content pipeline (never an error, only warnings).
+let indicators = { rows: [] as ReturnType<typeof validateIndicators>["rows"], points: [] as ReturnType<typeof validateIndicators>["points"], summary: "no indicators" };
+if (opt("indicators")) {
+  const fixture = JSON.parse(fs.readFileSync(path.resolve(repo, opt("indicators")!), "utf8")) as { synthetic: boolean; fetched_at: string; responses: Record<"fa" | "en" | "ar", unknown> };
+  if (fixture.synthetic !== true) throw new Error("the --indicators fixture must be marked synthetic: true");
+  const ok = (b: unknown) => ({ status: "ok" as const, http_status: 200, etag: null, body: b });
+  const checked = validateIndicators({ fa: ok(fixture.responses.fa), en: ok(fixture.responses.en), ar: ok(fixture.responses.ar) }, fixture.fetched_at);
+  for (const w of checked.warnings) console.error(`[synthetic-price-snapshot] ${w}`);
+  indicators = checked;
+}
+const snapshot = buildSnapshot({ ...base.tables, published_prices: withPreviousDay(result.rows, history.previousDay), published_price_history: history.rows, published_factory_prices: result.factoryRows, published_indicators: indicators.rows, published_indicator_points: indicators.points }, { kind: base.source.kind, description: `${base.source.description} + ${label}`, fetched_at: base.source.fetched_at }, base.created_at);
 fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true });
 fs.writeFileSync(path.resolve(out), JSON.stringify(snapshot, null, 1) + "\n");
-console.log(JSON.stringify({ snapshot_version: snapshot.snapshot_version, published_prices: result.rows.length, on_request: result.counts.prices_on_request, history: history.summary }));
+console.log(JSON.stringify({ snapshot_version: snapshot.snapshot_version, published_prices: result.rows.length, factory_prices: result.factoryRows.length, on_request: result.counts.prices_on_request, history: history.summary, indicators: indicators.summary }));

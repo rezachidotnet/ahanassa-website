@@ -31,8 +31,10 @@ import { STATIC_TARGETS } from "../../lib/static/targets.ts";
 import { rasterizeCover } from "../../lib/articles/cover-raster.ts";
 import { articleCoverPath } from "../../lib/articles/routes.ts";
 import { generateDownloads } from "../../lib/downloads/generate.ts";
+import { DOWNLOADS_MANIFEST_ENV, downloadsManifestJson } from "../../lib/downloads/file-sizes.ts";
 import { summarizeSkipped, type DownloadCatalog } from "../../lib/downloads/model.ts";
 import { loadSourceNames } from "../../lib/static/source-name-scan.ts";
+import { writeShareImages, type ChartShareSource } from "../../lib/og/write-share-images.ts";
 
 const repo = path.resolve(import.meta.dirname, "../..");
 const args = new Map<string, string>();
@@ -96,6 +98,29 @@ if (turnstileSiteKey) buildEnv.NEXT_PUBLIC_TURNSTILE_SITE_KEY = turnstileSiteKey
 else delete buildEnv.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 Object.assign(process.env, buildEnv);
 
+// W17.2/W20.8: section drawings (DXF + SVG + PDF sheet), family ZIPs, spec sheets and catalogs (PDF), from the
+// snapshot only (lib/downloads/generate.ts). Written into the build root's public/ BEFORE the pages render, so
+// vinext publishes them with the other static files and /downloads can print each file's size from the manifest
+// (lib/downloads/file-sizes.ts; kept outside public/). The catalog is read through the same repository as the pages.
+const downloadsVite = await createServer({
+  root: buildRoot,
+  configFile: false,
+  logLevel: "error",
+  server: { middlewareMode: true, hmr: false, watch: null },
+  appType: "custom",
+  resolve: { alias: { "@": buildRoot, "cloudflare:workers": path.join(buildRoot, "lib/static/build-runtime/cloudflare-workers.ts") } },
+});
+const { loadDownloadCatalog } = await downloadsVite.ssrLoadModule(path.join(buildRoot, "lib/downloads/source.ts"));
+const { locales: downloadLocales } = await import("../../config/locales.ts");
+const downloadCatalogs: DownloadCatalog[] = [];
+for (const locale of downloadLocales) downloadCatalogs.push(await loadDownloadCatalog(locale));
+await downloadsVite.close();
+const downloads = await generateDownloads(path.join(buildRoot, "public"), downloadCatalogs, { sourceNames: loadSourceNames() });
+const downloadsManifest = path.join(buildRoot, ".downloads-manifest.json");
+fs.writeFileSync(downloadsManifest, downloadsManifestJson(downloads));
+buildEnv[DOWNLOADS_MANIFEST_ENV] = downloadsManifest;
+process.env[DOWNLOADS_MANIFEST_ENV] = downloadsManifest;
+
 log("vinext build (output: export) in .static-build/");
 const build = spawnSync("npx", ["vinext", "build"], { cwd: buildRoot, env: buildEnv, stdio: "inherit" });
 if (build.status !== 0) throw new Error(`vinext build failed (exit ${build.status})`);
@@ -127,7 +152,17 @@ const { buildPublicRfqCatalog } = await load("lib/catalog/public-rfq-catalog.ts"
 const { listRfqSelectableCatalogItems } = await load("lib/catalog/editorial-repository.ts");
 const robots = (await load("app/robots.ts")).default;
 const sitemap = (await load("app/sitemap.ts")).default;
-const { COMPANY_PUBLIC_NUMBERS } = await load("lib/content/contact-channels.ts");
+const { COMPANY_PUBLIC_EMAILS, COMPANY_PUBLIC_NUMBERS } = await load("lib/content/contact-channels.ts");
+// W18.2: the fa chart pages of this build (their en/ar paths get a redirect; lib/static/static-rules.ts).
+const priceChartData = await load("lib/pricing/price-chart-data.ts");
+const chartSlugs: string[] = (await priceChartData.listPriceChartProducts()).map((p: { slug: string }) => p.slug);
+// W18.3: what each chart page and the en/ar indicators page show, for their share images (same reads as the pages).
+const chartShares: ChartShareSource[] = [];
+for (const slug of chartSlugs) {
+  const chart = await priceChartData.loadPriceChart(slug);
+  if (chart) chartShares.push({ slug, xid: chart.product.xid, productName: chart.product.productName, size: chart.product.size, tomanPerKg: chart.row.price.tomanPerKg, day: chart.currentDay, series: chart.series });
+}
+const shareIndicators = await (await load("lib/indicators/repository.ts")).listIndicators();
 
 fs.mkdirSync(path.join(publicDir, "data"), { recursive: true });
 const indexRows: RfqVariantIndexRow[] = [];
@@ -155,19 +190,20 @@ fs.writeFileSync(path.join(publicDir, "robots.txt"), renderRobotsTxt(robots()));
 const sitemapEntries = await sitemap();
 fs.writeFileSync(path.join(publicDir, "sitemap.xml"), renderSitemapXml(sitemapEntries));
 counts.sitemap_urls = sitemapEntries.length;
-// W17.2: the Download Center reads the catalog through the same repository as the pages (lib/downloads/source.ts).
-const { loadDownloadCatalog } = await load("lib/downloads/source.ts");
-const downloadCatalogs: DownloadCatalog[] = [];
-for (const locale of locales) downloadCatalogs.push(await loadDownloadCatalog(locale));
 await vite.close();
 
-// W17.2: section drawings (DXF + SVG), spec sheets and catalogs (PDF), from the snapshot only (lib/downloads/generate.ts).
-const downloads = await generateDownloads(publicDir, downloadCatalogs, { sourceNames: loadSourceNames() });
+// W17.2 (generated before the vinext build since W20.8, see above).
 counts.download_drawings = downloads.drawings.length;
 counts.download_spec_sheets = downloads.specSheets;
 counts.download_catalogs = downloads.catalogs;
-log(`downloads: ${downloads.drawings.length} section drawing(s), ${downloads.specSheets} spec sheet(s), ${downloads.catalogs} catalog(s); largest PDF ${Math.max(0, ...downloads.files.filter((f) => f.path.endsWith(".pdf")).map((f) => f.bytes))} B`);
+counts.download_zips = downloads.zips;
+log(`downloads: ${downloads.drawings.length} section drawing(s) (DXF + SVG + PDF), ${downloads.zips} family ZIP(s), ${downloads.specSheets} spec sheet(s), ${downloads.catalogs} catalog(s); largest PDF ${Math.max(0, ...downloads.files.filter((f) => f.path.endsWith(".pdf")).map((f) => f.bytes))} B`);
 for (const g of summarizeSkipped(downloads.skipped)) log(`downloads: no drawing for ${g.sizes.length} ${g.formCode} size(s) (${g.sizes[0]} … ${g.sizes[g.sizes.length - 1]}): ${g.reason}`);
+
+// W18.3: share images (og:image) of the chart pages and the en/ar indicators page, text-gated before rasterizing.
+const shareImages = await writeShareImages(publicDir, { charts: chartShares, indicators: shareIndicators, snapshot, logoFile: path.join(repo, "public/brand/ahan-asa-mark-jpg-512w.jpg"), sourceNames: loadSourceNames() });
+counts.share_images = shareImages.files.length;
+log(`share images: ${shareImages.files.length} file(s) (${chartShares.length} chart page(s)${shareIndicators.length ? " + en/ar indicators" : ""}); largest ${Math.max(0, ...shareImages.files.map((f) => f.bytes))} B`);
 
 // W11.1: article covers, SVG (snapshot) → PNG (og:image) + WebP (cards); the SVG is never published.
 for (const a of snapshot.tables.published_articles) {
@@ -192,7 +228,9 @@ const staticAssetPaths = fs.existsSync(nextStaticDir)
   ? (fs.readdirSync(nextStaticDir, { recursive: true, withFileTypes: true }) as fs.Dirent[]).filter((d) => d.isFile()).map((d) => "/" + path.relative(publicDir, path.join(d.parentPath, d.name)).split(path.sep).join("/"))
   : [];
 fs.writeFileSync(path.join(publicDir, "_headers"), buildHeadersFile(environment, target.rfqApiOrigin, staticAssetPaths));
-fs.writeFileSync(path.join(publicDir, "_redirects"), buildRedirectsFile(snapshot.tables.route_redirects));
+fs.writeFileSync(path.join(publicDir, "_redirects"), buildRedirectsFile(snapshot.tables.route_redirects, chartSlugs));
+counts.price_chart_pages = chartSlugs.length;
+counts.market_indicators = snapshot.tables.published_indicators.length;
 counts.route_redirect_rules = snapshot.tables.route_redirects.length;
 fs.writeFileSync(path.join(publicDir, ".assetsignore"), buildAssetsIgnoreFile());
 // generated_at = the snapshot's own time, so the same snapshot always gives byte-identical public files (W4 determinism).
@@ -227,7 +265,7 @@ const manifest = artifactManifest.parse({
 fs.writeFileSync(path.join(outDir, "manifest.json"), JSON.stringify(manifest, null, 1) + "\n");
 
 // --- 4. gate -----------------------------------------------------------------
-const gate = runArtifactGate(outDir, { companyPhones: COMPANY_PUBLIC_NUMBERS });
+const gate = runArtifactGate(outDir, { companyPhones: COMPANY_PUBLIC_NUMBERS, companyEmails: COMPANY_PUBLIC_EMAILS });
 log(`artifact: ${gate.stats.publicFiles} public files (${gate.stats.htmlPages} HTML), ${gate.stats.privateFiles} private files; largest ${gate.stats.largestPublicFile?.path} (${gate.stats.largestPublicFile?.bytes} B)`);
 if (gate.failures.length) {
   for (const f of gate.failures) console.error(`[static] GATE FAIL: ${f}`);

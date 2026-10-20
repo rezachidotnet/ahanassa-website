@@ -3,7 +3,7 @@ import { getPublishedCatalogTemplateBySlug, listPublicCatalogCategories, listPub
 import { indexPublicCategoriesByGroupCode, resolveRfqPublicCategory } from "../catalog/public-categories.ts";
 import { normalizeVariantNominalWeight, sortVariantsBySize } from "../catalog/specification-presenter.ts";
 import type { ProductVariant } from "../catalog/types.ts";
-import { listAllPublishedPrices } from "./product-page-price-repository.ts";
+import { listAllFactoryPrices, listAllPublishedPrices } from "./product-page-price-repository.ts";
 import { buildPriceTableRows, type PriceTableRow } from "./price-page.ts";
 import { publishedHubFamilies, type PriceHubCategoryCode } from "./price-hubs.ts";
 import { isPriceLocale, type PriceLocale } from "./price-locale.ts";
@@ -69,6 +69,8 @@ async function readPriceTableRows(locale: PriceLocale): Promise<PriceTableRow[]>
     ),
     prices,
     family,
+    // W20.7: every factory's price, fa only (ar shows the lowest + date, en no price).
+    locale === "fa" ? await listAllFactoryPrices() : null,
   );
 }
 

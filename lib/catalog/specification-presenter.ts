@@ -32,10 +32,33 @@ const DIMENSION_LABELS: Record<string, LocalizedLabel> = {
   height_mm: { fa: "ارتفاع", en: "Height", ar: "الارتفاع" },
   thickness_mm: { fa: "ضخامت", en: "Thickness", ar: "السماكة" },
   length_mm: { fa: "طول", en: "Length", ar: "الطول" },
+  // W20.5: the full section geometry Odoo serves since ahanassa_marketplace 19.0.54 (EN 10365 / 10056-1 / 10219-2).
+  web_thickness_mm: { fa: "ضخامت جان", en: "Web thickness", ar: "سماكة الجذع" },
+  flange_thickness_mm: { fa: "ضخامت بال", en: "Flange thickness", ar: "سماكة الشفة" },
+  root_radius_mm: { fa: "شعاع ریشه", en: "Root radius", ar: "نصف قطر الجذر" },
+  toe_radius_mm: { fa: "شعاع لبه", en: "Toe radius", ar: "نصف قطر الحافة" },
+  outer_radius_mm: { fa: "شعاع خارجی گوشه", en: "Outer corner radius", ar: "نصف القطر الخارجي للزاوية" },
+  inner_radius_mm: { fa: "شعاع داخلی گوشه", en: "Inner corner radius", ar: "نصف القطر الداخلي للزاوية" },
+  flange_slope_pct: { fa: "شیب بال", en: "Flange slope", ar: "ميل الشفة" },
 };
 
 /** Preferred display order for known dimension keys; anything else is appended, alphabetically, after these. */
-const DIMENSION_KEY_ORDER = ["outside_diameter_mm", "diameter_mm", "width_mm", "height_mm", "thickness_mm", "wall_thickness_mm", "length_mm"];
+const DIMENSION_KEY_ORDER = [
+  "outside_diameter_mm",
+  "diameter_mm",
+  "width_mm",
+  "height_mm",
+  "thickness_mm",
+  "wall_thickness_mm",
+  "web_thickness_mm",
+  "flange_thickness_mm",
+  "root_radius_mm",
+  "toe_radius_mm",
+  "outer_radius_mm",
+  "inner_radius_mm",
+  "flange_slope_pct",
+  "length_mm",
+];
 
 const WEIGHT_LABELS: Record<string, LocalizedLabel> = {
   kg_m: { fa: "وزن اسمی (kg/m)", en: "Nominal weight (kg/m)", ar: "الوزن الاسمي (kg/m)" },
@@ -86,9 +109,9 @@ export function normalizeVariantDimensions(variant: Pick<ProductVariant, "dimens
   return orderedEntries(variant.dimensions, DIMENSION_KEY_ORDER).map(([key, value]) => ({
     key,
     label: DIMENSION_LABELS[key]?.[locale] ?? humanizeUnknownKey(key),
-    // Every currently-known dimension key is a *_mm value; an unrecognized
+    // Every known dimension key is a *_mm value except the flange slope (*_pct, W20.5); an unrecognized
     // key degrades to a bare number rather than guessing a unit.
-    value: key.endsWith("_mm") || DIMENSION_LABELS[key] ? formatMillimeters(value) : String(value),
+    value: key.endsWith("_pct") ? `${value} %` : key.endsWith("_mm") || DIMENSION_LABELS[key] ? formatMillimeters(value) : String(value),
   }));
 }
 
@@ -190,7 +213,7 @@ export function sortVariantsBySize<T extends Pick<ProductVariant, "commercialSiz
 
 /** W17.2 (download center PDFs): a dimension key's column label with its unit, e.g. "Width (mm)". */
 export function dimensionColumnLabel(key: string, locale: Locale): string {
-  return `${DIMENSION_LABELS[key]?.[locale] ?? humanizeUnknownKey(key)}${key.endsWith("_mm") ? " (mm)" : ""}`;
+  return `${DIMENSION_LABELS[key]?.[locale] ?? humanizeUnknownKey(key)}${key.endsWith("_mm") ? " (mm)" : key.endsWith("_pct") ? " (%)" : ""}`;
 }
 
 /** W17.2: a nominal-weight key's column label with its unit, e.g. "Nominal weight (kg/m)". */

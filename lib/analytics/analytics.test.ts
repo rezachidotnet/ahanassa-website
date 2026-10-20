@@ -6,8 +6,8 @@ import { gtmScriptUrl, shouldLoadGtm, startGtm } from "./gtm.ts";
 import { buildCspReportOnly } from "../security/headers.ts";
 import { GA4_MEASUREMENT_ID, GA4_MEASUREMENT_ID_PATTERN, GTM_CONTAINER_ID, gtmContainerId } from "../../config/analytics.ts";
 
-test("events: the seven D-SEO events + the D-ARTICLE-METRICS article and product-funnel events, each with a fixed parameter allowlist", () => {
-  assert.deepEqual(Object.keys(ANALYTICS_EVENTS).sort(), ["article_cta_click", "article_read", "basket_add", "calculator_open", "calculator_use", "file_upload", "phone_click", "price_page_view", "product_view", "rfq_cta_click", "rfq_submit", "whatsapp_click"]);
+test("events: the seven D-SEO events + the D-ARTICLE-METRICS article and product-funnel events + the W18.2 chart events + the W20.3 expert-section events, each with a fixed parameter allowlist", () => {
+  assert.deepEqual(Object.keys(ANALYTICS_EVENTS).sort(), ["article_cta_click", "article_read", "basket_add", "calculator_open", "calculator_use", "chart_range_change", "chart_share", "chart_to_rfq", "chart_view", "download_file", "download_filter", "download_to_rfq", "download_zip", "expert_call_click", "expert_chat_click", "expert_rfq_click", "expert_whatsapp_click", "file_upload", "gauge_view", "indicator_page_view", "phone_click", "price_page_view", "product_view", "rfq_cta_click", "rfq_submit", "whatsapp_click"]);
   assert.deepEqual(ANALYTICS_EVENTS.basket_add, ["basket_size", "product_family", "product_slug", "add_source"]);
   assert.deepEqual(ANALYTICS_EVENTS.product_view, ["product_family", "product_slug"]);
   assert.deepEqual(ANALYTICS_EVENTS.rfq_cta_click, ["cta_location", "product_family"]);
@@ -159,13 +159,14 @@ test("wiring: the article page marks its RFQ CTAs and mounts the 75% sentinel in
   assert.match(component, /export function ArticleAnalytics\(\{ slug, lang \}: \{ slug: string; lang: string \}\)/, "slug and language only: the title never reaches the component");
 });
 
-test("funnelPage: home, product, category (listing), price and calculator pages in every locale; nothing else", () => {
+test("funnelPage: home, product, category (listing), price, calculator and (W20.8) downloads pages in every locale; nothing else", () => {
   const cases: [string, string | null][] = [
     ["/", "home"], ["/en", "home"], ["/ar/", "home"], ["/index.html", "home"], ["/fa", "home"],
     ["/products/rebar-aj340", "product"], ["/en/products/ipe-beam.html", "product"],
     ["/products", "category"], ["/products/category/box-section", "category"], ["/ar/products/category/rebar/", "category"],
     ["/prices", "price"], ["/prices/rebar", "price"], ["/ar/prices", "price"],
     ["/tools/weight-calculator", "calculator"], ["/en/tools/weight-calculator.html", "calculator"],
+    ["/downloads", "downloads"], ["/ar/downloads.html", "downloads"], ["/downloads/drawings/ipe-200.dxf", null],
     ["/contact", null], ["/articles/rebar-weight-table", null], ["/about", null], ["/products/a/b", null], ["/english", null],
   ];
   for (const [path, page] of cases) assert.equal(funnelPage(path), page, path);

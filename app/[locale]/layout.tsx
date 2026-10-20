@@ -9,9 +9,11 @@ import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { AnalyticsRuntime } from "@/components/analytics/analytics-runtime";
 import { StickyWhatsApp } from "@/components/layout/sticky-whatsapp";
+import { SiteLivechat } from "@/components/livechat/site-livechat";
 import { listHeaderProductFamilyShortcuts, type HeaderProductFamilyShortcut } from "@/lib/catalog/editorial-repository";
 import { listPublicProcessingGroups, type PublicProcessingGroup } from "@/lib/processing/public-repository";
 import { hasArticles } from "@/lib/articles/repository";
+import { listIndicators } from "@/lib/indicators/repository";
 
 export function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
@@ -89,6 +91,8 @@ export default async function LocaleLayout({
 
   // W11.1: the «مقالات» item only in a locale whose build publishes articles (lib/content/nav.ts).
   const articlesPublished = await hasArticles(locale);
+  // W18.2 (owner 2026-10-16): the en/ar footer links the market-indicators page, only when this build publishes it.
+  const indicatorsPublished = (await listIndicators()).length > 0;
 
   return (
     <html lang={locale} dir={direction} className={estedad.variable}>
@@ -96,9 +100,11 @@ export default async function LocaleLayout({
         <SkipLink label={skipLinkLabel[locale]} />
         <SiteHeader locale={locale} productFamilies={productFamilies} serviceGroups={serviceGroups} hasArticles={articlesPublished} />
         <main id="main-content">{children}</main>
-        <SiteFooter locale={locale} hasArticles={articlesPublished} />
+        <SiteFooter locale={locale} hasArticles={articlesPublished} hasIndicators={indicatorsPublished} />
         {/* W20.1: floating WhatsApp button, en/ar only (renders nothing on fa). */}
         <StickyWhatsApp locale={locale} />
+        {/* W21.2: the live-chat panel + the fa floating «چت با کارشناس», only while config/livechat.ts is on (renders nothing otherwise). */}
+        <SiteLivechat locale={locale} />
         {/* W16.4: dataLayer + phone/WhatsApp clicks + GTM after load (config/analytics.ts); renders nothing. */}
         <AnalyticsRuntime locale={locale} />
       </body>

@@ -48,21 +48,38 @@ The staging and production builds are byte-identical except for robots, sitemap,
 | Event | Fires when | Parameters |
 |---|---|---|
 | `rfq_submit` | The RFQ API accepted a request (the tracking-number panel appears) | `rfq_tracking_number` (only this) |
-| `phone_click` | Any `tel:` link is clicked (header, footer, hero, mobile menu, CTA) | `link_location`: `header` / `footer` / `mobile_menu` / `main` |
-| `whatsapp_click` | Any `wa.me` / WhatsApp link is clicked | `link_location` (as `phone_click`, plus `sticky` = the floating WhatsApp button on en/ar pages, W20.1) |
+| `phone_click` | Any `tel:` link is clicked (header, footer, hero, mobile menu, CTA) | `link_location`: `header` / `footer` / `mobile_menu` / `main` / `home_expert` (the homepage «با کارشناس فروش صحبت کنید» section, W20.3) |
+| `whatsapp_click` | Any `wa.me` / WhatsApp link is clicked | `link_location` (as `phone_click`, plus `sticky` = the floating WhatsApp button on en/ar pages, W20.1; the WhatsApp link in the live-chat panel's fallback, W21.2, reports `other` (from the expert section it also sends `expert_whatsapp_click`) — the `chat_load_error` just before it tells you it came from the chat) |
 | `calculator_use` | The visitor's first change to the weight calculator on this page view | `calculator_product_group` (e.g. `REBAR`), `calculator_mode` |
 | `price_page_view` | `/prices` or `/ar/prices` is viewed (when it has prices) | `price_date` (the newest price date shown, `YYYY-MM-DD`) |
 | `basket_add` | A product joins the RFQ basket: the visitor arrives at `/contact` from a product, price or calculator link. A duplicate of a row already in the basket, a full list or a reload sends nothing | `basket_size` (filled rows after the add), `product_family`, `product_slug`, `add_source`: `product` / `price` / `calculator` (the page the visitor came from; left out when it was another page or unknown) |
 | `file_upload` | A file passes the attachment checks and joins the RFQ (once per accepted file; refused files send nothing) | `file_count` (files attached after this one), `file_type` (the policy's extension, e.g. `pdf`; never the file name) |
 | `product_view` | A product page (`/products/<slug>`) loads | `product_family`, `product_slug` |
-| `rfq_cta_click` | Any RFQ link (to `/contact` or `/request`: «استعلام قیمت»/«ارسال لیست خرید» buttons, the header CTA, the basket badge) is clicked **outside an article** | `cta_location`: `header` (header or mobile menu) / `home` / `product` / `category` / `price` / `calculator` (the page it was on; left out in the footer and on other pages); `product_family` when the page or the calculator's selected product has one |
+| `rfq_cta_click` | Any RFQ link (to `/contact` or `/request`: «استعلام قیمت»/«ارسال لیست خرید» buttons, the header CTA, the basket badge) is clicked **outside an article** | `cta_location`: `header` (header or mobile menu) / `home_expert` (the homepage expert section, W20.3) / `home` / `product` / `category` / `price` / `calculator` / `downloads` (the page it was on — `downloads` = «استعلام این سایز» on the Download Center, W20.8; left out in the footer and on other pages); `product_family` when the page or the calculator's selected product has one |
 | `calculator_open` | The weight calculator page loads | `calculator_entry`: `home_cta` / `category` / `product` / `price` (the previous page on this site) / `direct` (anything else: no referrer, another site, another page) |
 | `article_read` | The reader reaches 75% of an article's body (an invisible line at 75% of the body enters the screen; once per page view) | `article_slug`, `article_lang` (`fa` / `en` / `ar`) |
 | `article_cta_click` | An RFQ («استعلام قیمت») button or link **inside an article** is clicked | `article_slug`, `article_lang`, `cta_location`: `inline` (a link in the article text) / `product_card` (the button under the related products) / `bottom` (the «استعلام قیمت» box beside, or on mobile below, the article) |
+| `chart_view` | W18.2: a fa price chart page (`/prices/chart/<slug>`) or the en/ar market-indicators page loads | `chart_type`: `product_price` / `market_indicators`; `product_slug` (product_price only) |
+| `chart_range_change` | W18.2: the 30/90-day switch of a chart page is used | `chart_range`: `30` / `90`, `product_slug` |
+| `gauge_view` | W18.2: the price-position gauge of a fa product page is at least half on screen (once per page view) | `gauge_position`: `low` / `mid` / `high`, `gauge_window`: `30` / `90` (the longest shown), `product_slug` |
+| `chart_to_rfq` | W18.2: «قیمت قطعی برای حجم شما» is clicked (it also sends `rfq_cta_click`) | `cta_location`: `gauge` (product page) / `chart_page`, `product_slug`, `product_family` |
+| `chart_share` | W18.3: «اشتراک در واتساپ», «اشتراک در تلگرام» or «کپی لینک برای بله» on a fa chart page is clicked. Bale has no web share URL, so its button copies the page title + link (toast «لینک کپی شد»); the event is sent on the click. Sent **instead of** `whatsapp_click` (sharing is not a contact) | `share_method`: `whatsapp` / `telegram` / `bale`, `product_slug` |
+| `indicator_page_view` | W18.2: `/en/market-indicators` or `/ar/market-indicators` loads | `page_lang`: `en` / `ar`, `indicator_count` |
+| `expert_call_click` / `expert_whatsapp_click` / `expert_rfq_click` / `expert_chat_click` | An action in the homepage «با کارشناس فروش صحبت کنید» section is clicked: phone, WhatsApp, the RFQ («ارسال فاکتور یا لیست خرید») or live chat (W21.2, only while live chat is on; the chat button is a `<button>`, not a link). Sent **in addition to** `phone_click` / `whatsapp_click` / `rfq_cta_click` (`home_expert`), so do not add both into one total | `expert_variant`: `A` (Concierge card) / `B` (Split band) — the layout the site was built with (W20.3 redesign) |
+| `chat_open` | W21.2, only while live chat is on (`config/livechat.ts`): «چت با کارشناس» was clicked and Odoo's chat page in the chat panel reported `ready` (the chat is open) (an iframe of `https://odoo.ahanassa.com/im_livechat/support/<channel>`; no Odoo script on the site). Sent again when a visitor reopens an already loaded chat. The panel never opens by itself | `chat_location`: `home_expert` (the button in the homepage expert section; it also sends `expert_chat_click`) / `sticky` (the floating button on fa pages) |
+| `chat_load_error` | W21.2: Odoo's chat page had not reported `ready` 8 seconds after the click, and the panel showed WhatsApp and «ارسال لیست خرید» instead (the next click tries again) | `chat_location` (as `chat_open`), `chat_error`: `timeout` |
+| `chat_teaser_shown` | W21.2: the floating fa chat button showed its teaser — a bubble «سؤالی درباره قیمت یا موجودی دارید؟ کارشناس آنلاین است» (desktop, dismissible ✕) or a green dot on the button (mobile). Only when Odoo's status page said an operator is online, in Tehran sales hours, at most once per browser session, and never while the chat panel is open. The teaser never opens the chat | `chat_location`: `sticky`, `chat_teaser`: `bubble` / `dot`, `chat_trigger`: `dwell` (45 s on a /prices, chart or product page) / `second_product` (the second different product page in the session) |
+| `expert_call_click` / `expert_whatsapp_click` / `expert_rfq_click` / `expert_chat_click` | An action in the homepage «با کارشناس فروش صحبت کنید» section is clicked: phone, WhatsApp, the RFQ («ارسال فاکتور یا لیست خرید») or live chat (W21, only when configured). Sent **in addition to** `phone_click` / `whatsapp_click` / `rfq_cta_click` (`home_expert`), so do not add both into one total | `expert_variant`: `A` (Concierge card) / `B` (Split band) — the layout the site was built with (W20.3 redesign) |
+| `download_file` | W20.8: a file link on `/downloads` is clicked (a size's DXF or PDF, a spec sheet, a catalog in any language, the item-list template) | `file_type`: `dxf` / `pdf` (a size's drawing sheet) / `spec_sheet` / `catalog` / `template`; `product_family` (drawings and spec sheets); `product_slug` (the product page of a size's drawing) |
+| `download_zip` | W20.8: a family's «دانلود همه (ZIP)» on `/downloads` is clicked | `product_family` |
+| `download_filter` | W20.8: a filter on `/downloads` is changed: a file-type or family chip, «پاک کردن فیلترها», or the size search (once per typing pause of 1.2 s, never the text typed) | `filter_type`: `search` / `file_type` / `family` / `clear` |
+| `download_to_rfq` | W20.8: «استعلام این سایز» on `/downloads` is clicked (it also sends `rfq_cta_click` with `cta_location=downloads`, so do not add both into one total) | `product_family`, `product_slug` |
 
 Values:
 - `product_family` is the catalog's public category code, the same code as the price hubs and category pages: `REBAR`, `BEAM` (IPE/INP), `ANGLE`, `CHANNEL`, `BOX_SECTION`, `SHEET_PLATE`, `PIPE`.
 - `product_slug` / `article_slug` are the page's URL slug, e.g. `rebar-aj340`. Never the title.
+- `file_type` is shared by `file_upload` (an attachment's extension) and `download_file` (the kind of file downloaded). Read it together with the event name.
+- The Download Center's search text never reaches the dataLayer: `download_filter` says only that the search was used.
 - The page-of-origin values (`add_source`, `calculator_entry`) come only from the path of the previous page on this site (the browser's referrer). No query string, no other site's address.
 - An RFQ click inside an article sends only `article_cta_click`; a click anywhere else sends only `rfq_cta_click`. The header CTA on an article page is outside the article, so it is `rfq_cta_click` with `cta_location=header`.
 
@@ -108,6 +125,12 @@ Variables → User-Defined Variables → New. Create each of these as a **Data L
 | `DLV - calculator_entry` | `calculator_entry` |
 | `DLV - article_slug` | `article_slug` |
 | `DLV - article_lang` | `article_lang` |
+| `DLV - chat_location` | `chat_location` (W21.2) |
+| `DLV - chat_error` | `chat_error` (W21.2) |
+| `DLV - chat_teaser` | `chat_teaser` (W21.2) |
+| `DLV - chat_trigger` | `chat_trigger` (W21.2) |
+| `DLV - share_method` | `share_method` |
+| `DLV - filter_type` | `filter_type` |
 
 ## 5. Step 3 — one trigger and one GA4 event tag per event
 
@@ -141,6 +164,19 @@ Do this for each of the 12 events. (The D-ARTICLE-METRICS tags and triggers — 
 | `GA4 - calculator_open` | `calculator_open` | `calculator_entry` = `{{DLV - calculator_entry}}` |
 | `GA4 - article_read` | `article_read` | `article_slug` = `{{DLV - article_slug}}`, `article_lang` = `{{DLV - article_lang}}` |
 | `GA4 - article_cta_click` | `article_cta_click` | `article_slug` = `{{DLV - article_slug}}`, `article_lang` = `{{DLV - article_lang}}`, `cta_location` = `{{DLV - cta_location}}` |
+| `GA4 - chart_view` | `chart_view` | `chart_type` = `{{DLV - chart_type}}`, `product_slug` = `{{DLV - product_slug}}` |
+| `GA4 - chart_range_change` | `chart_range_change` | `chart_range` = `{{DLV - chart_range}}`, `product_slug` = `{{DLV - product_slug}}` |
+| `GA4 - gauge_view` | `gauge_view` | `gauge_position` = `{{DLV - gauge_position}}`, `gauge_window` = `{{DLV - gauge_window}}`, `product_slug` = `{{DLV - product_slug}}` |
+| `GA4 - chart_to_rfq` | `chart_to_rfq` | `cta_location` = `{{DLV - cta_location}}`, `product_slug` = `{{DLV - product_slug}}`, `product_family` = `{{DLV - product_family}}` |
+| `GA4 - chart_share` | `chart_share` | `share_method` = `{{DLV - share_method}}`, `product_slug` = `{{DLV - product_slug}}` |
+| `GA4 - indicator_page_view` | `indicator_page_view` | `page_lang` = `{{DLV - page_lang}}`, `indicator_count` = `{{DLV - indicator_count}}` |
+| `GA4 - chat_open` | `chat_open` | `chat_location` = `{{DLV - chat_location}}` |
+| `GA4 - chat_load_error` | `chat_load_error` | `chat_location` = `{{DLV - chat_location}}`, `chat_error` = `{{DLV - chat_error}}` |
+| `GA4 - chat_teaser_shown` | `chat_teaser_shown` | `chat_location` = `{{DLV - chat_location}}`, `chat_teaser` = `{{DLV - chat_teaser}}`, `chat_trigger` = `{{DLV - chat_trigger}}` |
+| `GA4 - download_file` | `download_file` | `file_type` = `{{DLV - file_type}}`, `product_family` = `{{DLV - product_family}}`, `product_slug` = `{{DLV - product_slug}}` |
+| `GA4 - download_zip` | `download_zip` | `product_family` = `{{DLV - product_family}}` |
+| `GA4 - download_filter` | `download_filter` | `filter_type` = `{{DLV - filter_type}}` |
+| `GA4 - download_to_rfq` | `download_to_rfq` | `product_family` = `{{DLV - product_family}}`, `product_slug` = `{{DLV - product_slug}}` |
 
 Do **not** add a Custom HTML tag. The site's CSP allows scripts only from the site itself, Turnstile and `*.googletagmanager.com`.
 
@@ -150,11 +186,12 @@ In analytics.google.com, open the property that owns `G-C8MZB6DXPZ`:
 
 1. Admin → Data streams → the `www.ahanassa.com` web stream (its Measurement ID must be `G-C8MZB6DXPZ`) → Enhanced measurement:
    - Keep page views, scrolls, outbound clicks, site search and file downloads on.
+   - W20.8: GA4's automatic `file_download` also fires for the Download Center's PDF and ZIP links (not for DXF, which is not in GA4's extension list). Use `download_file` / `download_zip` for the Download Center: they cover every file type and carry the family and product.
    - Turn **Form interactions** off. Our `rfq_submit` is the real conversion, and GA4's automatic form event would double-count.
 2. Admin → Data collection: leave Google signals **off** unless you decide otherwise. The CSP has no doubleclick origin.
 3. Admin → Data retention: 14 months.
 4. Admin → Events. The events appear after they first fire, up to 24 hours later. Mark `rfq_submit` as a **key event**. Optionally also mark `phone_click` and `whatsapp_click`.
-5. Admin → Custom definitions → Create custom dimension (scope **Event**) for each of these: `page_locale`, `link_location`, `calculator_product_group`, `calculator_mode`, `price_date`, `file_type`, `product_family`, `product_slug`, `add_source`, `cta_location`, `calculator_entry`, `article_slug`, `article_lang`. (`cta_location` is one dimension for both `rfq_cta_click` and `article_cta_click`; read it together with the event name.) Then create a custom metric (unit: standard) for `basket_size` and `file_count`. `rfq_tracking_number` is optional; register it only if you want to find a single request in GA4.
+5. Admin → Custom definitions → Create custom dimension (scope **Event**) for each of these: `page_locale`, `link_location`, `calculator_product_group`, `calculator_mode`, `price_date`, `file_type`, `product_family`, `product_slug`, `add_source`, `cta_location`, `calculator_entry`, `article_slug`, `article_lang`, `chat_location`, `chat_error`, `chat_teaser`, `chat_trigger`, `filter_type`. (`cta_location` is one dimension for both `rfq_cta_click` and `article_cta_click`; read it together with the event name.) Then create a custom metric (unit: standard) for `basket_size` and `file_count`. `rfq_tracking_number` is optional; register it only if you want to find a single request in GA4.
 
 ### CSP (DAR-066, resolved 2026-10-13)
 
@@ -165,6 +202,10 @@ The Content-Security-Policy is still **Report-Only**, and it already allows ever
 | `script-src` | `https://*.googletagmanager.com` |
 | `img-src` | `https://*.google-analytics.com https://*.googletagmanager.com` |
 | `connect-src` | `https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com` |
+
+W21.2: while live chat is on (`config/livechat.ts`), the policy also allows `https://odoo.ahanassa.com` in `frame-src` — nothing else: the chat (and the optional status page below) are Odoo pages in iframes, so the site loads no Odoo script, style, font or image and makes no connection to Odoo (owner decision 2026-10-17, no `'unsafe-eval'`). While live chat is off, the policy has no Odoo origin at all.
+
+W21.2 teaser — availability (ahanassa-odoo PR #29, `docs/runbooks/W21_1_LIVECHAT.md` §6.3/§6.4): the status page `https://odoo.ahanassa.com/im_livechat/status/<channel>` (the channel of `LIVECHAT_FRAME_URL`) in a hidden iframe posts one `{type: "ahanassa-livechat-status", online: true|false}`; `online: true` = a chat started now reaches a person (operator online, in hours, under the session limit). The site creates that iframe only after a teaser trigger, in sales hours, while the teaser has not been shown this session, at most once a minute; it accepts the message only from `https://odoo.ahanassa.com` and only from that iframe, and removes the iframe after the message or after 5 s (no message = no teaser). Both Odoo pages allow framing by `https://www.ahanassa.com` (`frame-ancestors`), not the apex.
 
 GTM Preview's own panel (`tagmanager.google.com`) is not allowed. It is a debugging tool, and under an enforced CSP Preview would only lose its on-page badge. If you add Google signals or Ads tags later, their origins must be added first.
 

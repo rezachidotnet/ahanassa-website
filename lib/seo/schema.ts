@@ -1,5 +1,5 @@
 import { siteConfig } from "../metadata/site.ts";
-import { CONTACT_PHONE_E164 } from "../content/contact-channels.ts";
+import { CONTACT_PHONE_E164, CONTACT_SALES_EMAIL } from "../content/contact-channels.ts";
 import { PARENT_ORGANIZATION, WORKING_HOURS } from "../content/company.ts";
 import type { Locale } from "../../config/locales.ts";
 import { BRAND_MARK_LOGO_PATH } from "../media/image-sources.ts";
@@ -77,7 +77,11 @@ export function openingHoursSchema() {
   return WORKING_HOURS.map((h) => ({ "@type": "OpeningHoursSpecification", dayOfWeek: [...h.dayOfWeek], opens: h.opens, closes: h.closes }));
 }
 
-export function organizationSchema(locale: Locale = "fa") {
+/**
+ * D-W207-EMAIL (owner, 2026-10-16): `withSalesEmail` adds the company e-mail to `contactPoint` — only on
+ * /contact, the one page that renders it. The homepage's Organization node carries no e-mail.
+ */
+export function organizationSchema(locale: Locale = "fa", options: { withSalesEmail?: boolean } = {}) {
   return {
     "@type": "Organization",
     "@id": organizationId(),
@@ -99,6 +103,7 @@ export function organizationSchema(locale: Locale = "fa") {
     contactPoint: {
       "@type": "ContactPoint",
       telephone: CONTACT_PHONE_E164,
+      ...(options.withSalesEmail ? { email: CONTACT_SALES_EMAIL } : {}),
       contactType: "sales",
       areaServed: [...AREA_SERVED],
     },
@@ -204,7 +209,7 @@ export function breadcrumbListSchema(items: BreadcrumbItem[]) {
  * §12.4) for a published product (template) detail page only — never on category pages. Only fields
  * the page visibly renders: the heading (`name`), the intro (`description`) and the page URL. No `sku`
  * (the page lists many variants), no `brand`/`manufacturer` (Ahan Asa procures, it does not make), no
- * internal id as `@id`, and never `offers`/`price` (public pricing is off, §8.4).
+ * internal id as `@id`. Its daily prices are a separate block (productOffersSchema, W20.7).
  */
 export function productSchema(input: { url: string; name: string; description: string | null }) {
   return {
@@ -213,6 +218,33 @@ export function productSchema(input: { url: string; name: string; description: s
     name: input.name,
     ...(input.description ? { description: input.description } : {}),
     url: input.url,
+  };
+}
+
+/**
+ * W20.7 (owner, 2026-10-16) — the product page's daily prices as `offers` of its `Product` node (same `@id`, a
+ * separate JSON-LD block that merges into it): one `Offer` per priced variant with the variant's LOWEST published
+ * price (never another factory's), per kg in IRR (the page shows Toman = IRR ÷ 10), VAT included. Nothing else:
+ * no factory/seller, date, availability or validity — the price is indicative (D-PRICE-MEANING). fa and ar product
+ * pages only; the price gate (lib/static/price-gate.ts rule 8) checks every value against the snapshot.
+ */
+export function productOffersSchema(input: { url: string; offers: ReadonlyArray<{ variantXid: string; priceIrrPerKg: number }> }) {
+  return {
+    "@type": "Product",
+    "@id": `${input.url}#product`,
+    offers: input.offers.map((o) => ({
+      "@type": "Offer",
+      "@id": `${input.url}#offer-${o.variantXid}`,
+      price: o.priceIrrPerKg,
+      priceCurrency: "IRR",
+      priceSpecification: {
+        "@type": "UnitPriceSpecification",
+        price: o.priceIrrPerKg,
+        priceCurrency: "IRR",
+        referenceQuantity: { "@type": "QuantitativeValue", value: 1, unitCode: "KGM" },
+        valueAddedTaxIncluded: true,
+      },
+    })),
   };
 }
 
@@ -243,5 +275,29 @@ export function eventSchema(input: { id: string; name: string; description: stri
     location: { "@type": "Place", name: input.venue, address: { "@type": "PostalAddress", addressLocality: input.locality, addressCountry: "IR" } },
     image: [input.image],
     attendee: { "@id": organizationId() },
+  };
+}
+
+/**
+ * W18.2 — a `Dataset` for a chart page (fa: Ahan Asa's own published daily prices of one product) or for the en/ar
+ * market-indicators page (one per indicator, with the source's credit and page). Describes the data the page shows
+ * in its table; it never carries a value or a price (a Dataset is not an offer; the price gate's rule 8 keeps prices
+ * out of every non-product JSON-LD). Ahan Asa is the creator of its own price data only: an indicator's creator is
+ * left out and its source named in `creditText` / `isBasedOn`.
+ */
+export function datasetSchema(input: { url: string; id?: string; name: string; description: string; temporalCoverage: string; dateModified: string; variable: string; unitText: string; ownData: boolean; creditText?: string; isBasedOn?: string }) {
+  return {
+    "@type": "Dataset",
+    "@id": `${input.url}#${input.id ?? "dataset"}`,
+    name: input.name,
+    description: input.description,
+    url: input.url,
+    ...(input.ownData ? { creator: { "@id": organizationId() } } : {}),
+    isAccessibleForFree: true,
+    temporalCoverage: input.temporalCoverage,
+    dateModified: input.dateModified,
+    variableMeasured: { "@type": "PropertyValue", name: input.variable, unitText: input.unitText },
+    ...(input.creditText ? { creditText: input.creditText } : {}),
+    ...(input.isBasedOn ? { isBasedOn: input.isBasedOn } : {}),
   };
 }

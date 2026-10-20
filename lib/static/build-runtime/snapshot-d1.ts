@@ -1,9 +1,10 @@
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
-import { PUBLISHED_PRICE_HISTORY_BUILD_DDL, PUBLISHED_PRICES_BUILD_DDL } from "../../contracts/snapshot-prices.ts";
+import { PUBLISHED_FACTORY_PRICES_BUILD_DDL, PUBLISHED_PRICE_HISTORY_BUILD_DDL, PUBLISHED_PRICES_BUILD_DDL } from "../../contracts/snapshot-prices.ts";
 import { PUBLISHED_ARTICLES_BUILD_DDL } from "../../contracts/snapshot-articles.ts";
 import { BUILD_ONLY_COLUMNS_DDL } from "../../contracts/snapshot-v1.ts";
+import { PUBLISHED_INDICATOR_POINTS_BUILD_DDL, PUBLISHED_INDICATORS_BUILD_DDL } from "../../contracts/snapshot-indicators.ts";
 
 /**
  * Build-time DB_PUBLIC for the static export (architecture V1.1 §7.1 step 4).
@@ -25,8 +26,13 @@ export function openSnapshotDatabase(snapshotFile: string, migrationsDir: string
   // W9.4: build-only snapshot table (never a DB_PUBLIC migration; lib/contracts/snapshot-prices.ts).
   db.exec(PUBLISHED_PRICES_BUILD_DDL);
   db.exec(PUBLISHED_PRICE_HISTORY_BUILD_DDL);
+  // W20.7: every factory's price (fa price page).
+  db.exec(PUBLISHED_FACTORY_PRICES_BUILD_DDL);
   // W11.1: build-only articles (lib/contracts/snapshot-articles.ts).
   db.exec(PUBLISHED_ARTICLES_BUILD_DDL);
+  // W18.2: build-only market indicators (lib/contracts/snapshot-indicators.ts).
+  db.exec(PUBLISHED_INDICATORS_BUILD_DDL);
+  db.exec(PUBLISHED_INDICATOR_POINTS_BUILD_DDL);
   // W9.8: build-only columns of DB_PUBLIC tables (categories' form_codes_json; lib/contracts/snapshot-v1.ts).
   db.exec(BUILD_ONLY_COLUMNS_DDL);
   const snapshot = JSON.parse(fs.readFileSync(snapshotFile, "utf8")) as { tables: Record<string, Row[]> };

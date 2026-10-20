@@ -86,6 +86,20 @@ requests), timeouts, page size, D1 batch size. Schedule: daily 22:47 UTC (02:17 
   and the source-name scan cover the article pages like every other page.
 - Details: `docs/ARTICLES.md`.
 
+## W18.2 additions (price intelligence)
+
+- **fetch** also reads `/api/v1/catalog/indicators?locale=fa|en|ar&days=365` (Odoo W18.1) and the price history for
+  90 days (was 30). Never fails the step.
+- **validate** allow-lists the indicators (`lib/content-pipeline/indicators.ts`): USD/IRR Exchange Center rate, World
+  Bank iron ore (IMF fallback), BLS hot-rolled index (steel-mill fallback). IME, free-market and unknown codes are
+  ignored; unknown fields are reported, never stored; an invalid indicator is dropped with a warning (and a run
+  annotation); none at all is a warning. Never an error, never a gated count. Accepted rows → `<work>/indicators.json`.
+- **snapshot** adds the build-only `published_indicators` / `published_indicator_points` tables.
+- **export / checks**: fa indicator strip (home, /prices, chart pages), fa product-page decision block (30/90-day
+  gauge, mini trend, drivers line, «قیمت قطعی برای حجم شما»), fa chart pages `/prices/chart/<slug>` (top products,
+  Dataset JSON-LD), en/ar `/market-indicators`. Gates: price gate rule 9 (gauges/charts recomputed from the
+  snapshot), the indicator gate (label, source, date), the leak and source-name scans as for every page.
+
 ## Not yet
 
 Production job (W8: same artifact, checksum check, no refetch, no rebuild, the `CONTENT_REBUILD` check).

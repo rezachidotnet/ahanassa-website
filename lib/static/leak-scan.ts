@@ -5,7 +5,7 @@
  * 1. Forbidden commercial/private fields (cost, supplier, margin, stock,
  *    purchase price, …) as JSON keys anywhere in public files, plus the
  *    server-only `categoryLabel` in public JSON.
- * 2. E-mail addresses / phone numbers other than the company's own.
+ * 2. E-mail addresses / phone numbers other than the company's own (the company e-mail only on /contact).
  * 2b. W9.4 pricing: no pricing-API or price-snapshot field name as a JSON
  *    key (plain or escaped inside the RSC payload) and no factory code
  *    (`FAC-…`) in any public file — prices reach the public files only as
@@ -33,6 +33,12 @@ export const PERSIAN_ALLOWLIST: ReadonlyArray<{ text: string; reason: string; so
 ];
 
 export const ALLOWED_CONTACTS = ["you@company.com"] as const;
+/**
+ * D-W207-EMAIL (owner, 2026-10-16): the only public files where a company e-mail address (the caller's
+ * `companyEmails`, i.e. COMPANY_PUBLIC_EMAILS) is allowed: the /contact page and its Markdown mirror, fa/en/ar.
+ * Anywhere else the same address is a contact leak.
+ */
+export const COMPANY_EMAIL_PAGES: readonly string[] = ["contact.html", "en/contact.html", "ar/contact.html", "contact.md", "en/contact.md", "ar/contact.md"];
 
 const FORBIDDEN_KEYS = /"(standard_price|cost_price|purchase_price|buy_price|landed_cost|supplier|supplier_id|supplier_name|supplierinfo|seller_ids|vendor_id|margin|internal_margin[a-z_]*|margin_percent|qty_available|virtual_available|free_qty|stock|stock_quant|stock_level|on_hand)"\s*:/gi;
 /**
@@ -44,6 +50,8 @@ export const PRICING_FIELD_KEYS = [
   "price_irr_per_kg", "price_on_request", "published_at_utc", "updated_at_utc", "basis_note", "vat_included", "price_at_window_start",
   "factory_name_fa", "location_fa", "previous_price_irr_per_kg", "previous_published_at",
   "tomanPerKg", "previousTomanPerKg", "pricedAt", "previousPricedAt", "factoryName", "deliveryLocation",
+  // W20.7: Odoo's factory_prices keys and the server-side factory list of a price-table row.
+  "factory_prices", "is_lowest", "change_pct", "factoryPrices",
   // Source-like keys: the pricing API never serves a source; a key like these in a public file is a leak.
   "source_code", "source_name", "source_url", "source_id", "market_source", "observations",
 ] as const;
@@ -89,7 +97,7 @@ export function stripAllowlisted(text: string, allowlist = PERSIAN_ALLOWLIST): s
   return out;
 }
 
-export function scanPublicFile(path: string, content: string, companyPhones: readonly string[] = []): LeakFinding[] {
+export function scanPublicFile(path: string, content: string, companyPhones: readonly string[] = [], companyEmails: readonly string[] = []): LeakFinding[] {
   const findings: LeakFinding[] = [];
   const isVendorJs = path.includes("/_next/") || path.startsWith("_next/");
   for (const m of content.matchAll(FORBIDDEN_KEYS)) findings.push({ file: path, kind: "forbidden_field", match: m[1] });
@@ -97,7 +105,11 @@ export function scanPublicFile(path: string, content: string, companyPhones: rea
   for (const m of content.matchAll(FACTORY_CODE)) findings.push({ file: path, kind: "pricing_field", match: m[0] });
   if (path.endsWith(".json")) for (const m of content.matchAll(SERVER_ONLY_PUBLIC_JSON_KEYS)) findings.push({ file: path, kind: "server_only_field", match: m[1] });
   if (!isVendorJs) {
-    for (const m of content.matchAll(EMAIL)) if (!ALLOWED_CONTACTS.includes(m[0] as (typeof ALLOWED_CONTACTS)[number])) findings.push({ file: path, kind: "contact", match: m[0] });
+    const emailPage = COMPANY_EMAIL_PAGES.includes(path);
+    for (const m of content.matchAll(EMAIL)) {
+      if (ALLOWED_CONTACTS.includes(m[0] as (typeof ALLOWED_CONTACTS)[number]) || (emailPage && companyEmails.includes(m[0]))) continue;
+      findings.push({ file: path, kind: "contact", match: m[0] });
+    }
     for (const m of content.matchAll(PHONE)) {
       const digits = m[0].replace(/\D/g, "");
       if (!companyPhones.some((p) => p.replace(/\D/g, "").endsWith(digits.slice(-10)))) findings.push({ file: path, kind: "contact", match: m[0] });

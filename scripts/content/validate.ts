@@ -17,6 +17,7 @@ import { activeCounts, type D1Source } from "../../lib/content-pipeline/d1-sourc
 import type { OdooSource } from "../../lib/content-pipeline/odoo-source.ts";
 import { decreaseFindings, describeDecrease, validateSource } from "../../lib/content-pipeline/validate.ts";
 import { validateArticles } from "../../lib/content-pipeline/articles.ts";
+import { validateIndicators } from "../../lib/content-pipeline/indicators.ts";
 import type { ArticlesSource } from "../../lib/content-pipeline/articles-source.ts";
 import { loadSourceNames, redactSourceNames } from "../../lib/static/source-name-scan.ts";
 import fs from "node:fs";
@@ -51,6 +52,11 @@ await runStep("validate", async () => {
   result.warnings.push(...articles.warnings);
   Object.assign(result.counts, articles.counts);
   writeJson(p.articles, articles.rows);
+  // W18.2: market indicators — never an error, never a gated count: an unusable one is dropped with a warning.
+  const indicators = validateIndicators(odoo.indicators, odoo.fetched_at, sourceNames);
+  const indicatorWarnings = indicators.warnings.map(redact);
+  result.warnings.push(...indicatorWarnings);
+  writeJson(p.indicators, { rows: indicators.rows, points: indicators.points });
   const decrease = decreaseFindings(result.counts, previous);
   const blockedByDecrease = decrease.length > 0 && !allowDecrease;
   const ok = result.errors.length === 0 && !blockedByDecrease;
@@ -65,6 +71,7 @@ await runStep("validate", async () => {
     decrease,
     allow_decrease: allowDecrease,
     pricing: result.pricing ?? null,
+    indicators: { outcome: indicators.outcome, summary: redact(indicators.summary), codes: indicators.rows.map((r) => r.code), points: indicators.points.length, ignored: indicators.ignored },
     articles: { outcome: articles.outcome, summary: articles.summary, excluded: articles.excluded, notes: articles.notes, commit: articlesSource?.commit ?? null },
   });
   // W9.4 (owner 2026-10-09): a pricing problem never blocks a catalog-only update silently — always one clear line,
@@ -75,6 +82,8 @@ await runStep("validate", async () => {
   // W11.1: a run that publishes without articles, or leaves an article out, always says so.
   if (articles.outcome === "empty_not_configured" || articles.outcome === "empty_fetch_failed") annotate("warning", "articles: none published", articles.summary);
   for (const e of articles.excluded) annotate("warning", "articles: left out", `${e.file}: ${e.reasons.join("; ")}`);
+  // W18.2: an indicator left out, or none at all, always says so (it never blocks the run).
+  for (const w of indicatorWarnings) annotate("warning", "indicators: left out", w);
   for (const w of result.warnings) log(`warning: ${w}`);
   for (const n of articles.notes) log(`articles note: ${n}`);
   summary(
@@ -82,6 +91,7 @@ await runStep("validate", async () => {
       `### Content validate: ${ok ? "PASS" : "BLOCKED"}`,
       `- **Prices:** ${pricing ? `${pricing.outcome === "published" ? "✅" : pricing.outcome === "blocked" ? "❌" : "⚠️"} ${pricing.summary}` : "not checked"}`,
       ...(pricing?.history ? [`- **Price history (30-day chart):** ${pricing.history}`] : []),
+      `- **Market indicators:** ${indicators.outcome === "published" ? "✅" : "⚠️"} ${redact(indicators.summary)}`,
       `- **Articles:** ${articles.outcome === "published" ? "✅" : articles.outcome === "blocked" ? "❌" : articles.outcome === "none_merged" && !articles.excluded.length ? "ℹ️" : "⚠️"} ${articles.summary}`,
       `- counts: \`${JSON.stringify(result.counts)}\``,
       `- previous active \`${d1.publication.active_version}\`: \`${JSON.stringify(previous)}\``,
