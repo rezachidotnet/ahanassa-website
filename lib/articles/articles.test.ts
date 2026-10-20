@@ -1,11 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { FrontmatterError, parseFrontmatter, parseYaml } from "./frontmatter.ts";
 import { MarkdownError, parseMarkdown, parseInline, readingMinutes } from "./markdown.ts";
-import { ARTICLE_AUTHOR, checkArticleFiles, coverFindings, enPriceFindings, type ArticleCheckContext, type ArticleSourceFile } from "./validate.ts";
+import { ARTICLE_AUTHOR, articleTextFindings, checkArticleFiles, coverFindings, enPriceFindings, type ArticleCheckContext, type ArticleSourceFile } from "./validate.ts";
 import { articleListingPath, pageCount, ARTICLES_PER_PAGE } from "./routes.ts";
 import { normalizeRtlCover, rasterizeCover } from "./cover-raster.ts";
 import { fetchArticlesSource, readContentTree } from "../content-pipeline/articles-source.ts";
@@ -135,6 +136,54 @@ test("checks: en with a currency, a price-sized number, a snapshot amount or a n
   }
   // Not a price: sizes, weights, standards and years in a price sentence.
   assert.deepEqual(enPriceFindings(["The price of IPE 140 is quoted for 12 m bars to EN 10365 in 2026; 28 sizes carry a price."], [85300]), []);
+});
+
+test("W11.6 en rule: reading times, dates, URLs and the page's own slug are never prices; real prices still are, quoted", () => {
+  for (const ok of ["Rebar prices explained. 4 min read", "Prices on 19 October 2026, October 20, 2026 and 2026-10-21.", "url: https://www.ahanassa.com/en/articles/rebar-price-factors (see /en/articles/rebar-price-factors) 4 sections, 6 tables, 9 notes."]) {
+    assert.deepEqual(enPriceFindings([ok], [85300]), [], ok);
+  }
+  assert.deepEqual(enPriceFindings(["rebar-price-factors 3"], [], ["rebar-price-factors"]), [], "own slug text");
+  assert.equal(enPriceFindings(["The price guide at https://www.ahanassa.com/en/articles/rebar-price-factors has 9 notes."], []).length, 1, "a real price word outside the URL still counts");
+  assert.deepEqual(enPriceFindings(["The price fell 3 points."], []), ['en: number 3 in a sentence about prices: "The price fell 3 points."']);
+  assert.deepEqual(enPriceFindings(["The price fell 5 min after the close."], []), [], "min = minutes");
+  assert.deepEqual(enPriceFindings(["Prices declined 5 points."], []), ['en: number 5 in a sentence about prices: "Prices declined 5 points."'], "a month-like word is not a month");
+  assert.match(enPriceFindings(["Rebar costs 85,300 Toman per kg today."], [])[0], /^en mentions a currency: "Rebar costs 85,300 Toman per kg today\."$/);
+});
+
+test("W11.6 articleTextFindings + scripts/articles/check-article-text.ts: the same rules on raw content-repo files, card included", () => {
+  assert.deepEqual(articleTextFindings(article("en", { slug: "en-only", translations: { fa: "rebar-weight" } })), []);
+  assert.deepEqual(articleTextFindings(article("fa", { body: "قیمت ۸۵٬۳۰۰ تومان\n" })), [], "fa has no text rule");
+  const bad = article("en", { slug: "en-only", translations: { fa: "rebar-weight" }, body: `${BODY.en}\nThe price moved 3 points this week.\n` });
+  assert.match(articleTextFindings(bad).join(" | "), /number 3 in a sentence about prices: "The price moved 3 points this week\."/);
+  // The listing card (title + description + date + reading time) is one block: a price title with a count fails there.
+  const card = article("en", { slug: "en-only", translations: { fa: "rebar-weight" }, title: "Prices for 12 grades" });
+  assert.deepEqual(articleTextFindings(card), [], "a size-like count after a price word is not a price");
+  const card2 = article("en", { slug: "en-only", translations: { fa: "rebar-weight" }, title: "Prices rose 7 points" });
+  assert.ok(articleTextFindings(card2).some((f) => f.includes("number 7")));
+  assert.match(articleTextFindings(article("ar", { slug: "ar-only", translations: { fa: "rebar-weight" }, body: `${BODY.ar}\nالسعر من كارخانه نمونه.\n` }), { priceNames: ["كارخانه نمونه"] })[0], /factory or delivery location/);
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "w116-cli-"));
+  const write = (f: ArticleSourceFile) => (fs.mkdirSync(path.join(dir, path.dirname(f.path)), { recursive: true }), fs.writeFileSync(path.join(dir, f.path), f.content));
+  write(article("fa"));
+  write(article("en", { slug: "en-ok", translations: { fa: "rebar-weight" } }));
+  const cli = (...a: string[]) => spawnSync(process.execPath, [path.join(import.meta.dirname, "../../scripts/articles/check-article-text.ts"), ...a], { encoding: "utf8" });
+  const clean = cli(path.join(dir, "articles"));
+  assert.equal(clean.status, 0, clean.stderr);
+  assert.match(clean.stdout, /2 article file\(s\) checked: clean/);
+  write({ ...bad, path: "articles/en/2026/10/en-bad.md", content: bad.content.replace("slug: en-only", "slug: en-bad") });
+  const failed = cli("--json", dir);
+  assert.equal(failed.status, 1);
+  const out = JSON.parse(failed.stdout) as { ok: boolean; files: number; findings: { file: string; finding: string }[] };
+  assert.equal(out.ok, false);
+  assert.equal(out.files, 3);
+  assert.deepEqual(out.findings.map((f) => path.basename(f.file)), ["en-bad.md"]);
+  assert.match(out.findings[0].finding, /The price moved 3 points this week/);
+  const amounts = path.join(dir, "prices.json");
+  fs.writeFileSync(amounts, JSON.stringify([{ price_irr_per_kg: 853000, factory_name_fa: "کارخانه نمونه", location_fa: "انبار نمونه" }]));
+  write({ path: "articles/en/2026/10/en-amount.md", content: article("en", { slug: "en-amount", translations: { fa: "rebar-weight" }, body: `${BODY.en}\nThe board shows 85300 for this size.\n` }).content });
+  assert.match(cli("--prices", amounts, path.join(dir, "articles/en/2026/10/en-amount.md")).stdout, /amount of this run's price snapshot \(85300\)/);
+  assert.equal(cli(path.join(dir, "prices.json")).status, 2, "not an article path");
+  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test("checks: ar naming a factory or delivery location of the price snapshot is not published; Persian letters on ar or Arabic script on en are leaks", () => {
