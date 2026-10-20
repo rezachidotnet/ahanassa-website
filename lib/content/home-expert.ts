@@ -48,7 +48,7 @@ export interface HomeExpertCopy {
   bandTitle: string;
   /** The live «open now» line (components/home/expert-open-status.tsx); `{time}`/`{day}` are filled in. */
   status: OpenStateLabels;
-  /** The live-chat button (hidden until LIVECHAT_ENABLED, W21). */
+  /** The live-chat button's label (W21.2: lib/content/livechat.ts; nothing while config/livechat.ts is off). */
   chat: string;
 }
 
@@ -142,20 +142,6 @@ export function homeExpertProofs(locale: Locale): string[] {
 /** The RFQ form on /contact, at its attachments heading. */
 export function homeExpertListHref(locale: Locale): string {
   return `${localizedPath(locale, "/contact")}#${RFQ_FILES_ANCHOR}`;
-}
-
-/**
- * Live chat (W21): the «چت با کارشناس» button stays out of the page until LIVECHAT_ENABLED is true AND
- * LIVECHAT_URL is set — a flag alone never renders a button that goes nowhere. Build-time values, the same for
- * both static targets, like WHATSAPP_BUSINESS_NUMBER.
- */
-export const LIVECHAT_ENABLED: boolean = false;
-export const LIVECHAT_URL: string | null = null;
-
-/** The live-chat button's link and label, or null (then nothing is rendered). */
-export function homeExpertLiveChat(locale: Locale, enabled: boolean = LIVECHAT_ENABLED, url: string | null = LIVECHAT_URL): { href: string; label: string } | null {
-  if (!enabled || !url || !/^(?:https:\/\/|\/)/.test(url)) return null;
-  return { href: url, label: homeExpertCopy[locale].chat };
 }
 
 /** The real expert's avatar for this locale, or null without a configured photo and first name (no placeholder person). */

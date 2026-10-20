@@ -126,8 +126,8 @@ test("sticky WhatsApp: 56px, inline-end corner, aria-label, hidden in print, off
   assert.match(button, /rel=\{WHATSAPP_REL\}/);
   assert.match(code("app/[locale]/layout.tsx"), /<StickyWhatsApp locale=\{locale\} \/>/);
   const css = read("styles/theme-extensions.css");
-  assert.match(css, /body:has\(form button\[type="submit"\]\) \[data-sticky-whatsapp\] \{\s*display: none;/);
-  assert.match(css, /body:has\(\[data-sticky-whatsapp\]\) \[data-site-footer-bottom\] \{\s*padding-bottom:/);
+  assert.match(css, /body:has\(form button\[type="submit"\]\) \[data-sticky-whatsapp\],\s*body:has\(form button\[type="submit"\]\) \[data-sticky-livechat\] \{\s*display: none;/);
+  assert.match(css, /body:has\(\[data-sticky-whatsapp\], \[data-sticky-livechat\]\) \[data-site-footer-bottom\] \{\s*padding-bottom:/);
   assert.match(code("components/contact/enquiry-form.tsx"), /type="submit"/, "the enquiry form has a submit button, so the CSS rule hides the button on /contact");
   assert.match(code("components/layout/SiteFooter.tsx"), /data-site-footer-bottom=""/);
   assert.match(code("lib/analytics/events.ts"), /closest\("\[data-sticky-whatsapp\]"\)\) return "sticky"/);

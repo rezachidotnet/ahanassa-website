@@ -365,12 +365,14 @@
  * W20.1 — the floating WhatsApp button of the en/ar pages (components/layout/sticky-whatsapp.tsx). It is not
  * shown on a page with a submit form (today the enquiry form of /contact), so it never sits over a form's buttons, and the footer's bottom bar
  * gets room under it, so the last footer line is never covered at the end of the page.
+ * W21.2: the same for the floating «چت با کارشناس» button of the fa pages (components/livechat/livechat-button.tsx).
  */
 @layer utilities {
-  body:has(form button[type="submit"]) [data-sticky-whatsapp] {
+  body:has(form button[type="submit"]) [data-sticky-whatsapp],
+  body:has(form button[type="submit"]) [data-sticky-livechat] {
     display: none;
   }
-  body:has([data-sticky-whatsapp]) [data-site-footer-bottom] {
+  body:has([data-sticky-whatsapp], [data-sticky-livechat]) [data-site-footer-bottom] {
     padding-bottom: calc(56px + 2rem + env(safe-area-inset-bottom));
   }
   body:has(form button[type="submit"]) [data-site-footer-bottom] {

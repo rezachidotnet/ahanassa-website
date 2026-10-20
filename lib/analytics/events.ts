@@ -8,6 +8,9 @@
  * a phone number typed by a visitor, a message or a file name cannot pass —
  * `buildEvent` drops the value instead. rfq_submit carries the tracking
  * number only.
+ *
+ * W21.2: the live-chat events (chat_open, chat_load_error) live in lib/livechat/events.ts, with the live-chat
+ * button, so a build with live chat off ships none of their bytes; they follow the same rules (SAFE_TOKEN).
  */
 
 export const ANALYTICS_EVENTS = {
