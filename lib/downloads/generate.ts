@@ -3,14 +3,18 @@ import path from "node:path";
 import type { Locale } from "../../config/locales.ts";
 import { writeDxf } from "./dxf.ts";
 import { writeSvg } from "./svg.ts";
-import { planDrawings, type DownloadCatalog, type DrawingPlan } from "./model.ts";
-import { MAX_PDF_BYTES, drawingPath, rawMaterialsCatalogPath, sectionsCatalogPath, specSheetPath } from "./paths.ts";
+import { catalogChapters, planDrawings, type DownloadCatalog, type DrawingPlan } from "./model.ts";
+import { MAX_PDF_BYTES, drawingPath, familyZipPath, rawMaterialsCatalogPath, sectionsCatalogPath, specSheetPath } from "./paths.ts";
 import { renderRawMaterialsCatalog, renderSectionsCatalog, renderSpecSheet, type RenderedPdf } from "./pdf/render.ts";
+import { renderDrawingSheet } from "./pdf/drawing-sheet.ts";
+import { writeZip, type ZipEntry } from "./zip.ts";
 import { scanSourceNames } from "../static/source-name-scan.ts";
 
 /**
  * W17.2 — the static build's Download Center step (scripts/static/build.ts): writes every DXF + SVG section
- * drawing, spec sheet and catalog PDF of the snapshot into public-assets/downloads/. Pure function of the
+ * drawing, spec sheet and catalog PDF of the snapshot into public-assets/downloads/. W20.8: also each size's PDF
+ * drawing sheet and one ZIP per family (its DXF + PDF drawings), and runs BEFORE the pages are rendered so
+ * /downloads can show every file's size (lib/downloads/file-sizes.ts). Pure function of the
  * catalog data (no clock, no network), so the same snapshot gives byte-identical files.
  *
  * Refuses (throws) when a PDF is over MAX_PDF_BYTES, or when any drawn text has a price/currency token or a
@@ -33,6 +37,8 @@ export interface DownloadsReport {
   skipped: DrawingPlan["skipped"];
   specSheets: number;
   catalogs: number;
+  /** W20.8: one "download all" archive per family with drawings. */
+  zips: number;
 }
 
 export async function generateDownloads(publicDir: string, catalogs: readonly DownloadCatalog[], options: { sourceNames?: readonly string[] | null } = {}): Promise<DownloadsReport> {
@@ -58,15 +64,40 @@ export async function generateDownloads(publicDir: string, catalogs: readonly Do
     for (const d of plan.drawn) drawn.set(d.slug, drawn.get(d.slug) ?? d);
     for (const s of plan.skipped) skipped.set(s.slug, skipped.get(s.slug) ?? s);
   }
+  const newest = catalogs.map((c) => c.contentDate).reduce((a, b) => (b > a ? b : a), "1970-01-01T00:00:00.000Z");
+  const dxfBySlug = new Map<string, string>();
+  const pdfBySlug = new Map<string, Uint8Array>();
   for (const d of drawn.values()) {
-    write(drawingPath(d.slug, "dxf"), writeDxf(d));
+    const dxf = writeDxf(d);
+    dxfBySlug.set(d.slug, dxf);
+    write(drawingPath(d.slug, "dxf"), dxf);
     write(drawingPath(d.slug, "svg"), writeSvg(d));
     texts.push(d.title, ...d.layers.TEXT.flatMap((p) => (p.kind === "text" ? [p.text] : [])));
+    const sheet = await renderDrawingSheet({ drawing: d, dimensions: d.variant.dimensions, kgPerM: d.variant.nominalWeight?.kg_m ?? null, date: new Date(newest) });
+    pdfBySlug.set(d.slug, sheet.bytes);
+    writePdf(drawingPath(d.slug, "pdf"), sheet);
+  }
+
+  // W20.8: one archive per family (public category) with drawings, its sizes in catalog order; locale-independent.
+  const familySlugs = new Map<string, string[]>();
+  for (const catalog of catalogs) {
+    const plan = planDrawings(catalog);
+    for (const chapter of catalogChapters(catalog)) {
+      if (familySlugs.has(chapter.segment)) continue;
+      const slugs = plan.drawn.filter((d) => d.categoryCode === chapter.code).map((d) => d.slug);
+      if (slugs.length) familySlugs.set(chapter.segment, slugs);
+    }
+  }
+  for (const [segment, slugs] of familySlugs) {
+    const entries: ZipEntry[] = slugs.flatMap((slug) => [
+      { name: `dxf/${slug}.dxf`, data: dxfBySlug.get(slug) as string },
+      { name: `pdf/${slug}.pdf`, data: pdfBySlug.get(slug) as Uint8Array },
+    ]);
+    write(familyZipPath(segment), writeZip(entries, new Date(newest)));
   }
 
   let specSheets = 0;
   let catalogCount = 0;
-  const newest = catalogs.map((c) => c.contentDate).reduce((a, b) => (b > a ? b : a), "1970-01-01T00:00:00.000Z");
   for (const catalog of catalogs) {
     const locale: Locale = catalog.locale;
     const date = new Date(catalog.contentDate);
@@ -81,5 +112,5 @@ export async function generateDownloads(publicDir: string, catalogs: readonly Do
 
   const failures = checkDownloadTexts(texts, options.sourceNames ?? null);
   if (failures.length) throw new Error(`download center gate:\n  ${failures.join("\n  ")}`);
-  return { files, drawings: [...drawn.values()], skipped: [...skipped.values()], specSheets, catalogs: catalogCount };
+  return { files, drawings: [...drawn.values()], skipped: [...skipped.values()], specSheets, catalogs: catalogCount, zips: familySlugs.size };
 }

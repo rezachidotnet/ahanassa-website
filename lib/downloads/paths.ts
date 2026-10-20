@@ -12,7 +12,10 @@ export const sectionsCatalogPath = (locale: Locale) => `/${DOWNLOADS_DIR}/catalo
 export const rawMaterialsCatalogPath = (locale: Locale) => `/${DOWNLOADS_DIR}/catalogs/ahanassa-catalog-raw-materials-${locale}.pdf`;
 /** `segment`: the category's listing segment (lib/catalog/public-categories.ts#categoryPathSegment), e.g. "box-section". */
 export const specSheetPath = (segment: string, locale: Locale) => `/${DOWNLOADS_DIR}/spec-sheets/ahanassa-spec-${segment}-${locale}.pdf`;
-export const drawingPath = (slug: string, ext: "dxf" | "svg") => `/${DOWNLOADS_DIR}/drawings/${slug}.${ext}`;
+/** W20.8: `pdf` = the per-size drawing sheet (lib/downloads/pdf/drawing-sheet.ts). */
+export const drawingPath = (slug: string, ext: "dxf" | "svg" | "pdf") => `/${DOWNLOADS_DIR}/drawings/${slug}.${ext}`;
+/** W20.8: every DXF + PDF drawing of one family (public category) in one archive; locale-independent. */
+export const familyZipPath = (segment: string) => `/${DOWNLOADS_DIR}/zip/ahanassa-drawings-${segment}.zip`;
 
 /** The catalog PDF the footer's "Full catalog" link opens: the sections & steel products catalog of that locale. */
 export const fullCatalogPath = sectionsCatalogPath;

@@ -31,6 +31,7 @@ import { STATIC_TARGETS } from "../../lib/static/targets.ts";
 import { rasterizeCover } from "../../lib/articles/cover-raster.ts";
 import { articleCoverPath } from "../../lib/articles/routes.ts";
 import { generateDownloads } from "../../lib/downloads/generate.ts";
+import { DOWNLOADS_MANIFEST_ENV, downloadsManifestJson } from "../../lib/downloads/file-sizes.ts";
 import { summarizeSkipped, type DownloadCatalog } from "../../lib/downloads/model.ts";
 import { loadSourceNames } from "../../lib/static/source-name-scan.ts";
 import { writeShareImages, type ChartShareSource } from "../../lib/og/write-share-images.ts";
@@ -96,6 +97,29 @@ delete buildEnv.APP_BASE_URL; // canonical URLs always use the production origin
 if (turnstileSiteKey) buildEnv.NEXT_PUBLIC_TURNSTILE_SITE_KEY = turnstileSiteKey;
 else delete buildEnv.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 Object.assign(process.env, buildEnv);
+
+// W17.2/W20.8: section drawings (DXF + SVG + PDF sheet), family ZIPs, spec sheets and catalogs (PDF), from the
+// snapshot only (lib/downloads/generate.ts). Written into the build root's public/ BEFORE the pages render, so
+// vinext publishes them with the other static files and /downloads can print each file's size from the manifest
+// (lib/downloads/file-sizes.ts; kept outside public/). The catalog is read through the same repository as the pages.
+const downloadsVite = await createServer({
+  root: buildRoot,
+  configFile: false,
+  logLevel: "error",
+  server: { middlewareMode: true, hmr: false, watch: null },
+  appType: "custom",
+  resolve: { alias: { "@": buildRoot, "cloudflare:workers": path.join(buildRoot, "lib/static/build-runtime/cloudflare-workers.ts") } },
+});
+const { loadDownloadCatalog } = await downloadsVite.ssrLoadModule(path.join(buildRoot, "lib/downloads/source.ts"));
+const { locales: downloadLocales } = await import("../../config/locales.ts");
+const downloadCatalogs: DownloadCatalog[] = [];
+for (const locale of downloadLocales) downloadCatalogs.push(await loadDownloadCatalog(locale));
+await downloadsVite.close();
+const downloads = await generateDownloads(path.join(buildRoot, "public"), downloadCatalogs, { sourceNames: loadSourceNames() });
+const downloadsManifest = path.join(buildRoot, ".downloads-manifest.json");
+fs.writeFileSync(downloadsManifest, downloadsManifestJson(downloads));
+buildEnv[DOWNLOADS_MANIFEST_ENV] = downloadsManifest;
+process.env[DOWNLOADS_MANIFEST_ENV] = downloadsManifest;
 
 log("vinext build (output: export) in .static-build/");
 const build = spawnSync("npx", ["vinext", "build"], { cwd: buildRoot, env: buildEnv, stdio: "inherit" });
@@ -166,18 +190,14 @@ fs.writeFileSync(path.join(publicDir, "robots.txt"), renderRobotsTxt(robots()));
 const sitemapEntries = await sitemap();
 fs.writeFileSync(path.join(publicDir, "sitemap.xml"), renderSitemapXml(sitemapEntries));
 counts.sitemap_urls = sitemapEntries.length;
-// W17.2: the Download Center reads the catalog through the same repository as the pages (lib/downloads/source.ts).
-const { loadDownloadCatalog } = await load("lib/downloads/source.ts");
-const downloadCatalogs: DownloadCatalog[] = [];
-for (const locale of locales) downloadCatalogs.push(await loadDownloadCatalog(locale));
 await vite.close();
 
-// W17.2: section drawings (DXF + SVG), spec sheets and catalogs (PDF), from the snapshot only (lib/downloads/generate.ts).
-const downloads = await generateDownloads(publicDir, downloadCatalogs, { sourceNames: loadSourceNames() });
+// W17.2 (generated before the vinext build since W20.8, see above).
 counts.download_drawings = downloads.drawings.length;
 counts.download_spec_sheets = downloads.specSheets;
 counts.download_catalogs = downloads.catalogs;
-log(`downloads: ${downloads.drawings.length} section drawing(s), ${downloads.specSheets} spec sheet(s), ${downloads.catalogs} catalog(s); largest PDF ${Math.max(0, ...downloads.files.filter((f) => f.path.endsWith(".pdf")).map((f) => f.bytes))} B`);
+counts.download_zips = downloads.zips;
+log(`downloads: ${downloads.drawings.length} section drawing(s) (DXF + SVG + PDF), ${downloads.zips} family ZIP(s), ${downloads.specSheets} spec sheet(s), ${downloads.catalogs} catalog(s); largest PDF ${Math.max(0, ...downloads.files.filter((f) => f.path.endsWith(".pdf")).map((f) => f.bytes))} B`);
 for (const g of summarizeSkipped(downloads.skipped)) log(`downloads: no drawing for ${g.sizes.length} ${g.formCode} size(s) (${g.sizes[0]} … ${g.sizes[g.sizes.length - 1]}): ${g.reason}`);
 
 // W18.3: share images (og:image) of the chart pages and the en/ar indicators page, text-gated before rasterizing.

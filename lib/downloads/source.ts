@@ -24,8 +24,10 @@ export async function loadDownloadCatalog(locale: Locale): Promise<DownloadCatal
           ? {
               slug,
               name: detail.seo.h1 ?? detail.product.commercialTemplateName,
+              updatedAt: [detail.product.updatedAt, detail.seo.updatedAt].reduce((a, b) => (b > a ? b : a)),
               variants: detail.variants.map((v) => ({
                 sku: v.sku,
+                xid: v.xid,
                 size: v.commercialSize ?? v.sectionSize ?? v.sku,
                 formCode: v.form.code,
                 dimensions: v.dimensions,

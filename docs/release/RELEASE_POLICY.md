@@ -510,8 +510,8 @@ A production content publication is `OPERATION_TYPE: CONTENT_REBUILD` only when 
    - **A ledger-only merge never offers a release.** A merge whose own change is only the ledger file (the bot's `STABLE_100` or `ROLLED_BACK` row) starts staging only. After a rollback, the diff from the live code to the tip still contains the rolled-back code.
    - **A waiting Approve holds the workflow's queue.** The 22:47 and 08:00 runs wait behind it, and GitHub keeps only the newest pending run. Approve or Reject promptly; content does not publish meanwhile. An approval given after a later publish changed `www` fails the guard, and nothing is written. Right before its first write the job checks that `www.ahanassa.com` still serves the snapshot the build saw: a rollback or another publish since the build stops it, and nothing is written. It checks again right before the deploy. It loads, deploys, smokes `www.ahanassa.com` and switches, and it rolls back automatically on any failure. The release reaches 100% at once. After finalize it leaves the `v11-live-release` record (§20.5).
 4. **Observation** (§20.2), 24 h from the switch, by `v11-release-watch.yml` (§20.8):
-   - **LOW:** not blocking. The next release need not wait, and an ops-health production ALERT within the 24 h rolls the release back automatically: the previous Worker version and the publication pointer (§20.8).
-   - **HIGH:** the §20.2 observation as before. An ALERT stops it, and the owner decides between a rollback (one tap, §20.7) and a fix. A fix is a new release with a new observation. Nothing happens automatically. While a HIGH release is in its observation, the owner approves no further release, except a fix after an ALERT.
+   - **LOW:** not blocking. The next release need not wait, and an ops-health production ALERT within the 24 h rolls the release back automatically: the previous Worker version and the publication pointer (§20.8). A run whose only ALERT is "Odoo unreachable" is an external (Odoo) incident and never rolls a release back (§20.2a).
+   - **HIGH:** the §20.2 observation as before. An ALERT stops it, and the owner decides between a rollback (one tap, §20.7) and a fix. A run whose only ALERT is "Odoo unreachable" is an external (Odoo) incident, not an ALERT of the release (§20.2a). A fix is a new release with a new observation. Nothing happens automatically. While a HIGH release is in its observation, the owner approves no further release, except a fix after an ALERT.
 5. **`STABLE_100`.** After 24 h with no ALERT, `v11-release-watch.yml` opens a bot PR that appends the row (§20.3) to the ledger on the ledger branch (§20.4). The PR changes nothing else in the file (§3). **The owner's merge of that PR is the §12 attestation.** Only from then on is the release `BASE_PRODUCTION_SHA`. After a rollback, the bot PR appends a `ROLLED_BACK` row instead, and the release never gets a `STABLE_100` row.
 
 **Not part of this path:**
@@ -551,6 +551,24 @@ The observation evidence lists the runs, their outcomes and every gap over 30 mi
 
 **W17.3 (2026-10-14), fewer false ALERTs.** "cron silent" ALERTs after 20 min without a scheduled run (was 15). "Odoo unreachable" ALERTs only on the second failed check in a row; a single failed check is a WATCH (a warning; the job stays green). The count is carried by the previous completed run's annotation (`scripts/ops/health`, `docs/OPS_ALERTS.md`). A WATCH is not an ALERT for this observation.
 
+### 20.2a External (Odoo) incidents (owner decisions, 2026-10-18)
+
+**Owner decisions, 2026-10-18** (first for `HIGH` releases, then extended to `LOW` releases the same day). The release watch does not attribute an "Odoo unreachable" ALERT to a website release. The site is built to be independent of Odoo: `www.ahanassa.com` is a static build, and RFQs queue in D1 until Odoo takes them. Odoo being down is therefore not evidence that a release broke the site.
+
+**The rule.** In the observation window of any v11 release, `LOW` or `HIGH` (§20.1 step 4; a v11 release before W9.7 counts as `HIGH`, §20.1a), an ops-health production run whose **only** ALERT is "Odoo unreachable" is an **external (Odoo) incident**, not an ALERT of the release:
+- **Listed as external.** It appears as an external incident in the release-watch summary, in the `STABLE_100` row's `NOTES` and in the bot PR's evidence (§20.3), next to the run.
+- **The owner is still e-mailed.** ops-health fails its run as before (GitHub e-mails it). The watch also fails its own run once per new incident run while the release is observed, as it did for this ALERT before (§20.8).
+- **It never triggers the automatic `LOW` rollback** (§20.8). A `HIGH` release does not stop for the owner's decision either.
+- **It does not block the `STABLE_100` row.** The run covers its window like a passing run (§20.2). If the 24 h pass with no other ALERT, the bot PR appends `STABLE_100` as usual.
+
+**What it does not change.**
+- **Any other ALERT keeps today's behaviour.** This includes site checks, RFQ intake 5xx, cron silent, CPU (exceededCpu / 1102, cron cpuTime), RFQ undelivered, RFQ in terminal failure, content publish stale and "ops health could not run". It also applies when one of these ALERTs is in the same run as "Odoo unreachable": that run is an ALERT of the release.
+- **Unknown cause = ALERT.** A run counts as external only when its ALERTs are known and are all "Odoo unreachable". In every other case it is a release ALERT: the watch could not read the job's annotations, the job timed out, or a failed job has no ALERT annotation.
+- **`LOW` still rolls back on everything else.** Any other ALERT, alone or in the same run as "Odoo unreachable", rolls a `LOW` release back automatically, as today (§20.8). So does a failure whose cause is unknown (above).
+- **ops-health and its thresholds are unchanged.** The Odoo check still ALERTs on the second failed check in a row (W17.3).
+
+**How it is read.** `scripts/ops/health/run.ts` writes one annotation per ALERT, titled `ALERT: <check title>`. The Odoo check's title is `Odoo unreachable` (`scripts/ops/health/checks.ts` `ODOO_TITLE`; a test pins it). For a failed production health job, `.github/scripts/v11-live-release.mjs` reads the job's annotations (`GET /check-runs/{job_id}/annotations`; `v11-release-watch.yml` has `checks: read`). It keeps the titles that start with `ALERT: `. The run is external when that list is not empty and every title in it is `Odoo unreachable`.
+
 ### 20.3 `STABLE_100` field mapping (v11)
 
 The ledger schema (§3) and its strict validator (`lib/ci/release-ledger.ts`) are unchanged. A v11 row fills the columns as follows (`.github/scripts/v11-ledger-append.mjs` writes it):
@@ -568,7 +586,7 @@ The ledger schema (§3) and its strict validator (`lib/ci/release-ledger.ts`) ar
 | `FINAL_RISK` | the §20.1a class: `LOW` or `HIGH` (`HIGH` for a release before W9.7) |
 | `RESULT` | `PASS`: the production job succeeded, including its smoke, and the observation passed (`FAIL` for `ROLLED_BACK`) |
 | `TIMESTAMP` | UTC time the version began serving 100% of `www.ahanassa.com`: the completion of the production job's switch step (for `ROLLED_BACK`: the rollback) |
-| `NOTES` | `v11 static`, the class, the snapshot version, `OBSERVATION_STARTED_AT` → `OBSERVATION_ENDED_AT`, the observation evidence (ops-health runs, gaps), the watch run. The owner attestation is the merge of the bot PR, recorded by git |
+| `NOTES` | `v11 static`, the class, the snapshot version, `OBSERVATION_STARTED_AT` → `OBSERVATION_ENDED_AT`, the observation evidence (ops-health runs, gaps, external (Odoo) incidents, §20.2a), the watch run. The owner attestation is the merge of the bot PR, recorded by git |
 
 **A v11 version that served 100% but is not made `STABLE_100`** is recorded as history with `RELEASE_STATE = SUPERSEDED` once a later v11 release serves `www.ahanassa.com`. The W8.1 cutover release `d4f57f6` is such a version. A history row is never `STABLE_100` and never becomes `BASE_PRODUCTION_SHA`. A `LOW` release replaced by the next release within its 24 h gets no automatic row; the owner may add a `SUPERSEDED` row by hand.
 
@@ -614,10 +632,10 @@ Releases of the v11 RFQ Worker `ahanassa-v11-rfq-production` (`api.ahanassa.com`
 3. A notification "Review pending deployments" arrives. Open it (or: Actions → Content publish → the newest run) → **Review deployments** → tick `production-v11` → **Approve and deploy**. To skip this release, tap **Reject**.
 4. The run summary shows the class (`LOW`/`HIGH`), the live code before, and the result.
 
-**About 24 h later.** A bot PR "Ledger: STABLE_100 for …" appears. Open it, check that the observation lists no ALERT, and **Merge**. That is the attestation.
+**About 24 h later.** A bot PR "Ledger: STABLE_100 for …" appears. Open it, check that the observation lists no ALERT, and **Merge**. An external (Odoo) incident listed there (§20.2a) does not stop the merge. That is the attestation.
 
 **On an ALERT e-mail during the 24 h.**
-- **LOW:** the release rolls back by itself. A failed `v11 release watch` run reports it by e-mail, and a "Ledger: ROLLED_BACK …" PR appears: **Merge** it. A fix is a new PR.
+- **LOW:** the release rolls back by itself (not for an external (Odoo) incident, §20.2a: that e-mail needs no action on the release). A failed `v11 release watch` run reports it by e-mail, and a "Ledger: ROLLED_BACK …" PR appears: **Merge** it. A fix is a new PR.
 - **HIGH:** decide. To roll back: Actions → **v11 release watch** → **Run workflow** → `operation = rollback` → **Run workflow**. To fix forward: merge the fix PR and Approve it as above.
 
 **Starting production-prep by hand** (for example, to re-run a release): Actions → **Content publish** → **Run workflow** → `target = production-prep` → **Run workflow**. Then step 3.
@@ -635,6 +653,7 @@ Releases of the v11 RFQ Worker `ahanassa-v11-rfq-production` (`api.ahanassa.com`
 | no ALERT, 24 h covered | job `ledger`: bot PR appending the `STABLE_100` row (§20.3); idempotent (one branch per release) |
 | ALERT, `LOW` | job `rollback`, then the `ROLLED_BACK` bot PR, then `notify` fails the run so GitHub e-mails the owner |
 | ALERT, `HIGH` | nothing automatic; warning in the summary (ops-health already e-mailed); the owner decides |
+| `LOW` or `HIGH`, a run whose only ALERT is "Odoo unreachable" (§20.2a) | not an ALERT: an external (Odoo) incident, never the automatic `LOW` rollback; listed in the summary and the `STABLE_100` evidence; the observation goes on, and the row is appended after 24 h with no other ALERT |
 | uncovered gap (> 24 h) | nothing automatic; the owner decides |
 | `operation = rollback` (owner dispatch) | job `rollback` for the current release, any class |
 | the live code is a rollback | the `ROLLED_BACK` row, if it is missing. A rollback is never rolled back |
@@ -644,6 +663,7 @@ Releases of the v11 RFQ Worker `ahanassa-v11-rfq-production` (`api.ahanassa.com`
 **E-mail.** GitHub e-mails the owner for a failed run, so the `notify` job fails the run:
 - for every rollback;
 - for a `HIGH` ALERT, once per new failed ops-health run;
+- for an external (Odoo) incident (§20.2a, `LOW` or `HIGH`), once per new incident run, while the release is observed;
 - for a gap or an unidentified release, once a day (at 08:52 UTC).
 
 A health job that hit its timeout counts as an ALERT.
@@ -677,6 +697,7 @@ Neither scan ever prints a name. A finding names the file and the name's line nu
 | classifier (§20.1a) | `.github/scripts/v11-release-risk.test.mjs`: LOW only for css/image/copy; HIGH for pricing, RFQ, Workers, workflows, D1, config, pipeline, docs, `contact-channels.ts`, SVG; mixed diff = HIGH; renames/copies both sides; unknown status; ledger-only; no base = HIGH; a real git diff |
 | live-code selection (§20.5) | `.github/scripts/v11-live-release.test.mjs`: the 08:00 build gets the live code, not the older `STABLE_100` and not the tip; refused for an unknown snapshot, a foreign SHA, a downgrade; the release event behind content publishes; legacy evidence; rollback records; only trusted runs on `main` count; CONTENT_REBUILD against the live code |
 | observation + decisions (§20.2, §20.8) | same file: PASSED / OBSERVING / ALERT (inside, on the covering run, not after) / GAP; job-level reading of runs with a stuck job; LOW+ALERT = rollback, HIGH+ALERT = owner, PASSED = `STABLE_100`, a rollback is never rolled back |
+| external (Odoo) incidents (§20.2a) | same file: `HIGH` or `LOW` + only "Odoo unreachable" = external, no `LOW` rollback, the 24 h still pass to `STABLE_100`, the owner is e-mailed once per new run; any other ALERT (alone or next to Odoo), unreadable annotations, a timed-out job or a failure with no ALERT annotation = ALERT as before (`LOW` + Odoo + another ALERT = rollback). `.github/scripts/v11-ledger-append.test.mjs`: the row and the PR list the incident, and the strict resolver accepts the row. `scripts/ops/health/checks.test.ts`: the check title stays `Odoo unreachable` |
 | auto-ledger (§20.3, §20.8) | `.github/scripts/v11-ledger-append.test.mjs`: one line appended, nothing else changed, the strict resolver makes it `BASE_PRODUCTION_SHA`; `ROLLED_BACK` never changes it; no pipe/newline breaks the table; idempotent CLI |
 | rollback (§20.8) | `.github/scripts/v11-rollback.test.mjs`: Worker then guarded pointer then verify; refused before any write (pointer moved, target pruned, www moved, already on target, no target); a failure after a write is an ALERT |
 | ops-health lookback (§20.2) | `scripts/ops/health/checks.test.ts`: 10+ cancelled runs no longer collapse the window; the job of a held run counts; nothing in 24 h = the full window |
