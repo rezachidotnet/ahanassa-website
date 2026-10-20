@@ -11,6 +11,11 @@
 #   - ALERT, risk HIGH        -> nothing automatic (§20.2: the owner decides between a rollback and a fix). One tap:
 #                                Actions → v11 release watch → Run workflow → operation = rollback.
 #   - uncovered gap           -> the owner decides; reported in the summary.
+#   - a run whose ONLY ALERT is "Odoo unreachable", LOW or HIGH (§20.2a, owner decisions 2026-10-18) -> an external
+#                                (Odoo) incident, not a release ALERT: never the automatic LOW rollback; listed in the
+#                                summary and the STABLE_100 evidence, e-mailed to the owner (job `notify`, once per new
+#                                run), never blocks the row. The site does not depend on Odoo (static build; RFQs queue
+#                                in D1).
 # A rollback is never rolled back; the watch never writes the ledger branch directly (bot PRs only).
 #
 # Lives on `main` (scheduled/dispatchable only from the default branch); it checks out feat/v11-static-site for the
@@ -35,6 +40,8 @@ on:
 permissions:
   contents: read
   actions: read
+  # §20.2a: which checks a failed ops-health production job ALERTed on (GET /check-runs/{job_id}/annotations).
+  checks: read
 
 concurrency:
   group: v11-release-watch
@@ -55,6 +62,7 @@ jobs:
       code_sha: ${{ steps.watch.outputs.code_sha }}
       rollback_code: ${{ steps.watch.outputs.rollback_code }}
       notify: ${{ steps.watch.outputs.notify }}
+      external_new: ${{ steps.watch.outputs.external_new }}
     steps:
       - name: Checkout the ledger branch (full history)
         uses: actions/checkout@v6
@@ -104,11 +112,13 @@ jobs:
             jq -r '"- \(.reason)"' "$RUNNER_TEMP/watch/watch.json"
             jq -r '"- live: www serves `\(.live.snapshot)` from `\(.live.sha // "unresolved")`"' "$RUNNER_TEMP/watch/watch.json"
             jq -r 'if .event then "- release: `\(.event.code_sha)` (\(.event.kind), risk \(.event.risk // "-"), content-publish run \(.event.run_id), live since \(.event.live_since))" else empty end' "$RUNNER_TEMP/watch/watch.json"
-            jq -r 'if .observation then "- observation \(.observation.observation_started_at) → \(.observation.observation_ends_at): \(.observation.state), \(.observation.runs | length) ops-health production runs, \(.observation.alerts | length) ALERT, \(.observation.gaps | length) gap(s) over 30 min" else empty end' "$RUNNER_TEMP/watch/watch.json"
+            jq -r 'if .observation then "- observation \(.observation.observation_started_at) → \(.observation.observation_ends_at): \(.observation.state), \(.observation.runs | length) ops-health production runs, \(.observation.alerts | length) ALERT, \(.observation.external // [] | length) external (Odoo) incident(s), \(.observation.gaps | length) gap(s) over 30 min" else empty end' "$RUNNER_TEMP/watch/watch.json"
+            jq -r '.observation.external // [] | .[] | "- external (Odoo) incident, not attributed to the release (§20.2a): ops-health run \(.run_id) at \(.started_at), only ALERT: Odoo unreachable"' "$RUNNER_TEMP/watch/watch.json"
             jq -r 'if .prefix_runs > 0 then "- ⚠️ \(.prefix_runs) run(s) predate the ops-health lookback fix" else empty end' "$RUNNER_TEMP/watch/watch.json"
           } >> "$GITHUB_STEP_SUMMARY"
           case "$(jq -r .action "$RUNNER_TEMP/watch/watch.json")" in
             alert) echo "::warning title=v11 release: ALERT in the observation::$(jq -r .reason "$RUNNER_TEMP/watch/watch.json") — to roll back: Run workflow, operation = rollback" ;;
+            observing|stable) if [ "$(jq -r '.observation.external // [] | length' "$RUNNER_TEMP/watch/watch.json")" != "0" ]; then echo "::warning title=v11 release: external (Odoo) incident::Odoo unreachable was the only ALERT of $(jq -r '[.observation.external[].run_id] | join(", ")' "$RUNNER_TEMP/watch/watch.json"); not attributed to the release (§20.2a)"; fi ;;
             gap) echo "::warning title=v11 release: monitoring gap::$(jq -r .reason "$RUNNER_TEMP/watch/watch.json")" ;;
             unknown) echo "::warning title=v11 release: live release not identified::$(jq -r .reason "$RUNNER_TEMP/watch/watch.json")" ;;
           esac
@@ -302,7 +312,8 @@ jobs:
           fi
 
   # GitHub e-mails the owner for a failed run: an automatic rollback (done or failed) must reach the owner, and so must a
-  # HIGH ALERT (once per new failed ops-health run), a gap or an unidentified release (once a day).
+  # HIGH ALERT or an external (Odoo) incident of any release (§20.2a) (once per new failed ops-health run), a gap or an unidentified
+  # release (once a day).
   notify:
     name: notify (owner e-mail on a rollback)
     needs: [watch, rollback, ledger]
@@ -317,11 +328,14 @@ jobs:
           REASON: ${{ needs.watch.outputs.reason }}
           WATCH: ${{ needs.watch.result }}
           ACTION: ${{ needs.watch.outputs.action }}
+          EXTERNAL_NEW: ${{ needs.watch.outputs.external_new }}
         run: |
           if [ "$ACTION" = "alert" ] || [ "$ACTION" = "gap" ] || [ "$ACTION" = "unknown" ]; then
             echo "::error title=ALERT: v11 release needs the owner ($ACTION)::$REASON — to roll back: Actions → v11 release watch → Run workflow → operation = rollback"
           elif [ "$WATCH" = "failure" ]; then
             echo "::error title=ALERT: v11 release watch could not run::see the watch job"
+          elif [ "$ACTION" != "rollback" ] && [ "$EXTERNAL_NEW" = "true" ]; then
+            echo "::error title=ALERT: external (Odoo) incident during the v11 release observation::Odoo unreachable was the only ALERT; it is not attributed to the website release and does not block its STABLE_100 row (RELEASE_POLICY.md §20.2a). $REASON"
           elif [ "$ROLLBACK" = "success" ]; then
             echo "::error title=ALERT: v11 release rolled back::$REASON — www.ahanassa.com is back on the previous release; the ROLLED_BACK ledger PR is open (merge it). A fix is a new release."
           else

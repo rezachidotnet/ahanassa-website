@@ -52,6 +52,29 @@ test("STABLE_100 row: §20.3 mapping, one line appended to the RELEASE_SHA table
   assert.equal(hasRow(LEDGER, sha("b"), "STABLE_100"), false);
 });
 
+test("STABLE_100 row (§20.2a): a HIGH release with an external (Odoo) incident still earns its row; the row and PR list it", () => {
+  const ext = { run_id: "13", started_at: "2026-10-10T02:04:00Z", conclusion: "failure", alerts: ["Odoo unreachable"] };
+  const w = {
+    ...watch,
+    event: { ...watch.event, risk: "HIGH" },
+    observation: { ...watch.observation, runs: [watch.observation.runs[0], ext, watch.observation.runs[1]], alerts: [], external: [ext] },
+  };
+  const r = stableRow(w, "556");
+  const cells = r.split("|").slice(1, -1).map((c) => c.trim());
+  assert.equal(cells.length, 12);
+  assert.equal(cells[8], "HIGH");
+  assert.match(cells[11], /no ALERT/);
+  assert.match(cells[11], /External \(Odoo\) incidents, not attributed to the release \(§20\.2a\): 13\./);
+  const base = resolveBaseProductionShaFromManifest(appendRow(LEDGER, r));
+  assert.equal(base.ok, true, base.reason);
+  assert.equal(base.releaseSha, sha("b"));
+  const b = prBody({ state: "STABLE_100", watch: w, watchRunId: "556" });
+  assert.match(b, /- external \(Odoo\) incidents, not attributed to the release \(§20\.2a\): \[13\]/);
+  assert.match(b, /\| \[13\]\([^)]+\) \| 2026-10-10T02:04:00Z \| failure — external \(Odoo unreachable only\), §20\.2a \|/);
+  assert.doesNotMatch(stableRow(watch, "555"), /External/, "no incident: no external note");
+  assert.doesNotMatch(prBody({ state: "STABLE_100", watch, watchRunId: "555" }), /external/);
+});
+
 test("STABLE_100 row: refused for anything but a PASSED release observation", () => {
   assert.throws(() => stableRow({ ...watch, action: "observing" }, "1"));
   assert.throws(() => stableRow({ ...watch, observation: { ...watch.observation, state: "ALERT" } }, "1"));
