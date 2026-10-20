@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import type { Locale } from "@/config/locales";
-import { CHART_RFQ_ATTRIBUTE, CHART_SLUG_ATTRIBUTE, clickEventFor, expertClickEvent, familyFromPath, isRfqHref, linkLocation, rfqCtaLocation, trackEvent } from "@/lib/analytics/events";
+import { CHART_RFQ_ATTRIBUTE, CHART_SHARE_ATTRIBUTE, CHART_SLUG_ATTRIBUTE, chartShareParams, clickEventFor, expertClickEvent, familyFromPath, isRfqHref, linkLocation, rfqCtaLocation, trackEvent } from "@/lib/analytics/events";
 import { startGtm } from "@/lib/analytics/gtm";
 
 /** The article page's <article> (it reports article_cta_click instead). */
@@ -19,7 +19,9 @@ const ARTICLE_SCOPE = '[data-analytics-scope="article"]';
  *      when the link, the page (`data-product-family`) or the URL names one,
  *   4. reports expert_call_click / expert_whatsapp_click / expert_rfq_click / expert_chat_click for the homepage
  *      expert section's actions (`data-expert-action`, W20.3), on top of the events above,
- *   5. starts GTM after the window `load` event (lib/analytics/gtm.ts: production hostname or
+ *   5. reports chart_share for a chart page's share link (`data-chart-share`, W18.3) INSTEAD of whatsapp_click —
+ *      sharing a page is not a contact with Ahan Asa,
+ *   6. starts GTM after the window `load` event (lib/analytics/gtm.ts: production hostname or
  *      `?gtm_debug=` only), so Google's script never competes with the page's own LCP resources.
  */
 export function AnalyticsRuntime({ locale }: { locale: Locale }) {
@@ -29,6 +31,11 @@ export function AnalyticsRuntime({ locale }: { locale: Locale }) {
 
     const onClick = (e: MouseEvent) => {
       const link = e.target instanceof Element ? e.target.closest("a[href]") : null;
+      const share = link ? chartShareParams(link.getAttribute(CHART_SHARE_ATTRIBUTE), link.getAttribute(CHART_SLUG_ATTRIBUTE)) : null;
+      if (share) {
+        trackEvent("chart_share", share);
+        return;
+      }
       const event = link ? clickEventFor(link.getAttribute("href") ?? "") : null;
       const expert = link ? expertClickEvent(link.getAttribute("data-expert-action")) : null;
       if (link && expert) trackEvent(expert, { expert_variant: link.closest("[data-expert-variant]")?.getAttribute("data-expert-variant") ?? undefined });

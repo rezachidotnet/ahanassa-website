@@ -56,13 +56,21 @@ function init(): Promise<Uint8Array[]> {
 }
 
 export async function rasterizeCover(svg: string): Promise<{ png: Buffer; webp: Buffer }> {
+  return rasterizeSvg(normalizeRtlCover(svg), ARTICLE_COVER_SIZE, "cover");
+}
+
+/**
+ * Any build-time SVG of exactly `size` → PNG + WebP, with the same fonts and encoder settings (W18.3: the chart
+ * share images too). The SVG must already be laid out for resvg (no reliance on `direction`).
+ */
+export async function rasterizeSvg(svg: string, size: { width: number; height: number }, label = "image"): Promise<{ png: Buffer; webp: Buffer }> {
   const fontBuffers = await init();
-  const resvg = new Resvg(normalizeRtlCover(svg), {
-    fitTo: { mode: "width", value: ARTICLE_COVER_SIZE.width },
+  const resvg = new Resvg(svg, {
+    fitTo: { mode: "width", value: size.width },
     font: { fontBuffers, loadSystemFonts: false, defaultFontFamily: "Estedad" },
   });
   const rendered = resvg.render();
-  if (rendered.width !== ARTICLE_COVER_SIZE.width || rendered.height !== ARTICLE_COVER_SIZE.height) throw new Error(`cover renders at ${rendered.width}×${rendered.height}, expected ${ARTICLE_COVER_SIZE.width}×${ARTICLE_COVER_SIZE.height}`);
+  if (rendered.width !== size.width || rendered.height !== size.height) throw new Error(`${label} renders at ${rendered.width}×${rendered.height}, expected ${size.width}×${size.height}`);
   const png = Buffer.from(rendered.asPng());
   rendered.free();
   resvg.free();

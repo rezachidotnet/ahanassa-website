@@ -63,6 +63,7 @@ The staging and production builds are byte-identical except for robots, sitemap,
 | `chart_range_change` | W18.2: the 30/90-day switch of a chart page is used | `chart_range`: `30` / `90`, `product_slug` |
 | `gauge_view` | W18.2: the price-position gauge of a fa product page is at least half on screen (once per page view) | `gauge_position`: `low` / `mid` / `high`, `gauge_window`: `30` / `90` (the longest shown), `product_slug` |
 | `chart_to_rfq` | W18.2: «قیمت قطعی برای حجم شما» is clicked (it also sends `rfq_cta_click`) | `cta_location`: `gauge` (product page) / `chart_page`, `product_slug`, `product_family` |
+| `chart_share` | W18.3: «اشتراک در واتساپ», «اشتراک در تلگرام» or «کپی لینک برای بله» on a fa chart page is clicked. Bale has no web share URL, so its button copies the page title + link (toast «لینک کپی شد»); the event is sent on the click. Sent **instead of** `whatsapp_click` (sharing is not a contact) | `share_method`: `whatsapp` / `telegram` / `bale`, `product_slug` |
 | `indicator_page_view` | W18.2: `/en/market-indicators` or `/ar/market-indicators` loads | `page_lang`: `en` / `ar`, `indicator_count` |
 | `expert_call_click` / `expert_whatsapp_click` / `expert_rfq_click` / `expert_chat_click` | An action in the homepage «با کارشناس فروش صحبت کنید» section is clicked: phone, WhatsApp, the RFQ («ارسال فاکتور یا لیست خرید») or live chat (W21.2, only while live chat is on; the chat button is a `<button>`, not a link). Sent **in addition to** `phone_click` / `whatsapp_click` / `rfq_cta_click` (`home_expert`), so do not add both into one total | `expert_variant`: `A` (Concierge card) / `B` (Split band) — the layout the site was built with (W20.3 redesign) |
 | `chat_open` | W21.2, only while live chat is on (`config/livechat.ts`): «چت با کارشناس» was clicked and Odoo's chat page in the chat panel reported `ready` (the chat is open) (an iframe of `https://odoo.ahanassa.com/im_livechat/support/<channel>`; no Odoo script on the site). Sent again when a visitor reopens an already loaded chat. The panel never opens by itself | `chat_location`: `home_expert` (the button in the homepage expert section; it also sends `expert_chat_click`) / `sticky` (the floating button on fa pages) |
@@ -128,6 +129,7 @@ Variables → User-Defined Variables → New. Create each of these as a **Data L
 | `DLV - chat_error` | `chat_error` (W21.2) |
 | `DLV - chat_teaser` | `chat_teaser` (W21.2) |
 | `DLV - chat_trigger` | `chat_trigger` (W21.2) |
+| `DLV - share_method` | `share_method` |
 | `DLV - filter_type` | `filter_type` |
 
 ## 5. Step 3 — one trigger and one GA4 event tag per event
@@ -166,6 +168,7 @@ Do this for each of the 12 events. (The D-ARTICLE-METRICS tags and triggers — 
 | `GA4 - chart_range_change` | `chart_range_change` | `chart_range` = `{{DLV - chart_range}}`, `product_slug` = `{{DLV - product_slug}}` |
 | `GA4 - gauge_view` | `gauge_view` | `gauge_position` = `{{DLV - gauge_position}}`, `gauge_window` = `{{DLV - gauge_window}}`, `product_slug` = `{{DLV - product_slug}}` |
 | `GA4 - chart_to_rfq` | `chart_to_rfq` | `cta_location` = `{{DLV - cta_location}}`, `product_slug` = `{{DLV - product_slug}}`, `product_family` = `{{DLV - product_family}}` |
+| `GA4 - chart_share` | `chart_share` | `share_method` = `{{DLV - share_method}}`, `product_slug` = `{{DLV - product_slug}}` |
 | `GA4 - indicator_page_view` | `indicator_page_view` | `page_lang` = `{{DLV - page_lang}}`, `indicator_count` = `{{DLV - indicator_count}}` |
 | `GA4 - chat_open` | `chat_open` | `chat_location` = `{{DLV - chat_location}}` |
 | `GA4 - chat_load_error` | `chat_load_error` | `chat_location` = `{{DLV - chat_location}}`, `chat_error` = `{{DLV - chat_error}}` |

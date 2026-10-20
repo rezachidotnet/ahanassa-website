@@ -14,6 +14,7 @@ import Link from "@/components/ui/link";
 import { listIndicators } from "@/lib/indicators/repository";
 import { isMarketIndicatorsLocale, MARKET_INDICATORS_COPY, MARKET_INDICATORS_ROUTE } from "@/lib/indicators/page";
 import { cardVariants } from "@/components/ui/surface-variants";
+import { MarketIndicatorStrip } from "@/components/indicators/market-indicator-strip";
 
 interface PageProps {
   params: Promise<{ locale: string }>;
@@ -131,6 +132,8 @@ export default async function ExportPage({ params }: PageProps) {
           </div>
         </div>
       </section>
+      {/* W18.3: the market reference indicators, each card linking to the market-indicators page. */}
+      {isMarketIndicatorsLocale(locale) && <MarketIndicatorStrip locale={locale} headingId="export-indicators-heading" />}
     </>
   );
 }

@@ -9,6 +9,7 @@ import { listIndicators } from "@/lib/indicators/repository";
 import { INDICATOR_COPY } from "@/lib/indicators/presentation";
 import { isMarketIndicatorsLocale, MARKET_INDICATORS_COPY, MARKET_INDICATORS_LOCALES, MARKET_INDICATORS_ROUTE, type MarketIndicatorsLocale } from "@/lib/indicators/page";
 import { PRICE_PAGE_ROUTE } from "@/lib/pricing/price-page";
+import { indicatorsShareImagePath, SHARE_IMAGE_SIZE } from "@/lib/og/share-image-paths";
 import { PageHero } from "@/components/ui/page-hero";
 import { ButtonLink } from "@/components/ui/button";
 import Link from "@/components/ui/link";
@@ -38,6 +39,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     description: t.metaDescription,
     indexable: publicPageIndexable(),
     languageAlternates: buildLanguageAlternatesFromEntries(MARKET_INDICATORS_LOCALES.map((l) => ({ locale: l, path: MARKET_INDICATORS_ROUTE }))),
+    // W18.3: the build-time share image of this locale (indicators only, never an Ahan Asa price).
+    image: { url: `${siteConfig.baseUrl}${indicatorsShareImagePath(locale, "png")}`, ...SHARE_IMAGE_SIZE, alt: t.title },
   });
 }
 

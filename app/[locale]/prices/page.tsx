@@ -200,21 +200,15 @@ async function FamilyHubLinks({ locale }: { locale: PriceLocale }) {
 }
 
 /**
- * W18.2 — fa: the market indicators strip (reference indices, never our price) above the table. ar: a link to the ar
- * market-indicators page. Its own async boundary (r4), like the table.
+ * W18.2 — fa: the market indicators strip (reference indices, never our price) above the table. W18.3 — ar: the same
+ * strip, every card linking to the ar market-indicators page (and a text link to it). Its own async boundary (r4).
  */
 async function MarketIndicators({ locale }: { locale: PriceLocale }) {
   await Promise.resolve();
   const indicators = await listIndicators();
   if (indicators.length === 0) return null;
   if (locale === "fa") return <IndicatorStrip locale="fa" indicators={indicators} />;
-  return (
-    <div className="container-x pt-8">
-      <Link href={localizedPath(locale, MARKET_INDICATORS_ROUTE)} className="text-navy hover:text-copper text-sm font-semibold underline underline-offset-4">
-        {MARKET_INDICATORS_COPY.ar.title}
-      </Link>
-    </div>
-  );
+  return <IndicatorStrip locale="ar" indicators={indicators} link={{ href: localizedPath("ar", MARKET_INDICATORS_ROUTE), label: MARKET_INDICATORS_COPY.ar.title }} />;
 }
 
 /**

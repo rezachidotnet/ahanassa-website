@@ -197,7 +197,8 @@ test("wiring: the pages and components render the W18.2 surfaces where the owner
   const src = (f: string) => fs.readFileSync(path.join(REPO, f), "utf8");
   const product = src("app/[locale]/products/[slug]/page.tsx");
   assert.match(product, /<PriceDecision[\s\S]*rfqHref=\{priceRfqHref\("fa", main\.xid, mainPrice\.factoryName\)\}/);
-  assert.match(src("app/[locale]/page.tsx"), /locale === "fa" && <HomeIndicators \/>/);
+  // W18.3: en/ar get the same cards, linked to their market-indicators page (lib/og/share-images-w183.test.ts).
+  assert.match(src("app/[locale]/page.tsx"), /locale === "fa" \? <HomeIndicators \/> : isMarketIndicatorsLocale\(locale\) && <MarketIndicatorStrip locale=\{locale\} \/>/);
   assert.match(src("app/[locale]/prices/page.tsx"), /<MarketIndicators locale=\{locale\} \/>[\s\S]*<ChartLinks locale=\{locale\} \/>/);
   assert.match(src("app/[locale]/prices/chart/[slug]/page.tsx"), /if \(params\.locale !== "fa"\) return \[\];/);
   assert.match(src("app/[locale]/market-indicators/page.tsx"), /MARKET_INDICATORS_LOCALES\.map/);

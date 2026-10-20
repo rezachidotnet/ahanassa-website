@@ -56,6 +56,11 @@ export const ANALYTICS_EVENTS = {
   gauge_view: ["gauge_position", "gauge_window", "product_slug"],
   /** W18.2: «قیمت قطعی برای حجم شما» was clicked; `cta_location`: gauge (product page) | chart_page. */
   chart_to_rfq: ["cta_location", "product_slug", "product_family"],
+  /**
+   * W18.3: a fa chart page's «اشتراک در واتساپ» / «اشتراک در تلگرام» link or «کپی لینک برای بله» (copy-link) button was
+   * clicked; `share_method`: whatsapp | telegram | bale. Sent instead of whatsapp_click: sharing is not a contact with Ahan Asa.
+   */
+  chart_share: ["share_method", "product_slug"],
   /** W18.2: the en/ar "Steel market indicators" page was viewed; `page_lang` en | ar, `indicator_count` = indicators shown. */
   indicator_page_view: ["page_lang", "indicator_count"],
   /**
@@ -215,5 +220,15 @@ export function articleCtaLocation(link: Element): ArticleCtaLocation {
 
 /** W18.2: marks the RFQ CTA of a price gauge or a chart page (chart_to_rfq `cta_location`: gauge | chart_page). */
 export const CHART_RFQ_ATTRIBUTE = "data-chart-rfq";
-/** W18.2: the product page slug next to CHART_RFQ_ATTRIBUTE (chart_to_rfq `product_slug`). */
+/** W18.2: the product page slug next to CHART_RFQ_ATTRIBUTE (chart_to_rfq `product_slug`), and next to CHART_SHARE_ATTRIBUTE. */
 export const CHART_SLUG_ATTRIBUTE = "data-chart-slug";
+/** W18.3: marks a chart page's share link or button; its value is chart_share `share_method` (whatsapp | telegram | bale). */
+export const CHART_SHARE_ATTRIBUTE = "data-chart-share";
+export const CHART_SHARE_METHODS = ["whatsapp", "telegram", "bale"] as const;
+export type ChartShareMethod = (typeof CHART_SHARE_METHODS)[number];
+
+/** The chart_share params of a clicked link's `data-chart-share` / `data-chart-slug` values, or null (not a share link). */
+export function chartShareParams(method: string | null | undefined, slug: string | null | undefined): { share_method: ChartShareMethod; product_slug?: string } | null {
+  if (!method || !(CHART_SHARE_METHODS as readonly string[]).includes(method)) return null;
+  return { share_method: method as ChartShareMethod, ...(slug ? { product_slug: slug } : {}) };
+}

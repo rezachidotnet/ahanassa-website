@@ -31,3 +31,18 @@ async function readPriceChartProducts(): Promise<PriceChartProduct[]> {
 export async function priceChartForSlug(slug: string): Promise<PriceChartProduct | null> {
   return (await listPriceChartProducts()).find((p) => p.slug === slug) ?? null;
 }
+
+/**
+ * A chart page's data: the product, its /prices row (the lowest price of the reference size), the Tehran day of that
+ * price and the 90-day series, or null (no chart page for this slug this build). Shared by the page and the build's
+ * share image (W18.3), so both show the same price, date and line.
+ */
+export async function loadPriceChart(slug: string) {
+  const product = await priceChartForSlug(slug);
+  if (!product) return null;
+  const row = (await loadPriceTableRows("fa")).find((r) => r.xid === product.xid);
+  const currentDay = row ? tehranDay(row.price.pricedAt) : null;
+  if (!row || !currentDay) return null;
+  const series = chartSeries(await listDailyPriceHistory(product.xid), currentDay);
+  return series.length ? { product, row, currentDay, series } : null;
+}
