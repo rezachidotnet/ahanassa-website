@@ -2,6 +2,7 @@ import type { Locale } from "../../config/locales.ts";
 import type { PriceBlockData } from "./price-block-presentation.ts";
 import type { FactoryPrice } from "./product-page-price-repository.ts";
 import { PRICE_LOCALES, type PriceLocale } from "./price-locale.ts";
+import { arPriceDescription, datedHeading, datedTitleBodies, DESCRIPTION_MAX, faPriceDescription, fitText, fitTitle, listAr, listFa, type PriceDay } from "./price-titles.ts";
 
 /**
  * W9.6 — the daily price page (owner-approved 2026-10-09): ONE table of every priced variant of every
@@ -54,10 +55,6 @@ export const PRICE_PAGE_COPY: Record<
     empty: string;
     emptyCta: string;
     swipe: string;
-    /** W16.3 (keyword map §7.2): the dated title/H1/meta of a day with prices; `families` = the hub names that day. */
-    metaTitleDated: (date: string, families: string[]) => string;
-    metaDescriptionDated: (families: string[]) => string;
-    titleDated: (date: string) => string;
     /** W16.3: the H2 sections (§8 item 1): one per family hub, then the full table. */
     familiesTitle: string;
     familyLink: (name: string) => string;
@@ -86,9 +83,6 @@ export const PRICE_PAGE_COPY: Record<
     empty: "در حال حاضر قیمتی منتشر نشده است. برای قیمت روز استعلام بگیرید.",
     emptyCta: "ارسال درخواست استعلام",
     swipe: "جدول را افقی بکشید",
-    metaTitleDated: (d, f) => `قیمت آهن‌آلات امروز ${d}؛ ${f.slice(0, 3).join("، ")}`,
-    metaDescriptionDated: (f) => `قیمت امروز ${listFa(f)} به تومان برای هر کیلوگرم، با کارخانه، محل تحویل و ارزش افزوده. برای قیمت نهایی سفارش استعلام بگیرید.`,
-    titleDated: (d) => `قیمت روز آهن‌آلات — ${d}`,
     familiesTitle: "قیمت روز به تفکیک گروه کالایی",
     familyLink: (n) => `قیمت روز ${n}`,
     familyProducts: "محصولات این گروه:",
@@ -114,9 +108,6 @@ export const PRICE_PAGE_COPY: Record<
     empty: "لا توجد أسعار منشورة حاليًا. أرسل طلب تسعير للحصول على سعر اليوم.",
     emptyCta: "إرسال طلب تسعير",
     swipe: "اسحب الجدول أفقيًا",
-    metaTitleDated: (d) => `أسعار الحديد الإيراني اليوم ${d}`,
-    metaDescriptionDated: (f) => `أسعار ${listAr(f)} الإيرانية اليوم بالتومان لكل كيلوغرام، شاملة ضريبة القيمة المضافة. اطلب السعر النهائي لطلبك.`,
-    titleDated: (d) => `أسعار الحديد اليوم — ${d}`,
     familiesTitle: "أسعار اليوم حسب فئة المنتج",
     familyLink: (n) => `سعر ${n} اليوم`,
     familyProducts: "منتجات هذه الفئة:",
@@ -126,13 +117,33 @@ export const PRICE_PAGE_COPY: Record<
   },
 };
 
-/** «الف، ب و ج» */
-function listFa(items: string[]): string {
-  return items.length < 2 ? (items[0] ?? "") : `${items.slice(0, -1).join("، ")} و ${items[items.length - 1]}`;
+/**
+ * W16.8 (keyword map §7.2) — the dated `<title>` of `/prices` (titleAbsolute, ≤ 60): fa «قیمت آهن‌آلات امروز
+ * ۲۸ مهر ۱۴۰۵؛ میلگرد، تیرآهن، ورق | آهن آسا» (fewer family names, then no brand, when long); ar «أسعار الحديد
+ * الإيراني اليوم ٢٠ أكتوبر ٢٠٢٦ | آهن آسا». `families` = the hub names of the day, in title-demand order.
+ */
+export function pricePageTitle(locale: PriceLocale, day: PriceDay, families: readonly string[]): string {
+  if (locale === "ar") return fitTitle("ar", datedTitleBodies("ar", "أسعار الحديد الإيراني", day));
+  const tails = [3, 2].filter((n) => families.length >= n).map((n) => families.slice(0, n).join("، "));
+  return fitTitle("fa", datedTitleBodies("fa", "قیمت آهن‌آلات", day, tails));
 }
-/** «أ وب وج» — Arabic joins every item with و. */
-function listAr(items: string[]): string {
-  return items.join(" و");
+
+/** W16.8: the H1 of `/prices`: «قیمت امروز آهن‌آلات — ۲۸ مهر ۱۴۰۵» / «أسعار الحديد اليوم — …» (stale: «… — به‌روزرسانی …»). */
+export function pricePageHeading(locale: PriceLocale, day: PriceDay): string {
+  return locale === "fa" ? datedHeading("fa", "قیمت", "آهن‌آلات", day) : datedHeading("ar", "أسعار", "الحديد", day);
+}
+
+/** W16.8: the meta description of `/prices` (≤ 155, no amount): the date, the families (fewer when long) and what the table shows. */
+export function pricePageDescription(locale: PriceLocale, day: PriceDay, families: readonly string[], rows: readonly { price: { previousPricedAt?: string | null } }[]): string {
+  const change = rows.some((r) => Boolean(r.price.previousPricedAt));
+  const counts = [families.length, 5, 3, 2].filter((n, i, all) => n <= families.length && all.indexOf(n) === i);
+  return fitText(
+    DESCRIPTION_MAX,
+    counts.map((n) => {
+      const names = families.slice(0, n);
+      return locale === "ar" ? arPriceDescription(day, "أسعار", `${listAr(names)} الإيرانية`, "حسب المقاس") : faPriceDescription(day, { what: listFa(names), change, weight: null });
+    }),
+  );
 }
 
 export interface PriceTableRow {

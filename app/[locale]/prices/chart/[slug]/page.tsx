@@ -8,7 +8,8 @@ import { datasetSchema, jsonLdGraph } from "@/lib/seo/schema";
 import { PRICE_DISCLAIMER } from "@/lib/pricing/product-page-price";
 import { PRICE_PAGE_COPY, PRICE_PAGE_ROUTE } from "@/lib/pricing/price-page";
 import { priceWindows } from "@/lib/pricing/price-position";
-import { PRICE_CHART_COPY, priceChartPath } from "@/lib/pricing/price-charts";
+import { chartDescription, chartHeading, chartTitle, PRICE_CHART_COPY, priceChartPath } from "@/lib/pricing/price-charts";
+import { loadPriceDay } from "@/lib/pricing/price-page-data";
 import { listPriceChartProducts, loadPriceChart } from "@/lib/pricing/price-chart-data";
 import { chartShareImagePath, SHARE_IMAGE_SIZE } from "@/lib/og/share-image-paths";
 import { priceRfqHref } from "@/lib/pricing/price-rfq";
@@ -44,11 +45,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const chart = await resolve(locale, slug);
   if (!chart) return {};
   const path = priceChartPath(slug);
+  // W16.8: the chart price's day; «امروز» only when it is the snapshot's day.
+  const day = loadPriceDay("fa", chart.row.price.pricedAt);
   return buildPageMetadata({
     locale: "fa",
     path,
-    title: PRICE_CHART_COPY.metaTitle(chart.product.productName),
-    description: PRICE_CHART_COPY.description(chart.product.productName, chart.product.size),
+    title: chartTitle(chart.product.productName, day),
+    titleAbsolute: true,
+    description: chartDescription(chart.product.productName, chart.product.size, day),
     indexable: publicPageIndexable(),
     languageAlternates: buildLanguageAlternatesFromEntries([{ locale: "fa", path }]),
     // W18.3: the build-time share image (scripts/static/build.ts); its alt names the page, never the price.
@@ -120,7 +124,7 @@ export default async function PriceChartPage({ params }: PageProps) {
       <PageHero
         locale="fa"
         eyebrow={t.eyebrow}
-        title={t.title(chart.product.productName)}
+        title={chartHeading(chart.product.productName, loadPriceDay("fa", chart.row.price.pricedAt))}
         body={t.body}
         breadcrumb={[
           { path: PRICE_PAGE_ROUTE, label: PRICE_PAGE_COPY.fa.eyebrow },

@@ -5,6 +5,7 @@ import { formatTomanAmount } from "./product-page-price.ts";
 import { POSITION_MIN_POINTS, priceWindows, windowPoints, type PositionWindow, type PricePosition, type WindowStats } from "./price-position.ts";
 import type { DailyPoint } from "./price-history.ts";
 import { PRICE_HUB_CATEGORY_CODES } from "./price-hubs.ts";
+import { datedTitleBodies, DESCRIPTION_MAX, fitText, fitTitle, type PriceDay } from "./price-titles.ts";
 
 /**
  * W18.2 — the fa decision block (product pages) and the fa chart pages «نمودار و روند قیمت <محصول>»
@@ -54,7 +55,6 @@ export const PRICE_DECISION_COPY = {
 export const PRICE_CHART_COPY = {
   eyebrow: "نمودار قیمت",
   title: (product: string) => `نمودار و روند قیمت ${product}`,
-  metaTitle: (product: string) => `نمودار و روند قیمت ${product} | ۹۰ روز اخیر`,
   description: (product: string, size: string) => `نمودار قیمت روزانه ${product} (${size}) در ۹۰ روز اخیر، از قیمت‌های منتشرشده آهن آسا، با جدول قیمت روزانه و جایگاه قیمت امروز.`,
   body: "قیمت روزانه منتشرشده آهن آسا (کمترین قیمت، تومان به ازای هر کیلوگرم با ارزش افزوده) برای اندازه مرجع این محصول. نمودار روند گذشته را نشان می‌دهد؛ پیش‌بینی قیمت نیست.",
   referenceSize: "اندازه مرجع",
@@ -80,6 +80,41 @@ export const PRICE_CHART_COPY = {
   shareBale: "کپی لینک برای بله",
   linkCopied: "لینک کپی شد",
 } as const;
+
+/**
+ * W16.8 — a chart page's dated `<title>` (titleAbsolute, ≤ 60): «نمودار قیمت تیرآهن IPE امروز ۲۸ مهر ۱۴۰۵ | آهن آسا»,
+ * or «… — به‌روزرسانی {date}» when the chart's price is not from the snapshot's day; the brand drops first.
+ */
+export function chartTitle(product: string, day: PriceDay): string {
+  // A long name loses its parenthesised part («لوله بدون درز (مانیسمان) ASTM A106 گرید B» → «لوله بدون درز ASTM A106 گرید B»);
+  // a long stale title says «تا {date}» (the chart runs up to that day) instead of «— به‌روزرسانی {date}».
+  const names = [...new Set([product, product.replace(/\s*\([^)]*\)/g, "").trim()])];
+  return fitTitle(
+    "fa",
+    names.flatMap((name) => [...datedTitleBodies("fa", `نمودار قیمت ${name}`, day), ...(day.today ? [] : [`نمودار قیمت ${name} تا ${day.date}`])]),
+  );
+}
+
+/** W16.8: the chart page H1: «نمودار و روند قیمت {product} — امروز ۲۸ مهر ۱۴۰۵» / «… — به‌روزرسانی ۲۶ مهر ۱۴۰۵». */
+export function chartHeading(product: string, day: PriceDay): string {
+  return `${PRICE_CHART_COPY.title(product)} — ${day.today ? "امروز" : "به‌روزرسانی"} ${day.date}`;
+}
+
+/** W16.8: the product name inside a chart page H1 (chartHeading's inverse; the price gate checks the chart texts against it). */
+export function chartHeadingProduct(h1: string): string {
+  const prefix = PRICE_CHART_COPY.title("");
+  return (h1.startsWith(prefix) ? h1.slice(prefix.length) : h1).replace(/ — (?:امروز|به‌روزرسانی) [^—]+$/, "");
+}
+
+/** W16.8: the chart page meta description (≤ 155, no amount): the window up to the price date and what the page shows. */
+export function chartDescription(product: string, size: string, day: PriceDay): string {
+  const until = day.today ? `تا امروز ${day.date}` : `تا ${day.date} (آخرین به‌روزرسانی)`;
+  const position = day.today ? "جایگاه قیمت امروز" : "جایگاه آخرین قیمت";
+  return fitText(DESCRIPTION_MAX, [
+    `نمودار قیمت روزانه ${product} (${size}) در ۹۰ روز اخیر ${until}، با جدول قیمت روزانه، ${position} و استعلام قیمت نهایی.`,
+    `نمودار قیمت روزانه ${product} (${size}) در ۹۰ روز اخیر ${until}، با جدول قیمت و ${position}.`,
+  ]);
+}
 
 /** The shared text: the page title, then its URL — never a price (WhatsApp's share text, and what «کپی لینک برای بله» copies). */
 export function chartShareText(url: string, title: string): string {

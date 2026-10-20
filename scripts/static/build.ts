@@ -86,6 +86,8 @@ const buildEnv: NodeJS.ProcessEnv = {
   ...process.env,
   AHANASSA_STATIC_EXPORT: "1",
   AHANASSA_SNAPSHOT_FILE: snapshotFile,
+  // W16.8: the snapshot's day (when the pipeline fetched Odoo) — a price of that Tehran day is «امروز» in the price titles.
+  AHANASSA_SNAPSHOT_FETCHED_AT: snapshot.source.fetched_at,
   AHANASSA_MIGRATIONS_DIR: path.join(buildRoot, "migrations_public"),
   APP_ENV: environment,
   AHANASSA_RFQ_API_ORIGIN: target.rfqApiOrigin,

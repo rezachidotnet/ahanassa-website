@@ -1,5 +1,6 @@
 import { PRICE_PAGE_ROUTE, type PriceTableRow } from "./price-page.ts";
 import type { PriceLocale } from "./price-locale.ts";
+import { arPriceDescription, datedHeading, datedTitleBodies, faPriceDescription, fitTitle, type PriceDay } from "./price-titles.ts";
 import { compareCommercialSize } from "../catalog/specification-presenter.ts";
 
 /**
@@ -103,116 +104,75 @@ function groupBy<T>(rows: readonly T[], keyOf: (row: T) => string, idOf: (key: s
 interface HubFamilyCopy {
   /** The family name inside headings and anchors («میلگرد», «حديد التسليح»). */
   name: string;
-  /** `<title>` body, before the layout's brand suffix. */
-  title: (date: string) => string;
-  h1: (date: string) => string;
-  metaDescription: string;
+  /** W16.8: the `<title>` subject after «قیمت» / «سعر» («ورق سیاه», «حديد التسليح الإيراني»). */
+  titleSubject: string;
+  /** W16.8: fa title tail after «؛», dropped first when the title is too long; null = none. */
+  titleTail: string | null;
+  /** W16.8: the H1 subject («قیمت امروز {h1Subject} — {date}»). */
+  h1Subject: string;
+  /** W16.8: meta description subject; fa with how the prices are split («… به تفکیک سایز»). */
+  metaWhat: string;
+  /** W16.8: ar meta, how the prices are split («حسب المقاس»); "" on fa (inside metaWhat). */
+  metaBy: string;
+  /** W16.8: fa meta, the weight the table shows («وزن هر شاخه»); null on ar. */
+  weight: string | null;
 }
 
 /**
  * Per-family copy (keyword map §7.2). ar: Arabic letters only (ي ك), the Iraqi trade words of §3.5
- * (الشيش، الشيلمان، الصاج) next to the formal term, and never a factory or a delivery location.
+ * (الشيش، الشيلمان، الصاج) next to the formal term, and never a factory or a delivery location. The dated
+ * title, H1 and meta are built by hubTitle / hubHeading / hubDescription (lib/pricing/price-titles.ts).
  */
 export const PRICE_HUB_FAMILY_COPY: Record<PriceHubCategoryCode, Record<PriceLocale, HubFamilyCopy>> = {
   REBAR: {
-    fa: {
-      name: "میلگرد",
-      title: (d) => `قیمت میلگرد امروز ${d}؛ آجدار و ساده`,
-      h1: (d) => `قیمت روز میلگرد — ${d}`,
-      metaDescription: "قیمت امروز میلگرد آجدار و ساده به تفکیک سایز و کارخانه، به تومان برای هر کیلوگرم، با محل تحویل، وزن هر شاخه و ارزش افزوده. استعلام قیمت نهایی.",
-    },
-    ar: {
-      name: "حديد التسليح",
-      title: (d) => `سعر حديد التسليح الإيراني اليوم ${d}`,
-      h1: (d) => `سعر حديد التسليح (الشيش) اليوم — ${d}`,
-      metaDescription: "سعر حديد التسليح (الشيش) الإيراني اليوم حسب المقاس، بالتومان لكل كيلوغرام شاملًا ضريبة القيمة المضافة، مع وزن كل قضيب. اطلب السعر النهائي لطلبك.",
-    },
+    fa: { name: "میلگرد", titleSubject: "میلگرد", titleTail: "آجدار و ساده", h1Subject: "میلگرد", metaWhat: "میلگرد آجدار و ساده به تفکیک سایز", metaBy: "", weight: "وزن هر شاخه" },
+    ar: { name: "حديد التسليح", titleSubject: "حديد التسليح الإيراني", titleTail: null, h1Subject: "حديد التسليح (الشيش)", metaWhat: "حديد التسليح (الشيش) الإيراني", metaBy: "حسب المقاس", weight: null },
   },
   BEAM: {
-    fa: {
-      name: "تیرآهن",
-      title: (d) => `قیمت تیرآهن امروز ${d}`,
-      h1: (d) => `قیمت روز تیرآهن — ${d}`,
-      metaDescription: "قیمت امروز تیرآهن به تفکیک سایز و کارخانه، به تومان برای هر کیلوگرم، با محل تحویل و وزن هر شاخه. استعلام قیمت نهایی تیرآهن.",
-    },
-    ar: {
-      name: "الشيلمان",
-      title: (d) => `سعر الشيلمان الإيراني اليوم ${d}`,
-      h1: (d) => `سعر الشيلمان (الكمرات) اليوم — ${d}`,
-      metaDescription: "سعر الشيلمان (كمرات IPE) الإيراني اليوم حسب المقاس، بالتومان لكل كيلوغرام شاملًا ضريبة القيمة المضافة، مع وزن كل قطعة. اطلب السعر النهائي.",
-    },
+    fa: { name: "تیرآهن", titleSubject: "تیرآهن", titleTail: null, h1Subject: "تیرآهن", metaWhat: "تیرآهن به تفکیک سایز", metaBy: "", weight: "وزن هر شاخه" },
+    ar: { name: "الشيلمان", titleSubject: "الشيلمان الإيراني", titleTail: null, h1Subject: "الشيلمان (الكمرات)", metaWhat: "الشيلمان (كمرات IPE) الإيراني", metaBy: "حسب المقاس", weight: null },
   },
   ANGLE: {
-    fa: {
-      name: "نبشی",
-      title: (d) => `قیمت نبشی امروز ${d}`,
-      h1: (d) => `قیمت روز نبشی — ${d}`,
-      metaDescription: "قیمت امروز نبشی مساوی به تفکیک سایز و کارخانه، به تومان برای هر کیلوگرم، با محل تحویل و وزن. استعلام قیمت نهایی نبشی.",
-    },
-    ar: {
-      name: "الزوايا",
-      title: (d) => `سعر الزاوية الحديد اليوم ${d}`,
-      h1: (d) => `سعر الزوايا الحديد اليوم — ${d}`,
-      metaDescription: "سعر الزاوية الحديد الإيرانية اليوم حسب المقاس، بالتومان لكل كيلوغرام شاملًا ضريبة القيمة المضافة. اطلب السعر النهائي لطلبك.",
-    },
+    fa: { name: "نبشی", titleSubject: "نبشی", titleTail: null, h1Subject: "نبشی", metaWhat: "نبشی مساوی به تفکیک سایز", metaBy: "", weight: "وزن هر شاخه" },
+    ar: { name: "الزوايا", titleSubject: "الزاوية الحديد", titleTail: null, h1Subject: "الزوايا الحديد", metaWhat: "الزاوية الحديد الإيرانية", metaBy: "حسب المقاس", weight: null },
   },
   CHANNEL: {
-    fa: {
-      name: "ناودانی",
-      title: (d) => `قیمت ناودانی امروز ${d}`,
-      h1: (d) => `قیمت روز ناودانی — ${d}`,
-      metaDescription: "قیمت امروز ناودانی به تفکیک سایز و کارخانه، به تومان برای هر کیلوگرم، با محل تحویل و وزن. استعلام قیمت نهایی ناودانی.",
-    },
-    ar: {
-      name: "المجاري",
-      title: (d) => `سعر المجاري الحديد اليوم ${d}`,
-      h1: (d) => `سعر المجاري الحديد اليوم — ${d}`,
-      metaDescription: "سعر المجاري الحديد الإيرانية اليوم حسب المقاس، بالتومان لكل كيلوغرام شاملًا ضريبة القيمة المضافة. اطلب السعر النهائي لطلبك.",
-    },
+    fa: { name: "ناودانی", titleSubject: "ناودانی", titleTail: null, h1Subject: "ناودانی", metaWhat: "ناودانی به تفکیک سایز", metaBy: "", weight: "وزن هر شاخه" },
+    ar: { name: "المجاري", titleSubject: "المجاري الحديد", titleTail: null, h1Subject: "المجاري الحديد", metaWhat: "المجاري الحديد الإيرانية", metaBy: "حسب المقاس", weight: null },
   },
   BOX_SECTION: {
-    fa: {
-      name: "قوطی و پروفیل",
-      title: (d) => `قیمت قوطی و پروفیل امروز ${d}`,
-      h1: (d) => `قیمت روز قوطی و پروفیل — ${d}`,
-      metaDescription: "قیمت امروز قوطی مربع و مستطیل (SHS و RHS) به تفکیک سایز، ضخامت و کارخانه، به تومان برای هر کیلوگرم، با وزن هر شاخه.",
-    },
-    ar: {
-      name: "الحديد المربع والمستطيل",
-      title: (d) => `سعر الحديد المربع الإيراني اليوم ${d}`,
-      h1: (d) => `سعر الحديد المربع والمستطيل اليوم — ${d}`,
-      metaDescription: "سعر الحديد المربع والمستطيل (العلب) الإيراني اليوم حسب المقاس والسماكة، بالتومان لكل كيلوغرام شاملًا ضريبة القيمة المضافة.",
-    },
+    fa: { name: "قوطی و پروفیل", titleSubject: "قوطی و پروفیل", titleTail: null, h1Subject: "قوطی و پروفیل", metaWhat: "قوطی مربع و مستطیل به تفکیک سایز و ضخامت", metaBy: "", weight: "وزن هر شاخه" },
+    ar: { name: "الحديد المربع والمستطيل", titleSubject: "الحديد المربع الإيراني", titleTail: null, h1Subject: "الحديد المربع والمستطيل", metaWhat: "الحديد المربع والمستطيل الإيراني", metaBy: "حسب المقاس والسماكة", weight: null },
   },
   SHEET_PLATE: {
-    fa: {
-      name: "ورق",
-      title: (d) => `قیمت ورق سیاه امروز ${d}؛ ST37 و ST52`,
-      h1: (d) => `قیمت روز ورق — ${d}`,
-      metaDescription: "قیمت امروز ورق سیاه گرم‌نورد و ورق ضخیم S235JR و S355JR به تفکیک ضخامت و کارخانه، به تومان برای هر کیلوگرم، با وزن هر ورق.",
-    },
-    ar: {
-      name: "الصاج",
-      title: (d) => `سعر الصاج الإيراني اليوم ${d}`,
-      h1: (d) => `سعر الصاج والألواح اليوم — ${d}`,
-      metaDescription: "سعر الصاج والألواح الفولاذية الإيرانية S235JR وS355JR اليوم حسب السماكة، بالتومان لكل كيلوغرام شاملًا ضريبة القيمة المضافة، مع وزن كل لوح.",
-    },
+    fa: { name: "ورق", titleSubject: "ورق سیاه", titleTail: "ST37 و ST52", h1Subject: "ورق", metaWhat: "ورق سیاه و ورق ضخیم به تفکیک ضخامت", metaBy: "", weight: "وزن هر ورق" },
+    ar: { name: "الصاج", titleSubject: "الصاج الإيراني", titleTail: null, h1Subject: "الصاج والألواح", metaWhat: "الصاج والألواح الفولاذية الإيرانية", metaBy: "حسب السماكة", weight: null },
   },
   PIPE: {
-    fa: {
-      name: "لوله مانیسمان",
-      title: (d) => `قیمت لوله مانیسمان امروز ${d}`,
-      h1: (d) => `قیمت روز لوله مانیسمان — ${d}`,
-      metaDescription: "قیمت امروز لوله بدون درز (مانیسمان) به تفکیک سایز و کارخانه، به تومان برای هر کیلوگرم، با محل تحویل و وزن هر شاخه.",
-    },
-    ar: {
-      name: "الأنابيب غير الملحومة",
-      title: (d) => `سعر الأنابيب غير الملحومة اليوم ${d}`,
-      h1: (d) => `سعر الأنابيب غير الملحومة اليوم — ${d}`,
-      metaDescription: "سعر الأنابيب الفولاذية غير الملحومة الإيرانية اليوم حسب المقاس، بالتومان لكل كيلوغرام شاملًا ضريبة القيمة المضافة.",
-    },
+    fa: { name: "لوله مانیسمان", titleSubject: "لوله مانیسمان", titleTail: null, h1Subject: "لوله مانیسمان", metaWhat: "لوله بدون درز (مانیسمان) به تفکیک سایز", metaBy: "", weight: "وزن هر شاخه" },
+    ar: { name: "الأنابيب غير الملحومة", titleSubject: "الأنابيب غير الملحومة", titleTail: null, h1Subject: "الأنابيب غير الملحومة", metaWhat: "الأنابيب غير الملحومة الإيرانية", metaBy: "حسب المقاس", weight: null },
   },
 };
+
+const PRICE_LEAD: Record<PriceLocale, string> = { fa: "قیمت", ar: "سعر" };
+
+/** W16.8: a hub's full `<title>` (titleAbsolute): «قیمت میلگرد امروز ۲۸ مهر ۱۴۰۵؛ آجدار و ساده | آهن آسا», ≤ 60. */
+export function hubTitle(locale: PriceLocale, family: PriceHubCategoryCode, day: PriceDay): string {
+  const c = PRICE_HUB_FAMILY_COPY[family][locale];
+  return fitTitle(locale, datedTitleBodies(locale, `${PRICE_LEAD[locale]} ${c.titleSubject}`, day, c.titleTail ? [c.titleTail] : []));
+}
+
+/** W16.8: a hub's H1: «قیمت امروز میلگرد — ۲۸ مهر ۱۴۰۵» / «قیمت میلگرد — به‌روزرسانی ۲۶ مهر ۱۴۰۵». */
+export function hubHeading(locale: PriceLocale, family: PriceHubCategoryCode, day: PriceDay): string {
+  return datedHeading(locale, PRICE_LEAD[locale], PRICE_HUB_FAMILY_COPY[family][locale].h1Subject, day);
+}
+
+/** W16.8: a hub's meta description (≤ 155, no amount): the date and what the page shows. */
+export function hubDescription(locale: PriceLocale, family: PriceHubCategoryCode, day: PriceDay, rows: readonly { price: { previousPricedAt?: string | null }; weight: unknown }[]): string {
+  const c = PRICE_HUB_FAMILY_COPY[family][locale];
+  if (locale === "ar") return arPriceDescription(day, PRICE_LEAD.ar, c.metaWhat, c.metaBy);
+  return faPriceDescription(day, { what: c.metaWhat, change: rows.some((r) => Boolean(r.price.previousPricedAt)), weight: rows.some((r) => r.weight) ? c.weight : null });
+}
 
 interface HubPageCopy {
   eyebrow: string;

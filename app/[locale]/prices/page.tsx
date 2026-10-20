@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { isLocale, localizedPath, type Locale } from "@/config/locales";
 import { buildPageMetadata, buildLanguageAlternatesFromEntries } from "@/lib/metadata/resolve";
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";
-import { presentPriceCell, PRICE_CELL_ATTRIBUTE, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, PRICE_RANK_ATTRIBUTE, priceDateLabel, type PriceLocale } from "@/lib/pricing/product-page-price";
-import { filterOptions, isPricePagePublished, latestPricedAt, PRICE_PAGE_COPY, PRICE_PAGE_LOCALES, PRICE_PAGE_ROUTE, PRICE_ROW_FACTORY_ATTRIBUTE, PRICE_ROW_FAMILY_ATTRIBUTE, type PriceTableRow } from "@/lib/pricing/price-page";
-import { loadPriceTableRows } from "@/lib/pricing/price-page-data";
+import { presentPriceCell, PRICE_CELL_ATTRIBUTE, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, PRICE_RANK_ATTRIBUTE, type PriceLocale } from "@/lib/pricing/product-page-price";
+import { filterOptions, isPricePagePublished, latestPricedAt, PRICE_PAGE_COPY, pricePageDescription, pricePageHeading, pricePageTitle, PRICE_PAGE_LOCALES, PRICE_PAGE_ROUTE, PRICE_ROW_FACTORY_ATTRIBUTE, PRICE_ROW_FAMILY_ATTRIBUTE, type PriceTableRow } from "@/lib/pricing/price-page";
+import { loadPriceDay, loadPriceTableRows } from "@/lib/pricing/price-page-data";
+import type { PriceDay } from "@/lib/pricing/price-titles";
 import { byTitleDemand, PRICE_HUB_FAMILY_COPY, priceHubPath, publishedHubFamilies } from "@/lib/pricing/price-hubs";
 import { isWeightCalculatorPublished, WEIGHT_CALCULATOR_ROUTE } from "@/lib/weight-calculator/publication";
 import { PageHero } from "@/components/ui/page-hero";
@@ -33,22 +34,28 @@ export function generateStaticParams(): { locale: Locale }[] {
 
 const pageLocale = (raw: string): PriceLocale => (isLocale(raw) && isPricePagePublished(raw) ? raw : "fa");
 
-/** W16.3 (keyword map §7.2): the date of the newest price and the hub family names of the day, or null with no rows. */
-function dayOf(locale: PriceLocale, rows: readonly PriceTableRow[]): { date: string; families: string[] } | null {
-  const latest = latestPricedAt(rows);
+/**
+ * W16.3/W16.8 (keyword map §7.2): the newest price's day — the same time as the page's «آخرین به‌روزرسانی» (fa
+ * counts every factory row) — and the hub family names of the day, or null with no rows.
+ */
+function dayOf(locale: PriceLocale, rows: readonly PriceTableRow[]): { day: PriceDay; families: string[] } | null {
+  const latest = latestPricedAt(rows, locale === "fa");
   if (!latest) return null;
-  return { date: priceDateLabel(locale, latest), families: byTitleDemand(publishedHubFamilies(rows)).map((f) => PRICE_HUB_FAMILY_COPY[f][locale].name) };
+  return { day: loadPriceDay(locale, latest), families: byTitleDemand(publishedHubFamilies(rows)).map((f) => PRICE_HUB_FAMILY_COPY[f][locale].name) };
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const locale = pageLocale((await params).locale);
   const t = PRICE_PAGE_COPY[locale];
-  const day = dayOf(locale, await loadPriceTableRows(locale));
+  const rows = await loadPriceTableRows(locale);
+  const day = dayOf(locale, rows);
   return buildPageMetadata({
     locale,
     path: PRICE_PAGE_ROUTE,
-    title: day ? t.metaTitleDated(day.date, day.families) : t.metaTitle,
-    description: day && day.families.length ? t.metaDescriptionDated(day.families) : t.metaDescription,
+    // W16.8: the dated title carries its own (or no) brand, ≤ 60.
+    title: day ? pricePageTitle(locale, day.day, day.families) : t.metaTitle,
+    titleAbsolute: day !== null,
+    description: day && day.families.length ? pricePageDescription(locale, day.day, day.families, rows) : t.metaDescription,
     indexable: publicPageIndexable(),
     languageAlternates: buildLanguageAlternatesFromEntries(PRICE_PAGE_LOCALES.map((l) => ({ locale: l, path: PRICE_PAGE_ROUTE }))),
   });
@@ -253,7 +260,7 @@ export default async function PricesPage({ params }: PageProps) {
   const day = dayOf(locale, await loadPriceTableRows(locale));
   return (
     <>
-      <PageHero locale={locale} eyebrow={t.eyebrow} title={day ? t.titleDated(day.date) : t.title} body={t.body} breadcrumb={[{ path: PRICE_PAGE_ROUTE, label: t.eyebrow }]} />
+      <PageHero locale={locale} eyebrow={t.eyebrow} title={day ? pricePageHeading(locale, day.day) : t.title} body={t.body} breadcrumb={[{ path: PRICE_PAGE_ROUTE, label: t.eyebrow }]} />
       <MarketIndicators locale={locale} />
       <section aria-labelledby="price-table-title" className="border-border bg-background border-b section-y">
         <div className="container-x">

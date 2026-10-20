@@ -7,7 +7,8 @@ import { buildHeadersFile, buildRedirectsFile, renderSitemapXml, unpublishedExpo
 import { STATIC_TARGETS } from "./targets.ts";
 import { scanPublicFile } from "./leak-scan.ts";
 import { isNoindexPage, PRODUCTION_NOINDEX_PAGES, STATIC_PUBLIC_PATHS } from "../seo/indexing-policy.ts";
-import { byTitleDemand, groupByMill, groupBySize, millAnchorId, PRICE_HUB_CATEGORY_CODES, PRICE_HUB_FAMILY_COPY, PRICE_HUB_PAGE_COPY, priceHubPath, publishedHubFamilies, sizeAnchorId } from "../pricing/price-hubs.ts";
+import { priceDay } from "../pricing/price-titles.ts";
+import { byTitleDemand, groupByMill, groupBySize, hubDescription, hubHeading, hubTitle, millAnchorId, PRICE_HUB_CATEGORY_CODES, PRICE_HUB_FAMILY_COPY, PRICE_HUB_PAGE_COPY, priceHubPath, publishedHubFamilies, sizeAnchorId } from "../pricing/price-hubs.ts";
 import { PRICE_PAGE_COPY } from "../pricing/price-page.ts";
 import { CATEGORY_LINK_COPY, CATEGORY_SEO, categorySeo } from "../content/category-seo.ts";
 import { RAW_MATERIAL_LOCALES, RAW_MATERIAL_SLUGS, RAW_MATERIALS, RAW_MATERIALS_UI } from "../content/raw-materials.ts";
@@ -98,14 +99,19 @@ test("hubs: a family is published only on a day it has rows; grouping keeps tabl
 });
 
 test("hub copy: every hub family has fa and ar copy; titles carry the date; ar is Arabic-only and never names a mill", () => {
+  const rows = [{ price: { previousPricedAt: "2026-10-19T08:00:00Z" }, weight: { label: "w", value: "1" } }];
+  const arTexts: string[] = [];
   for (const code of PRICE_HUB_CATEGORY_CODES) {
     for (const locale of ["fa", "ar"] as const) {
-      const c = PRICE_HUB_FAMILY_COPY[code][locale];
-      assert.ok(c.title("DATE").includes("DATE") && c.h1("DATE").includes("DATE"), `${code}/${locale} dated`);
-      assert.ok(c.metaDescription.length >= 100 && c.metaDescription.length <= 170, `${code}/${locale} meta length ${c.metaDescription.length}`);
+      const day = priceDay(locale, "2026-10-20T08:00:00Z", "2026-10-20T09:00:00Z");
+      const title = hubTitle(locale, code, day);
+      const meta = hubDescription(locale, code, day, rows);
+      assert.ok(title.includes(day.date) && hubHeading(locale, code, day).includes(day.date), `${code}/${locale} dated`);
+      assert.ok(meta.includes(day.date) && meta.length >= 100 && meta.length <= 155, `${code}/${locale} meta length ${meta.length}`);
+      if (locale === "ar") arTexts.push(title, meta, hubHeading(locale, code, day), hubTitle(locale, code, { ...day, today: false }), hubDescription(locale, code, { ...day, today: false }, rows));
     }
   }
-  const ar = [...strings(Object.values(PRICE_HUB_FAMILY_COPY).map((c) => c.ar)), ...strings(PRICE_HUB_PAGE_COPY.ar, "حديد التسليح")];
+  const ar = [...arTexts, ...strings(Object.values(PRICE_HUB_FAMILY_COPY).map((c) => c.ar)), ...strings(PRICE_HUB_PAGE_COPY.ar, "حديد التسليح")];
   assert.deepEqual(languageFindings("ar", ar), []);
   assert.ok(!ar.some((s) => /مصنع|معمل|موقع التسليم/.test(s)), "ar never mentions a factory or a delivery location");
   assert.deepEqual(languageFindings("ar", strings(PRICE_PAGE_COPY.ar, "١ أكتوبر")), []);

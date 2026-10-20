@@ -26,6 +26,8 @@ import { PriceDecision } from "@/components/products/price-decision";
 import { priceWindows, windowPoints } from "@/lib/pricing/price-position";
 import { chartWindowStart, priceChartPath, PRICE_CHART_WINDOW_DAYS } from "@/lib/pricing/price-charts";
 import { priceChartForSlug } from "@/lib/pricing/price-chart-data";
+import { loadPriceDay } from "@/lib/pricing/price-page-data";
+import { faProductPriceTitle, type PriceDay } from "@/lib/pricing/price-titles";
 import { listIndicators } from "@/lib/indicators/repository";
 import { ProductRelatedLinks } from "@/components/products/product-related-links";
 import { GroupServicesBox } from "@/components/group/group-services-box";
@@ -67,10 +69,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     publishedLocales.map(({ locale: l, slug: s }) => ({ locale: l, path: `/products/${s}` })),
   );
 
+  const title = entry.seo.seoTitle ?? entry.seo.h1 ?? entry.product.commercialTemplateName;
+  // W16.8: a fa page with a published price says so, with the newest price's date («— قیمت امروز ۲۸ مهر ۱۴۰۵»), when it fits 60.
+  const priced = locale === "fa" ? await newestPriceDay(entry.variants) : null;
+
   return buildPageMetadata({
     locale,
     path: `/products/${slug}`,
-    title: entry.seo.seoTitle ?? entry.seo.h1 ?? entry.product.commercialTemplateName,
+    title: priced ? faProductPriceTitle(title, priced) : title,
+    titleAbsolute: priced !== null,
     description: entry.seo.seoDescription ?? entry.seo.intro ?? "",
     // D6 (docs/OWNER_DECISIONS.md): every published product page is
     // index,follow on the production target; other targets keep the
@@ -78,6 +85,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     indexable: publicPageIndexable(entry.seo.indexStatus === "index"),
     languageAlternates,
   });
+}
+
+/** W16.8: the fa day of the newest published price of the page's variants, or null when none has a price (or outside the static build). */
+async function newestPriceDay(variants: readonly ProductVariant[]): Promise<PriceDay | null> {
+  const prices = await listProductPagePrices(variants.map((v) => v.xid));
+  const newest = [...(prices?.values() ?? [])].reduce<string | null>((max, p) => (max === null || p.pricedAt > max ? p.pricedAt : max), null);
+  return newest ? loadPriceDay("fa", newest) : null;
 }
 
 /**
