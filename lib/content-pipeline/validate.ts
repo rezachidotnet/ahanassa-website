@@ -4,6 +4,7 @@ import type { OdooSource } from "./odoo-source.ts";
 import { validatePricing, type PricingOutcome } from "./pricing.ts";
 import { validatePricingHistory } from "./pricing-history.ts";
 import { categoryContainsVariant, claimedFormCodes, toPublicCatalogCategory } from "../catalog/public-categories.ts";
+import { validateVariantAllowlist } from "./variant-publication-allowlist.ts";
 
 /**
  * Architecture V1.1 §7.1 step 2: schema, relations and counts of one full
@@ -179,6 +180,8 @@ export function validateSource(odoo: OdooSource, tables: Tables, previousCounts:
     if (p.is_active !== 1) warnings.push(`editorial: ${s.locale}/${s.slug} is published but its template ${p.template_xid} is no longer in Odoo (page will not be built)`);
     else if (!activeVariantsByProduct.get(p.id)) warnings.push(`editorial: ${s.locale}/${s.slug} is published but has no active public variant`);
   }
+  // W9.12: a public-on-first-publish SKU that is active but not public (warning only; absent SKUs say nothing).
+  warnings.push(...validateVariantAllowlist(tables.product_variants));
   return { errors, warnings, counts, pricing: { outcome: pricing.outcome, summary: pricing.summary, ignored: pricing.ignored, history: history.summary } };
 }
 
