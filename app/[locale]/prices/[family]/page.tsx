@@ -5,10 +5,10 @@ import { buildPageMetadata, buildLanguageAlternatesFromEntries } from "@/lib/met
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";
 import { categoryListingPath } from "@/lib/catalog/public-categories";
 import { NOMINAL_WEIGHT_DISCLAIMER } from "@/lib/catalog/specification-presenter";
-import { isPriceLocale, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, priceDateLabel, type PriceLocale } from "@/lib/pricing/product-page-price";
+import { isPriceLocale, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, type PriceLocale } from "@/lib/pricing/product-page-price";
 import { latestPricedAt, PRICE_PAGE_COPY, PRICE_PAGE_LOCALES, PRICE_PAGE_ROUTE } from "@/lib/pricing/price-page";
-import { listPublishedHubFamilies, loadPriceTableRows } from "@/lib/pricing/price-page-data";
-import { groupByMill, groupBySize, PRICE_HUB_FAMILY_COPY, PRICE_HUB_PAGE_COPY, priceHubPath, priceHubSegment, type PriceHubCategoryCode } from "@/lib/pricing/price-hubs";
+import { listPublishedHubFamilies, loadPriceDay, loadPriceTableRows } from "@/lib/pricing/price-page-data";
+import { groupByMill, groupBySize, hubDescription, hubHeading, hubTitle, PRICE_HUB_FAMILY_COPY, PRICE_HUB_PAGE_COPY, priceHubPath, priceHubSegment, type PriceHubCategoryCode } from "@/lib/pricing/price-hubs";
 import { isWeightCalculatorPublished, WEIGHT_CALCULATOR_ROUTE } from "@/lib/weight-calculator/publication";
 import { PageHero } from "@/components/ui/page-hero";
 import { ButtonLink } from "@/components/ui/button";
@@ -51,14 +51,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { locale: rawLocale, family: segment } = await params;
   const hub = await resolve(rawLocale, segment);
   if (!hub) return {};
-  const copy = PRICE_HUB_FAMILY_COPY[hub.family][hub.locale];
-  const latest = latestPricedAt(await familyRows(hub.locale, hub.family))!;
+  const rows = await familyRows(hub.locale, hub.family);
+  // W16.8: the family's newest price day; «امروز» only when it is the snapshot's day.
+  const day = loadPriceDay(hub.locale, latestPricedAt(rows)!);
   const path = priceHubPath(hub.family);
   return buildPageMetadata({
     locale: hub.locale,
     path,
-    title: copy.title(priceDateLabel(hub.locale, latest)),
-    description: copy.metaDescription,
+    title: hubTitle(hub.locale, hub.family, day),
+    titleAbsolute: true,
+    description: hubDescription(hub.locale, hub.family, day, rows),
     indexable: publicPageIndexable(),
     languageAlternates: buildLanguageAlternatesFromEntries((await hubLocales(hub.family)).map((l) => ({ locale: l, path }))),
   });
@@ -189,14 +191,14 @@ export default async function PriceHubPage({ params }: PageProps) {
   if (!hub) notFound();
   const { locale, family } = hub;
   const copy = PRICE_HUB_FAMILY_COPY[family][locale];
-  const latest = latestPricedAt(await familyRows(locale, family))!;
+  const day = loadPriceDay(locale, latestPricedAt(await familyRows(locale, family))!);
   const t = PRICE_HUB_PAGE_COPY[locale];
   return (
     <>
       <PageHero
         locale={locale}
         eyebrow={t.eyebrow}
-        title={copy.h1(priceDateLabel(locale, latest))}
+        title={hubHeading(locale, family, day)}
         breadcrumb={[
           { path: PRICE_PAGE_ROUTE, label: PRICE_PAGE_COPY[locale].eyebrow },
           { path: priceHubPath(family), label: copy.name },

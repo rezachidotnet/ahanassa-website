@@ -7,6 +7,7 @@ import { listAllFactoryPrices, listAllPublishedPrices } from "./product-page-pri
 import { buildPriceTableRows, type PriceTableRow } from "./price-page.ts";
 import { publishedHubFamilies, type PriceHubCategoryCode } from "./price-hubs.ts";
 import { isPriceLocale, type PriceLocale } from "./price-locale.ts";
+import { priceDay, type PriceDay } from "./price-titles.ts";
 
 /**
  * The build-time read behind every price-table surface (W9.6 `/prices`, W16.3 `/prices/<family>`) and the
@@ -78,4 +79,17 @@ async function readPriceTableRows(locale: PriceLocale): Promise<PriceTableRow[]>
 export async function listPublishedHubFamilies(locale: Locale): Promise<PriceHubCategoryCode[]> {
   if (!isPriceLocale(locale)) return [];
   return publishedHubFamilies(await loadPriceTableRows(locale));
+}
+
+/**
+ * W16.8 — the snapshot's fetch time (`source.fetched_at`, set by scripts/static/build.ts): the reference day of
+ * «امروز» in the price titles. Data, never the build clock; null outside the static build.
+ */
+export function snapshotFetchedAt(): string | null {
+  return process.env.AHANASSA_SNAPSHOT_FETCHED_AT || null;
+}
+
+/** W16.8: the dated day of a price time for the titles, H1s and meta of the price pages. */
+export function loadPriceDay(locale: PriceLocale, pricedAt: string): PriceDay {
+  return priceDay(locale, pricedAt, snapshotFetchedAt());
 }

@@ -6,17 +6,17 @@ import { isIndexableTarget, isNoindexPage, STATIC_PUBLIC_PATHS } from "@/lib/seo
 import { categoryListingPath } from "@/lib/catalog/public-categories";
 import { getPublishedCatalogTemplateBySlug, listIndexableCatalogTemplateSlugs, listPublicCatalogCategories, listPublishedCatalogTemplates, listPublishedLocalesForProduct } from "@/lib/catalog/editorial-repository";
 import { WEIGHT_CALCULATOR_LOCALES, WEIGHT_CALCULATOR_ROUTE } from "@/lib/weight-calculator/publication";
-import { PRICE_PAGE_LOCALES, PRICE_PAGE_ROUTE } from "@/lib/pricing/price-page";
+import { latestPricedAt, PRICE_PAGE_LOCALES, PRICE_PAGE_ROUTE, type PriceTableRow } from "@/lib/pricing/price-page";
 import { getArticle, latestArticleUpdate, listArticleCategories, listArticleLocales, listArticles, listCategoryLocales } from "@/lib/articles/repository";
 import { articleListingPath, articlePath, pageCount } from "@/lib/articles/routes";
 import { ARTICLE_LOCALES } from "@/lib/contracts/snapshot-articles";
-import { listPublishedHubFamilies } from "@/lib/pricing/price-page-data";
+import { listPublishedHubFamilies, loadPriceTableRows } from "@/lib/pricing/price-page-data";
 import { priceHubPath } from "@/lib/pricing/price-hubs";
 import { RAW_MATERIAL_LOCALES, RAW_MATERIAL_SLUGS, RAW_MATERIALS_ROUTE, rawMaterialPath } from "@/lib/content/raw-materials";
 import { EXPORT_LOCALES, EXPORT_ROUTE } from "@/lib/content/export";
 import { listAllPublishedPrices } from "@/lib/pricing/product-page-price-repository";
-import { isPriceLocale } from "@/lib/pricing/price-locale";
-import { listPriceChartProducts } from "@/lib/pricing/price-chart-data";
+import { isPriceLocale, type PriceLocale } from "@/lib/pricing/price-locale";
+import { listPriceChartProducts, loadPriceChart } from "@/lib/pricing/price-chart-data";
 import { priceChartPath } from "@/lib/pricing/price-charts";
 import { listIndicators } from "@/lib/indicators/repository";
 import { MARKET_INDICATORS_LOCALES, MARKET_INDICATORS_ROUTE } from "@/lib/indicators/page";
@@ -80,6 +80,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // W16.3: the family price hubs of the day, per locale (fa/ar only), with alternates between the locales that publish each.
   const hubLocales = new Map<string, Locale[]>();
   for (const locale of locales) for (const family of await listPublishedHubFamilies(locale)) hubLocales.set(priceHubPath(family), [...(hubLocales.get(priceHubPath(family)) ?? []), locale]);
+  /**
+   * W16.8: lastmod of a price page = the date of the newest price it shows (the date in its title): `/prices` its
+   * table's newest (fa: every factory row), a hub its family's newest, a chart page its chart price.
+   */
+  const priceRows = new Map<Locale, PriceTableRow[]>();
+  for (const locale of PRICE_PAGE_LOCALES) priceRows.set(locale, await loadPriceTableRows(locale));
+  const pricePageModified = (locale: Locale) => latestPricedAt(priceRows.get(locale as PriceLocale) ?? [], locale === "fa") ?? pricedModified(locale);
+  const hubModified = (locale: Locale, path: string) => latestPricedAt((priceRows.get(locale as PriceLocale) ?? []).filter((r) => priceHubPath(r.familyCode) === path)) ?? pricedModified(locale);
   /** W16.3: a page published in a fixed locale list (raw materials, export), with alternates between those locales. */
   const fixedLocaleEntry = (locale: Locale, path: string, published: readonly Locale[]) => ({ url: url(locale, path), lastModified, alternates: { languages: canonicalLanguages(buildLanguageAlternatesFromEntries(published.map((l) => ({ locale: l, path })))) } });
 
@@ -95,16 +103,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // The weight calculator (W10.1): only its published locales, with alternates between those locales only.
     if (WEIGHT_CALCULATOR_LOCALES.includes(locale)) entries.push({ url: url(locale, WEIGHT_CALCULATOR_ROUTE), lastModified: pricedModified(locale), alternates: { languages: canonicalLanguages(buildLanguageAlternatesFromEntries(WEIGHT_CALCULATOR_LOCALES.map((l) => ({ locale: l, path: WEIGHT_CALCULATOR_ROUTE })))) } });
     // The daily price page (W9.6): fa and ar only, with alternates between those two.
-    if ((PRICE_PAGE_LOCALES as readonly string[]).includes(locale)) entries.push({ url: url(locale, PRICE_PAGE_ROUTE), lastModified: pricedModified(locale), alternates: { languages: canonicalLanguages(buildLanguageAlternatesFromEntries(PRICE_PAGE_LOCALES.map((l) => ({ locale: l, path: PRICE_PAGE_ROUTE })))) } });
+    if ((PRICE_PAGE_LOCALES as readonly string[]).includes(locale)) entries.push({ url: url(locale, PRICE_PAGE_ROUTE), lastModified: pricePageModified(locale), alternates: { languages: canonicalLanguages(buildLanguageAlternatesFromEntries(PRICE_PAGE_LOCALES.map((l) => ({ locale: l, path: PRICE_PAGE_ROUTE })))) } });
     for (const [path, present] of categoryLocales) {
       if (!present.includes(locale)) continue;
       entries.push({ url: url(locale, path), lastModified, alternates: { languages: canonicalLanguages(buildLanguageAlternatesFromEntries(present.map((l) => ({ locale: l, path })))) } });
     }
-    // W16.2: a hub shows the day's prices, so it is as new as the newest price (like /prices).
-    for (const [path, present] of hubLocales) if (present.includes(locale)) entries.push({ ...fixedLocaleEntry(locale, path, present), lastModified: pricedModified(locale) });
+    // W16.2/W16.8: a hub is as new as its family's newest price (the date in its title).
+    for (const [path, present] of hubLocales) if (present.includes(locale)) entries.push({ ...fixedLocaleEntry(locale, path, present), lastModified: hubModified(locale, path) });
     if (RAW_MATERIAL_LOCALES.includes(locale)) for (const path of [RAW_MATERIALS_ROUTE, ...RAW_MATERIAL_SLUGS.map(rawMaterialPath)]) entries.push(fixedLocaleEntry(locale, path, RAW_MATERIAL_LOCALES));
     if (EXPORT_LOCALES.includes(locale)) entries.push(fixedLocaleEntry(locale, EXPORT_ROUTE, EXPORT_LOCALES));
-    if (locale === "fa") for (const c of charts) entries.push({ ...fixedLocaleEntry("fa", priceChartPath(c.slug), ["fa"]), lastModified: pricedModified("fa") });
+    if (locale === "fa") for (const c of charts) entries.push({ ...fixedLocaleEntry("fa", priceChartPath(c.slug), ["fa"]), lastModified: (await loadPriceChart(c.slug))?.row.price.pricedAt ?? pricedModified("fa") });
     if (indicators.length && (MARKET_INDICATORS_LOCALES as readonly string[]).includes(locale)) entries.push({ ...fixedLocaleEntry(locale, MARKET_INDICATORS_ROUTE, MARKET_INDICATORS_LOCALES), lastModified: latestIndicator });
   }
   return [...entries, ...productEntries, ...(await articleEntries(url))];

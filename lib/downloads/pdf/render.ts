@@ -3,7 +3,7 @@ import { localizedPath } from "../../../config/locales.ts";
 import { CONTACT_PHONE_DISPLAY } from "../../content/contact-channels.ts";
 import { OFFICES, WORKING_HOURS_TEXT } from "../../content/company.ts";
 import { RAW_MATERIALS, RAW_MATERIALS_UI } from "../../content/raw-materials.ts";
-import { dimensionColumnLabel, NOMINAL_WEIGHT_DISCLAIMER, orderedSpecKeys, weightColumnLabel } from "../../catalog/specification-presenter.ts";
+import { dimensionColumnLabel, HOLLOW_SECTION_MASS_NOTE, isEn10219HollowSection, NOMINAL_WEIGHT_DISCLAIMER, orderedSpecKeys, weightColumnLabel } from "../../catalog/specification-presenter.ts";
 import { downloadsCopy } from "../copy.ts";
 import { catalogChapters, sortBySize, templateGrade, templateStandard, type DownloadCatalog, type DownloadCategory, type DownloadTemplate } from "../model.ts";
 import { rawMaterialChapters, type RawMaterialTemplate } from "../raw-materials.ts";
@@ -67,6 +67,11 @@ function templateBlock(d: BrandDocument, t: DownloadTemplate, category: Download
     columns,
     variants.map((v) => [v.size, ...dimKeys.map((k) => cell(v.dimensions, k)), ...weightKeys.map((k) => cell(v.nominalWeight, k))]),
   );
+  // W9.12: under an SHS/RHS (EN 10219-2) table, the hollow-section mass note.
+  if (weightKeys.length && variants.some((v) => isEn10219HollowSection(v))) {
+    d.y -= 4;
+    d.paragraph(HOLLOW_SECTION_MASS_NOTE[locale], { size: 8, color: COLORS.muted, gapAfter: 2 });
+  }
   d.y -= 16;
 }
 

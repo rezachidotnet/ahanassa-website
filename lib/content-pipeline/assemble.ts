@@ -7,6 +7,7 @@ import type { D1Source } from "./d1-source.ts";
 import type { OdooSource } from "./odoo-source.ts";
 import { validatePricing } from "./pricing.ts";
 import { validatePricingHistory, withPreviousDay } from "./pricing-history.ts";
+import { isPublicOnFirstPublish } from "./variant-publication-allowlist.ts";
 
 /**
  * Builds the snapshot.v1 tables from one full Odoo fetch plus the
@@ -22,7 +23,9 @@ import { validatePricingHistory, withPreviousDay } from "./pricing-history.ts";
  *   creation only, as before).
  * - Website-owned columns (`id`, `name_fa`, `slug_fa`, `is_public`,
  *   `is_price_public`, editorial tables) are carried from DB_PUBLIC; a row
- *   Odoo introduces gets the same defaults the sync used (not public).
+ *   Odoo introduces gets the same defaults the sync used (not public) —
+ *   except an SKU on the reviewed public-on-first-publish list (W9.12,
+ *   lib/content-pipeline/variant-publication-allowlist.ts).
  * - A row DB_PUBLIC has but the full fetch no longer returns stays in the
  *   snapshot with `is_active = 0` (soft deactivation; editorial rows survive).
  * - W11.1: `articles` are the rows the validate step accepted from the content
@@ -167,7 +170,8 @@ export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivat
           ...cols,
           name_fa: p.name,
           slug_fa: slugifyFromSku(p.sku),
-          is_public: 0,
+          // W9.12: not public by default; a reviewed public-on-first-publish SKU starts public (variant-publication-allowlist.ts).
+          is_public: isPublicOnFirstPublish(p.sku) ? 1 : 0,
           is_price_public: 0,
           sync_status: "synced",
           sync_version: 1,

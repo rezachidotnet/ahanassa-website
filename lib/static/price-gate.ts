@@ -7,7 +7,7 @@ import { sparklineSeries, tehranDay, type DailyPoint } from "../pricing/price-hi
 import { CALCULATOR_PRICE_PAGES, fileLocale } from "./leak-scan.ts";
 import { ARTICLE_TEXT_ATTRIBUTE } from "../articles/routes.ts";
 import { jsonLdBlocks } from "./publication-gate.ts";
-import { allowedChartTexts, allowedGaugeTexts, PRICE_CHART_ATTRIBUTE, PRICE_CHART_COPY, PRICE_CHART_WINDOW_DAYS, PRICE_DECISION_COPY, PRICE_GAUGE_ATTRIBUTE, PRICE_LINE_ATTRIBUTE } from "../pricing/price-charts.ts";
+import { allowedChartTexts, allowedGaugeTexts, chartHeadingProduct, PRICE_CHART_ATTRIBUTE, PRICE_CHART_WINDOW_DAYS, PRICE_DECISION_COPY, PRICE_GAUGE_ATTRIBUTE, PRICE_LINE_ATTRIBUTE } from "../pricing/price-charts.ts";
 import { priceWindows, windowPoints } from "../pricing/price-position.ts";
 import { pathPointCount } from "../charts/line-geometry.ts";
 import { INDICATOR_ATTRIBUTE, INDICATOR_LINE_ATTRIBUTE } from "../indicators/presentation.ts";
@@ -358,11 +358,10 @@ export function scanGaugesAndCharts(path: string, html: string, h1: string, byVa
     }
     // Text: the drivers line (indicator gate) out, the rest is copy + recomputed numbers.
     const text = visibleText(withoutElements(el.html, elementsWithAttribute(el.html, [INDICATOR_LINE_ATTRIBUTE, INDICATOR_ATTRIBUTE])));
-    const prefix = PRICE_CHART_COPY.title("");
     const allowed =
       el.attribute === PRICE_GAUGE_ATTRIBUTE
         ? allowedGaugeTexts(windows, PRICE_CHART_WINDOW_DAYS, true)
-        : allowedChartTexts(h1.startsWith(prefix) ? h1.slice(prefix.length) : h1, windowPoints(history, day, PRICE_CHART_WINDOW_DAYS), day);
+        : allowedChartTexts(chartHeadingProduct(h1), windowPoints(history, day, PRICE_CHART_WINDOW_DAYS), day);
     const left = residue(text, allowed);
     if (left) fail(`${where}: ${left.slice(0, 120)}`);
   }

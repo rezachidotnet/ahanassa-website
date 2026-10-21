@@ -80,6 +80,28 @@ export const NOMINAL_WEIGHT_DISCLAIMER: LocalizedLabel = {
   ar: "وزن اسمي/نظري وليس الوزن الفعلي المسلَّم أو وزن الميزان النهائي.",
 };
 
+/**
+ * W9.12 (owner decision 2026-10-20) — the cold-formed hollow sections (SHS/RHS) are listed at their EN 10219-2
+ * nominal mass, and a mill's bar may weigh more. The site's own text, shown under the weights of every SHS/RHS
+ * table (product page, spec sheet) next to NOMINAL_WEIGHT_DISCLAIMER. Not Odoo's `public_description`.
+ */
+export const HOLLOW_SECTION_MASS_NOTE: LocalizedLabel = {
+  fa: "وزن اسمی طبق EN 10219-2؛ وزن واقعی هر شاخه بسته به کارخانه ممکن است بیشتر باشد.",
+  en: "Nominal mass to EN 10219-2; the actual weight of a bar may be higher depending on the mill.",
+  ar: "الوزن الاسمي وفق EN 10219-2؛ قد يكون الوزن الفعلي للقطعة أعلى حسب المصنع.",
+};
+
+const HOLLOW_SECTION_CODES = new Set(["SHS", "RHS", "SHS_FORM", "RHS_FORM"]);
+
+/**
+ * True for an SHS/RHS variant (by group or form code) whose standard is EN 10219-2 (code «EN10219-2» or name
+ * «EN 10219-2»): the variants HOLLOW_SECTION_MASS_NOTE is true of. Another hollow-section standard gets no note.
+ */
+export function isEn10219HollowSection(v: { groupCode?: string | null; formCode?: string | null; standard?: string | null }): boolean {
+  const hollow = [v.groupCode, v.formCode].some((c) => typeof c === "string" && HOLLOW_SECTION_CODES.has(c.trim().toUpperCase()));
+  return hollow && (v.standard ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "") === "EN102192";
+}
+
 function humanizeUnknownKey(key: string): string {
   return key
     .replace(/_mm$/, "")

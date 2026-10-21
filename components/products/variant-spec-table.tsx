@@ -2,7 +2,7 @@ import Link from "@/components/ui/link";
 import { localizedPath, type Locale } from "@/config/locales";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
-import { normalizeVariantDimensions, normalizeVariantNominalWeight, normalizeVariantSpecifications, sortVariantsBySize, NOMINAL_WEIGHT_DISCLAIMER } from "@/lib/catalog/specification-presenter";
+import { normalizeVariantDimensions, normalizeVariantNominalWeight, normalizeVariantSpecifications, sortVariantsBySize, NOMINAL_WEIGHT_DISCLAIMER, HOLLOW_SECTION_MASS_NOTE, isEn10219HollowSection } from "@/lib/catalog/specification-presenter";
 import type { ProductVariant } from "@/lib/catalog/types";
 import type { PriceBlockData } from "@/lib/pricing/price-block-presentation";
 import { isPriceLocale, presentPriceCell, PRICE_CELL_ATTRIBUTE, PRICE_COLUMN_COPY } from "@/lib/pricing/product-page-price";
@@ -228,6 +228,8 @@ export function VariantSpecTable({ locale, variants: unsorted, prices }: { local
 
       {showPrices && <p className="text-muted-foreground mt-3 text-xs leading-relaxed">{priceCopy?.note}</p>}
       {weightColumns.length > 0 && <p className="text-muted-foreground mt-3 text-xs leading-relaxed">{NOMINAL_WEIGHT_DISCLAIMER[locale]}</p>}
+      {/* W9.12: SHS/RHS (EN 10219-2) — a mill's bar may weigh more than the nominal mass. */}
+      {weightColumns.length > 0 && variants.some((v) => isEn10219HollowSection({ groupCode: v.group.code, formCode: v.form.code, standard: v.standard.code ?? v.standard.name })) && <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{HOLLOW_SECTION_MASS_NOTE[locale]}</p>}
       {commonUnits && <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{t.units(commonUnits)}</p>}
     </div>
   );
