@@ -76,3 +76,40 @@ export function moveDefaultLocaleToRoot(dir: string, defaultLocale: string): voi
   }
   fs.rmdirSync(localeDir);
 }
+
+/**
+ * W25.2: React emits the page's bootstrap module (vinext's client entry, `<script type="module" … id="_R_">`)
+ * as `<link rel="modulepreload" fetchPriority="low">` so it never competes with an LCP image. On this site that
+ * module is what hydrates the page, and on a saturated 3G link it was fetched LAST — behind the font and every
+ * other chunk — so the /contact form became usable ~2 s later than its bytes allowed (W25.2 report). The
+ * attribute is dropped, giving the entry the same (default, high) priority as the other modulepreloads.
+ * Only the bootstrap's own preload changes; every other tag is left exactly as rendered.
+ */
+export function raiseBootstrapModulePriority(html: string): string {
+  const entry = /<script type="module" src="([^"]+)" id="_R_" async="">/.exec(html)?.[1];
+  if (!entry) return html;
+  return html.replace(`<link rel="modulepreload" fetchPriority="low" href="${entry}"/>`, `<link rel="modulepreload" href="${entry}"/>`);
+}
+
+/** Applies `raiseBootstrapModulePriority` to every HTML file of the export; returns how many changed. */
+export function raiseBootstrapModulePriorityInDir(dir: string): number {
+  let changed = 0;
+  for (const rel of fs.readdirSync(dir, { recursive: true, encoding: "utf8" })) {
+    if (!rel.endsWith(".html")) continue;
+    const file = path.join(dir, rel);
+    const html = fs.readFileSync(file, "utf8");
+    const next = raiseBootstrapModulePriority(html);
+    if (next !== html) {
+      fs.writeFileSync(file, next);
+      changed++;
+    }
+  }
+  return changed;
+}
+
+/** Gate (W25.2): true when the page's bootstrap module is still preloaded at low priority — also when React/vinext change the tag and the rewrite above stops matching. */
+export function bootstrapModuleIsLowPriority(html: string): boolean {
+  const entry = /<script\b[^>]*\bsrc="([^"]+)"[^>]*\bid="_R_"/.exec(html)?.[1] ?? /<script\b[^>]*\bid="_R_"[^>]*\bsrc="([^"]+)"/.exec(html)?.[1];
+  if (!entry) return false;
+  return [...html.matchAll(/<link\b[^>]*rel="modulepreload"[^>]*>/gi)].some((m) => m[0].includes(`href="${entry}"`) && /fetchpriority="low"/i.test(m[0]));
+}
