@@ -1,0 +1,140 @@
+# W23 — the daily price bulletin on Telegram + Bale (owner-approved design, 2026-10-21).
+#
+# Lives on `main` only so GitHub schedules/dispatches it (like daily-content.yml); the code is on the application branch
+# (APP_REF): lib/price-channel/, config/price-channel.ts (the fixed basket), scripts/price-channel/run.ts. It never
+# builds, deploys or changes the site: it READS www.ahanassa.com/prices (the published fa price table) and
+# /manifest.public.json, and posts to the channels. No Odoo call, no other site, no LLM.
+#
+# Kill switch: the repository VARIABLE PRICE_CHANNEL_MODE — unset/anything else = off (the job does not even start),
+# `test` = the TEST chats (TELEGRAM_TEST_CHANNEL_ID, and BALE_TEST_CHANNEL_ID when set), `public` = the public channels.
+# Secrets are read by name only: TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID, TELEGRAM_TEST_CHANNEL_ID, BALE_BOT_TOKEN,
+# BALE_CHANNEL_ID; optional BALE_TEST_CHANNEL_ID, TELEGRAM_OWNER_CHAT_ID (owner alerts; default the Telegram TEST
+# channel); AHANASSA_PRICE_SOURCE_NAMES (required in public mode: no post goes out unchecked against the list).
+#
+# Times (Tehran = UTC+03:30): the site publishes ~11:30. Bulletin slots 11:40 / 12:00 / 12:20 / 12:40 (the deadline)
+# and exception checks 13:40 / 14:00 — Saturday to Thursday. Every slot is safe to run any number of times: the state
+# (a rolling artifact, below) makes every post idempotent per day/kind/platform. GitHub drops many scheduled events on
+# this repository (W11.2), so the Odoo-server timer should dispatch the same slots (workflow_dispatch, ref main,
+# inputs.source=odoo-timer) — see the W23 go-live steps.
+#
+# State: artifact `price-channel-state` (history, posts, send log, alerts), downloaded before and uploaded after every
+# run (always, also on failure/cancel). A failed download stops the run (fail closed: never start over and re-post).
+name: Price channel
+
+run-name: "price-channel (${{ inputs.task || 'auto' }}, ${{ inputs.source || github.event_name }})"
+
+on:
+  schedule:
+    # GitHub cron weekday 0 = Sunday … 6 = Saturday; 5 (Friday) is left out.
+    - cron: "10 8 * * 0-4,6"
+    - cron: "30 8 * * 0-4,6"
+    - cron: "50 8 * * 0-4,6"
+    - cron: "10 9 * * 0-4,6"
+    - cron: "10 10 * * 0-4,6"
+    - cron: "30 10 * * 0-4,6"
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "auto (by Tehran time), bulletin or exception"
+        type: choice
+        required: false
+        default: auto
+        options: [auto, bulletin, exception]
+      source:
+        description: "Who asks (odoo-timer, manual): shown in the run name"
+        type: string
+        required: false
+        default: manual
+
+permissions:
+  contents: read
+  # Reads the previous run's state artifact.
+  actions: read
+
+# One run at a time: two runs must never read the same state and both post.
+concurrency:
+  group: price-channel
+  cancel-in-progress: false
+
+env:
+  APP_REF: feat/v11-static-site
+
+jobs:
+  post:
+    name: price channel (${{ vars.PRICE_CHANNEL_MODE || 'off' }})
+    if: vars.PRICE_CHANNEL_MODE == 'test' || vars.PRICE_CHANNEL_MODE == 'public'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout the application code (price channel)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.APP_REF }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Price-source name list (secret -> private temp file; never printed)
+        shell: bash
+        env:
+          NAMES: ${{ secrets.AHANASSA_PRICE_SOURCE_NAMES }}
+        run: |
+          set -euo pipefail
+          if [ -z "$NAMES" ]; then
+            echo "::warning title=price-source name scan not configured::AHANASSA_PRICE_SOURCE_NAMES is not set; public mode refuses to post"
+            exit 0
+          fi
+          umask 077
+          mkdir -p "$RUNNER_TEMP/private"
+          printf '%s\n' "$NAMES" > "$RUNNER_TEMP/private/source-names.txt"
+          echo "AHANASSA_PRICE_SOURCE_NAMES_FILE=$RUNNER_TEMP/private/source-names.txt" >> "$GITHUB_ENV"
+
+      - name: Previous state (fail closed)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/state"
+          list=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=price-channel-state&per_page=50")
+          id=$(jq -r '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | last | .id // empty' <<<"$list")
+          if [ -z "$id" ]; then
+            echo "no previous state artifact: first run (empty history)"
+            exit 0
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" > "$RUNNER_TEMP/state.zip"
+          unzip -o -q "$RUNNER_TEMP/state.zip" -d "$RUNNER_TEMP/state"
+          test -s "$RUNNER_TEMP/state/state.json"
+          echo "state from artifact $id: $(jq '.posts | length' "$RUNNER_TEMP/state/state.json") post(s), $(jq '.days | length' "$RUNNER_TEMP/state/state.json") day(s)"
+
+      - name: Run (bulletin / exception check by Tehran time)
+        shell: bash
+        env:
+          PRICE_CHANNEL_MODE: ${{ vars.PRICE_CHANNEL_MODE }}
+          PRICE_CHANNEL_TASK: ${{ inputs.task || 'auto' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          TELEGRAM_TEST_CHANNEL_ID: ${{ secrets.TELEGRAM_TEST_CHANNEL_ID }}
+          TELEGRAM_OWNER_CHAT_ID: ${{ secrets.TELEGRAM_OWNER_CHAT_ID }}
+          BALE_BOT_TOKEN: ${{ secrets.BALE_BOT_TOKEN }}
+          BALE_CHANNEL_ID: ${{ secrets.BALE_CHANNEL_ID }}
+          BALE_TEST_CHANNEL_ID: ${{ secrets.BALE_TEST_CHANNEL_ID }}
+        run: |
+          set -euo pipefail
+          node scripts/price-channel/run.ts run --state "$RUNNER_TEMP/state/state.json"
+
+      - name: Save state (always)
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: price-channel-state
+          path: ${{ runner.temp }}/state/state.json
+          if-no-files-found: ignore
+          retention-days: 90

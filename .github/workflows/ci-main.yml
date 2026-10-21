@@ -47,7 +47,7 @@ jobs:
           # byte-identical with feat/header-hero-integrated and are not linted here.
           ./actionlint -color .github/workflows/content-publish.yml .github/workflows/v11-release-watch.yml \
             .github/workflows/ops-health.yml .github/workflows/rfq-ci-reconciler.yml .github/workflows/ci-main.yml \
-            .github/workflows/daily-content.yml .github/workflows/auto-approve.yml
+            .github/workflows/daily-content.yml .github/workflows/auto-approve.yml .github/workflows/price-channel.yml
 
       - name: "Price-source names: none in the tracked tree"
         env:
