@@ -41,6 +41,8 @@ export const artifactPipelineInfo = z
     /** The workflow_dispatch override of the decrease gate (§7.1 step 2), and what it overrode. */
     allow_decrease: z.boolean(),
     overridden_decreases: z.array(z.object({ key: z.string(), previous: z.number(), current: z.number() }).strict()),
+    /** W11.6: articles the article gate refused, left out (every locale) so the rest published (lib/content-pipeline/article-isolation.ts). */
+    article_gate_dropped: z.array(z.object({ articles: z.array(z.string()), reasons: z.array(z.string()) }).strict()).optional(),
     run: z.object({ id: z.string().nullable(), url: z.string().nullable(), ref: z.string().nullable(), event: z.string().nullable() }).strict(),
   })
   .strict();

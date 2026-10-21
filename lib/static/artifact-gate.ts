@@ -9,7 +9,7 @@ import { indicatorGateInput, scanIndicators } from "./indicator-gate.ts";
 import { allowedIndicatorTexts } from "../indicators/presentation.ts";
 import { loadSourceNames, redactSourceNames, scanSourceNames } from "./source-name-scan.ts";
 import { checkAgentTexts, checkMarkdownMirrors } from "./markdown-mirror.ts";
-import { scanArticlePages } from "./article-gate.ts";
+import { scanArticlePages, type ArticleFinding } from "./article-gate.ts";
 import { STATIC_TARGETS, TURNSTILE_ORIGIN } from "./targets.ts";
 import { checkStaticCacheRules } from "./static-rules.ts";
 import { checkIndexingPolicy, PRODUCTION_ORIGIN } from "./indexing-gate.ts";
@@ -39,6 +39,11 @@ export const REQUIRED_PUBLIC_FILES = [
 export interface GateResult {
   failures: string[];
   leaks: LeakFinding[];
+  /**
+   * W11.6: the article gate's findings (8b), also in `failures`. When `failures` holds nothing else, the content
+   * pipeline may leave the failing articles out and build again (lib/content-pipeline/article-isolation.ts).
+   */
+  articleFindings: ArticleFinding[];
   stats: { publicFiles: number; privateFiles: number; htmlPages: number; largestPublicFile: { path: string; bytes: number } | null; /** W9.6: "ran" or "not_run" (no private name list given). */ sourceNameScan?: "ran" | "not_run" };
 }
 
@@ -94,7 +99,7 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
   const privateDir = path.join(artifactDir, PRIVATE_DIR);
   const manifestPath = path.join(artifactDir, "manifest.json");
   for (const p of [publicDir, privateDir, manifestPath]) if (!fs.existsSync(p)) failures.push(`missing ${path.relative(artifactDir, p)}`);
-  if (failures.length) return { failures, leaks: [], stats: { publicFiles: 0, privateFiles: 0, htmlPages: 0, largestPublicFile: null } };
+  if (failures.length) return { failures, leaks: [], articleFindings: [], stats: { publicFiles: 0, privateFiles: 0, htmlPages: 0, largestPublicFile: null } };
 
   // 1. Manifest: schema + every file listed with matching bytes/sha, and nothing unlisted.
   const parsed = artifactManifest.safeParse(JSON.parse(fs.readFileSync(manifestPath, "utf8")));
@@ -200,7 +205,8 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
   // W20.7: every factory's price counts like the lowest for the article and agent-text rules (amounts, names).
   const everyPriceRow = [...priceInput.rows, ...[...priceInput.factoryRows.values()].flat()];
   // 8b. Article pages (W11.1): en no price data, ar no factory/location, no external image, no JSON-LD.
-  for (const f of scanArticlePages(textFiles, everyPriceRow)) failures.push(`article ${f.kind} in ${f.file}: ${f.match}`);
+  const articleFindings = scanArticlePages(textFiles, everyPriceRow);
+  for (const f of articleFindings) failures.push(`article ${f.kind} in ${f.file}: ${f.match}`);
   // 8c. Agents (W16.7): each .md page mirror says nothing its HTML page does not; llms*.txt and en .md carry no
   //     price amount, currency or factory/place; ar .md no factory/place. (Leak, publication, article and
   //     source-name scans already cover .md and llms*.txt as text files.)
@@ -218,5 +224,6 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
   // Callers print stats and may print leaks: the same redaction applies there.
   const shownLeaks = leaks.map((l) => ({ ...l, file: redactSourceNames(l.file, sourceNames), match: redactSourceNames(l.match, sourceNames) }));
   const largestPublicFile = largest ? { path: redactSourceNames(largest.path, sourceNames), bytes: largest.bytes } : null;
-  return { failures, leaks: shownLeaks, stats: { publicFiles: publicEntries.length, privateFiles: privateEntries.length, htmlPages: htmlFiles.length, largestPublicFile, sourceNameScan: sourceNames?.length ? "ran" : "not_run" } };
+  const shownArticleFindings = articleFindings.map((f) => ({ ...f, file: redactSourceNames(f.file, sourceNames), match: redactSourceNames(f.match, sourceNames) }));
+  return { failures, leaks: shownLeaks, articleFindings: shownArticleFindings, stats: { publicFiles: publicEntries.length, privateFiles: privateEntries.length, htmlPages: htmlFiles.length, largestPublicFile, sourceNameScan: sourceNames?.length ? "ran" : "not_run" } };
 }

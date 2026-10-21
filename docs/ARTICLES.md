@@ -59,9 +59,36 @@ price snapshot; an article that fails is **left out** and named in the run summa
 locale's article count below the live publication's, the **article decrease gate** stops the run (threshold
 0, unlike the 20 % of the catalog counts). An intended removal re-runs with `allow_decrease=true` (recorded).
 
+## Article isolation at the artifact gate (W11.6)
+
+Incident 2026-10-19/20: one daily article's en `.md` mirror failed `article_price_on_en` on rendered text the
+validate step never sees (its own URL holding the slug `rebar-price-factors`, "4 min read" and cards joining
+into one "sentence"), and every content publish — prices included — was refused for two days. Since W11.6:
+
+- **Precision** (`lib/articles/validate.ts`, `lib/static/article-gate.ts`): "N min read" and dates are never
+  prices; URLs, root-relative paths and the page's own slug are not price words; a `.md` mirror is split into
+  blocks (title, heading, paragraph, list item, table cell, one block per card link) before sentences, like the
+  HTML page. Currency, price-sized numbers, snapshot amounts and a number + price word in one real sentence
+  still fail.
+- **Messages**: every en/ar article finding quotes the offending text (≤ 160 characters).
+- **Isolation** (`lib/content-pipeline/article-isolation.ts`, `scripts/content/export.ts`): when the staging
+  build's ONLY gate failures are article-gate findings on article pages, those articles are left out — every
+  locale of each, plus any article that links to or translates one (the validate step's own checks re-run
+  without them) — and the build runs again (≤ 3 rounds). The snapshot keeps its version; its article rows,
+  hash and counts are rewritten; `manifest.json` records `pipeline.article_gate_dropped`. Each group is an
+  `ALERT: article left out by the article gate` annotation and a summary line. A leak, source-name, price,
+  publication, agent-text or Markdown-mirror failure, or an article-gate finding on a listing/category page,
+  still blocks the run.
+- If a left-out article was **live**, the drop is recorded as an overridden decrease (no stop), so the
+  production content rebuild asks for the owner's approval (`lib/ci/content-rebuild.ts`); a new article
+  (the daily case) publishes nothing to approve.
+- **Content repository CI**: `node scripts/articles/check-article-text.ts [--prices <file>] [--json] <files|dirs>`
+  (from a checkout of this repository after `npm ci`) runs the same en/ar text rules on raw article files,
+  including the article's listing card; exit 1 on findings.
+
 ## Checks per article (validate step) and gates on the pages (artifact gate)
 
-| Rule | Validate step (article left out) | Artifact gate (publish blocked) |
+| Rule | Validate step (article left out) | Artifact gate (blocked; W11.6: article-gate-only findings leave the article out) |
 |---|---|---|
 | en: zero price data | no currency, no number ≥ 100 000, no amount of this snapshot, no number in a sentence about prices (sizes/weights/standards/years excepted) | the W9.4/W9.6 price gate on every en file + the same text rules on the page's `<main>` (`lib/static/article-gate.ts`) |
 | ar: no factory or location | none of this snapshot's factory/location names | price gate (whole ar file) + article gate |

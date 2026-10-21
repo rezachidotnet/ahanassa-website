@@ -67,6 +67,45 @@ export function mainTextBlocks(html: string): string[] {
     .filter(Boolean);
 }
 
+/**
+ * W11.6: the text of a page's `.md` mirror (lib/static/markdown-mirror.ts) as blocks, like `mainTextBlocks` does for
+ * the HTML page — so a reading time, a date, a list marker or a card never joins the next block into one "sentence"
+ * (incident 2026-10-19/20: "19 October 2026 4 min read]\n- [Market analysis What Moves Rebar Prices in Iran?"). One
+ * block per heading, paragraph, list item and table cell; a line made only of links (a card grid) is one block per
+ * link (a card is one link). The front matter keeps only its title (the url line is the page's own URL, not text); link targets go.
+ */
+export function markdownTextBlocks(markdown: string): string[] {
+  const front = /^---\n([\s\S]*?)\n---\n/.exec(markdown);
+  const title = front ? /^title: (.*)$/m.exec(front[1])?.[1] : undefined;
+  const body = front ? markdown.slice(front[0].length) : markdown;
+  const out: string[] = [];
+  if (title) {
+    try {
+      out.push(String(JSON.parse(title)));
+    } catch {
+      out.push(title);
+    }
+  }
+  for (const raw of body.split("\n")) {
+    const line = raw.replace(/^\s*(?:#{1,6}|[-*+]|\d+\.)\s+/, "").trim();
+    if (!line) continue;
+    if (/^\|.*\|$/.test(line)) {
+      if (/^\|(?:\s*:?-{3,}:?\s*\|)+$/.test(line)) continue;
+      out.push(...line.slice(1, -1).split(/(?<!\\)\|/).map((c) => c.replace(/\\\|/g, "|").trim()));
+      continue;
+    }
+    const links = [...line.matchAll(/\[((?:[^\[\]]|\[[^\]]*\])*)\]\([^)]*\)/g)];
+    if (links.length && line.replace(/\[(?:[^\[\]]|\[[^\]]*\])*\]\([^)]*\)/g, "").trim() === "") out.push(...links.map((m) => m[1]));
+    else out.push(withoutLinkTargets(line));
+  }
+  return out.map((t) => t.trim()).filter(Boolean);
+}
+
+/** `en/articles/<slug>.html|md` → its slug; null for a listing or category page. */
+export function articleSlugOf(path: string): string | null {
+  return /^(?:(?:en|ar)\/)?articles\/([^/]+)\.(?:html|md)$/.exec(path)?.[1] ?? null;
+}
+
 /** W16.2: the only schema.org types an article page may carry (its visible breadcrumb trail and FAQ). */
 export const ARTICLE_JSONLD_TYPES: ReadonlySet<string> = new Set(["BreadcrumbList", "ListItem", "FAQPage", "Question", "Answer"]);
 
@@ -94,9 +133,10 @@ export function scanArticlePages(files: ReadonlyArray<{ path: string; content: s
   for (const { path, content } of files) {
     if (!ARTICLE_FILE.test(path)) continue;
     const locale = fileLocale(path);
-    // A .md mirror is checked like its HTML page: the text, not the link targets (the HTML's hrefs).
-    const lines = path.endsWith(".html") ? mainTextBlocks(content) : path.endsWith(".md") ? [withoutLinkTargets(content)] : [content];
-    if (locale === "en") for (const match of enPriceFindings(lines, amounts)) findings.push({ file: path, kind: "article_price_on_en", match });
+    // A .md mirror is checked like its HTML page: block by block, the text, not the link targets (the HTML's hrefs).
+    const lines = path.endsWith(".html") ? mainTextBlocks(content) : path.endsWith(".md") ? markdownTextBlocks(content) : [content];
+    const slug = articleSlugOf(path);
+    if (locale === "en") for (const match of enPriceFindings(lines, amounts, slug ? [slug] : [])) findings.push({ file: path, kind: "article_price_on_en", match });
     if (locale === "ar") for (const match of arPlaceFindings([content], names)) findings.push({ file: path, kind: "article_place_on_ar", match });
     if (!path.endsWith(".html")) continue;
     for (const url of externalImages(content)) findings.push({ file: path, kind: "article_external_image", match: url });

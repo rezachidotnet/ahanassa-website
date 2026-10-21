@@ -3,7 +3,8 @@ import { ARTICLE_CATEGORIES, ARTICLE_LOCALES, ARTICLE_SLUG, RESERVED_ARTICLE_SLU
 import { scanPublicFile } from "../static/leak-scan.ts";
 import { scanSourceNames } from "../static/source-name-scan.ts";
 import { parseFrontmatter } from "./frontmatter.ts";
-import { parseMarkdown } from "./markdown.ts";
+import { parseMarkdown, readingMinutes } from "./markdown.ts";
+import { ARTICLE_COPY, formatArticleDate } from "./copy.ts";
 import { ARTICLES_ROUTE, articleCategoryPath, articlePath } from "./routes.ts";
 
 /**
@@ -94,28 +95,46 @@ const CURRENCY = /(?<![\p{L}])(tomans?|rials?|irr|irt|usd|eur|dollars?|euros?|ت
 const toAsciiDigits = (s: string) => s.replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0)).replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660));
 const numbersIn = (s: string) => [...toAsciiDigits(s).matchAll(/\d[\d,٬]*(?:[.٫]\d+)?/g)].map((m) => ({ text: m[0], value: Number(m[0].replace(/[,٬]/g, "").replace("٫", ".")), index: m.index ?? 0 }));
 const PRICE_WORD = /\bpric(e|es|ed|ing)\b|\bper (kg|kilo|kilogram|ton|tonne|branch)\b|\/kg\b/i;
+const MONTH = "(?:january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)\\.?";
 /** A number in a price sentence is allowed only when it is clearly not a price (as the content repo's validator). */
-const NOT_PRICE_BEFORE = /(?:\b(?:ipe|ipn|inp|upn|upe|en|iso|inso|astm|asme|din|bs|aj|a|s|grade|size|sizes|section|sections|diameter|no\.?)\s?|ø\s?)$/i;
-const NOT_PRICE_AFTER = /^\s?(?:mm\b|kg\/m\b|kg\b|m\b|t\b|%|(?:sizes?|variants?|products?|items?|mills?|producers?|days?|weeks?|months?|years?|bars?|beams?|sections?|grades?)\b|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b)/i;
+const NOT_PRICE_BEFORE = new RegExp(`(?:\\b(?:ipe|ipn|inp|upn|upe|en|iso|inso|astm|asme|din|bs|aj|a|s|grade|size|sizes|section|sections|diameter|no\\.?)\\s?|ø\\s?|\\b${MONTH}\\s)$`, "i");
+/** W11.6: a reading time ("4 min read") and a date's day ("19 October") are never prices. */
+const NOT_PRICE_AFTER = new RegExp(`^\\s?(?:mm\\b|kg\\/m\\b|kg\\b|m\\b|t\\b|%|(?:min|mins|minutes?|sizes?|variants?|products?|items?|mills?|producers?|days?|weeks?|months?|years?|bars?|beams?|sections?|grades?)\\b|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\b)`, "i");
+/**
+ * W11.6: text that is never a price word or a price number in the sentence rule — a URL or root-relative path
+ * (the page's own URL in a .md mirror's front matter, a slug like rebar-price-factors) and a numeric date.
+ */
+const NOT_PROSE = /\b(?:https?:\/\/|www\.)\S+|(?<![\p{L}\d])\/[a-z]{2}\/\S*|\b(?:13|14|19|20)\d\d[-/.]\d{1,2}[-/.]\d{1,2}\b/giu;
 const norm = (s: string) => toAsciiDigits(s).replace(/ي/g, "ی").replace(/ى/g, "ی").replace(/ك/g, "ک").replace(/ـ/g, "").replace(/[\s‌]+/g, " ").toLowerCase();
 
-/** en: zero price data. Returns the reasons (empty = clean). */
-export function enPriceFindings(lines: readonly string[], priceAmounts: readonly number[]): string[] {
+/** W11.6: the offending text, one line, at most `max` characters — every finding quotes it, so one pass fixes all. */
+export function quote(text: string, max = 160): string {
+  const one = text.replace(/\s+/g, " ").trim();
+  return `"${one.length > max ? `${one.slice(0, max - 1)}…` : one}"`;
+}
+
+/**
+ * en: zero price data. Returns the reasons (empty = clean), each quoting the offending text. `ownSlugs`: the page's
+ * own slug(s) — slug text is not a price word (W11.6, 2026-10-19: rebar-price-factors).
+ */
+export function enPriceFindings(lines: readonly string[], priceAmounts: readonly number[], ownSlugs: readonly string[] = []): string[] {
   const out: string[] = [];
   const amounts = new Set(priceAmounts.filter((a) => a >= 1000));
   for (const line of lines) {
-    if (CURRENCY.test(line)) out.push(`en mentions a currency ("${line.slice(0, 80)}")`);
+    if (CURRENCY.test(line)) out.push(`en mentions a currency: ${quote(line)}`);
     for (const x of numbersIn(line)) {
-      if (x.value >= 100_000) out.push(`en has a price-sized number ${x.text}`);
-      else if (amounts.has(x.value)) out.push(`en has an amount of this run's price snapshot (${x.text})`);
+      if (x.value >= 100_000) out.push(`en has a price-sized number ${x.text}: ${quote(line)}`);
+      else if (amounts.has(x.value)) out.push(`en has an amount of this run's price snapshot (${x.text}): ${quote(line)}`);
     }
     for (const sentence of line.split(/(?<=[.!?;])\s+/)) {
-      if (!PRICE_WORD.test(sentence)) continue;
-      for (const x of numbersIn(sentence)) {
-        const before = sentence.slice(0, x.index);
-        const after = sentence.slice(x.index + x.text.length);
+      let prose = sentence.replace(NOT_PROSE, " ");
+      for (const slug of ownSlugs) if (slug) prose = prose.split(slug).join(" ");
+      if (!PRICE_WORD.test(prose)) continue;
+      for (const x of numbersIn(prose)) {
+        const before = prose.slice(0, x.index);
+        const after = prose.slice(x.index + x.text.length);
         if (/^(13|14|19|20)\d\d$/.test(x.text) || NOT_PRICE_BEFORE.test(before) || NOT_PRICE_AFTER.test(after)) continue;
-        out.push(`en: number ${x.text} in a sentence about prices`);
+        out.push(`en: number ${x.text} in a sentence about prices: ${quote(sentence)}`);
       }
     }
   }
@@ -125,7 +144,10 @@ export function enPriceFindings(lines: readonly string[], priceAmounts: readonly
 /** ar: no factory or delivery location of the price snapshot (ar = price + date only). */
 export function arPlaceFindings(lines: readonly string[], priceNames: readonly string[]): string[] {
   const all = norm(lines.join("\n"));
-  return [...new Set(priceNames.map((n) => norm(n).trim()).filter((n) => n.length >= 3 && all.includes(n)))].map((n) => `ar names a factory or delivery location of the price snapshot ("${n}")`);
+  return [...new Set(priceNames.map((n) => norm(n).trim()).filter((n) => n.length >= 3 && all.includes(n)))].map((n) => {
+    const at = all.indexOf(n);
+    return `ar names a factory or delivery location of the price snapshot ("${n}"): ${quote(all.slice(Math.max(0, at - 60), at + n.length + 60))}`;
+  });
 }
 
 /** A cover must be a pure-vector SVG with the brand; never a raster, script or external reference. */
@@ -167,6 +189,38 @@ function internalTarget(href: string, locale: ArticleLocale): { path: string } |
 
 function textLines(data: Frontmatter, bodyText: string): string[] {
   return [data.title, data.description, ...data.tags, ...data.faq.flatMap((f) => [f.q, f.a]), ...data.sources.flatMap((s) => [s.title, s.publisher ?? ""]), ...bodyText.split("\n")].filter((s) => s.trim());
+}
+
+/**
+ * W11.6 — the en/ar text rules alone (`enPriceFindings`, `arPlaceFindings`) on ONE raw content-repository article
+ * file, for the content repository to run before a merge (scripts/articles/check-article-text.ts). Besides the
+ * article's own text, en also checks its listing card as the site renders it (title, description, date, reading
+ * time — one block), since a card shows on other pages too. Without this run's price snapshot the snapshot-amount
+ * and place-name rules have nothing to compare; pass them when known. fa has no text rule here (empty result).
+ */
+export function articleTextFindings(file: ArticleSourceFile, prices: { priceAmounts?: readonly number[]; priceNames?: readonly string[] } = {}): string[] {
+  const m = ARTICLE_PATH.exec(file.path);
+  if (!m) return ["path must be articles/{fa,ar,en}/YYYY/MM/<slug>.md"];
+  const locale = m[1] as ArticleLocale;
+  if (locale === "fa") return [];
+  let parsed: { data: unknown; body: string };
+  try {
+    parsed = parseFrontmatter(file.content);
+  } catch (e) {
+    return [`frontmatter: ${(e as Error).message}`];
+  }
+  const fm = frontmatter.safeParse(parsed.data);
+  if (!fm.success) return fm.error.issues.slice(0, 8).map((i) => `frontmatter ${i.path.join(".") || "(root)"}: ${i.message}`);
+  let text: string;
+  try {
+    text = parseMarkdown(parsed.body).text;
+  } catch (e) {
+    return [`body: ${(e as Error).message}`];
+  }
+  const lines = textLines(fm.data, text);
+  if (locale === "ar") return arPlaceFindings(lines, prices.priceNames ?? []);
+  const card = `${fm.data.title} ${fm.data.description} ${formatArticleDate(fm.data.date, "en")} ${ARTICLE_COPY.en.minutes(readingMinutes(text))}`;
+  return enPriceFindings([...lines, card], prices.priceAmounts ?? [], [fm.data.slug]);
 }
 
 export function checkArticleFiles(files: readonly ArticleSourceFile[], ctx: ArticleCheckContext): ArticleCheckResult {
@@ -219,7 +273,7 @@ export function checkArticleFiles(files: readonly ArticleSourceFile[], ctx: Arti
     const allText = [...lines, ...(md?.links ?? []), ...data.sources.map((s) => s.url)].join("\n");
 
     // Price rules per locale (owner D-W94-4: fa full, ar price + date only, en nothing).
-    if (locale === "en") reasons.push(...enPriceFindings(lines, ctx.priceAmounts));
+    if (locale === "en") reasons.push(...enPriceFindings(lines, ctx.priceAmounts, [data.slug]));
     if (locale === "ar") reasons.push(...arPlaceFindings(lines, ctx.priceNames));
     // The public-file leak scan, as the artifact gate will run it on the page.
     const pagePath = `${locale === "fa" ? "" : `${locale}/`}articles/${data.slug}.html`;

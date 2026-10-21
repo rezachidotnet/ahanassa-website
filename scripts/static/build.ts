@@ -2,7 +2,7 @@
  * Static site build (architecture V1.1 §7.1 steps 4–6; contracts
  * docs/contracts/SNAPSHOT_V1.md and ARTIFACT_V1.md).
  *
- *   npm run build:static -- --snapshot <snapshot.v1.json> --target staging|production [--out .artifact] [--pipeline <info.json>]
+ *   npm run build:static -- --snapshot <snapshot.v1.json> --target staging|production [--out .artifact] [--pipeline <info.json>] [--gate-report <gate.json>]
  *
  * 1. Validates the snapshot (zod + content-derived version).
  * 2. Generates .static-build/ — a copy of the app WITHOUT wrangler.jsonc,
@@ -269,6 +269,9 @@ fs.writeFileSync(path.join(outDir, "manifest.json"), JSON.stringify(manifest, nu
 // --- 4. gate -----------------------------------------------------------------
 const gate = runArtifactGate(outDir, { companyPhones: COMPANY_PUBLIC_NUMBERS, companyEmails: COMPANY_PUBLIC_EMAILS });
 log(`artifact: ${gate.stats.publicFiles} public files (${gate.stats.htmlPages} HTML), ${gate.stats.privateFiles} private files; largest ${gate.stats.largestPublicFile?.path} (${gate.stats.largestPublicFile?.bytes} B)`);
+// W11.6: the content pipeline (scripts/content/export.ts) reads the gate result to isolate a failing article.
+const gateReport = args.get("gate-report");
+if (gateReport) fs.writeFileSync(path.resolve(repo, gateReport), JSON.stringify({ failures: gate.failures, articleFindings: gate.articleFindings }, null, 1) + "\n");
 if (gate.failures.length) {
   for (const f of gate.failures) console.error(`[static] GATE FAIL: ${f}`);
   process.exit(1);
