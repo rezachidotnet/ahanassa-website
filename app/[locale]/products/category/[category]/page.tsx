@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { isLocale, localizedPath, type Locale } from "@/config/locales";
 import { buildPageMetadata } from "@/lib/metadata/resolve";
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";
-import { listPublicCatalogCategories } from "@/lib/catalog/editorial-repository";
-import { categoryListingPath, categoryPathSegment, findCategoryByPathSegment } from "@/lib/catalog/public-categories";
+import { getPublishedCatalogTemplateBySlug, listPublicCatalogCategories, listPublishedCatalogTemplates } from "@/lib/catalog/editorial-repository";
+import { categoryListingPath, categoryPathSegment, findCategoryByPathSegment, resolveCategoryFilter } from "@/lib/catalog/public-categories";
+import { variantPageNotes } from "@/lib/catalog/specification-presenter";
 import { CATEGORIES_WITHOUT_CALCULATOR, CATEGORY_LINK_COPY, categorySeo } from "@/lib/content/category-seo";
 import { listPublishedHubFamilies } from "@/lib/pricing/price-page-data";
 import { priceHubPath } from "@/lib/pricing/price-hubs";
@@ -51,6 +52,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   });
 }
 
+/** W9.13: the required notes of the products the category lists (domestic channel, mill-wall pipe, thin galvanized coil). */
+async function categoryNotes(locale: Locale, code: string): Promise<string[]> {
+  const categories = await listPublicCatalogCategories(locale);
+  const templates = await listPublishedCatalogTemplates(locale, { categoryCode: code, ...resolveCategoryFilter(categories, code) });
+  const details = await Promise.all(templates.map((t) => getPublishedCatalogTemplateBySlug(locale, t.seo.slug)));
+  const variants = details.flatMap((d) => d?.variants ?? []);
+  return variantPageNotes(variants.map((v) => ({ sku: v.sku, formCode: v.form.code, standard: v.standard.code ?? v.standard.name })), locale, "required");
+}
+
 /**
  * W16.3 — the category intro: what the family is, its grades and standards, and how to request; then links
  * to the family price hub (fa/ar, only on a day it is published) and the weight calculator (its published
@@ -60,11 +70,17 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 async function CategoryIntro({ locale, code, name, intro }: { locale: Locale; code: string; name: string; intro: string }) {
   await Promise.resolve();
   const hub = await hasPriceHub(locale, code);
+  const notes = await categoryNotes(locale, code);
   const t = CATEGORY_LINK_COPY[locale];
   const calculator = isWeightCalculatorPublished(locale) && !CATEGORIES_WITHOUT_CALCULATOR.has(code);
   return (
     <section aria-label={t.heading} className="container-x pt-10">
       <p className="text-muted-foreground max-w-3xl leading-relaxed">{intro}</p>
+      {notes.map((note) => (
+        <p key={note} className="text-muted-foreground mt-2 max-w-3xl text-sm leading-relaxed">
+          {note}
+        </p>
+      ))}
       {(hub || calculator) && (
         <ul className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm font-semibold">
           {hub && (

@@ -6,7 +6,7 @@ import { categorySetClause, type CatalogFilterInput } from "./catalog-filters.ts
 import { parseCategoryRow, type CategoryRow } from "./public-categories.ts";
 import { groupProductFamilies, withMarketName } from "../content/category-nav.ts";
 import { resolveCatalogMedia, type ResolvedCatalogMedia } from "./media-registry.ts";
-import { formatCompactVariantSpecification } from "./specification-presenter.ts";
+import { formatCompactVariantSpecification, publicNominalWeight } from "./specification-presenter.ts";
 import { attachRfqPublicCategories, type RfqSelectableCatalogItem } from "../rfq/catalog-selector.ts";
 import { computeHomepageScore, sortByHomepageScore, type HomepageRankingMode } from "../ranking/score.ts";
 import { HOMEPAGE_PRODUCT_DISPLAY_COUNT } from "./homepage-config.ts";
@@ -162,7 +162,8 @@ function mapVariant(row: VariantRow): ProductVariant {
     grade: { code: row.grade_code, name: row.grade_name },
     standard: { code: row.standard_code, name: row.standard_name },
     dimensions: parseJsonRecord(row.dimensions_json),
-    nominalWeight: parseJsonRecord(row.nominal_weight_json),
+    // W9.13: the domestic channel has no nominal weight, whatever the row carries (sold per kg by actual weight).
+    nominalWeight: publicNominalWeight({ sku: row.sku, formCode: row.form_code }, parseJsonRecord(row.nominal_weight_json)),
     allowedCommercialUnits: row.allowed_commercial_units,
     inventoryUom: row.inventory_uom,
     catalogUpdatedAt: row.catalog_updated_at,

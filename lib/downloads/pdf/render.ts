@@ -3,7 +3,7 @@ import { localizedPath } from "../../../config/locales.ts";
 import { CONTACT_PHONE_DISPLAY } from "../../content/contact-channels.ts";
 import { OFFICES, WORKING_HOURS_TEXT } from "../../content/company.ts";
 import { RAW_MATERIALS, RAW_MATERIALS_UI } from "../../content/raw-materials.ts";
-import { dimensionColumnLabel, HOLLOW_SECTION_MASS_NOTE, isEn10219HollowSection, NOMINAL_WEIGHT_DISCLAIMER, orderedSpecKeys, weightColumnLabel } from "../../catalog/specification-presenter.ts";
+import { dimensionColumnLabel, HOLLOW_SECTION_MASS_NOTE, isEn10219HollowSection, NOMINAL_WEIGHT_DISCLAIMER, orderedSpecKeys, variantPageNotes, weightColumnLabel } from "../../catalog/specification-presenter.ts";
 import { downloadsCopy } from "../copy.ts";
 import { catalogChapters, sortBySize, templateGrade, templateStandard, type DownloadCatalog, type DownloadCategory, type DownloadTemplate } from "../model.ts";
 import { rawMaterialChapters, type RawMaterialTemplate } from "../raw-materials.ts";
@@ -72,6 +72,10 @@ function templateBlock(d: BrandDocument, t: DownloadTemplate, category: Download
     d.y -= 4;
     d.paragraph(HOLLOW_SECTION_MASS_NOTE[locale], { size: 8, color: COLORS.muted, gapAfter: 2 });
   }
+  // W9.13: the page notes of the same table (domestic channel, mill-wall pipe, thin coil, rebar Ø36/40, plate sizes).
+  const notes = variantPageNotes(variants, locale);
+  if (notes.length) d.y -= 4;
+  for (const note of notes) d.paragraph(note, { size: 8, color: COLORS.muted, gapAfter: 2 });
   d.y -= 16;
 }
 

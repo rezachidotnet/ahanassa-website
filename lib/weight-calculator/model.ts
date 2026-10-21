@@ -1,5 +1,5 @@
 import type { ProductVariant } from "../catalog/types.ts";
-import { sortVariantsBySize } from "../catalog/specification-presenter.ts";
+import { isMillWallPipe, sortVariantsBySize } from "../catalog/specification-presenter.ts";
 import { channelKgPerMetre, equalAngleKgPerMetre, hollowSectionKgPerMetre, pipeKgPerMetre, plateKg, plateKgPerSquareMetre, rebarKgPerMetre } from "./formulas.ts";
 import { EN10365_IPE_KG_M, EN10365_IPN_KG_M, type StandardId } from "./standards.ts";
 
@@ -131,6 +131,8 @@ export function formulaKgPerMetreFromDimensions(shape: ShapeKind, d: Record<stri
  * guessed weight.
  */
 export function resolveVariantBasis(shape: ShapeKind | null, variant: CatalogVariantInput): Omit<CalculatorVariant, "xid" | "size" | "dimensions"> | null {
+  // W9.13: the mill-wall pipe is not an ASME B36.10M schedule (the pipe shape's cited basis): never offered.
+  if (isMillWallPipe(variant)) return null;
   const nw = variant.nominalWeight;
   const lengthMm = num(variant.dimensions, "length_mm");
   const none = { kgPerMetre: NaN, kgPerSquareMetre: NaN, pieceKg: null, lengthMm };

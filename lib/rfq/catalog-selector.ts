@@ -20,6 +20,7 @@
 import type { RfqCatalogSelection } from "@/lib/catalog/editorial-repository";
 import type { PublicCatalogCategory } from "@/lib/catalog/types";
 import { indexPublicCategoriesByGroupCode, resolveRfqPublicCategory } from "../catalog/public-categories.ts";
+import { compareCommercialSize } from "../catalog/specification-presenter.ts";
 
 /**
  * A selectable Variant plus its DISPLAY category for the selector. The
@@ -98,8 +99,10 @@ const UNCATEGORIZED_LABEL: Record<"fa" | "en" | "ar", string> = {
 
 /**
  * Groups a flat, already-eligible Variant list into Category -> Template ->
- * Variant, preserving the input's own ordering within each group (the
- * caller/query already orders it sensibly). Never fabricates a category —
+ * Variant, preserving the input's own ordering of categories and templates.
+ * W9.13: a template's sizes are in natural size order (compareCommercialSize):
+ * 40 before 100, then 6 m before 12 m — the query's text order put "100 (12 m)"
+ * before "40 (6 m)". Ties by SKU. Never fabricates a category —
  * a Variant with no `publicCategoryLabel` is grouped under a clearly-labeled
  * fallback bucket rather than dropped.
  */
@@ -123,6 +126,9 @@ export function groupCatalogItemsForSelector(items: PublicRfqCatalogItem[], loca
     template.variants.push(item);
   }
 
+  for (const category of categories.values()) {
+    for (const template of category.templates) template.variants.sort((a, b) => compareCommercialSize(a.variantSpecLabel, b.variantSpecLabel) || (a.sku < b.sku ? -1 : a.sku > b.sku ? 1 : 0));
+  }
   return [...categories.values()];
 }
 

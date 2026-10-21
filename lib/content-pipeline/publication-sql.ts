@@ -1,5 +1,6 @@
 import type { RfqVariantIndexRow, SnapshotV1 } from "../contracts/snapshot-v1.ts";
 import { sqlLiteral, type SqlParam } from "../rfq-worker/wrangler-d1.ts";
+import { SEEDED_PAGE_ID_PREFIX } from "./editorial-page-allowlist.ts";
 
 /**
  * DB_PUBLIC publication SQL (architecture V1.1 §5.1, §7.1 step 7, §7.2).
@@ -121,6 +122,9 @@ export function pruneSql(versions: readonly string[], active: string): string | 
  * them) mirror the published snapshot, so the next publish starts from them. ONLY Odoo-owned columns
  * and sync bookkeeping are written; Website-owned editorial columns/tables are never overwritten
  * (a new row is inserted whole, with the not-public defaults). Categories are replaced per locale.
+ * W9.13: a page row seeded for a new template (editorial-page-allowlist.ts) is inserted once and never
+ * updated — `ON CONFLICT DO NOTHING`, so an existing row (same id, or the entity/locale or slug/locale it
+ * would duplicate) always wins and the editorial CLI owns it from then on.
  */
 const VARIANT_ODOO_COLUMNS = ["product_id", "xid", "sku", "commercial_name", "commercial_size", "section_size", "schedule", "family_code", "family_name", "group_code", "group_name", "form_code", "form_name", "grade_code", "grade_name", "standard_code", "standard_name", "dimensions_json", "nominal_weight_json", "allowed_commercial_units", "inventory_uom", "catalog_updated_at", "is_active", "sync_status", "sync_version", "last_synced_at", "updated_at"];
 const PRODUCT_ODOO_COLUMNS = ["template_xid", "is_active", "sync_status", "last_synced_at", "updated_at"];
@@ -135,6 +139,7 @@ export function mirrorStatements(tables: SnapshotV1["tables"]): string[] {
   for (const p of tables.catalog_products) statements.push(upsert("catalog_products", p as unknown as Record<string, SqlParam>, PRODUCT_ODOO_COLUMNS));
   for (const v of tables.product_variants) statements.push(upsert("product_variants", v as unknown as Record<string, SqlParam>, VARIANT_ODOO_COLUMNS));
   for (const g of tables.public_processing_groups) statements.push(upsert("public_processing_groups", g as unknown as Record<string, SqlParam>, GROUP_ODOO_COLUMNS));
+  for (const s of tables.product_seo_contents) if (s.id.startsWith(SEEDED_PAGE_ID_PREFIX)) statements.push(`${insert("product_seo_contents", s as unknown as Record<string, SqlParam>)} ON CONFLICT DO NOTHING`);
   return statements;
 }
 
