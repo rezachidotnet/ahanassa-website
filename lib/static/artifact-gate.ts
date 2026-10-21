@@ -191,7 +191,7 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
       if (src.startsWith(`${PRODUCTION_ORIGIN}/`) && !publicPaths.has(decodeURI(src.slice(PRODUCTION_ORIGIN.length + 1)))) failures.push(`${e.path}: share image not in the artifact: ${src}`);
     }
   }
-  // W25.3: no font preload; metric-matched fallback faces present (lib/static/font-loading.ts).
+  // W25.3: the site font is preloaded and the metric-matched fallback faces are present (lib/static/font-loading.ts).
   failures.push(...checkFontLoading(htmlFiles.map((e) => e.path), publicEntries.filter((e) => e.path.endsWith(".css")).map((e) => e.path), readPublic));
   if (publicPaths.has("_headers") && parsed.success) {
     const headers = readPublic("_headers");

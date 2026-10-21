@@ -93,17 +93,12 @@ export function raiseBootstrapModulePriority(html: string): string {
 
 /** Applies `raiseBootstrapModulePriority` to every HTML file of the export; returns how many changed. */
 export function raiseBootstrapModulePriorityInDir(dir: string): number {
-  return rewriteHtmlInDir(dir, raiseBootstrapModulePriority);
-}
-
-/** Rewrites every HTML file of the export with `rewrite`; returns how many changed. */
-function rewriteHtmlInDir(dir: string, rewrite: (html: string) => string): number {
   let changed = 0;
   for (const rel of fs.readdirSync(dir, { recursive: true, encoding: "utf8" })) {
     if (!rel.endsWith(".html")) continue;
     const file = path.join(dir, rel);
     const html = fs.readFileSync(file, "utf8");
-    const next = rewrite(html);
+    const next = raiseBootstrapModulePriority(html);
     if (next !== html) {
       fs.writeFileSync(file, next);
       changed++;
@@ -117,28 +112,4 @@ export function bootstrapModuleIsLowPriority(html: string): boolean {
   const entry = /<script\b[^>]*\bsrc="([^"]+)"[^>]*\bid="_R_"/.exec(html)?.[1] ?? /<script\b[^>]*\bid="_R_"[^>]*\bsrc="([^"]+)"/.exec(html)?.[1];
   if (!entry) return false;
   return [...html.matchAll(/<link\b[^>]*rel="modulepreload"[^>]*>/gi)].some((m) => m[0].includes(`href="${entry}"`) && /fetchpriority="low"/i.test(m[0]));
-}
-
-/**
- * W25.3 (owner decision D-W253-FONT): the Estedad font is no longer preloaded. vinext's `next/font/local` always
- * emits `<link rel="preload" as="font">` (its `preload: false` is not honoured), and on a slow link that 125 KB
- * download competed with the CSS and the chunks that make the page usable. Without the preload the browser
- * fetches the font once the stylesheet has applied; text paints first in the metric-matched fallback faces
- * (styles/estedad-fallback.css) and Estedad swaps in (`font-display: swap`).
- */
-const FONT_PRELOAD = /<link\b[^>]*\bas="font"[^>]*>/gi;
-const isPreloadLink = (tag: string) => /\brel="preload"/i.test(tag);
-
-export function removeFontPreloads(html: string): string {
-  return html.replace(FONT_PRELOAD, (tag) => (isPreloadLink(tag) ? "" : tag));
-}
-
-/** Applies `removeFontPreloads` to every HTML file of the export; returns how many changed. */
-export function removeFontPreloadsInDir(dir: string): number {
-  return rewriteHtmlInDir(dir, removeFontPreloads);
-}
-
-/** Gate (W25.3): true when the page still preloads a font, in any attribute order. */
-export function hasFontPreload(html: string): boolean {
-  return [...html.matchAll(/<link\b[^>]*>/gi)].some((m) => isPreloadLink(m[0]) && /\bas="?font\b/i.test(m[0]));
 }

@@ -1,7 +1,7 @@
 /**
- * W25.3 (owner decision D-W253-FONT, 2026-10-21): Estedad is no longer preloaded, so on a slow network text
- * paints in a fallback font for a while and Estedad swaps in later. These are the fallback faces that keep that
- * swap small: one family per platform, each face a local system font scaled (`size-adjust`) to Estedad's
+ * W25.3 (owner decision D-W253-FONT, 2026-10-21): Estedad stays preloaded with `font-display: swap`, so on a
+ * slow network text first paints in a fallback font and Estedad swaps in later. These are the fallback faces
+ * that keep that swap small: one family per platform, each face a local system font scaled (`size-adjust`) to Estedad's
  * measured width, with Estedad's own ascent/descent, so line boxes and line breaks barely move when it swaps.
  *
  * Each face's `unicode-range` is limited to characters Estedad itself has, so once Estedad has loaded every

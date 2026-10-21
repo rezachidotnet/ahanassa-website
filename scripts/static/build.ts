@@ -24,7 +24,7 @@ import { readSnapshotFile } from "../../lib/static/snapshot-io.ts";
 import { snapshotCounts, rfqVariantIndexRow, type RfqVariantIndexRow } from "../../lib/contracts/snapshot-v1.ts";
 import { artifactManifest, artifactPipelineInfo, publicManifest, publicRfqCatalog, PUBLIC_DIR, PRIVATE_DIR, ARTIFACT_SCHEMA_VERSION } from "../../lib/contracts/artifact-v1.ts";
 import { buildAssetsIgnoreFile, buildHeadersFile, buildRedirectsFile, renderRobotsTxt, renderSitemapXml, type StaticEnvironment } from "../../lib/static/static-rules.ts";
-import { moveDefaultLocaleToRoot, placeLocale404s, raiseBootstrapModulePriorityInDir, removeFontPreloadsInDir, removeUnpublishedOutputs } from "../../lib/static/postprocess.ts";
+import { moveDefaultLocaleToRoot, placeLocale404s, raiseBootstrapModulePriorityInDir, removeUnpublishedOutputs } from "../../lib/static/postprocess.ts";
 import { writeAgentFiles } from "../../lib/static/agent-files.ts";
 import { describeFiles, runArtifactGate } from "../../lib/static/artifact-gate.ts";
 import { getAllowedUomsForCatalogGroup } from "../../lib/rfq/uom-policy.ts";
@@ -158,7 +158,6 @@ log(`removed ${removed.length} unpublished outputs (.rsc/.vite)`);
 placeLocale404s(publicDir, locales, defaultLocale);
 moveDefaultLocaleToRoot(publicDir, defaultLocale);
 log(`bootstrap module at default priority in ${raiseBootstrapModulePriorityInDir(publicDir)} HTML file(s)`);
-log(`font preload removed from ${removeFontPreloadsInDir(publicDir)} HTML file(s) (W25.3)`);
 
 // The app's own modules, loaded through Vite SSR with the same aliases the build used.
 const vite = await createServer({

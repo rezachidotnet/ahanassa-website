@@ -6,14 +6,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fontkit from "@pdf-lib/fontkit";
 import { ESTEDAD_FALLBACK_FAMILIES, ESTEDAD_FALLBACK_STACK, isArabicScript, renderFallbackCss, unicodeRanges, type EstedadFallbackMetrics } from "../fonts/estedad-fallback.ts";
-import { checkFontLoading } from "./font-loading.ts";
-import { hasFontPreload, removeFontPreloads } from "./postprocess.ts";
+import { checkFontLoading, fontPreloadHrefs } from "./font-loading.ts";
 
 /**
- * W25.3 (owner decision D-W253-FONT, 2026-10-21): Estedad is not preloaded, so the /contact form becomes usable
- * sooner on slow networks; text first paints in metric-matched local fallbacks. Supersedes FONT_STRATEGY §8.2's
- * "preload exactly one WOFF2" (PROJECT_OVERRIDES.md §17, DAR-067). The browser half is the W25_3 measurement;
- * these are the rules that keep it.
+ * W25.3 (owner decision D-W253-FONT, amended 2026-10-21): Estedad stays preloaded (FONT_STRATEGY §8.2 — dropping
+ * the preload was measured slower), and metric-matched local fallback faces are added so the swap barely moves
+ * the layout (CLS on /contact 0.075 → ~0.0005). PROJECT_OVERRIDES.md §17, DAR-067. The browser half is the W25_3
+ * measurement; these are the rules that keep it.
  */
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const read = (rel: string) => fs.readFileSync(path.join(ROOT, rel), "utf8");
@@ -21,29 +20,22 @@ const metrics = JSON.parse(read("lib/fonts/estedad-fallback-metrics.json")) as E
 
 const FONT = "/_next/static/media/Estedad-Variable.CFvC3bjT.woff2";
 const STACK = `'estedad', ${ESTEDAD_FALLBACK_STACK.slice(0, -1).map((f) => `'${f}'`).join(", ")}, sans-serif`;
-const page = (head = "") =>
-  `<head><link rel="stylesheet" href="/_next/static/css/index.css"/>${head}<link rel="preload" href="/data/rfq-catalog.fa.0123456789abcdef.json" as="fetch" crossorigin=""/>` +
-  `<style data-vinext-fonts>:root { --font-ahan-asa: ${STACK}; }</style></head><body></body>`;
 const VINEXT_PRELOAD = `<link rel="preload" href="${FONT}" as="font" type="font/woff2" crossorigin />`;
+const page = (head = VINEXT_PRELOAD) =>
+  `<head><link rel="stylesheet" href="/_next/static/css/index.css"/>${head}<link rel="preload" href="/data/rfq-catalog.fa.0123456789abcdef.json" as="fetch" crossorigin=""/>` +
+  `<style data-vinext-fonts>@font-face {\n  font-family: 'estedad';\n  src: url('${FONT}') format('woff2');\n  font-display: swap;\n}\n:root { --font-ahan-asa: ${STACK}; }</style></head><body></body>`;
 
-test("the build drops the font preload vinext emits, and only that", () => {
-  const out = removeFontPreloads(page(VINEXT_PRELOAD));
-  assert.equal(out, page());
-  assert.equal(removeFontPreloads(out), out, "idempotent");
-  assert.ok(out.includes('as="fetch"'), "the catalog preload stays");
-  assert.match(read("scripts/static/build.ts"), /removeFontPreloadsInDir\(publicDir\)/);
+test("font preloads are found in any attribute order", () => {
+  assert.deepEqual(fontPreloadHrefs(page()), [FONT]);
+  assert.deepEqual(fontPreloadHrefs(page(`<link as="font" crossorigin="" href="${FONT}" rel="preload">`)), [FONT]);
+  assert.deepEqual(fontPreloadHrefs(page("")), [], "the catalog's as=fetch preload is not a font");
 });
 
-test("the gate finds a font preload in any attribute order", () => {
-  assert.equal(hasFontPreload(page(VINEXT_PRELOAD)), true);
-  assert.equal(hasFontPreload(page(`<link as="font" crossorigin="" href="${FONT}" rel="preload">`)), true);
-  assert.equal(hasFontPreload(page()), false);
-});
-
-test("Estedad: swap, not preloaded, fallback families ahead of sans-serif", () => {
+test("Estedad: swap, preloaded (vinext's default), fallback families ahead of sans-serif", () => {
   const src = read("lib/fonts/estedad.ts");
   assert.match(src, /display: "swap"/);
-  assert.match(src, /preload: false/);
+  assert.doesNotMatch(src, /preload: false/);
+  assert.doesNotMatch(read("scripts/static/build.ts"), /FontPreload/i, "the build leaves vinext's font preload in place");
   const fallback = /fallback: (\[[^\]]*\])/.exec(src)?.[1];
   assert.deepEqual(JSON.parse(fallback ?? "null"), ESTEDAD_FALLBACK_STACK, "kept literal for vinext; equal to ESTEDAD_FALLBACK_STACK");
   assert.equal(ESTEDAD_FALLBACK_STACK.at(-1), "sans-serif", "characters Estedad lacks still reach the same generic family");
@@ -74,7 +66,7 @@ test("unicodeRanges collapses runs", () => {
   assert.equal(unicodeRanges([0x41, 0x42, 0x43, 0x600, 0x45, 0x601]), "U+0041-0043, U+0045, U+0600-0601");
 });
 
-test("the artifact gate: no font preload, fallback stack on every page, every fallback face complete", () => {
+test("the artifact gate: exactly the site font preloaded, fallback stack on every page, every fallback face complete", () => {
   const css = renderFallbackCss(metrics);
   const files: Record<string, string> = { "contact.html": page(), "_next/static/css/index.css": css };
   const r = (p: string) => files[p];
@@ -83,8 +75,15 @@ test("the artifact gate: no font preload, fallback stack on every page, every fa
   files["_next/static/css/index.css"] = css.replace(/"Estedad Fallback (\w+)"/g, "Estedad Fallback $1").replace(/\s*\n\s*/g, "");
   assert.deepEqual(checkFontLoading(["contact.html"], ["_next/static/css/index.css"], r), []);
 
-  files["contact.html"] = page(VINEXT_PRELOAD);
-  assert.match(checkFontLoading(["contact.html"], ["_next/static/css/index.css"], r).join(), /contact\.html: preloads a font/);
+  files["contact.html"] = page("");
+  assert.match(checkFontLoading(["contact.html"], ["_next/static/css/index.css"], r).join(), /contact\.html: must preload exactly the site font .*found none/);
+  files["contact.html"] = page(VINEXT_PRELOAD + VINEXT_PRELOAD.replace("Estedad-Variable", "Other"));
+  assert.match(checkFontLoading(["contact.html"], ["_next/static/css/index.css"], r).join(), /must preload exactly the site font/);
+  files["contact.html"] = page(VINEXT_PRELOAD.replace("CFvC3bjT", "stale000"));
+  assert.match(checkFontLoading(["contact.html"], ["_next/static/css/index.css"], r).join(), /must preload exactly the site font/, "a preload of another file than the @font-face loads");
+  files["404.html"] = "<html><body>404</body></html>";
+  files["_next/static/css/index.css"] = css;
+  assert.deepEqual(checkFontLoading(["404.html"], ["_next/static/css/index.css"], r), [], "a page without the font stack is not checked");
   files["contact.html"] = page().replace(", 'Estedad Fallback Android'", "");
   assert.match(checkFontLoading(["contact.html"], ["_next/static/css/index.css"], r).join(), /lacks the fallback family Estedad Fallback Android/);
   files["contact.html"] = page();
