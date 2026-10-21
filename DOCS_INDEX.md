@@ -103,7 +103,7 @@ Read `PROJECT_OVERRIDES.md` and `CLAUDE.md` before using this index. As of 2026-
 | `01-sources/CTA_STRATEGY.md` | ACTIVE | Conversion/CTA rules |
 | `01-sources/MEDIA_GUIDELINES.md` | ACTIVE | Media sourcing, truthfulness |
 | `01-sources/IMAGE_OPTIMIZATION.md` | ACTIVE | Image pipeline |
-| `01-sources/FONT_STRATEGY.md` | PARTIALLY OVERRIDDEN | Font loading — AUD-034 corrected the active Persian-only launch row to `fa`/`en`/`ar`. Final family/licensing choices and exact multi-locale font budgets remain unresolved owner/implementation decisions; do not invent them. See `DOCUMENT_AUDIT_REPORT.md` DAR-010. |
+| `01-sources/FONT_STRATEGY.md` | PARTIALLY OVERRIDDEN | Font loading — AUD-034 corrected the active Persian-only launch row to `fa`/`en`/`ar`. Final family/licensing choices and exact multi-locale font budgets remain unresolved owner/implementation decisions; do not invent them. See `DOCUMENT_AUDIT_REPORT.md` DAR-010. §8.1 step 2 / §8.2 (font preload) superseded 2026-10-21: no font preload, metric-matched local fallbacks (`PROJECT_OVERRIDES.md` §17, DAR-067). |
 
 ---
 

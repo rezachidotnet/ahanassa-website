@@ -158,7 +158,9 @@ function buildArtifact(env: "staging" | "production" = "staging") {
       return [loc, p];
     }),
   ) as Record<"fa" | "en" | "ar", string>;
-  write(pub, "_headers", buildHeadersFile(env, STATIC_TARGETS[env].rfqApiOrigin, [], Object.values(catalogAssets)));
+  // W25.3: the site stylesheet carries the metric-matched Estedad fallback faces.
+  write(pub, "_next/static/css/index.css", fs.readFileSync(path.join(ROOT, "styles/estedad-fallback.css"), "utf8"));
+  write(pub, "_headers", buildHeadersFile(env, STATIC_TARGETS[env].rfqApiOrigin, ["/_next/static/css/index.css"], Object.values(catalogAssets)));
   write(pub, "_redirects", buildRedirectsFile());
   write(pub, ".assetsignore", buildAssetsIgnoreFile());
   write(pub, "manifest.public.json", JSON.stringify({ schema_version: "artifact.public.v1", snapshot_version: snap, generated_at: "t", locales: ["fa", "en", "ar"] }));

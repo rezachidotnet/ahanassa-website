@@ -14,6 +14,7 @@ import { checkAgentTexts, checkMarkdownMirrors } from "./markdown-mirror.ts";
 import { scanArticlePages, type ArticleFinding } from "./article-gate.ts";
 import { STATIC_TARGETS, TURNSTILE_ORIGIN } from "./targets.ts";
 import { checkStaticCacheRules } from "./static-rules.ts";
+import { checkFontLoading } from "./font-loading.ts";
 import { bootstrapModuleIsLowPriority } from "./postprocess.ts";
 import { checkIndexingPolicy, PRODUCTION_ORIGIN } from "./indexing-gate.ts";
 import { GA4_CONNECT_ORIGINS } from "../security/headers.ts";
@@ -190,6 +191,8 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
       if (src.startsWith(`${PRODUCTION_ORIGIN}/`) && !publicPaths.has(decodeURI(src.slice(PRODUCTION_ORIGIN.length + 1)))) failures.push(`${e.path}: share image not in the artifact: ${src}`);
     }
   }
+  // W25.3: no font preload; metric-matched fallback faces present (lib/static/font-loading.ts).
+  failures.push(...checkFontLoading(htmlFiles.map((e) => e.path), publicEntries.filter((e) => e.path.endsWith(".css")).map((e) => e.path), readPublic));
   if (publicPaths.has("_headers") && parsed.success) {
     const headers = readPublic("_headers");
     // Indexing (D6): staging never indexable; production exactly lib/seo/indexing-policy.ts.

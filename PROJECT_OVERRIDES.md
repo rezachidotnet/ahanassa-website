@@ -6,9 +6,9 @@
 **Domain:** `https://www.ahanassa.com`
 **ERP:** `https://odoo.ahanassa.com`
 **Document role:** Highest-authority record of confirmed decisions that supersede conflicting statements anywhere in the active `01-sources/` corpus or older historical source-layer references
-**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered; customer account/portal future-phase architecture registered 2026-08-28; Odoo RFQ-path version/mapping verified against the live environment 2026-08-28; production D1 jurisdiction (EU) confirmed and production D1 provisioned 2026-08-29; §7.2 phone status corrected 2026-09-13 to reflect the already-live 2026-09-02 owner confirmation (FOOTER-P1); §10's own stale phone-unconfirmed bullet reconciled 2026-09-13 (CI-CD-P1 governance pass); §7.1/§7.2 updated 2026-09-14 with new owner-confirmed phone (`03135134`, superseding the 2026-09-02 mobile number) and address plaque number (HP-CONTENT-P1, staging-only content patch); §8b note 2026-10-08: inner pages move to the rounded look (D-W10-1); §15 2026-10-14: a deployment waiting for the owner's approval is auto-approved after 6 h (W17.3); §7.2a 2026-10-16: company e-mail `sales@ahanassa.com`, /contact only (D-W207-EMAIL)
-**Version:** 2.8.0
-**Last updated:** 2026-10-16
+**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered; customer account/portal future-phase architecture registered 2026-08-28; Odoo RFQ-path version/mapping verified against the live environment 2026-08-28; production D1 jurisdiction (EU) confirmed and production D1 provisioned 2026-08-29; §7.2 phone status corrected 2026-09-13 to reflect the already-live 2026-09-02 owner confirmation (FOOTER-P1); §10's own stale phone-unconfirmed bullet reconciled 2026-09-13 (CI-CD-P1 governance pass); §7.1/§7.2 updated 2026-09-14 with new owner-confirmed phone (`03135134`, superseding the 2026-09-02 mobile number) and address plaque number (HP-CONTENT-P1, staging-only content patch); §8b note 2026-10-08: inner pages move to the rounded look (D-W10-1); §15 2026-10-14: a deployment waiting for the owner's approval is auto-approved after 6 h (W17.3); §7.2a 2026-10-16: company e-mail `sales@ahanassa.com`, /contact only (D-W207-EMAIL); §17 2026-10-21: the site font is not preloaded; metric-matched local fallbacks instead (D-W253-FONT)
+**Version:** 2.9.0
+**Last updated:** 2026-10-21
 
 ---
 
@@ -475,6 +475,35 @@ EXTERNAL_INCIDENT_NEVER_WHEN      = any other ALERT in the same run, annotations
 ```
 
 **Status:** OWNER-CONFIRMED 2026-10-18 for HIGH releases and extended to LOW releases the same day, approved as a HIGH change. The site is designed to be independent of Odoo: a static build, with RFQs queued in D1. An Odoo outage during a release's observation is therefore not evidence against the release. Every other ALERT (site, RFQ intake 5xx, cron silent, CPU, RFQ in terminal failure, content stale), and every failure whose cause is unknown, is attributed to the release exactly as before; for a LOW release that is still the automatic rollback. Full rule: `docs/release/RELEASE_POLICY.md` §20.2a; implementation: `.github/scripts/v11-live-release.mjs` and `.github/workflows/v11-release-watch.yml` on `main`.
+
+---
+
+## 17. The site font loads after the page's own resources — OWNER-CONFIRMED
+
+```text
+FONT_PRELOAD                      = none — the active family (Estedad Variable) is NOT preloaded on any page
+FONT_DISPLAY                      = swap (unchanged)
+FONT_FALLBACK                     = metric-matched local fallback faces (size-adjust, ascent/descent/line-gap overrides), measured against the exact active WOFF2, unicode-range limited to that font's own coverage
+FINAL_LOOK                        = unchanged once the font has loaded
+ACCEPTED                          = a short fallback-font period on slow networks
+```
+
+**Status:** OWNER-CONFIRMED 2026-10-21 (W25.3, "option A"). On a cold 3G link the 125 KB font download competed with the stylesheet and the scripts that make `/contact` usable (W25.2 report). The owner prefers a usable form sooner and accepts text appearing in a fallback font first.
+
+**Supersedes `01-sources/FONT_STRATEGY.md` §8.1 step 2 and §8.2 "Preload exactly one active normal variable WOFF2 asset"** (that document is not edited). The rest of FONT_STRATEGY stays in force:
+- `swap` (§8.3);
+- same-origin WOFF2 only, and one font request per page (§16.5);
+- fallback metrics that are measured, never guessed (§9.2);
+- the CLS limits (§9.4).
+
+The owner's instruction named "Vazirmatn". The active family is Estedad (D-W10-3, `lib/fonts/estedad.ts`), and the decision applies to it.
+
+Enforcement:
+- The static build removes the preload (`lib/static/postprocess.ts#removeFontPreloads`).
+- The artifact gate refuses a font preload and requires the fallback faces (`lib/static/font-loading.ts`).
+- Measurement tool: `scripts/fonts/estedad-fallback-metrics.ts`. Evidence: `lib/fonts/estedad-fallback-metrics.json`.
+
+Detail: `DOCUMENT_AUDIT_REPORT.md` DAR-067.
 
 ---
 
