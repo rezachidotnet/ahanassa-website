@@ -44,6 +44,7 @@
     "test": "node --test lib/**/*.test.ts components/**/*.test.ts scripts/ops/**/*.test.ts",
     "build:static": "node scripts/static/build.ts",
     "static:gate": "node scripts/static/gate.ts",
-    "static:hydration": "node scripts/static/hydration-check.ts"
+    "static:hydration": "node scripts/static/hydration-check.ts",
+    "static:overflow": "node scripts/static/overflow-check.ts"
   }
 }

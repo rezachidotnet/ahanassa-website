@@ -113,5 +113,21 @@ jobs:
           CHROME_PATH: google-chrome
         run: npm run static:hydration -- .artifact/public-assets --all
 
+      # W25: no page may be wider than a 360/390 px phone (lib/static/overflow-scan.ts). The fixture has no prices or
+      # market indicators, so the strips that once overflowed are checked on a synthetic-price build below as well.
+      - name: Horizontal-overflow check at 360 and 390 px
+        env:
+          CHROME_PATH: google-chrome
+        run: npm run static:overflow -- .artifact/public-assets
+
+      - name: Static build with synthetic prices + indicators, horizontal-overflow check
+        env:
+          CHROME_PATH: google-chrome
+        run: |
+          set -euo pipefail
+          node scripts/static/synthetic-price-snapshot.ts --out "$RUNNER_TEMP/synthetic-prices.snapshot.json" --indicators fixtures/indicators/synthetic-indicators.json
+          npm run build:static -- --snapshot "$RUNNER_TEMP/synthetic-prices.snapshot.json" --target production --out .artifact-prices
+          npm run static:overflow -- .artifact-prices/public-assets
+
       - name: Static build (production flags) + artifact gate
         run: npm run build:static -- --snapshot fixtures/snapshot/staging-2026-10-01.snapshot.json --target production --out .artifact-production

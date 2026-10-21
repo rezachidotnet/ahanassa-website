@@ -7,6 +7,7 @@ import { PRICE_HUB_CATEGORY_CODES, priceHubPath, priceHubSegment } from "../pric
 import { EXPORT_LOCALES, EXPORT_ROUTE } from "../content/export.ts";
 import { PRICE_CHART_LOCALES, priceChartPath } from "../pricing/price-charts.ts";
 import { MARKET_INDICATORS_LOCALES, MARKET_INDICATORS_ROUTE } from "../indicators/page.ts";
+import { publicRfqCatalogPath, RFQ_CATALOG_ASSET_PATTERN } from "../contracts/public-paths.ts";
 
 /**
  * Static replacements for what `proxy.ts` and the metadata routes did on the
@@ -30,8 +31,18 @@ export type StaticEnvironment = "staging" | "production";
  * name — e.g. requested in the seconds before a fresh deploy's new chunks
  * are reachable — cacheable for a year in the visitor's browser. A path
  * with no rule keeps the platform's `max-age=0, must-revalidate`.
+ *
+ * W25: the /contact form's content-hashed catalog files
+ * (`/data/rfq-catalog.<locale>.<hash>.json`, `rfqCatalogAssetPaths`) get the
+ * same rule, one each. So the v1 catalog files keep their 5-minute
+ * Cache-Control as one rule per file, not `/data/*`: Cloudflare joins the
+ * values of a header that two matching rules set, so a `/data/*`
+ * Cache-Control would ride along on the immutable files. `/data/*` stays
+ * only for production's X-Robots-Tag.
  */
 export const IMMUTABLE_CACHE_CONTROL = "public, max-age=31536000, immutable";
+/** The v1 /data/rfq-catalog.<locale>.json files: re-checked every 5 minutes (scripts/content/publish.ts waits it out). */
+export const DATA_CACHE_CONTROL = "public, max-age=300";
 /** Cloudflare's limit on rules in one `_headers` file (Workers static assets). */
 export const MAX_HEADER_RULES = 100;
 /**
@@ -40,7 +51,7 @@ export const MAX_HEADER_RULES = 100;
  * with `Accept: text/markdown` is answered from the page's `.md` mirror (lib/static/markdown-mirror.ts).
  */
 export const CONTENT_SIGNAL = "search=yes, ai-input=yes, ai-train=yes";
-export function buildHeadersFile(env: StaticEnvironment, rfqApiOrigin: string, staticAssetPaths: readonly string[] = []): string {
+export function buildHeadersFile(env: StaticEnvironment, rfqApiOrigin: string, staticAssetPaths: readonly string[] = [], rfqCatalogAssetPaths: readonly string[] = []): string {
   const lines = ["/*", ...buildSecurityHeaders([rfqApiOrigin]).map(([name, value]) => `  ${name}: ${value}`), `  Content-Signal: ${CONTENT_SIGNAL}`, "  Vary: Accept"];
   if (env === "staging") lines.push("  X-Robots-Tag: noindex, nofollow");
   const noindex = new Set<string>(env === "production" ? PRODUCTION_NOINDEX_HEADER_PATHS : []);
@@ -48,8 +59,12 @@ export function buildHeadersFile(env: StaticEnvironment, rfqApiOrigin: string, s
     if (!/^\/_next\/static\/[^*\s]+$/.test(p) || p.includes("/:")) throw new Error(`_headers: not a concrete /_next/static/ file path: ${p}`);
     lines.push("", p, `  Cache-Control: ${IMMUTABLE_CACHE_CONTROL}`);
   }
-  lines.push("", "/data/*", "  Cache-Control: public, max-age=300");
-  if (noindex.delete("/data/*")) lines.push("  X-Robots-Tag: noindex");
+  for (const p of [...rfqCatalogAssetPaths].sort()) {
+    if (!RFQ_CATALOG_ASSET_PATTERN.test(p)) throw new Error(`_headers: not a hashed rfq-catalog file path: ${p}`);
+    lines.push("", p, `  Cache-Control: ${IMMUTABLE_CACHE_CONTROL}`);
+  }
+  for (const locale of locales) lines.push("", publicRfqCatalogPath(locale), `  Cache-Control: ${DATA_CACHE_CONTROL}`);
+  if (noindex.delete("/data/*")) lines.push("", "/data/*", "  X-Robots-Tag: noindex");
   lines.push("");
   for (const p of noindex) lines.push(p, "  X-Robots-Tag: noindex", "");
   const rules = headerRuleCount(lines.join("\n"));
@@ -193,6 +208,19 @@ export function renderSitemapXml(entries: SitemapEntry[]): string {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"${xhtml}>\n${urls.join("\n")}${urls.length ? "\n" : ""}</urlset>\n`;
 }
 
+/** A `_headers` rule path with `*` wildcards (`/data/*`, `/*.md`) against a concrete path. */
+function globMatches(rule: string, path: string): boolean {
+  const parts = rule.split("*");
+  if (!path.startsWith(parts[0]) || !path.endsWith(parts[parts.length - 1])) return false;
+  let at = parts[0].length;
+  for (const part of parts.slice(1, -1)) {
+    const found = path.indexOf(part, at);
+    if (found < 0) return false;
+    at = found + part.length;
+  }
+  return at <= path.length - parts[parts.length - 1].length;
+}
+
 /**
  * W10.6 gate: `_headers` gives the immutable Cache-Control to exactly the artifact's /_next/static/ files —
  * one rule each, no wildcard (a wildcard also covers the 404 of a missing chunk), no rule for a path the
@@ -211,7 +239,10 @@ export function checkStaticCacheRules(headers: string, publicPaths: readonly str
     if (rule.includes("*")) failures.push(`_headers: immutable Cache-Control on a wildcard rule (${rule}) also caches 404s for a year`);
     else if (!publicPaths.includes(rule.slice(1))) failures.push(`_headers: immutable rule for ${rule}, which is not in the artifact`);
   }
-  for (const p of publicPaths) if (p.startsWith("_next/static/") && !immutable.includes(`/${p}`)) failures.push(`_headers: /${p} has no immutable Cache-Control rule`);
+  for (const p of publicPaths) if ((p.startsWith("_next/static/") || RFQ_CATALOG_ASSET_PATTERN.test(`/${p}`)) && !immutable.includes(`/${p}`)) failures.push(`_headers: /${p} has no immutable Cache-Control rule`);
+  // W25: no wildcard Cache-Control may cover a path that has its own — Cloudflare would join the two values.
+  const wildcardCache = [...blocks].filter(([rule, lines]) => rule.includes("*") && lines.some((l) => /^cache-control:/i.test(l))).map(([rule]) => rule);
+  for (const rule of immutable) for (const w of wildcardCache) if (globMatches(w, rule)) failures.push(`_headers: ${w} also sets Cache-Control on ${rule} (the values would be joined)`);
   const rules = headerRuleCount(headers);
   if (rules > MAX_HEADER_RULES) failures.push(`_headers: ${rules} rules exceed Cloudflare's limit of ${MAX_HEADER_RULES}`);
   return failures;

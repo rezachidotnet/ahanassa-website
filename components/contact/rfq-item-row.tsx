@@ -57,6 +57,9 @@ interface RowCopy {
   lengthPlaceholder: string;
   lengthHelp: string;
   lengthInvalid: string;
+  /** W25: under the category select while the catalog file is on its way, and if it never arrives. */
+  catalogLoading: string;
+  catalogFailed: string;
 }
 
 const copy: Record<Locale, RowCopy> = {
@@ -80,6 +83,8 @@ const copy: Record<Locale, RowCopy> = {
     lengthPlaceholder: "مثلاً ۶۰۰۰ (اختیاری، میلی‌متر)",
     lengthHelp: "این مقدار فقط درخواست شماست؛ سایز و طول نهایی توسط کارشناسان آهن آسا بررسی می‌شود.",
     lengthInvalid: "عدد صحیح و مثبت وارد کنید",
+    catalogLoading: "در حال بارگذاری فهرست محصولات… تا آن زمان می‌توانید «سایر / کالای سفارشی» را انتخاب کنید.",
+    catalogFailed: "فهرست محصولات بارگذاری نشد؛ کالا را با «سایر / کالای سفارشی» شرح دهید.",
   },
   en: {
     rowLabel: "Row",
@@ -101,6 +106,8 @@ const copy: Record<Locale, RowCopy> = {
     lengthPlaceholder: "e.g. 6000 (optional, mm)",
     lengthHelp: "This is your request only — final size and length are reviewed by Ahan Asa's team.",
     lengthInvalid: "Enter a positive whole number",
+    catalogLoading: "Loading the product list… Meanwhile you can choose “Other / custom item”.",
+    catalogFailed: "The product list could not be loaded — describe the item with “Other / custom item”.",
   },
   ar: {
     rowLabel: "الصف",
@@ -122,6 +129,8 @@ const copy: Record<Locale, RowCopy> = {
     lengthPlaceholder: "مثلاً ٦٠٠٠ (اختياري، ملم)",
     lengthHelp: "هذه رغبتك فقط؛ سيراجع فريق آهن آسا المقاس والطول النهائي.",
     lengthInvalid: "أدخل رقمًا صحيحًا موجبًا",
+    catalogLoading: "جارٍ تحميل قائمة المنتجات… يمكنك حتى ذلك الحين اختيار «أخرى / صنف مخصص».",
+    catalogFailed: "تعذّر تحميل قائمة المنتجات؛ صِف الصنف عبر «أخرى / صنف مخصص».",
   },
 };
 
@@ -248,6 +257,8 @@ export interface RfqItemRowProps {
   disabled: boolean;
   errors: RfqRowFieldKey[];
   catalogGroups: CatalogCategoryGroup[];
+  /** W25: the catalog file is still loading, or failed — `catalogGroups` is empty meanwhile and the row says so. */
+  catalogStatus?: "loading" | "ready" | "failed";
   /** W13.3: set when the row was filled from an attached list. */
   fromFile?: RfqRowFromFile | null;
   onChange: (fields: RfqRowFields) => void;
@@ -256,7 +267,7 @@ export interface RfqItemRowProps {
   rowRef?: (el: HTMLTableRowElement | HTMLDivElement | null) => void;
 }
 
-export function RfqItemRow({ layout, index, fields, locale, disabled, errors, catalogGroups, fromFile = null, onChange, onRemove, canRemove, rowRef }: RfqItemRowProps) {
+export function RfqItemRow({ layout, index, fields, locale, disabled, errors, catalogGroups, catalogStatus = "ready", fromFile = null, onChange, onRemove, canRemove, rowRef }: RfqItemRowProps) {
   const t = copy[locale];
   const hasProductError = errors.includes("product");
   const hasQuantityError = errors.includes("quantity");
@@ -359,30 +370,40 @@ export function RfqItemRow({ layout, index, fields, locale, disabled, errors, ca
   }
 
   const categorySelectedLabel = fields.mode === "custom" ? t.customCategoryOption : (selectedCategory?.categoryLabel ?? t.categoryPlaceholder);
+  const catalogNote = fields.mode === "catalog" && catalogGroups.length === 0 && catalogStatus !== "ready" ? (catalogStatus === "loading" ? t.catalogLoading : t.catalogFailed) : null;
   const categorySelect = (
-    <SelectField>
-      <select
-        id={`${idPrefix}-category`}
-        aria-label={t.categoryPlaceholder}
-        title={categorySelectedLabel}
-        value={categoryValue}
-        disabled={disabled}
-        onChange={(e) => handleCategoryChange(e.target.value)}
-        className={selectInput}
-      >
-        {categoryValue === "" && (
-          <option value="" disabled>
-            {t.categoryPlaceholder}
-          </option>
-        )}
-        {catalogGroups.map((group) => (
-          <option key={group.categoryCode ?? UNCATEGORIZED_VALUE} value={group.categoryCode ?? UNCATEGORIZED_VALUE}>
-            {group.categoryLabel}
-          </option>
-        ))}
-        <option value={CUSTOM_CATEGORY_VALUE}>{t.customCategoryOption}</option>
-      </select>
-    </SelectField>
+    <>
+      <SelectField>
+        <select
+          id={`${idPrefix}-category`}
+          aria-label={t.categoryPlaceholder}
+          aria-describedby={catalogNote ? `${idPrefix}-catalog-note` : undefined}
+          aria-busy={catalogStatus === "loading" || undefined}
+          title={categorySelectedLabel}
+          value={categoryValue}
+          disabled={disabled}
+          onChange={(e) => handleCategoryChange(e.target.value)}
+          className={selectInput}
+        >
+          {categoryValue === "" && (
+            <option value="" disabled>
+              {t.categoryPlaceholder}
+            </option>
+          )}
+          {catalogGroups.map((group) => (
+            <option key={group.categoryCode ?? UNCATEGORIZED_VALUE} value={group.categoryCode ?? UNCATEGORIZED_VALUE}>
+              {group.categoryLabel}
+            </option>
+          ))}
+          <option value={CUSTOM_CATEGORY_VALUE}>{t.customCategoryOption}</option>
+        </select>
+      </SelectField>
+      {catalogNote && (
+        <p id={`${idPrefix}-catalog-note`} className="text-muted-foreground mt-1 text-[11px] leading-relaxed" data-rfq-catalog-status={catalogStatus}>
+          {catalogNote}
+        </p>
+      )}
+    </>
   );
 
   const productCell =

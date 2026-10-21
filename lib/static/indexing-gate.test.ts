@@ -87,7 +87,7 @@ test("production: robots, page headers and data headers are checked", () => {
   b.files.set("_headers", b.files.get("_headers")!.replace("/*\n", "/*\n  X-Robots-Tag: noindex\n"));
   assert.ok(b.check().some((f) => f.includes("on /* (pages must never be noindex)")));
   const c = site("production");
-  c.files.set("_headers", c.files.get("_headers")!.replace("max-age=300\n  X-Robots-Tag: noindex\n", "max-age=300\n"));
+  c.files.set("_headers", c.files.get("_headers")!.replace("/data/*\n  X-Robots-Tag: noindex\n", "/data/*\n"));
   assert.ok(c.check().some((f) => f.includes("must mark /data/* X-Robots-Tag: noindex")));
 });
 

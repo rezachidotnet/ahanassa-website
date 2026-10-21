@@ -266,6 +266,20 @@ function RequiredMark({ srLabel }: { srLabel: string }) {
 
 type Status = "idle" | "submitting" | "uploading" | "success" | "error";
 
+/**
+ * W25: what the catalog's arrival does to the form — built by StaticEnquiryForm from the rows the form holds at
+ * that moment (stored catalog rows re-resolved, the `?variant=` item added), applied once.
+ */
+export interface CatalogArrival {
+  rows: RfqRow[];
+  /** The row the `?variant=` hand-off added or found (same variant → no duplicate): scrolled to and focused. */
+  focusRowId: string | null;
+  /** Shown when the hand-off joined an existing list ("added"), matched a row ("existing") or hit MAX_ITEMS ("full"). */
+  notice: RfqBasketAddOutcome | null;
+  /** True when a `?variant=` was present in the URL but did not resolve to a real, currently RFQ-eligible Variant. */
+  preselectionInvalid: boolean;
+}
+
 /** A form row; one read from an attached file carries what was read (W13.3). */
 type FormRow = RfqRow & { extract?: RfqRowExtract };
 
@@ -279,12 +293,11 @@ export function EnquiryForm({
   turnstileSiteKey,
   initialRows,
   initialCustomer,
-  focusRowId = null,
-  basketNotice = null,
   persistBasket = false,
   continueBrowsingHref,
-  catalogPreselectionInvalid = false,
   catalogItems = [],
+  catalogStatus = "ready",
+  catalogArrival = null,
   catalogSnapshotVersion = null,
   rfqEndpoint = "/api/rfqs",
   filesEndpoint = null,
@@ -300,19 +313,17 @@ export function EnquiryForm({
   initialRows?: RfqRow[];
   /** The customer fields the visitor already typed in this tab (sessionStorage). */
   initialCustomer?: RfqBasketCustomer;
-  /** The row the `?variant=` hand-off added or found (same variant → no duplicate): scrolled to and focused on mount. */
-  focusRowId?: string | null;
-  /** Shown when the hand-off joined an existing list ("added"), matched a row ("existing") or hit MAX_ITEMS ("full"). */
-  basketNotice?: RfqBasketAddOutcome | null;
   /** Keep rows + customer fields in sessionStorage. Off until StaticEnquiryForm has restored the stored basket, so the first render can never overwrite it. */
   persistBasket?: boolean;
   /** «ادامه انتخاب محصول»: the safe same-origin page the visitor came from, else /products (resolveContinueBrowsingHref). */
   continueBrowsingHref?: string;
-  /** True when a `?variant=` was present in the URL but did not resolve to a real, currently RFQ-eligible Variant. */
-  catalogPreselectionInvalid?: boolean;
   /** Every RFQ-selectable Catalog Variant for this locale (`/data/rfq-catalog.<locale>.json`), loaded once and shared across every Catalog row's selects — never re-fetched per row (docs/RFQ_MULTI_ITEM_FORM.md "Performance"). */
   catalogItems?: PublicRfqCatalogItem[];
-  /** snapshot.v1 version of the deployed static catalog (manifest.public.json); null on the legacy SSR runtime. */
+  /** W25: whether `catalogItems` is still on its way — the category select says so meanwhile; the rest of the form never waits. */
+  catalogStatus?: "loading" | "ready" | "failed";
+  /** W25: applied once, to the rows the form holds when the catalog request settles (StaticEnquiryForm). */
+  catalogArrival?: ((rows: RfqRow[]) => CatalogArrival) | null;
+  /** snapshot.v1 version of the static build the page came from (W25: carried by the page, lib/rfq/catalog-source.ts); null on the legacy SSR runtime. */
   catalogSnapshotVersion?: string | null;
   /** rfq_submit.v1 endpoint: the RFQ Worker origin + /api/rfqs on the static site; same-origin /api/rfqs on the legacy SSR runtime. */
   rfqEndpoint?: string;
@@ -350,7 +361,9 @@ export function EnquiryForm({
     email: initialCustomer?.email ?? "",
     message: initialCustomer?.message ?? "",
   }));
-  const [notice, setNotice] = useState<RfqBasketAddOutcome | null>(basketNotice);
+  const [notice, setNotice] = useState<RfqBasketAddOutcome | null>(null);
+  const [preselectionInvalid, setPreselectionInvalid] = useState(false);
+  const [focusRowId, setFocusRowId] = useState<string | null>(null);
   // D-RFQ-FILE: chosen files (memory only — never stored) and the reasons any were refused.
   const [files, setFiles] = useState<File[]>([]);
   const [fileErrors, setFileErrors] = useState<RfqFileError[]>([]);
@@ -407,11 +420,31 @@ export function EnquiryForm({
     writeRfqBasket(locale, { rows: rows.map((r) => r.fields), customer: { ...EMPTY_RFQ_CUSTOMER, ...customerText, phoneCountry, phoneLocal } });
   }, [persistBasket, status, locale, rows, customerText, phoneCountry, phoneLocal]);
 
-  // The `?variant=` hand-off's row (new, or the existing one for the same variant): bring it into view once.
+  // W25: the catalog arrived (or failed) after the form was already usable. Applied once, to the rows as they are
+  // now — what the visitor typed meanwhile stays; a sent or sending form is left alone, as with a late list reading.
+  const appliedArrivalRef = useRef(false);
+  useEffect(() => {
+    if (!catalogArrival || appliedArrivalRef.current) return;
+    appliedArrivalRef.current = true;
+    if (statusRef.current === "submitting" || statusRef.current === "uploading" || statusRef.current === "success") return;
+    const arrival = catalogArrival(rowsRef.current);
+    if (arrival.rows !== rowsRef.current) {
+      regenerateIdempotencyKey();
+      rowsRef.current = arrival.rows;
+      setRows(arrival.rows);
+      setRowErrors({});
+    }
+    setNotice(arrival.notice);
+    setPreselectionInvalid(arrival.preselectionInvalid);
+    setFocusRowId(arrival.focusRowId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalogArrival]);
+
+  // The `?variant=` hand-off's row (new, or the existing one for the same variant): bring it into view once it is rendered.
   useEffect(() => {
     if (focusRowId) scrollToRow(focusRowId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [focusRowId]);
 
   const catalogGroups = useMemo(() => groupCatalogItemsForSelector(catalogItems, locale), [catalogItems, locale]);
 
@@ -434,8 +467,9 @@ export function EnquiryForm({
   }, []);
 
   // The Turnstile script may already be loaded (or still loading) when this
-  // form mounts: StaticEnquiryForm remounts it once the static catalog JSON
-  // arrives, and next/script fires `onLoad` only for the instance that started
+  // form mounts: StaticEnquiryForm remounts it once the stored basket is
+  // restored (W25: right after hydration, no longer when the catalog JSON
+  // arrives), and next/script fires `onLoad` only for the instance that started
   // the load. Detect window.turnstile directly (W2 staging: without this the
   // remounted form never rendered the widget). Stops as soon as it is found.
   useEffect(() => {
@@ -901,7 +935,7 @@ export function EnquiryForm({
         </div>
       </fieldset>
 
-      {catalogPreselectionInvalid && (
+      {preselectionInvalid && (
         <p role="status" className="border-[var(--aa-color-warning-800)] bg-[var(--aa-color-warning-50)] text-[var(--aa-color-warning-800)] rounded-[var(--aa-radius-control)] border px-5 py-3 text-sm leading-relaxed">
           {t.catalogPreselectionInvalid}
         </p>
@@ -935,7 +969,7 @@ export function EnquiryForm({
             narrowest column) is laid out, clipping it (RFQ Column Order &
             Clipping fix). Column order matches the semantic order:
             # / Category / Product / Spec / Quantity / Unit / Notes / Actions. */}
-        <div className="mt-6 hidden overflow-x-auto lg:block">
+        <div className="relative mt-6 hidden overflow-x-auto lg:block">
           <table className="w-full border-collapse text-sm [table-layout:fixed]">
             <colgroup>
               <col className="w-[4%]" />
@@ -970,6 +1004,7 @@ export function EnquiryForm({
                   disabled={submitting}
                   errors={rowErrors[row.id] ?? []}
                   catalogGroups={catalogGroups}
+                  catalogStatus={catalogStatus}
                   fromFile={fromFileOf(row)}
                   onChange={(fields) => updateRow(row.id, fields)}
                   onRemove={() => removeRow(row.id)}
@@ -995,6 +1030,7 @@ export function EnquiryForm({
               disabled={submitting}
               errors={rowErrors[row.id] ?? []}
               catalogGroups={catalogGroups}
+              catalogStatus={catalogStatus}
               fromFile={fromFileOf(row)}
               onChange={(fields) => updateRow(row.id, fields)}
               onRemove={() => removeRow(row.id)}

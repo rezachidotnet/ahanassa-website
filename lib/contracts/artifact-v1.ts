@@ -105,4 +105,20 @@ export const publicRfqCatalog = z
   .strict();
 export type PublicRfqCatalog = z.infer<typeof publicRfqCatalog>;
 
-export { publicRfqCatalogPath, PUBLIC_MANIFEST_PATH } from "./public-paths.ts";
+/**
+ * W25 — `/data/rfq-catalog.<locale>.<hash>.json`: the same items as the v1 file in
+ * the compact form the static /contact form loads (lib/rfq/catalog-wire.ts). Tuples,
+ * so the only object keys are the five below. No snapshot_version: the page carries it.
+ */
+const nullableString = z.string().nullable();
+export const publicRfqCatalogV2 = z
+  .object({
+    schema_version: z.literal("rfq-catalog.v2"),
+    locale: z.enum(["fa", "en", "ar"]),
+    categories: z.array(z.tuple([nullableString, nullableString])),
+    templates: z.array(z.tuple([z.string().min(1), z.string(), z.string(), nullableString, nullableString])),
+    variants: z.array(z.tuple([z.string().min(1), z.string().min(1), z.string(), z.number().int().nonnegative(), z.number().int().nonnegative()])),
+  })
+  .strict();
+
+export { publicRfqCatalogPath, publicRfqCatalogAssetPath, RFQ_CATALOG_ASSET_PATTERN, PUBLIC_MANIFEST_PATH } from "./public-paths.ts";

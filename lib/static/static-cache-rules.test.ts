@@ -28,7 +28,9 @@ test("immutable Cache-Control is one rule per built /_next/static/ file — neve
     for (const f of FILES) assert.deepEqual(b.get(f), [`Cache-Control: ${IMMUTABLE_CACHE_CONTROL}`], `${env}: ${f}`);
     // Sorted, so the same build always writes the same file.
     assert.deepEqual([...b.keys()].filter((k) => k.startsWith("/_next/")), [...FILES].sort());
-    assert.deepEqual(b.get("/data/*")?.[0], "Cache-Control: public, max-age=300");
+    // W25: the v1 catalogs keep 5 minutes, one rule each; /data/* sets no Cache-Control (it would join the immutable one below).
+    for (const loc of ["fa", "en", "ar"]) assert.deepEqual(b.get(`/data/rfq-catalog.${loc}.json`), ["Cache-Control: public, max-age=300"]);
+    assert.ok(!(b.get("/data/*") ?? []).some((l) => /cache-control/i.test(l)), `${env}: /data/* sets no Cache-Control`);
     assert.deepEqual(checkStaticCacheRules(headers, FILES.map((f) => f.slice(1))), []);
   }
 });
@@ -53,5 +55,22 @@ test("the gate rejects the old wildcard, a missing file rule, a rule for a file 
 test("only concrete /_next/static/ file paths become immutable rules", () => {
   for (const bad of ["/_next/static/*", "/images/a.png", "_next/static/a.js", "/_next/static/a b.js", "/_next/static/:hash/a.js"]) {
     assert.throws(() => buildHeadersFile("staging", STATIC_TARGETS.staging.rfqApiOrigin, [bad]), /not a concrete \/_next\/static\/ file path/, bad);
+  }
+});
+
+test("W25: each content-hashed rfq-catalog file is immutable, one rule each; a wildcard Cache-Control over it is refused", () => {
+  const catalogs = ["/data/rfq-catalog.fa.0123456789abcdef.json", "/data/rfq-catalog.en.fedcba9876543210.json"];
+  const paths = [...FILES, ...catalogs].map((f) => f.slice(1));
+  for (const env of ["staging", "production"] as const) {
+    const headers = buildHeadersFile(env, STATIC_TARGETS[env].rfqApiOrigin, FILES, catalogs);
+    const b = blocks(headers);
+    for (const c of catalogs) assert.deepEqual(b.get(c), [`Cache-Control: ${IMMUTABLE_CACHE_CONTROL}`], `${env}: ${c}`);
+    assert.deepEqual(checkStaticCacheRules(headers, paths), []);
+    // A hashed catalog without its rule, or under a wildcard that also sets Cache-Control, fails the gate.
+    assert.deepEqual(checkStaticCacheRules(buildHeadersFile(env, STATIC_TARGETS[env].rfqApiOrigin, FILES, catalogs.slice(1)), paths), [`_headers: ${catalogs[0]} has no immutable Cache-Control rule`]);
+    assert.deepEqual(checkStaticCacheRules(headers + "\n/data/*\n  Cache-Control: public, max-age=300\n", paths), [...catalogs].sort().map((c) => `_headers: /data/* also sets Cache-Control on ${c} (the values would be joined)`));
+  }
+  for (const bad of ["/data/rfq-catalog.fa.json", "/data/rfq-catalog.xx.0123456789abcdef.json", "/data/*"]) {
+    assert.throws(() => buildHeadersFile("staging", STATIC_TARGETS.staging.rfqApiOrigin, [], [bad]), /not a hashed rfq-catalog file path/, bad);
   }
 });

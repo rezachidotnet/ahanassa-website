@@ -16,6 +16,7 @@
  * 4. Runs the artifact gate; any failure exits non-zero.
  */
 import { spawnSync, execSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { createServer } from "vite";
@@ -35,6 +36,9 @@ import { DOWNLOADS_MANIFEST_ENV, downloadsManifestJson } from "../../lib/downloa
 import { summarizeSkipped, type DownloadCatalog } from "../../lib/downloads/model.ts";
 import { loadSourceNames } from "../../lib/static/source-name-scan.ts";
 import { writeShareImages, type ChartShareSource } from "../../lib/og/write-share-images.ts";
+import { encodeRfqCatalog } from "../../lib/rfq/catalog-wire.ts";
+import { publicRfqCatalogAssetPath, RFQ_CATALOG_ASSET_PATTERN } from "../../lib/contracts/public-paths.ts";
+import { RFQ_CATALOG_ASSETS_ENV, SNAPSHOT_VERSION_ENV } from "../../lib/rfq/catalog-source.ts";
 
 const repo = path.resolve(import.meta.dirname, "../..");
 const args = new Map<string, string>();
@@ -116,6 +120,20 @@ const { loadDownloadCatalog } = await downloadsVite.ssrLoadModule(path.join(buil
 const { locales: downloadLocales } = await import("../../config/locales.ts");
 const downloadCatalogs: DownloadCatalog[] = [];
 for (const locale of downloadLocales) downloadCatalogs.push(await loadDownloadCatalog(locale));
+// W25: the compact rfq-catalog.v2 the /contact form loads (lib/rfq/catalog-wire.ts), one per locale, named by its
+// content hash and written before the pages render, so each /contact page names (and preloads) its own file. Same
+// read as the v1 file below; the artifact gate checks the two hold the same items.
+const { buildPublicRfqCatalog: buildRfqCatalogV1 } = await downloadsVite.ssrLoadModule(path.join(buildRoot, "lib/catalog/public-rfq-catalog.ts"));
+const rfqCatalogAssets: Record<string, string> = {};
+for (const locale of downloadLocales) {
+  const body = JSON.stringify(encodeRfqCatalog(locale, (await buildRfqCatalogV1(locale, snapshot.snapshot_version)).items));
+  const assetPath = publicRfqCatalogAssetPath(locale, createHash("sha256").update(body).digest("hex").slice(0, 16));
+  fs.mkdirSync(path.join(buildRoot, "public/data"), { recursive: true });
+  fs.writeFileSync(path.join(buildRoot, "public", assetPath.slice(1)), body);
+  rfqCatalogAssets[locale] = assetPath;
+}
+buildEnv[RFQ_CATALOG_ASSETS_ENV] = process.env[RFQ_CATALOG_ASSETS_ENV] = JSON.stringify(rfqCatalogAssets);
+buildEnv[SNAPSHOT_VERSION_ENV] = process.env[SNAPSHOT_VERSION_ENV] = snapshot.snapshot_version;
 await downloadsVite.close();
 const downloads = await generateDownloads(path.join(buildRoot, "public"), downloadCatalogs, { sourceNames: loadSourceNames() });
 const downloadsManifest = path.join(buildRoot, ".downloads-manifest.json");
@@ -229,7 +247,9 @@ const nextStaticDir = path.join(publicDir, "_next/static");
 const staticAssetPaths = fs.existsSync(nextStaticDir)
   ? (fs.readdirSync(nextStaticDir, { recursive: true, withFileTypes: true }) as fs.Dirent[]).filter((d) => d.isFile()).map((d) => "/" + path.relative(publicDir, path.join(d.parentPath, d.name)).split(path.sep).join("/"))
   : [];
-fs.writeFileSync(path.join(publicDir, "_headers"), buildHeadersFile(environment, target.rfqApiOrigin, staticAssetPaths));
+// W25: the hashed rfq-catalog.v2 files are immutable too (one rule each, like the chunks).
+const rfqCatalogAssetPaths = fs.readdirSync(path.join(publicDir, "data")).map((f) => `/data/${f}`).filter((p) => RFQ_CATALOG_ASSET_PATTERN.test(p));
+fs.writeFileSync(path.join(publicDir, "_headers"), buildHeadersFile(environment, target.rfqApiOrigin, staticAssetPaths, rfqCatalogAssetPaths));
 fs.writeFileSync(path.join(publicDir, "_redirects"), buildRedirectsFile(snapshot.tables.route_redirects, chartSlugs));
 counts.price_chart_pages = chartSlugs.length;
 counts.market_indicators = snapshot.tables.published_indicators.length;

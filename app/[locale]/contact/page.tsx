@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { preload } from "react-dom";
 import { isLocale, type Locale } from "@/config/locales";
 import { buildPageMetadata } from "@/lib/metadata/resolve";
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";
@@ -16,6 +17,7 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { faqPageSchema, jsonLdGraph, localBusinessSchema, organizationSchema } from "@/lib/seo/schema";
 import { contactFaq } from "@/lib/content/pages";
 import { CONTACT_PHONE_DISPLAY, CONTACT_PHONE_E164, CONTACT_SALES_EMAIL } from "@/lib/content/contact-channels";
+import { rfqCatalogSource } from "@/lib/rfq/catalog-source";
 
 export { generateLocaleStaticParams as generateStaticParams } from "@/lib/static/locale-params";
 
@@ -41,7 +43,8 @@ function rfqSubmitEndpoint(): string {
  */
 async function TargetEnquiryForm({ locale }: { locale: Locale }) {
   await Promise.resolve();
-  return <StaticEnquiryForm locale={locale} turnstileSiteKey={getTurnstileSiteKey()} rfqEndpoint={rfqSubmitEndpoint()} />;
+  const catalog = rfqCatalogSource(locale);
+  return <StaticEnquiryForm locale={locale} catalogPath={catalog.path} catalogSnapshotVersion={catalog.snapshotVersion} turnstileSiteKey={getTurnstileSiteKey()} rfqEndpoint={rfqSubmitEndpoint()} />;
 }
 
 interface PageProps {
@@ -115,6 +118,11 @@ export default async function ContactPage({ params }: PageProps) {
   // Static page (architecture V1.1 §4.2): no catalog read and no ?variant=
   // handling at render. StaticEnquiryForm loads the locale's static catalog
   // JSON and resolves ?variant= in the browser (docs/CATALOG_RFQ_INTEGRATION.md).
+  // W25: the file is requested from the <head>, in parallel with the scripts,
+  // instead of after hydration — on a 2 s-latency mobile network that is a
+  // whole round trip saved. Same mode/credentials as the form's fetch(), so
+  // the browser reuses the preloaded response.
+  preload(rfqCatalogSource(locale).path, { as: "fetch", crossOrigin: "anonymous" });
 
   return (
     <>

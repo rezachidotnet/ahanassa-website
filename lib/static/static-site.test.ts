@@ -14,6 +14,8 @@ import { buildSecurityHeaders } from "../security/headers.ts";
 import { STATIC_TARGETS } from "./targets.ts";
 import { toPublicPathname } from "../../config/locales.ts";
 import { toPublicRfqCatalogItem } from "../rfq/catalog-selector.ts";
+import { encodeRfqCatalog } from "../rfq/catalog-wire.ts";
+import { publicRfqCatalogAssetPath } from "../contracts/public-paths.ts";
 import { formatLocaleDigits } from "../content/locale-digits.ts";
 import { buyerValuePromiseIndex } from "../content/buyer-value.ts";
 import { purchaseStepIndex } from "../content/purchase-process.ts";
@@ -147,7 +149,16 @@ function buildArtifact(env: "staging" | "production" = "staging") {
   for (const f of ["404.html", "en/404.html", "ar/404.html"]) write(pub, f, '<html><head><meta name="robots" content="noindex, nofollow"/></head><body>404</body></html>');
   write(pub, "robots.txt", env === "production" ? PRODUCTION_ROBOTS_TXT : STAGING_ROBOTS_TXT);
   write(pub, "sitemap.xml", renderSitemapXml(env === "production" ? Object.values(languages).slice(0, 3).map((url) => ({ url, lastModified: "2026-10-01T00:00:00.000Z", alternates: { languages } })) : []));
-  write(pub, "_headers", buildHeadersFile(env, STATIC_TARGETS[env].rfqApiOrigin));
+  // W25: the compact, content-hashed copy of each (empty) catalog, as scripts/static/build.ts writes it.
+  const catalogAssets = Object.fromEntries(
+    (["fa", "en", "ar"] as const).map((loc) => {
+      const body = JSON.stringify(encodeRfqCatalog(loc, []));
+      const p = publicRfqCatalogAssetPath(loc, crypto.createHash("sha256").update(body).digest("hex").slice(0, 16));
+      write(pub, p.slice(1), body);
+      return [loc, p];
+    }),
+  ) as Record<"fa" | "en" | "ar", string>;
+  write(pub, "_headers", buildHeadersFile(env, STATIC_TARGETS[env].rfqApiOrigin, [], Object.values(catalogAssets)));
   write(pub, "_redirects", buildRedirectsFile());
   write(pub, ".assetsignore", buildAssetsIgnoreFile());
   write(pub, "manifest.public.json", JSON.stringify({ schema_version: "artifact.public.v1", snapshot_version: snap, generated_at: "t", locales: ["fa", "en", "ar"] }));
@@ -160,7 +171,7 @@ function buildArtifact(env: "staging" | "production" = "staging") {
       JSON.stringify({ schema_version: "artifact.v1", code_sha: "a".repeat(40), snapshot_version: snap, environment: env, generated_at: "t", counts: {}, public_assets: describeFiles(pub), private_snapshot: describeFiles(priv) }),
     );
   seal();
-  return { dir, pub, priv, seal };
+  return { dir, pub, priv, seal, catalogAssets, snap };
 }
 
 test("artifact gate: a well-formed staging artifact passes", () => {
@@ -304,6 +315,29 @@ test("static build: generated build root excludes Worker-only code and uses no C
 
 // --- W2: per-target RFQ origin and CSP ----------------------------------------------------------
 
+test("W25 gate: the compact catalog must exist once per locale, be named by its content, hold the v1 items and be what /contact loads", () => {
+  const a = buildArtifact();
+  assert.deepEqual(runArtifactGate(a.dir).failures, []);
+  fs.rmSync(path.join(a.pub, a.catalogAssets.en.slice(1)));
+  a.seal();
+  assert.ok(runArtifactGate(a.dir).failures.some((f) => f.includes("data/rfq-catalog.en.<hash>.json: expected exactly one, found 0")));
+  const b = buildArtifact();
+  write(b.pub, b.catalogAssets.fa.slice(1), JSON.stringify(encodeRfqCatalog("fa", [])) + " ");
+  b.seal();
+  assert.ok(runArtifactGate(b.dir).failures.some((f) => f.endsWith("name is not the content hash")));
+  const item = { variantXid: "CVAR-1", templateXid: "CTMPL-1", sku: "AA-1", variantSpecLabel: "Ø10", productLabel: "Rebar", templateSlug: "rebar", categoryCode: "LONG", groupCode: "REBAR", publicCategoryCode: "REBAR", publicCategoryLabel: "Rebar" };
+  const c = buildArtifact();
+  write(c.pub, "data/rfq-catalog.ar.json", JSON.stringify({ schema_version: "rfq-catalog.v1", snapshot_version: c.snap, locale: "ar", items: [item] }));
+  c.seal();
+  assert.ok(runArtifactGate(c.dir).failures.some((f) => f.includes("items differ from data/rfq-catalog.ar.json")));
+  const d = buildArtifact();
+  write(d.pub, "en/contact.html", `<html><body><script>"https://api-staging.ahanassa.com/api/rfqs" "/data/rfq-catalog.en.json"</script></body></html>`);
+  d.seal();
+  const failures = runArtifactGate(d.dir).failures;
+  assert.ok(failures.some((f) => f === `en/contact.html: does not load ${d.catalogAssets.en}`));
+  assert.ok(failures.some((f) => f === `en/contact.html: does not carry snapshot_version ${d.snap}`));
+});
+
 test("W2: CSP connect-src is exactly 'self', Turnstile, the target's RFQ API origin and GA4 (DAR-066)", () => {
   for (const env of ["staging", "production"] as const) {
     const csp = /connect-src ([^;\n]*)/.exec(buildHeadersFile(env, STATIC_TARGETS[env].rfqApiOrigin))![1].split(" ");
@@ -323,7 +357,7 @@ test("W2 gate: a wrong connect-src or a /contact page posting elsewhere is refus
   b.seal();
   assert.ok(runArtifactGate(b.dir).failures.some((f) => f.includes("contact.html: RFQ endpoint is not https://api-staging.ahanassa.com/api/rfqs")));
   const c = buildArtifact();
-  write(c.pub, "contact.html", `<html><body><script>"https://api-staging.ahanassa.com/api/rfqs"</script></body></html>`);
+  write(c.pub, "contact.html", `<html><head><link rel="preload" href="${c.catalogAssets.fa}" as="fetch"/></head><body><script>"${c.snap}" "https://api-staging.ahanassa.com/api/rfqs"</script></body></html>`);
   c.seal();
   assert.deepEqual(runArtifactGate(c.dir).failures, []);
 });
@@ -333,13 +367,16 @@ test("W2: the production Turnstile site key in lib/static/targets.ts equals wran
   assert.ok(wrangler.includes(`"NEXT_PUBLIC_TURNSTILE_SITE_KEY": "${STATIC_TARGETS.production.turnstileSiteKey}"`));
 });
 
-test("W2: the /contact form posts to the build-time RFQ origin and sends catalogSnapshotVersion from manifest.public.json", () => {
+test("W2: the /contact form posts to the build-time RFQ origin and sends the build's catalogSnapshotVersion (W25: from the page, not manifest.public.json)", () => {
   const page = read("app/[locale]/contact/page.tsx");
   assert.match(page, /AHANASSA_RFQ_API_ORIGIN/);
   assert.match(page, /rfqEndpoint=\{rfqSubmitEndpoint\(\)\}/);
+  // r4: the target-specific values stay last in the form's props; the catalog path and snapshot are the same on both targets.
+  assert.match(page, /<StaticEnquiryForm locale=\{locale\} catalogPath=\{catalog\.path\} catalogSnapshotVersion=\{catalog\.snapshotVersion\} turnstileSiteKey=\{getTurnstileSiteKey\(\)\} rfqEndpoint=\{rfqSubmitEndpoint\(\)\} \/>/);
+  assert.match(read("scripts/static/build.ts"), /buildEnv\[SNAPSHOT_VERSION_ENV\] = process\.env\[SNAPSHOT_VERSION_ENV\] = snapshot\.snapshot_version;/);
   const wrapper = read("components/contact/static-enquiry-form.tsx");
-  assert.match(wrapper, /fetch\(PUBLIC_MANIFEST_PATH\)/);
-  assert.match(wrapper, /catalogSnapshotVersion=\{snapshotVersion\}/);
+  assert.doesNotMatch(wrapper, /PUBLIC_MANIFEST_PATH/, "no second request before the form knows its snapshot");
+  assert.match(wrapper, /catalogSnapshotVersion=\{catalogSnapshotVersion \?\? catalog\?\.snapshotVersion \?\? null\}/);
   const form = read("components/contact/enquiry-form.tsx");
   assert.match(form, /await submitRfqWithRetry\(rfqEndpoint, payload\)/, "W3.1: posts via the bounded-retry helper, same payload/key on every attempt");
   assert.match(read("lib/rfq/submit-with-retry.ts"), /await doFetch\(endpoint, \{ method: "POST"/);

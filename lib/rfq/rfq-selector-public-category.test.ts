@@ -183,10 +183,12 @@ const repoRoot = path.resolve(here, "..", "..");
 const read = (p: string) => readFileSync(path.join(repoRoot, p), "utf8");
 
 test("fa and en selector data cannot be served to each other: per-locale JSON path, no cache layer, locale bound on both reads", () => {
-  // Static /contact (architecture V1.1 §4.2): the form loads its locale's own
-  // /data/rfq-catalog.<locale>.json, built by buildPublicRfqCatalog(locale).
+  // Static /contact (architecture V1.1 §4.2): the form loads its locale's own catalog — the page names the
+  // build's /data/rfq-catalog.<locale>.<hash>.json (W25, lib/rfq/catalog-source.ts), else the v1
+  // /data/rfq-catalog.<locale>.json, both built by buildPublicRfqCatalog(locale).
   const form = read("components/contact/static-enquiry-form.tsx");
-  assert.match(form, /fetch\(publicRfqCatalogPath\(locale\)\)/);
+  assert.match(form, /fetch\(catalogPath \?\? publicRfqCatalogPath\(locale\)\)/);
+  assert.match(read("app/[locale]/contact/page.tsx"), /const catalog = rfqCatalogSource\(locale\);/);
   const builder = read("lib/catalog/public-rfq-catalog.ts");
   assert.match(builder, /listRfqSelectableCatalogItems\(locale\)/);
   for (const src of [read("app/[locale]/contact/page.tsx"), builder]) {
