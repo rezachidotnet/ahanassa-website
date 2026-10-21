@@ -5,6 +5,7 @@ import { validatePricing, type PricingOutcome } from "./pricing.ts";
 import { validatePricingHistory } from "./pricing-history.ts";
 import { categoryContainsVariant, claimedFormCodes, toPublicCatalogCategory } from "../catalog/public-categories.ts";
 import { validateVariantAllowlist } from "./variant-publication-allowlist.ts";
+import { validatePageAllowlist } from "./editorial-page-allowlist.ts";
 
 /**
  * Architecture V1.1 §7.1 step 2: schema, relations and counts of one full
@@ -182,6 +183,8 @@ export function validateSource(odoo: OdooSource, tables: Tables, previousCounts:
   }
   // W9.12: a public-on-first-publish SKU that is active but not public (warning only; absent SKUs say nothing).
   warnings.push(...validateVariantAllowlist(tables.product_variants));
+  // W9.13: a page-on-first-publish template that is active but not public or without a published page (warning only).
+  warnings.push(...validatePageAllowlist(tables));
   return { errors, warnings, counts, pricing: { outcome: pricing.outcome, summary: pricing.summary, ignored: pricing.ignored, history: history.summary } };
 }
 

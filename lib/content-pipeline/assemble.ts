@@ -8,6 +8,7 @@ import type { OdooSource } from "./odoo-source.ts";
 import { validatePricing } from "./pricing.ts";
 import { validatePricingHistory, withPreviousDay } from "./pricing-history.ts";
 import { isPublicOnFirstPublish } from "./variant-publication-allowlist.ts";
+import { pageForTemplateSkus, seededPageRows, seededRowsPublishable } from "./editorial-page-allowlist.ts";
 
 /**
  * Builds the snapshot.v1 tables from one full Odoo fetch plus the
@@ -25,7 +26,9 @@ import { isPublicOnFirstPublish } from "./variant-publication-allowlist.ts";
  *   `is_price_public`, editorial tables) are carried from DB_PUBLIC; a row
  *   Odoo introduces gets the same defaults the sync used (not public) —
  *   except an SKU on the reviewed public-on-first-publish list (W9.12,
- *   lib/content-pipeline/variant-publication-allowlist.ts).
+ *   lib/content-pipeline/variant-publication-allowlist.ts) — and a new template
+ *   on the reviewed page-on-first-publish list (W9.13, editorial-page-allowlist.ts),
+ *   which starts public with its approved fa/en/ar page rows.
  * - A row DB_PUBLIC has but the full fetch no longer returns stays in the
  *   snapshot with `is_active = 0` (soft deactivation; editorial rows survive).
  * - W11.1: `articles` are the rows the validate step accepted from the content
@@ -103,6 +106,9 @@ export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivat
   }
 
   const products: ProductRow[] = [];
+  // W9.13: approved page rows of new templates on the page-on-first-publish list (a used slug skips the entry).
+  const seededPages: Tables["product_seo_contents"] = [];
+  const usedSlugs = new Set(d1.tables.product_seo_contents.map((s) => `${s.locale}|${s.slug}`));
   const productIdByTemplate = new Map<string, string>();
   for (const [templateXid, t] of [...templates.entries()].sort(byKey(([k]) => k))) {
     const stamp = maxIso(...t.rows.map((r) => normalizeCatalogTimestamp(r.updated_at)));
@@ -121,14 +127,22 @@ export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivat
         updated_at: changed ? maxIso(existing.updated_at, stamp) : existing.updated_at,
       };
     } else {
+      const id = `cp-${templateXid}`;
+      const page = pageForTemplateSkus(t.rows.map((r) => r.sku));
+      const pageRows = page ? seededPageRows(page, id, templateXid, stamp) : [];
+      const seeded = pageRows.length > 0 && seededRowsPublishable(pageRows) && pageRows.every((r) => !usedSlugs.has(`${r.locale}|${r.slug}`));
+      if (seeded) {
+        seededPages.push(...pageRows);
+        for (const r of pageRows) usedSlugs.add(`${r.locale}|${r.slug}`);
+      }
       row = {
-        id: `cp-${templateXid}`,
+        id,
         template_xid: templateXid,
         commercial_template_name: t.name,
         name_fa: t.name,
         slug_fa: slugifyTemplateXid(templateXid),
         is_active: 1,
-        is_public: 0,
+        is_public: seeded ? 1 : 0,
         sync_status: "synced",
         last_synced_at: stamp,
         created_at: stamp,
@@ -246,7 +260,7 @@ export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivat
     catalog_public_categories: categories.sort(byKey((c) => `${c.locale}|${String(c.position).padStart(4, "0")}`)),
     catalog_products: products.sort(byKey((p) => p.id)),
     product_variants: variants.sort(byKey((v) => v.id)),
-    product_seo_contents: [...d1.tables.product_seo_contents].sort(byKey((r) => r.id)),
+    product_seo_contents: [...d1.tables.product_seo_contents, ...seededPages].sort(byKey((r) => r.id)),
     public_processing_groups: groups.sort(byKey((g) => g.id)),
     route_redirects: [...d1.tables.route_redirects].sort(byKey((r) => r.id)),
     homepage_product_rank: [...d1.tables.homepage_product_rank].sort(byKey((r) => r.id)),

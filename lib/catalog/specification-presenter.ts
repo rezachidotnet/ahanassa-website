@@ -102,6 +102,105 @@ export function isEn10219HollowSection(v: { groupCode?: string | null; formCode?
   return hollow && (v.standard ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "") === "EN102192";
 }
 
+/**
+ * W9.13 (owner decisions 2026-10-21; ahanassa-odoo w9-13/catalog-phase2) — three non-standard products, each its
+ * own template, and two notes on standard pages. The site's own text (Odoo's `public_description` is not rendered),
+ * shown under the variant table of the product page and the spec-sheet PDF (variantPageNotes); the three required
+ * notes also under the category intro. en carries no Persian text and no price word.
+ */
+export const DOMESTIC_CHANNEL_NOTE: LocalizedLabel = {
+  fa: "ناودانی داخلی، غیر استاندارد: مقطع نورد کارخانه‌های ایرانی و سبک‌تر از ناودانی اروپایی (UPN). نقشه و وزن استاندارد ندارد؛ قیمت بر حسب کیلوگرم و فروش بر اساس وزن واقعی.",
+  en: "Domestic channel, non-standard: an Iranian mill section, lighter than the European UPN. It has no standard drawing or standard weight; sold per kg by actual weight.",
+  ar: "مجرى محلي، غير قياسي: مقطع من إنتاج مصانع إيرانية وأخف من المجرى الأوروبي UPN. لا يوجد رسم أو وزن قياسي؛ السعر بالكيلوغرام والبيع حسب الوزن الفعلي.",
+};
+
+export const MILL_WALL_PIPE_NOTE: LocalizedLabel = {
+  fa: "ضخامت کارخانه (غیر ASME): در بازار «رده ۲۰» نامیده می‌شود ولی رده‌ای از ASME B36.10M نیست. ضخامت دیواره طبق اعلام فروشندگان است.",
+  en: "Mill wall (non-ASME): sold in the Iranian market as 'Schedule 20', but it is not an ASME B36.10M schedule. The wall thickness is as the sellers state it.",
+  ar: "سماكة المصنع (غير ASME): يُباع في السوق باسم «رده 20» لكنه ليس جدولاً من ASME B36.10M. سماكة الجدار كما يذكرها البائعون.",
+};
+
+export const THIN_GALVANIZED_COIL_NOTE: LocalizedLabel = {
+  fa: "تلرانس ابعادی طبق EN 10143:2006 (فقط استاندارد تلرانس ابعادی). گرید فولاد و پوشش طبق اعلام فروشنده؛ ادعای استاندارد گرید ندارد.",
+  en: "Dimensional tolerances to EN 10143:2006 (a tolerance standard only). Steel grade and coating as stated by the seller; no grade standard is claimed.",
+  ar: "تفاوتات الأبعاد وفق EN 10143:2006 (معيار تفاوتات الأبعاد فقط). درجة الصلب والطلاء كما يذكرها البائع؛ لا يُدّعى معيار للدرجة.",
+};
+
+/** Optional note, only on a table that lists Ø36 or Ø40 (their nominal weight is computed, not from a table). */
+export const REBAR_D36_D40_NOTE: LocalizedLabel = {
+  fa: "وزن اسمی محاسبه‌شده (π/4·d²·7850)؛ مرجع استاندارد ملی ۳۱۳۲ در حال بررسی است.",
+  en: "Nominal weight calculated (π/4·d²·7850); the ISIRI 3132 reference is being checked.",
+  ar: "الوزن الاسمي محسوب (π/4·d²·7850)؛ مرجع المعيار الإيراني 3132 قيد المراجعة.",
+};
+
+/** Optional plate size-range notes, per page and only true of it: S235JR has both formats, S355JR 2000×12000 at 12/25/40 only. */
+export const PLATE_S235JR_SIZE_NOTE: LocalizedLabel = {
+  fa: "همچنین در ابعاد ۱۲۵۰×۶۰۰۰ میلی‌متر با ضخامت ۸ تا ۴۰ و ۲۰۰۰×۱۲۰۰۰ میلی‌متر با ضخامت ۱۲ تا ۴۰ میلی‌متر (EN 10029).",
+  en: "Also 1250×6000 mm at 8 to 40 mm and 2000×12000 mm at 12 to 40 mm (EN 10029).",
+  ar: "متوفر أيضاً بمقاس 1250×6000 مم بسماكة من 8 إلى 40 مم، و2000×12000 مم بسماكة من 12 إلى 40 مم (EN 10029).",
+};
+export const PLATE_S355JR_SIZE_NOTE: LocalizedLabel = {
+  fa: "همچنین در ابعاد ۲۰۰۰×۱۲۰۰۰ میلی‌متر با ضخامت ۱۲، ۲۵ و ۴۰ میلی‌متر (EN 10029).",
+  en: "Also 2000×12000 mm at 12, 25 and 40 mm (EN 10029).",
+  ar: "متوفر أيضاً بمقاس 2000×12000 مم بسماكة 12 و25 و40 مم (EN 10029).",
+};
+
+/** Odoo's form for the domestic channel (group CHANNEL): never UPN, no drawing, no nominal weight. */
+export const DOMESTIC_CHANNEL_FORM = "DOMESTIC_CHANNEL";
+
+interface NoteSubject {
+  sku?: string | null;
+  formCode?: string | null;
+  /** Standard code or name («EN10143» or «EN 10143 — …»). */
+  standard?: string | null;
+}
+
+const standardKey = (s: string | null | undefined) => (s ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+/** The domestic channel, by its form (or, defensively, its SKU family). */
+export function isDomesticChannel(v: NoteSubject): boolean {
+  return (v.formCode ?? "").trim().toUpperCase() === DOMESTIC_CHANNEL_FORM || (v.sku ?? "").startsWith("AA-CH-DOM-");
+}
+
+/** The «رده 20» mill-wall seamless pipe: same form as the ASME pipe, its own SKU family. */
+export function isMillWallPipe(v: NoteSubject): boolean {
+  return (v.sku ?? "").startsWith("AA-PP-SMLS-MW-");
+}
+
+/** The thin-gauge galvanized coil (0.30/0.35 mm): the only EN 10143 template, SKUs AA-CL-GI-S<thickness>X<width>. */
+export function isThinGalvanizedCoil(v: NoteSubject): boolean {
+  return standardKey(v.standard).startsWith("EN10143") || /^AA-CL-GI-S\d/.test(v.sku ?? "");
+}
+
+const REBAR_D36_D40_SKUS = new Set(["AA-RB-AJ400-D36-L12", "AA-RB-AJ400-D40-L12"]);
+const PLATE_S235JR_PHASE2 = /^AA-SH-HR-S235JR-S(8|10|12|15|20|25|30|35|40)X1250X6000$|^AA-SH-HR-S235JR-S(12|15|20|25|30|35|40)X2000X12000$/;
+const PLATE_S355JR_PHASE2 = /^AA-SH-HR-S355JR-S(12|25|40)X2000X12000$/;
+
+/**
+ * The page notes of one variant table, in a fixed order. `required` (the default) gives the three W9.13 product
+ * notes only — the category intro; `all` adds the optional rebar Ø36/40 and plate size-range notes — the product
+ * page and the spec sheet. A note appears only when a variant it is true of is in the table, so a page whose new
+ * SKUs Odoo does not serve yet shows nothing new.
+ */
+export function variantPageNotes(variants: readonly NoteSubject[], locale: Locale, scope: "required" | "all" = "all"): string[] {
+  const has = (test: (v: NoteSubject) => boolean) => variants.some(test);
+  const notes: string[] = [];
+  if (has(isDomesticChannel)) notes.push(DOMESTIC_CHANNEL_NOTE[locale]);
+  if (has(isMillWallPipe)) notes.push(MILL_WALL_PIPE_NOTE[locale]);
+  if (has(isThinGalvanizedCoil)) notes.push(THIN_GALVANIZED_COIL_NOTE[locale]);
+  if (scope === "all") {
+    if (has((v) => REBAR_D36_D40_SKUS.has(v.sku ?? ""))) notes.push(REBAR_D36_D40_NOTE[locale]);
+    if (has((v) => PLATE_S235JR_PHASE2.test(v.sku ?? ""))) notes.push(PLATE_S235JR_SIZE_NOTE[locale]);
+    if (has((v) => PLATE_S355JR_PHASE2.test(v.sku ?? ""))) notes.push(PLATE_S355JR_SIZE_NOTE[locale]);
+  }
+  return notes;
+}
+
+/** A variant's nominal weight as the site may show it: none for the domestic channel (Odoo has none; owner W9.13). */
+export function publicNominalWeight(v: NoteSubject, weight: Record<string, number> | null): Record<string, number> | null {
+  return isDomesticChannel(v) ? null : weight;
+}
+
 function humanizeUnknownKey(key: string): string {
   return key
     .replace(/_mm$/, "")

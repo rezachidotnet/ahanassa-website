@@ -69,12 +69,14 @@ const d1 = (tables: SnapshotV1["tables"]): D1Source => ({ schema: "d1-source.v1"
 const flag = (tables: SnapshotV1["tables"], sku: string) => tables.product_variants.find((v) => v.sku === sku)?.is_public;
 
 test("the list: exactly the 24 W9.12 SKUs (15 SHS + 9 RHS), unique, each with its decision; never a pattern", () => {
-  const skus = PUBLIC_ON_FIRST_PUBLISH.map((v) => v.sku);
+  // W9.13 added its own entries (variant-publication-allowlist-w913.test.ts); the W9.12 decision covers exactly these.
+  const w912 = PUBLIC_ON_FIRST_PUBLISH.filter((v) => v.decision.startsWith("W9.12"));
+  const skus = w912.map((v) => v.sku);
   assert.equal(skus.length, 24);
   assert.equal(new Set(skus).size, 24);
   assert.equal(skus.filter((s) => s.startsWith("AA-PF-SHS-")).length, 15);
   assert.equal(skus.filter((s) => s.startsWith("AA-PF-RHS-")).length, 9);
-  for (const v of PUBLIC_ON_FIRST_PUBLISH) {
+  for (const v of w912) {
     assert.match(v.sku, /^AA-PF-(SHS|RHS)-S\d+X\d+X\d+(P5)?-L6$/);
     assert.match(v.decision, /owner 2026-10-20/);
   }
