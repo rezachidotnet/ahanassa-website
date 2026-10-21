@@ -29,7 +29,8 @@ import { planSectionDrawing, SECTION_SHAPES } from "../downloads/sections.ts";
 import { renderSpecSheet } from "../downloads/pdf/render.ts";
 import type { DownloadCategory } from "../downloads/model.ts";
 import { buildCalculatorProducts, FORM_SHAPES, resolveVariantBasis } from "../weight-calculator/model.ts";
-import { attachRfqPublicCategories } from "../rfq/catalog-selector.ts";
+import { attachRfqPublicCategories, groupCatalogItemsForSelector } from "../rfq/catalog-selector.ts";
+import { CATEGORY_SEO } from "../content/category-seo.ts";
 import { findCategoryForVariant } from "../catalog/public-categories.ts";
 import type { ProductVariant } from "../catalog/types.ts";
 
@@ -289,4 +290,48 @@ test("wiring: product table, spec-sheet PDF and category intro render variantPag
   assert.match(read("lib/downloads/pdf/render.ts"), /const notes = variantPageNotes\(variants, locale\);/);
   assert.match(read("app/[locale]/products/category/[category]/page.tsx"), /variantPageNotes\([\s\S]*?"required"\)/);
   assert.match(read("lib/catalog/editorial-repository.ts"), /nominalWeight: publicNominalWeight\(/);
+});
+
+// --- follow-ups on #85 (owner, 2026-10-21) ----------------------------------------------------------------
+
+test("RFQ selector: a template's sizes in natural order (40 before 100, then 6 m before 12 m), for every product", () => {
+  const item = (templateXid: string, sku: string, size: string) =>
+    ({ variantXid: `CVAR-${sku}`, templateXid, sku, variantSpecLabel: size, productLabel: templateXid, templateSlug: templateXid, categoryCode: null, groupCode: "X", publicCategoryCode: "C", publicCategoryLabel: "C" }) as Parameters<typeof groupCatalogItemsForSelector>[0][number];
+  // Input in the query's text order (ORDER BY commercial_size).
+  const groups = groupCatalogItemsForSelector([
+    item("DOM", "AA-CH-DOM-S100-L12", "100 (12 m)"),
+    item("DOM", "AA-CH-DOM-S100-L6", "100 (6 m)"),
+    item("DOM", "AA-CH-DOM-S220-L12", "220 (12 m)"),
+    item("DOM", "AA-CH-DOM-S40-L6", "40 (6 m)"),
+    item("RB", "AA-RB-AJ400-D10-L12", "Ø10"),
+    item("RB", "AA-RB-AJ400-D40-L12", "Ø40"),
+    item("RB", "AA-RB-AJ400-D8-L12", "Ø8"),
+    item("UPN", "AA-CH-UPN-S100", "UPN 100"),
+    item("UPN", "AA-CH-UPN-S80", "UPN 80"),
+    item("PP", "AA-PP-SMLS-A106B-S114P3X6P02-L6", "114.3×6.02 SCH40"),
+    item("PP", "AA-PP-SMLS-A106B-S21P3X3P73-L6", "21.3×3.73 SCH80"),
+    item("PL", "AA-SH-HR-S235JR-S12X2000X12000", "12×2000×12000"),
+    item("PL", "AA-SH-HR-S235JR-S12X1250X6000", "12×1250×6000"),
+    item("PL", "AA-SH-HR-S235JR-S8X1250X6000", "8×1250×6000"),
+  ]);
+  const sizes = Object.fromEntries(groups[0].templates.map((t) => [t.templateXid, t.variants.map((v) => v.variantSpecLabel)]));
+  assert.deepEqual(sizes, {
+    DOM: ["40 (6 m)", "100 (6 m)", "100 (12 m)", "220 (12 m)"],
+    RB: ["Ø8", "Ø10", "Ø40"],
+    UPN: ["UPN 80", "UPN 100"],
+    PP: ["21.3×3.73 SCH80", "114.3×6.02 SCH40"],
+    PL: ["8×1250×6000", "12×1250×6000", "12×2000×12000"],
+  });
+  assert.deepEqual(groups[0].templates.map((t) => t.templateXid), ["DOM", "RB", "UPN", "PP", "PL"], "template order is the input's");
+});
+
+test("CHANNEL category intro: weight per metre on the standard UPN/UPE pages, the domestic channel by actual weight; en without price words", () => {
+  const intro = (l: (typeof LOCALES)[number]) => CATEGORY_SEO.CHANNEL[l].intro;
+  assert.match(intro("fa"), /وزن هر متر در صفحه ناودانی‌های استاندارد UPN و UPE/);
+  assert.match(intro("fa"), /ناودانی داخلی غیر استاندارد است، وزن استاندارد ندارد و بر اساس وزن واقعی فروخته می‌شود/);
+  assert.match(intro("en"), /weight per metre on each standard \(UPN and UPE\) product page; the domestic channel is non-standard, has no standard weight and is sold by actual weight/);
+  assert.match(intro("ar"), /الوزن لكل متر في صفحة كل مجرى قياسي \(UPN وUPE\)؛ أما المجرى المحلي فغير قياسي/);
+  assert.ok(!EN_FORBIDDEN.test(CATEGORY_SEO.CHANNEL.en.intro + CATEGORY_SEO.CHANNEL.en.title + CATEGORY_SEO.CHANNEL.en.description));
+  assert.ok(!PERSIAN_SPECIFIC.test(CATEGORY_SEO.CHANNEL.ar.intro));
+  for (const l of LOCALES) assert.ok(!/وزن هر متر در صفحه هر محصول|weight per metre are on each product page|والوزن لكل متر في صفحة كل منتج/.test(intro(l)), `${l}: the old all-products claim is gone`);
 });

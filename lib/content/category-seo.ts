@@ -125,7 +125,7 @@ export const CATEGORY_SEO: Record<string, Record<Locale, CategoryEntry>> = {
       h1: "ناودانی",
       description: "ناودانی UPN (بال شیب‌دار) و UPE (بال موازی) طبق EN 10365، با ارتفاع مقطع و وزن هر متر. برای خرید ناودانی استعلام قیمت بگیرید.",
       intro:
-        "ناودانی مقطعی U شکل است که در قاب‌ها، تیرهای فرعی، نعل‌درگاه و سازه‌های صنعتی استفاده می‌شود. این گروه شامل ناودانی UPN با بال‌های شیب‌دار و ناودانی UPE با بال‌های موازی است و ابعاد و وزن هر دو در EN 10365 آمده است. سایزهای موجود و وزن هر متر در صفحه هر محصول درج شده است. برای خرید ناودانی، لیست سایز و مقدار را بفرستید تا آهن آسا گزینه‌های تأمین را بررسی کند.",
+        "ناودانی مقطعی U شکل است که در قاب‌ها، تیرهای فرعی، نعل‌درگاه و سازه‌های صنعتی استفاده می‌شود. این گروه شامل ناودانی UPN با بال‌های شیب‌دار و ناودانی UPE با بال‌های موازی است و ابعاد و وزن هر دو در EN 10365 آمده است. سایزهای موجود در صفحه هر محصول آمده و وزن هر متر در صفحه ناودانی‌های استاندارد UPN و UPE درج شده است؛ ناودانی داخلی غیر استاندارد است، وزن استاندارد ندارد و بر اساس وزن واقعی فروخته می‌شود. برای خرید ناودانی، لیست سایز و مقدار را بفرستید تا آهن آسا گزینه‌های تأمین را بررسی کند.",
     },
     ar: {
       name: "المجاري",
@@ -133,7 +133,7 @@ export const CATEGORY_SEO: Record<string, Record<Locale, CategoryEntry>> = {
       h1: "المجاري",
       description: "مجاري حديد UPN (أجنحة مائلة) وUPE (أجنحة متوازية) وفق EN 10365، مع ارتفاع المقطع والوزن لكل متر. أرسل قائمة الشراء لطلب عرض.",
       intro:
-        "المجرى مقطع حديدي على شكل U يُستخدم في الإطارات والجسور الثانوية والمنشآت الصناعية. تضم هذه الفئة مجاري UPN ذات الأجنحة المائلة ومجاري UPE ذات الأجنحة المتوازية، وأبعادها وأوزانها في المعيار EN 10365. المقاسات المتاحة والوزن لكل متر في صفحة كل منتج. أرسل قائمة المقاسات والكميات ليراجع آهن آسا خيارات التوريد.",
+        "المجرى مقطع حديدي على شكل U يُستخدم في الإطارات والجسور الثانوية والمنشآت الصناعية. تضم هذه الفئة مجاري UPN ذات الأجنحة المائلة ومجاري UPE ذات الأجنحة المتوازية، وأبعادها وأوزانها في المعيار EN 10365. المقاسات المتاحة في صفحة كل منتج، والوزن لكل متر في صفحة كل مجرى قياسي (UPN وUPE)؛ أما المجرى المحلي فغير قياسي وليس له وزن قياسي ويُباع حسب الوزن الفعلي. أرسل قائمة المقاسات والكميات ليراجع آهن آسا خيارات التوريد.",
     },
     en: {
       name: "channels",
@@ -141,7 +141,7 @@ export const CATEGORY_SEO: Record<string, Record<Locale, CategoryEntry>> = {
       h1: "Channels",
       description: "UPN (tapered flange) and UPE (parallel flange) steel channels to EN 10365, with section height and nominal weight per metre. Request a quote.",
       intro:
-        "Channels are U-shaped sections used in frames, secondary beams, lintels and industrial structures. This category covers UPN channels with tapered flanges and UPE channels with parallel flanges; the dimensions and masses of both follow EN 10365. The available sizes and the weight per metre are on each product page. Send your size list and quantities and Ahan Asa reviews the sourcing options.",
+        "Channels are U-shaped sections used in frames, secondary beams, lintels and industrial structures. This category covers UPN channels with tapered flanges and UPE channels with parallel flanges; the dimensions and masses of both follow EN 10365. The available sizes are on each product page, and the weight per metre on each standard (UPN and UPE) product page; the domestic channel is non-standard, has no standard weight and is sold by actual weight. Send your size list and quantities and Ahan Asa reviews the sourcing options.",
     },
   },
   BOX_SECTION: {
