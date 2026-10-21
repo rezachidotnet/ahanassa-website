@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { RFQ_CATALOG_ASSET_PATTERN } from "../contracts/public-paths.ts";
 
 /**
  * W10.6 — the publish smoke's wait for a fresh deploy's /_next/static/ files.
@@ -34,8 +35,9 @@ export interface StaticAssetWaitResult {
 
 export const STATIC_ASSET_WAIT = { deadlineMs: 180_000, intervalMs: 5_000 } as const;
 
+/** The /_next/static/ files, and (W25) the hashed rfq-catalog.v2 files /contact loads — immutable-cached the same way. */
 export function nextStaticEntries(publicAssets: readonly StaticAssetEntry[]): StaticAssetEntry[] {
-  return publicAssets.filter((e) => e.path.startsWith("_next/static/"));
+  return publicAssets.filter((e) => e.path.startsWith("_next/static/") || RFQ_CATALOG_ASSET_PATTERN.test(`/${e.path}`));
 }
 
 export async function waitForStaticAssets(baseUrl: string, entries: readonly StaticAssetEntry[], options: StaticAssetWaitOptions): Promise<StaticAssetWaitResult> {

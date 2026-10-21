@@ -55,7 +55,7 @@ export function PriceStrip({ locale, items }: { locale: Locale; items: PublicPri
           <p className="text-muted-foreground mt-2 text-sm leading-relaxed">{t.guidance}</p>
         </div>
 
-        <ul className="mt-8 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 sm:snap-none sm:overflow-visible sm:pb-0 md:grid-cols-3 xl:grid-cols-6">
+        <ul className="relative mt-8 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 sm:snap-none sm:overflow-visible sm:pb-0 md:grid-cols-3 xl:grid-cols-6">
           {items.map((item) => {
             const commercialContext = buildCommercialContextLine(item.marketOrLocation, item.deliveryBasis);
             const timestampLabel = formatEffectiveTimestamp(item.effectiveTimestamp, locale);

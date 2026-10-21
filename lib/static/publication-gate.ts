@@ -1,4 +1,4 @@
-import { publicManifest, publicRfqCatalog, publicRfqCatalogItem } from "../contracts/artifact-v1.ts";
+import { publicManifest, publicRfqCatalog, publicRfqCatalogItem, publicRfqCatalogV2 } from "../contracts/artifact-v1.ts";
 
 /**
  * Publication gate (architecture V1.1 §7.1 step 3, §8.2, §12; W4) — the
@@ -32,6 +32,8 @@ const keysOf = (schema: { shape: Record<string, unknown> }) => new Set(Object.ke
 /** Public JSON files and the object keys allowed in each (from the strict contracts in lib/contracts/artifact-v1.ts). */
 export const PUBLIC_JSON_ALLOWLIST: ReadonlyArray<{ pattern: RegExp; keys: ReadonlySet<string> }> = [
   { pattern: /^data\/rfq-catalog\.(fa|en|ar)\.json$/, keys: new Set([...keysOf(publicRfqCatalog), ...keysOf(publicRfqCatalogItem)]) },
+  // W25: the compact copy (rows are tuples, so its only keys are the top-level ones).
+  { pattern: /^data\/rfq-catalog\.(fa|en|ar)\.[0-9a-f]{16}\.json$/, keys: keysOf(publicRfqCatalogV2) },
   { pattern: /^manifest\.public\.json$/, keys: keysOf(publicManifest) },
 ];
 

@@ -13,6 +13,7 @@ step 6). Code twin: `lib/contracts/artifact-v1.ts`; gate: `lib/static/artifact-g
     products/category/<segment>.html                          one per public category and locale
     404.html, en/404.html, ar/404.html                         per-locale not-found pages
     data/rfq-catalog.{fa,en,ar}.json                          rfq-catalog.v1 (no categoryLabel)
+    data/rfq-catalog.{fa,en,ar}.<hash16>.json                 rfq-catalog.v2 — the same items, compact; what /contact loads (W25)
     manifest.public.json                                      artifact.public.v1
     robots.txt, sitemap.xml                                   from app/robots.ts, app/sitemap.ts
     _headers, _redirects, .assetsignore
@@ -48,6 +49,19 @@ always yields the same bytes.
 
 `{"schema_version": "rfq-catalog.v1", "snapshot_version", "locale", "items": [{variantXid, templateXid, sku, variantSpecLabel, productLabel, templateSlug, categoryCode, groupCode, publicCategoryCode, publicCategoryLabel}]}`
 — strict; `categoryLabel` (Persian Product Master family) is server-only and forbidden (A6).
+`Cache-Control: public, max-age=300` (one `_headers` rule per file). Kept for the content pipeline (publish smoke,
+`compare-artifacts.ts`) and the legacy SSR route; the static /contact form loads the v2 file below.
+
+## `data/rfq-catalog.<locale>.<hash16>.json` (public, W25)
+
+`{"schema_version": "rfq-catalog.v2", "locale", "categories": [[publicCategoryCode, publicCategoryLabel]], "templates": [[templateXid, productLabel, templateSlug, groupCode, categoryCode]], "variants": [[variantXid, sku, variantSpecLabel, templateIndex, categoryIndex]]}`
+— strict (`lib/contracts/artifact-v1.ts#publicRfqCatalogV2`, codec `lib/rfq/catalog-wire.ts`). Exactly the v1 items in
+the v1 order, each product and category listed once (≈17 KB instead of ≈85 KB raw for 256 variants; ≈2.1 KB vs
+≈2.6 KB brotli). `<hash16>` is the first 16 hex digits of the file's SHA-256, so the file is served with the
+immutable `Cache-Control` (one `_headers` rule per file, like `_next/static/`) and survives snapshots that only
+change prices. It carries **no** `snapshot_version`: the /contact page carries the build's version
+(`catalogSnapshotVersion`, docs/contracts/RFQ_SUBMIT_V1.md) and names — and `<link rel="preload">`s — its
+locale's file (`lib/rfq/catalog-source.ts`, set by `scripts/static/build.ts`).
 
 ## Checksum rules
 
@@ -61,7 +75,9 @@ extra), with matching `bytes` and `sha256`. Production deploys only an artifact 
 2. **No private-snapshot file and no `.sql` in `public-assets/`** — also no `.rsc`, no `.vite/`, no
    `manifest.json`, no file byte-identical to a private file.
 3. Required public files present; `manifest.public.json` and every `rfq-catalog` JSON validate and carry
-   the manifest's `snapshot_version`.
+   the manifest's `snapshot_version`. W25: per locale exactly one `rfq-catalog.v2` file, named by its content
+   hash, decoding to exactly the v1 items; the locale's /contact page loads it and carries the snapshot version;
+   it has its own immutable `_headers` rule and no wildcard rule sets `Cache-Control` on it.
 4. Every `canonical`/`alternate` link points at `https://www.ahanassa.com` (staging never self-canonical);
    the **indexing gate** (W5, owner decision D6, `docs/INDEXING_POLICY.md`): staging `_headers` sends
    `X-Robots-Tag: noindex, nofollow` on `/*` and `robots.txt` is disallow-all; production sends `noindex` only on
@@ -86,10 +102,12 @@ at upload time (defence in depth).
 npm run build:static -- --snapshot <snapshot.v1.json> --target staging|production [--out .artifact]
 npm run static:gate -- <artifactDir>
 npm run static:hydration -- <artifactDir>/public-assets [--all]
+npm run static:overflow -- <artifactDir>/public-assets [--pages /a,/b] [--widths 360,390]   # W25: no page wider than a phone
 ```
 
 **Determinism (W4).** The vinext build id and deployment id are pinned to `static-<code sha 12>`
 (`scripts/static/next.config.static.ts`); vinext's default is a random UUID per build, which changed every
 chunk name and therefore every HTML file. With the pin, the same code + the same snapshot content give
-byte-identical `public-assets/` except the version stamp in `manifest.public.json` and
-`data/rfq-catalog.<locale>.json` (`scripts/content/compare-artifacts.ts`).
+byte-identical `public-assets/` except the version stamp in `manifest.public.json`,
+`data/rfq-catalog.<locale>.json` and (W25) the three /contact pages (`scripts/content/compare-artifacts.ts`); the
+hashed `rfq-catalog.v2` files carry no stamp and stay identical.

@@ -14,8 +14,9 @@
  *
  * W4 additions: `--strict-console` fails a page on ANY console.error or exception (interactive pages:
  * form, filters); `--pages` limits the page list; `--base-url` checks a deployed host instead of the
- * local server (staging smoke); `--expect-snapshot` requires every /contact page to load
- * /manifest.public.json with that snapshot_version (the version the RFQ form sends).
+ * local server (staging smoke); `--expect-snapshot` requires every /contact page to carry that
+ * snapshot_version (the version the RFQ form sends; W25: in the page itself, no longer fetched from
+ * /manifest.public.json) and to load its RFQ catalog file.
  */
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
@@ -94,8 +95,8 @@ let id = 0;
 const pending = new Map<number, (v: unknown) => void>();
 let errors: string[] = [];
 let rscRequests: string[] = [];
-const manifestRequests = new Map<string, string>(); // requestId -> url (manifest.public.json)
-let manifestBodies: string[] = [];
+const catalogRequests = new Map<string, string>(); // requestId -> url (/data/rfq-catalog.*)
+let catalogLoads: { url: string; status: number }[] = [];
 ws.addEventListener("message", (e) => {
   const m = JSON.parse(String(e.data));
   if (m.id && pending.has(m.id)) {
@@ -106,11 +107,9 @@ ws.addEventListener("message", (e) => {
     const req = m.params.request as { url: string; headers: Record<string, string> };
     const rscHeader = Object.entries(req.headers ?? {}).some(([k, v]) => k.toLowerCase() === "rsc" && v === "1");
     if (/[?&]_rsc=|\.rsc(\?|$)/.test(req.url) || rscHeader) rscRequests.push(req.url.replace(server.url, ""));
-    if (/\/manifest\.public\.json(\?|$)/.test(req.url)) manifestRequests.set(m.params.requestId, req.url);
+    if (/\/data\/rfq-catalog\.[^/]*\.json(\?|$)/.test(req.url)) catalogRequests.set(m.params.requestId, req.url);
   }
-  if (m.method === "Network.loadingFinished" && manifestRequests.has(m.params.requestId)) {
-    send("Network.getResponseBody", { requestId: m.params.requestId }).then((r) => manifestBodies.push(String((r as { result?: { body?: string } }).result?.body ?? "")));
-  }
+  if (m.method === "Network.responseReceived" && catalogRequests.has(m.params.requestId)) catalogLoads.push({ url: catalogRequests.get(m.params.requestId)!.replace(server.url, ""), status: m.params.response.status });
   if (m.method === "Runtime.exceptionThrown") errors.push(`exception: ${m.params.exceptionDetails.exception?.description ?? m.params.exceptionDetails.text}`.slice(0, 300));
   if (m.method === "Runtime.consoleAPICalled" && m.params.type === "error") errors.push(`console.error: ${m.params.args.map((a: { value?: unknown; description?: string }) => a.value ?? a.description).join(" ")}`.slice(0, 300));
 });
@@ -129,7 +128,7 @@ const results: { page: string; ok: boolean; errors: string[]; hydrated?: boolean
 for (const page of pages) {
   errors = [];
   rscRequests = [];
-  manifestBodies = [];
+  catalogLoads = [];
   await send("Page.navigate", { url: `${server.url}${page}` });
   for (let i = 0; i < 60; i++) {
     await sleep(200);
@@ -148,13 +147,14 @@ for (const page of pages) {
     row.hydrated = option.length > 0 && !/^\+\d+ IR$/.test(option.trim());
     if (!row.hydrated) row.errors.push(`not hydrated: country option still "${option}"`);
     if (expectSnapshot) {
-      for (let i = 0; i < 20 && manifestBodies.length === 0; i++) await sleep(200);
-      let version: string | null = null;
-      try {
-        version = (JSON.parse(manifestBodies[0] ?? "null") as { snapshot_version?: string } | null)?.snapshot_version ?? null;
-      } catch {}
+      for (let i = 0; i < 20 && catalogLoads.length === 0; i++) await sleep(200);
+      // The page's own HTML (as served) carries the version the form sends with the RFQ.
+      const html = String((await evaluate("fetch(location.href, { cache: \"no-store\" }).then((r) => r.text())")) ?? "");
+      const version = html.includes(`\\"${expectSnapshot}\\"`) || html.includes(`"${expectSnapshot}"`) ? expectSnapshot : (/snap-[0-9a-f]{16}/.exec(html)?.[0] ?? null);
       row.snapshotVersion = version;
-      if (version !== expectSnapshot) row.errors.push(`snapshot: form loaded ${version ?? "no manifest"}, expected ${expectSnapshot}`);
+      if (version !== expectSnapshot) row.errors.push(`snapshot: page carries ${version ?? "no snapshot_version"}, expected ${expectSnapshot}`);
+      const catalog = catalogLoads.find((l) => l.status === 200);
+      if (!catalog) row.errors.push(`snapshot: no RFQ catalog file loaded (${catalogLoads.map((l) => `${l.url} ${l.status}`).join(", ") || "none requested"})`);
     }
   }
   const reactErrors = row.errors.filter((e) => strictConsole || /Minified React error|Hydration|hydrat|exception:|RSC requests|snapshot:/i.test(e));

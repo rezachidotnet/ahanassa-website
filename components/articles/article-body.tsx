@@ -97,7 +97,7 @@ function renderBlock(b: Block, i: number): ReactNode {
     case "table":
       return (
         // Scroll region like the product tables: focusable for keyboard scrolling, never widens the page.
-        <div key={i} role="region" tabIndex={0} aria-label={b.head.map(inlineText).join(" · ")} className="border-border mt-6 overflow-x-auto rounded-[var(--aa-radius-card)] border">
+        <div key={i} role="region" tabIndex={0} aria-label={b.head.map(inlineText).join(" · ")} className="border-border relative mt-6 overflow-x-auto rounded-[var(--aa-radius-card)] border">
           <table className="text-ui w-full border-separate border-spacing-0 text-sm">
             <thead>
               <tr>

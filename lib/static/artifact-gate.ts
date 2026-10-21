@@ -1,7 +1,9 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { artifactManifest, publicManifest, publicRfqCatalog, PRIVATE_DIR, PUBLIC_DIR, type ArtifactFileEntry } from "../contracts/artifact-v1.ts";
+import { isDeepStrictEqual } from "node:util";
+import { artifactManifest, publicManifest, publicRfqCatalog, publicRfqCatalogV2, RFQ_CATALOG_ASSET_PATTERN, PRIVATE_DIR, PUBLIC_DIR, type ArtifactFileEntry } from "../contracts/artifact-v1.ts";
+import { decodeRfqCatalog } from "../rfq/catalog-wire.ts";
 import { scanPublicFile, type LeakFinding } from "./leak-scan.ts";
 import { internalIdsFromSnapshot, scanPublication } from "./publication-gate.ts";
 import { priceGateInput, scanPrices, visibleText } from "./price-gate.ts";
@@ -40,6 +42,30 @@ export interface GateResult {
   failures: string[];
   leaks: LeakFinding[];
   stats: { publicFiles: number; privateFiles: number; htmlPages: number; largestPublicFile: { path: string; bytes: number } | null; /** W9.6: "ran" or "not_run" (no private name list given). */ sourceNameScan?: "ran" | "not_run" };
+}
+
+/**
+ * W25: the locale's compact rfq-catalog.v2 file — exactly one, named by its own content hash, the same items in the
+ * same order as the v1 file, and the one every /contact page of that locale loads, with the artifact's snapshot version.
+ */
+export function checkRfqCatalogAsset(locale: "fa" | "en" | "ar", v1Items: unknown[], publicPaths: string[], readPublic: (p: string) => string, snapshotVersion: string | null): string[] {
+  const failures: string[] = [];
+  const assets = publicPaths.filter((p) => RFQ_CATALOG_ASSET_PATTERN.exec(`/${p}`)?.[1] === locale);
+  if (assets.length !== 1) return [`data/rfq-catalog.${locale}.<hash>.json: expected exactly one, found ${assets.length}`];
+  const p = assets[0];
+  const body = readPublic(p);
+  if (crypto.createHash("sha256").update(body).digest("hex").slice(0, 16) !== RFQ_CATALOG_ASSET_PATTERN.exec(`/${p}`)![2]) failures.push(`${p}: name is not the content hash`);
+  const v2 = publicRfqCatalogV2.safeParse(JSON.parse(body));
+  if (!v2.success) return [...failures, `${p} does not match rfq-catalog.v2: ${v2.error.issues.slice(0, 3).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`];
+  if (v2.data.locale !== locale) failures.push(`${p}: wrong locale`);
+  if (!isDeepStrictEqual(decodeRfqCatalog(v2.data)?.items, v1Items)) failures.push(`${p}: items differ from data/rfq-catalog.${locale}.json`);
+  const contact = locale === "fa" ? "contact.html" : `${locale}/contact.html`;
+  if (publicPaths.includes(contact)) {
+    const html = readPublic(contact);
+    if (!html.includes(`/${p}`)) failures.push(`${contact}: does not load /${p}`);
+    if (snapshotVersion && !html.includes(snapshotVersion)) failures.push(`${contact}: does not carry snapshot_version ${snapshotVersion}`);
+  }
+  return failures;
 }
 
 export function sha256File(file: string): string {
@@ -140,6 +166,7 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
     const c = publicRfqCatalog.safeParse(JSON.parse(readPublic(p)));
     if (!c.success) failures.push(`${p} does not match rfq-catalog.v1: ${c.error.issues.slice(0, 3).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
     else if (c.data.locale !== loc || (parsed.success && c.data.snapshot_version !== parsed.data.snapshot_version)) failures.push(`${p}: wrong locale or snapshot_version`);
+    else failures.push(...checkRfqCatalogAsset(loc, c.data.items, [...publicPaths], readPublic, parsed.success ? parsed.data.snapshot_version : null));
   }
 
   // 4. SEO: canonical/hreflang always point at production (staging never self-canonical, R2-4); robots headers per environment.

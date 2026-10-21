@@ -9,7 +9,9 @@ const STRIP_TITLE: Record<Locale, string> = { fa: "شاخص‌های مرجع ب
  * W18.2 — the fa price strip's indicator items (home page under the hero, /prices above the table, the chart pages):
  * one card per market indicator of the build (USD/IRR Exchange Center rate, iron ore, the US index). Nothing at all
  * when the snapshot has none. Server-rendered; mobile scrolls sideways (user-controlled, like the price strip),
- * tablet and up is a 3-column grid.
+ * tablet and up is a 3-column grid. W25: the list is `relative` so it is the containing block of the cards'
+ * absolutely positioned `sr-only` text — otherwise that text escapes the scroller's clip and, in RTL, widened the
+ * whole fa page to ~700px on a phone (scripts/static/overflow-check.ts).
  *
  * `link` (W18.3, en/ar — components/indicators/market-indicator-strip.tsx): every card links to the locale's
  * market-indicators page, and a text link to it follows the cards.
@@ -23,7 +25,7 @@ export function IndicatorStrip({ locale, indicators, headingId = "market-indicat
           {STRIP_TITLE[locale]}
         </h2>
         <p className="text-muted-foreground mt-2 max-w-3xl text-sm leading-relaxed">{INDICATOR_COPY[locale].note}</p>
-        <ul className="mt-6 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 sm:grid sm:grid-cols-3 sm:snap-none sm:overflow-visible sm:pb-0">
+        <ul className="relative mt-6 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 sm:grid sm:grid-cols-3 sm:snap-none sm:overflow-visible sm:pb-0">
           {indicators.map((indicator) => (
             <li key={indicator.code} className="flex min-w-[240px] shrink-0 snap-start sm:min-w-0">
               <IndicatorCard locale={locale} indicator={indicator} href={link?.href} className="w-full" />

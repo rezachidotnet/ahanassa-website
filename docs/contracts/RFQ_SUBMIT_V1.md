@@ -25,7 +25,7 @@ Code twin: `lib/contracts/rfq-submit-v1.ts` — field limits are imported from t
 | `formRenderedAt` | optional epoch ms (passive timing signal) |
 | `turnstileToken` | Cloudflare Turnstile response token; action `rfq_submit`; the Worker also checks `hostname` (W2) |
 | `attachments` | optional, 0–5 × `{name (1–255), size (integer, 1..15 MiB)}` — D-RFQ-FILE (`docs/RFQ_FILE_UPLOAD.md`). The Worker checks the extension and size, answering 422 `attachments[i].name: [macro_file \| executable_or_archive \| extension_not_allowed \| …]`, or `attachments: [uploads_disabled]` when upload is off. Each declared file is part of the payload fingerprint. The bytes follow, after the RFQ is accepted, with `PUT /api/rfqs/files/<reference>/<slot>` and `X-RFQ-Key: <idempotencyKey>`. |
-| `catalogSnapshotVersion` | `snap-<16 hex>` from `/data/rfq-catalog.<locale>.json` (`snapshot.v1`); `null` on the legacy SSR runtime. Variants are validated against this snapshot's `rfq_variant_index` rows (fallback: active version). |
+| `catalogSnapshotVersion` | `snap-<16 hex>`: the `snapshot.v1` version of the static build the visitor's /contact page came from (W25: carried by the page itself — the same value `manifest.public.json` and `/data/rfq-catalog.<locale>.json` carry); `null` on the legacy SSR runtime unless the v1 catalog file has one. Variants are validated against this snapshot's `rfq_variant_index` rows (fallback: active version). |
 
 ## Responses
 

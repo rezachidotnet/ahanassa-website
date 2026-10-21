@@ -140,14 +140,37 @@ export function countRfqBasketItems(basket: RfqBasket | null): number {
  * RFQ Worker re-validates every variant regardless.
  */
 export function restoreRfqBasketRows(stored: RfqRowFields[], catalogItems: PublicRfqCatalogItem[]): RfqRow[] {
-  const rows = stored.map((fields): RfqRow => {
-    if (fields.mode !== "catalog" || catalogItems.length === 0) return { id: nextRfqRowId(), fields };
-    const item = fields.variantXid ? catalogItems.find((i) => i.variantXid === fields.variantXid) : undefined;
-    if (item) return { id: nextRfqRowId(), fields: { ...fields, templateXid: item.templateXid, categoryCode: item.publicCategoryCode } };
-    const template = fields.templateXid ? catalogItems.find((i) => i.templateXid === fields.templateXid) : undefined;
-    return { id: nextRfqRowId(), fields: { ...fields, variantXid: null, templateXid: template?.templateXid ?? null, categoryCode: template?.publicCategoryCode ?? null } };
-  });
+  const rows = resolveRowsAgainstCatalog(
+    stored.map((fields): RfqRow => ({ id: nextRfqRowId(), fields })),
+    catalogItems,
+  );
   return rows.length > 0 ? rows.slice(0, MAX_ITEMS) : [createEmptyCatalogRow()];
+}
+
+/**
+ * The catalog half of `restoreRfqBasketRows`, on rows that already exist (W25:
+ * the form shows the stored rows at once and re-resolves them when the catalog
+ * file arrives). Row ids are kept; rows that need no change are returned as
+ * the same objects, and with nothing to change the same array is returned.
+ */
+export function resolveRowsAgainstCatalog(rows: RfqRow[], catalogItems: PublicRfqCatalogItem[]): RfqRow[] {
+  if (catalogItems.length === 0) return rows;
+  let changed = false;
+  const next = rows.map((row): RfqRow => {
+    const fields = row.fields;
+    if (fields.mode !== "catalog") return row;
+    const item = fields.variantXid ? catalogItems.find((i) => i.variantXid === fields.variantXid) : undefined;
+    const template = item ?? (fields.templateXid ? catalogItems.find((i) => i.templateXid === fields.templateXid) : undefined);
+    const resolved = item
+      ? { templateXid: item.templateXid, categoryCode: item.publicCategoryCode, variantXid: fields.variantXid }
+      : { templateXid: template?.templateXid ?? null, categoryCode: template?.publicCategoryCode ?? null, variantXid: null };
+    // A blank row the visitor has not touched has no identity to resolve.
+    if (!fields.variantXid && !fields.templateXid && fields.categoryCode === null) return row;
+    if (resolved.templateXid === fields.templateXid && resolved.categoryCode === fields.categoryCode && resolved.variantXid === fields.variantXid) return row;
+    changed = true;
+    return { ...row, fields: { ...fields, ...resolved } };
+  });
+  return changed ? next : rows;
 }
 
 export type RfqBasketAddOutcome = "added" | "existing" | "full";

@@ -69,14 +69,15 @@ test("a 200 with other bytes (an old version still served) is not accepted; neit
   assert.match(stale.pending[0].last, /^HTTP 200, sha256 [0-9a-f]{12} ≠ artifact [0-9a-f]{12}$/);
 });
 
-test("only /_next/static/ files are waited for", () => {
+test("only /_next/static/ files and the hashed rfq-catalog files (W25) are waited for", () => {
   const entries = nextStaticEntries([
     { path: "index.html", sha256: "a" },
     { path: "_next/static/chunks/a.js", sha256: "b" },
     { path: "_next/static/css/app.css", sha256: "c" },
     { path: "data/rfq-catalog.fa.json", sha256: "d" },
+    { path: "data/rfq-catalog.fa.0123456789abcdef.json", sha256: "e" },
   ]);
-  assert.deepEqual(entries.map((e) => e.path), ["_next/static/chunks/a.js", "_next/static/css/app.css"]);
+  assert.deepEqual(entries.map((e) => e.path), ["_next/static/chunks/a.js", "_next/static/css/app.css", "data/rfq-catalog.fa.0123456789abcdef.json"]);
 });
 
 test("the publish smoke waits for the artifact's /_next/static/ files before it opens /contact in Chrome", () => {

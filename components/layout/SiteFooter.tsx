@@ -92,8 +92,9 @@ export function SiteFooter({ locale, hasArticles = false, hasIndicators = false 
       <h2 id="site-footer-title" className="sr-only">
         {t.footerTitle}
       </h2>
-      <div className="container-x grid gap-12 py-16 md:grid-cols-2 lg:grid-cols-12 lg:py-20">
-        <div className="lg:col-span-4">
+      {/* W25 (owner, 2026-10-21): two columns below md too — the brand and contact blocks (long text, the addresses) span both, the two link groups sit side by side. md and up unchanged. */}
+      <div className="container-x grid grid-cols-2 gap-x-6 gap-y-10 py-16 md:gap-12 lg:grid-cols-12 lg:py-20">
+        <div className="col-span-2 md:col-span-1 lg:col-span-4">
           <div className="flex items-center gap-2.5">
             <Image src={BRAND_MARK_SRC} alt="" aria-hidden="true" width={32} height={32} className="rounded-[var(--aa-radius-xs)]" />
             <span className="text-[15px] font-extrabold tracking-[0.06em] text-white">{siteConfig.name}</span>
@@ -115,7 +116,7 @@ export function SiteFooter({ locale, hasArticles = false, hasIndicators = false 
           </nav>
         </div>
 
-        <nav className="lg:col-span-3" aria-label={t.productsNav}>
+        <nav className="min-w-0 lg:col-span-3" aria-label={t.productsNav}>
           <h3 className="eyebrow text-accent-on-inverse">{t.productsNav}</h3>
           <ul className="mt-3 text-sm">
             <li>
@@ -140,7 +141,7 @@ export function SiteFooter({ locale, hasArticles = false, hasIndicators = false 
           </ul>
         </nav>
 
-        <nav className="lg:col-span-2" aria-label={t.companyNav}>
+        <nav className="min-w-0 lg:col-span-2" aria-label={t.companyNav}>
           <h3 className="eyebrow text-accent-on-inverse">{t.companyNav}</h3>
           <ul className="mt-3 text-sm">
             {links.map((l) => (
@@ -153,7 +154,7 @@ export function SiteFooter({ locale, hasArticles = false, hasIndicators = false 
           </ul>
         </nav>
 
-        <div className="lg:col-span-3">
+        <div className="col-span-2 md:col-span-1 lg:col-span-3">
           <h3 className="eyebrow text-accent-on-inverse">{offices.head.label}</h3>
           <a
             href={`tel:${CONTACT_PHONE_E164}`}
