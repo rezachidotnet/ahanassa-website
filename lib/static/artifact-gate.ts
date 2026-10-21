@@ -14,6 +14,7 @@ import { checkAgentTexts, checkMarkdownMirrors } from "./markdown-mirror.ts";
 import { scanArticlePages } from "./article-gate.ts";
 import { STATIC_TARGETS, TURNSTILE_ORIGIN } from "./targets.ts";
 import { checkStaticCacheRules } from "./static-rules.ts";
+import { bootstrapModuleIsLowPriority } from "./postprocess.ts";
 import { checkIndexingPolicy, PRODUCTION_ORIGIN } from "./indexing-gate.ts";
 import { GA4_CONNECT_ORIGINS } from "../security/headers.ts";
 
@@ -173,6 +174,8 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
   const htmlFiles = publicEntries.filter((e) => e.path.endsWith(".html"));
   for (const e of htmlFiles) {
     const html = readPublic(e.path);
+    // W25.2: the entry module that hydrates the page is never fetched last (lib/static/postprocess.ts#raiseBootstrapModulePriority).
+    if (bootstrapModuleIsLowPriority(html)) failures.push(`${e.path}: bootstrap module preloaded with fetchPriority="low"`);
     for (const m of html.matchAll(/<link\b[^>]*rel="(canonical|alternate)"[^>]*>/gi)) {
       const href = /href="([^"]*)"/.exec(m[0])?.[1] ?? "";
       if (!href.startsWith(`${PRODUCTION_ORIGIN}/`) && href !== PRODUCTION_ORIGIN) failures.push(`${e.path}: ${m[1]} not on ${PRODUCTION_ORIGIN}: ${href}`);
