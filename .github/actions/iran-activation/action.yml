@@ -1,0 +1,171 @@
+# W30 (W29 P1 §1.2, §1.5; RELEASE_POLICY.md §20.11 draft) — sign and publish an activation of the domestic copy.
+# Used AFTER www.ahanassa.com is final (finalize + live-release.json) by content-publish.yml's three publish jobs, by
+# v11-release-watch.yml's rollback job and by v11-iran-activation.yml. Every caller step is continue-on-error: nothing
+# here can fail, delay or change a www publish. The callers check this action out from the workflow's own commit on main
+# (sparse, path .ci-iran), never from the application checkout.
+name: iran-activation
+description: Sign an iran-activation.v1 record (ssh-keygen -Y, ed25519) and publish it to the GitHub artifact + mirrors
+inputs:
+  mode:
+    description: "publish (a new bundle of this run) or rollback (re-point at an earlier activation's bundle)"
+    required: true
+  env:
+    description: production | staging
+    required: true
+  snapshot:
+    description: publish — the snapshot_version of this run's bundle
+    required: false
+    default: ""
+  manifest:
+    description: publish — path to the artifact's manifest.json (the one www was published from)
+    required: false
+    default: ""
+  from:
+    description: rollback — path to the earlier activation.json
+    required: false
+    default: ""
+  scripts:
+    description: path to .github/scripts of the workflow's own commit
+    required: true
+  signing-key:
+    description: the environment's ed25519 private key (secret IRAN_ACTIVATION_SIGNING_KEY)
+    required: false
+    default: ""
+  r2-endpoint:
+    required: false
+    default: ""
+  r2-bucket:
+    required: false
+    default: ""
+  r2-access-key-id:
+    required: false
+    default: ""
+  r2-secret-access-key:
+    required: false
+    default: ""
+  arvan-endpoint:
+    required: false
+    default: ""
+  arvan-bucket:
+    required: false
+    default: ""
+  arvan-region:
+    required: false
+    default: ir-thr-at1
+  arvan-access-key-id:
+    required: false
+    default: ""
+  arvan-secret-access-key:
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - name: "Iran: configured?"
+      id: guard
+      shell: bash
+      env:
+        KEY: ${{ inputs.signing-key }}
+        ENV_NAME: ${{ inputs.env }}
+      run: |
+        set -euo pipefail
+        if [ -z "$KEY" ]; then
+          echo "::notice title=domestic copy not activated::environment secret IRAN_ACTIVATION_SIGNING_KEY is not set for $ENV_NAME (RUNBOOK_P1.md O2)"
+          echo "go=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "go=true" >> "$GITHUB_OUTPUT"
+        fi
+        echo "DIR=$RUNNER_TEMP/iran-activation-$ENV_NAME" >> "$GITHUB_ENV"
+
+    - name: "Iran: the bundle this run built"
+      if: ${{ steps.guard.outputs.go == 'true' && inputs.mode == 'publish' }}
+      uses: actions/download-artifact@v7
+      with:
+        name: iran-bundle-${{ inputs.env }}-${{ inputs.snapshot }}
+        path: ${{ runner.temp }}/iran-bundle-${{ inputs.env }}
+
+    - name: "Iran: write + sign the activation"
+      if: ${{ steps.guard.outputs.go == 'true' }}
+      shell: bash
+      env:
+        KEY: ${{ inputs.signing-key }}
+        MODE: ${{ inputs.mode }}
+        ENV_NAME: ${{ inputs.env }}
+        MANIFEST: ${{ inputs.manifest }}
+        FROM: ${{ inputs.from }}
+        SCRIPTS: ${{ inputs.scripts }}
+      run: |
+        set -euo pipefail
+        rm -rf "$DIR" && mkdir -p "$DIR"
+        if [ "$MODE" = publish ]; then
+          node "$SCRIPTS/v11-iran-activation.mjs" make --env "$ENV_NAME" --summary "$RUNNER_TEMP/iran-bundle-$ENV_NAME/iran-bundle.json" \
+            --manifest "$MANIFEST" --run-id "$GITHUB_RUN_ID" --out "$DIR" > "$DIR/made.json"
+        else
+          node "$SCRIPTS/v11-iran-activation.mjs" rollback --from "$FROM" --out "$DIR" > "$DIR/made.json"
+        fi
+        rm "$DIR/made.json"
+        umask 077
+        key="$RUNNER_TEMP/iran-signing-key"
+        trap 'rm -f "$key" "$key.pub" "$RUNNER_TEMP/iran-allowed"' EXIT
+        printf '%s\n' "$KEY" | tr -d '\r' > "$key"
+        ssh-keygen -y -f "$key" > "$key.pub"
+        ssh-keygen -Y sign -q -f "$key" -n ahanassa-ir-release "$DIR/activation.json"
+        # The same check the server makes (principal ci-<env>), with the public half of this key.
+        echo "ci-$ENV_NAME namespaces=\"ahanassa-ir-release\" $(cat "$key.pub")" > "$RUNNER_TEMP/iran-allowed"
+        ssh-keygen -Y verify -f "$RUNNER_TEMP/iran-allowed" -I "ci-$ENV_NAME" -n ahanassa-ir-release -s "$DIR/activation.json.sig" < "$DIR/activation.json" > /dev/null
+        {
+          echo "### Domestic copy ($ENV_NAME): activation signed"
+          jq -r '"- \(.reason) seq `\(.seq)`: `\(.snapshot_version)` code `\(.code_sha[0:12])`, bundle sha256 `\(.bundle_sha256[0:16])…` (\(.bundle_bytes) B)"' "$DIR/activation.json"
+          echo "- signing key: $(ssh-keygen -lf "$key.pub" | cut -d' ' -f2)"
+        } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: "Iran: GitHub artifact (primary source)"
+      if: ${{ steps.guard.outputs.go == 'true' }}
+      uses: actions/upload-artifact@v6
+      with:
+        name: iran-activation-${{ inputs.env }}
+        path: |
+          ${{ runner.temp }}/iran-activation-${{ inputs.env }}/activation.json
+          ${{ runner.temp }}/iran-activation-${{ inputs.env }}/activation.json.sig
+        retention-days: 90
+        if-no-files-found: error
+
+    - name: "Iran: mirrors (R2, Arvan Object Storage) — the fallback when GitHub is filtered"
+      if: ${{ steps.guard.outputs.go == 'true' }}
+      shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+        ENV_NAME: ${{ inputs.env }}
+        R2_ENDPOINT: ${{ inputs.r2-endpoint }}
+        R2_BUCKET: ${{ inputs.r2-bucket }}
+        R2_KEY: ${{ inputs.r2-access-key-id }}
+        R2_SECRET: ${{ inputs.r2-secret-access-key }}
+        ARVAN_ENDPOINT: ${{ inputs.arvan-endpoint }}
+        ARVAN_BUCKET: ${{ inputs.arvan-bucket }}
+        ARVAN_REGION: ${{ inputs.arvan-region }}
+        ARVAN_KEY: ${{ inputs.arvan-access-key-id }}
+        ARVAN_SECRET: ${{ inputs.arvan-secret-access-key }}
+      run: |
+        set -uo pipefail
+        # Same layout the server reads (deploy/iran/lib/ahanassa_iran.py S3Source): iran/<env>/activation.json(.sig),
+        # iran/<env>/bundles/<bundle_sha256>.zip. The bundle goes first, so an activation never names a missing bundle.
+        export AWS_REQUEST_CHECKSUM_CALCULATION=when_required AWS_RESPONSE_CHECKSUM_VALIDATION=when_required AWS_EC2_METADATA_DISABLED=true
+        sha=$(jq -r .bundle_sha256 "$DIR/activation.json")
+        mirror() { # name endpoint bucket region key secret
+          local name=$1 endpoint=$2 bucket=$3 region=$4
+          if [ -z "$endpoint" ] || [ -z "$bucket" ] || [ -z "$5" ] || [ -z "$6" ]; then echo "- mirror $name: not configured" >> "$GITHUB_STEP_SUMMARY"; return 0; fi
+          export AWS_ACCESS_KEY_ID=$5 AWS_SECRET_ACCESS_KEY=$6 AWS_DEFAULT_REGION=$region
+          local base="s3://$bucket/iran/$ENV_NAME" ok=true
+          if [ "$MODE" = publish ]; then
+            aws s3 cp --only-show-errors --endpoint-url "$endpoint" "$RUNNER_TEMP/iran-bundle-$ENV_NAME/iran-bundle.zip" "$base/bundles/$sha.zip" || ok=false
+          fi
+          if $ok; then
+            aws s3 cp --only-show-errors --endpoint-url "$endpoint" "$DIR/activation.json.sig" "$base/activation.json.sig" &&
+              aws s3 cp --only-show-errors --endpoint-url "$endpoint" "$DIR/activation.json" "$base/activation.json" || ok=false
+          fi
+          if $ok; then echo "- mirror $name: uploaded" >> "$GITHUB_STEP_SUMMARY"
+          else echo "::warning title=domestic copy mirror $name failed::the GitHub artifact is still the primary source"; echo "- mirror $name: **failed**" >> "$GITHUB_STEP_SUMMARY"; fi
+        }
+        mirror r2 "$R2_ENDPOINT" "$R2_BUCKET" auto "$R2_KEY" "$R2_SECRET"
+        mirror arvan "$ARVAN_ENDPOINT" "$ARVAN_BUCKET" "$ARVAN_REGION" "$ARVAN_KEY" "$ARVAN_SECRET"
+        exit 0

@@ -29,6 +29,9 @@
 # environment wait can hold it). ALERT = failed job (GitHub e-mail) + healthchecks.io: HC_PING_DAILY_CONTENT (its own
 # check; also a dead-man's switch for the watchdog) when set, otherwise a /fail ping to HC_PING_OPS_HEALTH_PRODUCTION.
 
+# W30: a fourth job, `iran-copy`, compares the domestic copy (iransrv behind ArvanCloud) with the host it mirrors —
+# the domestic-copy incident class (RELEASE_POLICY.md §20.2b draft), never a release ALERT. Off until IRAN_COPY_CHECK=on.
+
 name: Ops health
 
 on:
@@ -224,3 +227,48 @@ jobs:
           else
             echo "::warning title=healthchecks ping failed::could not reach healthchecks.io"
           fi
+
+  # W30 (W29 P1 §1.6; RELEASE_POLICY.md §20.2b draft): the domestic copy (iransrv behind ArvanCloud) vs the Cloudflare
+  # host it mirrors. Its OWN job, by design: v11-release-watch.yml reads only `health (production-prep)` (a run whose
+  # only failure is this job counts as a passing run there), so IR_COPY_DRIFT / IR_UNREACHABLE e-mail the owner (failed
+  # run) but never roll a release back and never block a STABLE_100 row. Public reads only; no environment, no secret.
+  # Off until the owner sets the repository variable IRAN_COPY_CHECK=on (after deploy/iran/RUNBOOK_P1.md §5).
+  iran-copy:
+    name: iran-copy (domestic copy; not a release check, §20.2b)
+    if: ${{ vars.IRAN_COPY_CHECK == 'on' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout the release scripts (this workflow's own commit on main)
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      # The drift clock: when www switched to the snapshot it serves (the newest v11-live-release record).
+      - name: www's newest production publish record
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          id=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=v11-live-release&per_page=1" --jq '.artifacts[0].id')
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" > "$RUNNER_TEMP/live.zip"
+          unzip -p "$RUNNER_TEMP/live.zip" live-release.json > "$RUNNER_TEMP/live-release.json"
+
+      - name: Drift + reachability (fails only on IR_COPY_DRIFT / IR_UNREACHABLE)
+        shell: bash
+        env:
+          # source=copy pairs; IRAN_COPY_PAIRS overrides (e.g. + https://www.ahanassa.com=https://www.ahanassa.ir after the
+          # LATER Arvan origin switch, RUNBOOK_P1.md §10).
+          PAIRS: ${{ vars.IRAN_COPY_PAIRS || 'https://www.ahanassa.com=https://new.ahanassa.ir https://ahanassa-v11-static-staging.nova-b1e6f0.workers.dev=https://staging.ahanassa.ir' }}
+        run: |
+          set -euo pipefail
+          node .github/scripts/v11-iran-copy.mjs check --pairs "$PAIRS" --live-release "$RUNNER_TEMP/live-release.json"
+

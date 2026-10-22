@@ -569,6 +569,43 @@ The observation evidence lists the runs, their outcomes and every gap over 30 mi
 
 **How it is read.** `scripts/ops/health/run.ts` writes one annotation per ALERT, titled `ALERT: <check title>`. The Odoo check's title is `Odoo unreachable` (`scripts/ops/health/checks.ts` `ODOO_TITLE`; a test pins it). For a failed production health job, `.github/scripts/v11-live-release.mjs` reads the job's annotations (`GET /check-runs/{job_id}/annotations`; `v11-release-watch.yml` has `checks: read`). It keeps the titles that start with `ALERT: `. The run is external when that list is not empty and every title in it is `Odoo unreachable`.
 
+### 20.2b Domestic-copy incidents (DRAFT — W30, for owner approval)
+
+> **Draft.** Proposed by W30 (W29 phase P1) with the workflows that implement it. It takes effect when the owner
+> merges the PR that adds it (a `HIGH` governance change, like §20.2a). The application branch's copy of this file is
+> synchronized in the same way as for §20.2a.
+
+**The domestic copy.** `iransrv`, behind ArvanCloud, serves the same production artifact as `www.ahanassa.com`. P1 serves
+it on the shadow host `new.ahanassa.ir` (and the staging artifact on `staging.ahanassa.ir`). After a later owner
+decision it serves `www.ahanassa.ir` too (`deploy/iran/RUNBOOK_P1.md` on the application branch). It pulls a signed
+activation after every production publish (§20.11). It is a mirror for visitors who cannot reach Cloudflare. Its
+canonical, hreflang, og:url, JSON-LD and sitemaps name `www.ahanassa.com`, and the artifact gate enforces this on every
+build.
+
+**The class.** `ops-health.yml` checks the copy in its own job, `iran-copy (domestic copy; not a release check, §20.2b)`
+(`.github/scripts/v11-iran-copy.mjs`), when the repository variable `IRAN_COPY_CHECK` is `on`. It reads only the public
+`/manifest.public.json` of each host. Two ALERTs belong to this class:
+- **`IR_COPY_DRIFT`.** The copy serves another snapshot than its source for more than **45 min** after `www` switched to
+  the source's snapshot. The switch time is the `v11-live-release` record's `live_since`. Without a record for that
+  snapshot (for example staging), the limit is **180 min** from the snapshot's own time.
+- **`IR_UNREACHABLE`.** The copy did not answer `/manifest.public.json` in 3 tries from GitHub's runners (that is, from
+  outside Iran).
+
+**What the class does.**
+- **The owner is e-mailed.** The `iran-copy` job fails, so the ops-health run fails, and GitHub e-mails the owner.
+- **It is never an ALERT of a website release.** The release watch reads only the job `health (production-prep)`
+  (§20.2, `HEALTH_PRODUCTION_JOB`). A run whose only failed job is `iran-copy` is a passing run for the observation
+  (a test pins this). So a domestic-copy incident never triggers the automatic `LOW` rollback, never stops a `HIGH`
+  observation, and never blocks a `STABLE_100` row.
+- **It never changes `www`.** The fix is on the copy's side: the server's own refusal record, a re-activation (§20.11),
+  or the operator's runbook.
+- **The source being down is not this class.** It is reported in the job summary, and `health (production-prep)`
+  covers `www`.
+
+**Why.** The copy depends on GitHub, the mirror, ArvanCloud and Iran's international link. None of them is the website
+release. During an international cutoff the copy keeps serving its last good release on purpose, and drift is then the
+expected state, not a defect of the release.
+
 ### 20.3 `STABLE_100` field mapping (v11)
 
 The ledger schema (§3) and its strict validator (`lib/ci/release-ledger.ts`) are unchanged. A v11 row fills the columns as follows (`.github/scripts/v11-ledger-append.mjs` writes it):
@@ -704,6 +741,44 @@ Neither scan ever prints a name. A finding names the file and the name's line nu
 | ops-health thresholds (§20.2, W17.3) | `scripts/ops/health/checks.test.ts`: cron silent OK up to 20 min; Odoo WATCH on the 1st failed check, ALERT from the 2nd in a row, the counter read back from the previous run's annotation, unknown history = ALERT at once |
 | auto-approve (§21) | `.github/scripts/auto-approve.test.mjs`: approve at ≥ 6 h, not before; never with a failed/cancelled/timed-out job; skipped is not a failure; wait start = latest known, unknown = never; per environment; idempotent; dry run; no secret = warning only |
 | source names (§20.9) | `.github/scripts/v11-source-names.test.mjs`: findings never show a name; a path is redacted; fails on a finding; reports "not run" without a list |
+| domestic copy (§20.2b, §20.11 — draft) | `.github/scripts/v11-iran-copy.test.mjs`: OK / PENDING / `IR_COPY_DRIFT` after 45 min from www's switch (180 min from the snapshot time without a record) / `IR_UNREACHABLE`; source down = reported only; a run whose only failed job is `iran-copy` is a passing run for the release watch. `.github/scripts/v11-iran-activation.test.mjs`: the server's activation schema; the bundle must belong to the manifest www was published from; rollback = same bundle, newer seq; `ssh-keygen -Y sign` + verify with the principal checked. On the application branch: `scripts/iran/*.test.ts`, `deploy/iran/tests/test_activator.py` and `lib/static/seo-host-lock-w30.test.ts` |
+
+### 20.11 Domestic-copy activation follows `www`, and never precedes it (DRAFT — W30, for owner approval)
+
+> **Draft**, as §20.2b. It takes effect with the owner's merge of the PR that adds it.
+
+1. **One artifact.** The build job (`content-publish.yml`) writes, next to the content artifact, one domestic-copy bundle
+   per target, `iran-bundle-<env>-<snapshot>` (`scripts/iran/bundle.ts` on the application branch). The bundle is
+   deterministic. It holds the target's `public-assets` byte for byte, its `manifest.json` unchanged (the sha256 the
+   build prints as the "production twin manifest.json sha256"), the variant index, and the nginx rules rendered from the
+   artifact's own `_redirects`/`_headers`.
+2. **Signed only after `www` is final.** An activation record (`iran-activation.v1`: environment, `seq`, reason,
+   `code_sha`, snapshot, manifest sha256, bundle sha256 and size) is written and signed with `ssh-keygen -Y sign`
+   (namespace `ahanassa-ir-release`). This happens only:
+   - after the staging `publish` job's finalize (staging copy);
+   - after the production jobs' finalize **and** their `v11-live-release` record (production copy);
+   - after `v11-release-watch.yml`'s rollback, naming the bundle of the snapshot `www` returned to (the copy follows
+     `www` back).
+
+   **The copy can therefore never serve what `www` does not serve, or has not served.** An owner-dispatched
+   `v11-iran-activation.yml` can re-point the copy at an earlier published bundle (a domestic-only incident or drill).
+   That dispatch runs in environment `production-v11` (the owner's Approve) for production.
+3. **Keys.** One ed25519 key per environment, held only as the environment secret `IRAN_ACTIVATION_SIGNING_KEY`: the
+   staging key in `staging`; the production key in `production-v11` and `production-v11-content`. The server holds
+   only the public halves, under principals `ci-staging` and `ci-production`, so the staging key can never activate
+   production. The server refuses any `seq` it has already passed (no replay).
+4. **Never blocking `www`.** Every domestic-copy step is `continue-on-error` and runs after `www` is final. A code that
+   predates the bundler skips. A missing key or mirror configuration skips with a notice. The bundles, activations and
+   mirror uploads never decide the outcome of a publish, a rollback or a ledger row.
+5. **Sources.** The server pulls the activation from the GitHub artifact (`iran-activation-<env>`) and, as a fallback
+   when GitHub is filtered, from the R2 mirror (and optionally Arvan Object Storage). The mirror holds the same files,
+   `iran/<env>/{activation.json,activation.json.sig,bundles/<sha256>.zip}`. Whichever source answers, the server checks
+   the same signature and the same sha256 values.
+6. **The copy's own code** (`deploy/iran/**`, `scripts/iran/**`) is application code. It is `HIGH` under §20.1a (no
+   allowlist rule) and goes through the normal path (§20.1). Installing it on `iransrv` is an operator step: root SSH,
+   the host lock, and the owner's OK per step, following `deploy/iran/RUNBOOK_P1.md`. It is outside `content-publish.yml`,
+   like §20.6. **Moving the ArvanCloud origin of `www.ahanassa.ir` or `api.ahanassa.ir` is an owner decision of its
+   own**, never a side effect of a release or an activation.
 
 ---
 
