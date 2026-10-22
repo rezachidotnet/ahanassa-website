@@ -3,7 +3,7 @@
  * addons/ahanassa_livechat/static/src/embed/frame.js): `{source: "ahanassa-livechat", event}`, posted only to the
  * framing origin. Pure and import-free (unit-tested); components/livechat/livechat-button.tsx acts on the result.
  *
- * - `ready`: the widget started and the chat is open → stop the spinner and the 8 s fallback timer;
+ * - `ready`: the widget started and the chat is open → stop the spinner and the 18 s fallback timer;
  * - `opened`: the chat window is open (after ready) → nothing;
  * - `minimized`: the visitor pressed – in the chat header (the frame reopened it inside) → hide the panel, keep the iframe;
  * - `closed`: the visitor ended the chat → hide the panel and remove the iframe (the next click starts a new chat).

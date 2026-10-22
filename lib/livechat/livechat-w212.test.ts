@@ -29,7 +29,7 @@ test("config: ships ON (W21.3, channel 2); on only with the flag AND a frame URL
   assert.deepEqual(livechatConfig(), ON, "the shipped config is exactly channel 2");
   assert.equal(LIVECHAT_ORIGIN, "https://odoo.ahanassa.com");
   assert.equal(LIVECHAT_PAGE_ORIGIN, "https://www.ahanassa.com");
-  assert.equal(LIVECHAT_TIMEOUT_MS, 8000);
+  assert.equal(LIVECHAT_TIMEOUT_MS, 18_000, "W21.3: a cold first load per language takes 9–15 s on Odoo");
   assert.deepEqual(ON, { origin: "https://odoo.ahanassa.com", supportUrl: "https://odoo.ahanassa.com/im_livechat/support/2", statusUrl: "https://odoo.ahanassa.com/im_livechat/status/2" });
   assert.equal(livechatConfig(true, null), null, "a flag alone");
   assert.equal(livechatConfig(false, FRAME), null, "a URL alone");
@@ -90,7 +90,7 @@ test("placement: expert-section button in every locale; floating button on fa on
   assert.equal(hasStickyLivechat("en"), false);
   assert.equal(hasStickyLivechat("ar"), false);
   const fa = livechatProps("fa", ON)!;
-  assert.equal(fa.timeoutMs, 8000);
+  assert.equal(fa.timeoutMs, 18_000);
   assert.equal(fa.rfqHref, "/contact");
   assert.equal(livechatProps("ar", ON)!.rfqHref, "/ar/contact");
   assert.match(fa.whatsappHref ?? "", /^https:\/\/wa\.me\/\d+\?text=/);
@@ -154,6 +154,10 @@ test("copy: fa/en/ar complete; the fa labels are the brief's", () => {
   for (const locale of locales) for (const [k, v] of Object.entries(livechatCopy(locale))) assert.ok(v.trim().length > 0, `${locale}.${k}`);
   assert.equal(livechatCopy("fa").label, "چت با کارشناس");
   assert.equal(livechatCopy("fa").rfq, "ارسال لیست خرید");
+  // W21.3: the visible loading status (owner wording).
+  assert.equal(livechatCopy("fa").loading, "در حال اتصال به کارشناس…");
+  assert.equal(livechatCopy("ar").loading, "جارٍ الاتصال بخبير المبيعات…");
+  assert.equal(livechatCopy("en").loading, "Connecting you to a sales expert…");
   assert.doesNotMatch(Object.values(livechatCopy("fa")).join(" "), /دقیقه|ثانیه|فوری|۲۴/, "no response-time promise");
 });
 
@@ -194,7 +198,7 @@ test("zero bytes when off: the static build swaps the module for a server-only s
   assert.doesNotMatch(button.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, ""), /createElement\("script"\)|<script|im_livechat|odoo\.ahanassa/);
 });
 
-test("a11y + no CLS (source): dialog, focus in/trap/return, Esc, 380×600 / full screen ≤ 480 px, fallback after 8 s", () => {
+test("a11y + no CLS (source): dialog, focus in/trap/return, Esc, 380×600 / full screen ≤ 480 px, visible status while loading, fallback after 18 s", () => {
   assert.match(button, /role="dialog"\n      aria-modal="true"\n      aria-labelledby=\{`\$\{PANEL_ID\}-title`\}/);
   assert.match(button, /closeRef\.current\?\.focus\(\);/, "focus moves into the panel");
   assert.match(button, /if \(opener\?\.isConnected\) opener\.focus\(\);/, "focus returns to the opener");
@@ -210,7 +214,10 @@ test("a11y + no CLS (source): dialog, focus in/trap/return, Esc, 380×600 / full
   assert.match(button, /motion-reduce:animate-none/);
   assert.match(button, /fixed end-4 bottom-\[max\(1rem,env\(safe-area-inset-bottom\)\)\]/, "the en/ar floating WhatsApp spot");
   assert.doesNotMatch(button, /\b(?:left|right|ml|mr|pl|pr)-\d/, "logical properties only (RTL)");
-  // The 8 s fallback: an iframe has no error event, so "not loaded in time" is the failure; the next open retries.
+  // W21.3: while loading, the status is shown under the spinner (aria-hidden: the sr-only role="status" announces it).
+  assert.match(button, /\{frame\?\.status === "loading" && \([\s\S]*?<LoaderCircle[\s\S]*?<p aria-hidden="true" data-livechat-loading=""[^>]*>\s*\{copy\.loading\}\s*<\/p>/);
+  assert.match(button, /<span role="status" className="sr-only">\n\s*\{frame\?\.status === "loading" \? copy\.loading : ""\}/);
+  // The 18 s fallback: an iframe has no error event, so "not loaded in time" is the failure; the next open retries.
   assert.match(button, /\}, chat\.timeoutMs\);\n    return \(\) => clearTimeout\(id\);\n  \}, \[frame\?\.key, frame\?\.status, chat\.timeoutMs\]\);/);
   assert.match(button, /else if \(statusRef\.current !== "loading"\) setFrame/);
   // §6: no sandbox and no allow attribute on the chat iframe.
@@ -231,14 +238,14 @@ test("frame events (§6): only https://odoo.ahanassa.com, only source ahanassa-l
   for (const data of [null, undefined, "closed", 1, [], {}, { event: "closed" }, { source: "odoo", event: "closed" }, { source: "ahanassa-livechat" }, { source: "ahanassa-livechat", event: "open" }, { source: "ahanassa-livechat", event: "status" }, { source: "ahanassa-livechat", event: "__proto__" }, { source: "ahanassa-livechat", event: ["ready"] }]) assert.equal(livechatFrameEvent(O, data, O), null, JSON.stringify(data));
 });
 
-test("frame events wiring: ready stops the 8 s timer (chat_open), minimized hides and keeps, closed hides and removes", () => {
+test("frame events wiring: ready stops the 18 s timer (chat_open), minimized hides and keeps, closed hides and removes", () => {
   assert.match(button, /if \(e\.source !== frameRef\.current\?\.contentWindow\) return;\n      const event = livechatFrameEvent\(e\.origin, e\.data, chat\.config\.origin\);/);
-  // W21.3: whichever of ready / the 8 s timer comes first claims statusRef at once, so only one of chat_open /
+  // W21.3: whichever of ready / the timer comes first claims statusRef at once, so only one of chat_open /
   // chat_load_error is ever reported (live fa frame measured ≈ 8 s cold: both fired before this).
   assert.match(button, /if \(statusRef\.current !== "loading"\) return;\n      statusRef\.current = "error";\n      setFrame/);
   assert.match(button, /if \(event === "ready"\) \{\n        if \(statusRef\.current !== "loading"\) return;\n        statusRef\.current = "ready";\n        setFrame\(\(f\) => \(f && f\.status === "loading" \? \{ \.\.\.f, status: "ready" \} : f\)\);\n        if \(panel\.open\) trackLivechatEvent\("chat_open"/);
   assert.match(button, /\} else if \(event === "minimized" \|\| event === "closed"\) \{\n        if \(panel\.open\) closePanel\(\);\n        if \(event === "closed"\) setFrame\(null\);\n      \}/);
-  // The 8 s timer runs only while loading, so ready cancels it; no onLoad shortcut.
+  // The timer runs only while loading, so ready cancels it; no onLoad shortcut.
   assert.match(button, /if \(frame\?\.status !== "loading"\) return;\n    const id = setTimeout/);
   assert.doesNotMatch(button, /onLoad=/);
   // The site close control only hides the panel (the chat goes on).

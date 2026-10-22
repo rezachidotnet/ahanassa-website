@@ -25,9 +25,9 @@ import { cn } from "@/lib/utils";
  *   Tab inside (sentinels around it: Tab cannot be caught inside a cross-origin iframe), and Esc (outside the
  *   iframe) or its close button hides it and returns focus to the button that opened it; the iframe stays, so the
  *   chat goes on. The frame's messages (lib/livechat/frame-events.ts — only from https://odoo.ahanassa.com, only
- *   from this iframe, only ready/opened/minimized/closed): `ready` stops the spinner and the 8 s timer (chat_open);
+ *   from this iframe, only ready/opened/minimized/closed): `ready` stops the spinner and the 18 s timer (chat_open);
  *   `minimized` hides the panel and keeps the iframe; `closed` hides it and removes the iframe (next click = new
- *   chat). No `ready` within 8 s: chat_load_error (`timeout`) and WhatsApp + «ارسال لیست خرید»; the next open retries.
+ *   chat). While loading: a spinner and a short visible status (copy.loading). No `ready` within 18 s: chat_load_error (`timeout`) and WhatsApp + «ارسال لیست خرید»; the next open retries.
  * - LivechatButton `inline`: the expert section's live-chat slot (components/home/expert-contact.tsx). It reports
  *   expert_chat_click itself (the delegated listener of analytics-runtime.tsx sees links only).
  * - LivechatButton `floating`: fa only, the en/ar floating-WhatsApp corner, with the placement rules of
@@ -126,7 +126,7 @@ export function LivechatHost({ chat }: { chat: LivechatProps }) {
     };
   }, [state.open, chat]);
 
-  // The 8 s budget: no `ready` from the frame in time is the failure (an iframe has no error event).
+  // The 18 s budget (W21.3; W21.2 had 8 s): no `ready` from the frame in time is the failure (an iframe has no error event).
   // W21.3: statusRef is set at once by whichever of ready / timeout wins, not at the next render — a ready that lands
   // just before the timer (measured: a cold fa frame ≈ 8 s) must not also report chat_load_error.
   useEffect(() => {
@@ -206,8 +206,12 @@ export function LivechatHost({ chat }: { chat: LivechatProps }) {
           />
         )}
         {frame?.status === "loading" && (
-          <div className="bg-background absolute inset-0 flex items-center justify-center">
+          <div className="bg-background absolute inset-0 flex flex-col items-center justify-center gap-3 p-5 text-center">
             <LoaderCircle aria-hidden="true" className="text-navy size-8 animate-spin motion-reduce:animate-none" />
+            {/* W21.3: the first load of a language can take ~15 s, so the wait is said, not only spun. The sr-only status below announces it. */}
+            <p aria-hidden="true" data-livechat-loading="" className="text-muted-foreground text-sm leading-relaxed">
+              {copy.loading}
+            </p>
           </div>
         )}
         <span role="status" className="sr-only">

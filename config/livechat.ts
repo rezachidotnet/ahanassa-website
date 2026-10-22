@@ -30,8 +30,12 @@ export const LIVECHAT_ORIGIN = "https://odoo.ahanassa.com";
 /** The `page` sent to Odoo when the site itself is not served over https (local preview): never an http:// URL. */
 export const LIVECHAT_PAGE_ORIGIN = "https://www.ahanassa.com";
 
-/** The click → ready budget: past it, the visitor gets the WhatsApp / purchase-list links instead. */
-export const LIVECHAT_TIMEOUT_MS = 8_000;
+/**
+ * The click → ready budget: past it, the visitor gets the WhatsApp / purchase-list links instead. W21.3: 18 s, not
+ * W21.2's 8 s — the first load of a language takes 9–15 s on Odoo's single HTTP worker (measured live 2026-10-22;
+ * warm loads ≈ 2 s); the panel says «در حال اتصال به کارشناس…» meanwhile.
+ */
+export const LIVECHAT_TIMEOUT_MS = 18_000;
 
 /** The status page's budget (§6.3): no message within it → the hidden frame is removed and no teaser shows. */
 export const LIVECHAT_STATUS_TIMEOUT_MS = 5_000;
