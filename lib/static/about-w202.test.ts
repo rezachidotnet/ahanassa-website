@@ -104,7 +104,8 @@ test("office map: click-to-load facade (no iframe until the click), OSM attribut
   assert.ok(!/<img|background-image:\s*url|tile\.openstreetmap/.test(map), "the facade loads nothing from a third party");
   assert.equal((map.match(/rel="noopener noreferrer"/g) ?? []).length, 3);
   assert.match(map, /aspect-video/, "same box before and after loading");
-  assert.match(buildCspReportOnly(), /frame-src 'self' https:\/\/challenges\.cloudflare\.com https:\/\/www\.openstreetmap\.org(;|$)/);
+  // W32: + arCaptcha's widget frame (the domestic RFQ intake's captcha); nothing else.
+  assert.match(buildCspReportOnly(), /frame-src 'self' https:\/\/challenges\.cloudflare\.com https:\/\/widget\.arcaptcha\.ir https:\/\/www\.openstreetmap\.org(;|$)/);
 });
 
 // --- 3/4. Group and timeline -------------------------------------------------------------------------

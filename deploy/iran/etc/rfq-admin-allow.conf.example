@@ -1,0 +1,4 @@
+# W32 — who may reach /__admin/ on the API hosts (nginx `allow`/`deny`, real client IPs via Arvan's X-Real-IP).
+# Default: everyone (staff may be anywhere in Iran during a cutoff; Node still requires the ADMIN_TOKEN bearer).
+# To narrow it: replace with e.g.  allow 5.6.7.0/24;  deny all;
+allow all;

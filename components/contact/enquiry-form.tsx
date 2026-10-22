@@ -9,7 +9,8 @@ import type { Locale } from "@/config/locales";
 import type { RfqItemInput } from "@/lib/rfq/types";
 import { createIdempotencyKeyLifecycle } from "@/lib/rfq/idempotency-key-lifecycle";
 import { TURNSTILE_RFQ_ACTION } from "@/lib/security/turnstile-action";
-import { turnstileUnreachableDelay } from "@/lib/mirror/iran-mirror";
+import { turnstileUnreachableDelay, TURNSTILE_UNREACHABLE_MS } from "@/lib/mirror/iran-mirror";
+import { ARCAPTCHA_WIDGET_URL } from "@/lib/security/arcaptcha-widget";
 import { cn } from "@/lib/utils";
 import { WHATSAPP_REL } from "@/lib/content/whatsapp";
 import { groupCatalogItemsForSelector, type PublicRfqCatalogItem } from "@/lib/rfq/catalog-selector";
@@ -82,13 +83,23 @@ interface TurnstileApi {
   execute?(widget: string | HTMLElement): void;
 }
 
+/** W32: arCaptcha's widget API (lib/security/arcaptcha-widget.ts) — the captcha of the domestic RFQ intake. */
+interface ArCaptchaApi {
+  render(selector: string, options: { "site-key": string; callback: (token: string) => void; expired_callback?: () => void; error_callback?: () => void; lang?: string }): string | number;
+  reset(widgetId?: string | number): void;
+}
+
 declare global {
   interface Window {
     turnstile?: TurnstileApi;
+    arcaptcha?: ArCaptchaApi;
   }
 }
 
 const turnstileLanguage: Record<Locale, string> = { fa: "fa", en: "en", ar: "ar" };
+const ARCAPTCHA_CONTAINER_ID = "rfq-arcaptcha";
+/** W32: the least time a captcha script gets, from the moment the form asks for it, before the "could not load" message. */
+const CAPTCHA_SCRIPT_MIN_WAIT_MS = 4_000;
 
 const copy: Record<
   Locale,
@@ -331,9 +342,18 @@ export function EnquiryForm({
   unreachableContacts,
   filesEndpoint = null,
   extractCapability = null,
+  arcaptchaSiteKey,
+  captchaPending = false,
 }: {
   locale: Locale;
   turnstileSiteKey?: string;
+  /**
+   * W32: set instead of `turnstileSiteKey` when the RFQ API names arCaptcha (GET <rfqEndpoint>/capabilities — the
+   * domestic intake on iransrv). The token travels in the same `turnstileToken` field; the API verifies it.
+   */
+  arcaptchaSiteKey?: string;
+  /** W32: the API has not said yet which captcha it wants — Submit stays disabled, no widget loads. */
+  captchaPending?: boolean;
   /**
    * W10.5 basket (lib/rfq/rfq-basket.ts): the rows to start with — the visitor's stored rows plus the
    * `?variant=` item (resolved against `catalogItems` only, never a raw URL value), built by
@@ -381,6 +401,8 @@ export function EnquiryForm({
   const formRenderedAtRef = useRef(Date.now());
   const turnstileContainerRef = useRef<HTMLDivElement>(null);
   const turnstileWidgetIdRef = useRef<string | null>(null);
+  const [arcaptchaScriptLoaded, setArcaptchaScriptLoaded] = useState(false);
+  const arcaptchaWidgetIdRef = useRef<string | number | null>(null);
   const rowElementRefs = useRef<Record<string, HTMLElement | null>>({});
   const t = copy[locale];
   const [phoneCountry, setPhoneCountry] = useState<string>(() =>
@@ -497,6 +519,10 @@ export function EnquiryForm({
     if (turnstileWidgetIdRef.current) {
       window.turnstile?.reset(turnstileWidgetIdRef.current);
     }
+    if (arcaptchaWidgetIdRef.current !== null) {
+      setTurnstileStatus("interactive");
+      window.arcaptcha?.reset(arcaptchaWidgetIdRef.current);
+    }
   }, []);
 
   // The Turnstile script may already be loaded (or still loading) when this
@@ -528,8 +554,11 @@ export function EnquiryForm({
   // ~8 s after navigation start, say so and offer WhatsApp / phone / e-mail. If it arrives later, the message goes.
   useEffect(() => {
     if (!turnstileSiteKey || turnstileScriptLoaded) return;
-    const delay = turnstileUnreachableDelay(window.location.hostname, performance.now());
-    if (delay === null) return;
+    const budget = turnstileUnreachableDelay(window.location.hostname, performance.now());
+    if (budget === null) return;
+    // W32: on an Iran host the key arrives only after GET …/capabilities answered, so the script may start loading
+    // late in the 8 s budget — it always gets at least CAPTCHA_SCRIPT_MIN_WAIT_MS of its own.
+    const delay = Math.max(budget, CAPTCHA_SCRIPT_MIN_WAIT_MS);
     const id = setTimeout(() => {
       if (!window.turnstile) setTurnstileUnreachable(true);
     }, delay);
@@ -578,6 +607,60 @@ export function EnquiryForm({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turnstileSiteKey, turnstileScriptLoaded, locale]);
+
+  // W32: arCaptcha (the domestic intake). Same lifecycle as Turnstile above: detect the script (the form may remount
+  // after it loaded), render once, a fresh token per attempt via reset. arCaptcha is a checkbox the visitor ticks, so
+  // the status reads "complete the check" from the start. Its hosts are on Arvan; if the script still has not arrived
+  // TURNSTILE_UNREACHABLE_MS after the API named it, the same W27 message offers phone / e-mail / WhatsApp.
+  useEffect(() => {
+    if (!arcaptchaSiteKey) return;
+    if (window.arcaptcha) {
+      setArcaptchaScriptLoaded(true);
+      return;
+    }
+    const timer = setInterval(() => {
+      if (window.arcaptcha) {
+        setArcaptchaScriptLoaded(true);
+        clearInterval(timer);
+      }
+    }, 200);
+    const unreachable = setTimeout(() => {
+      if (!window.arcaptcha) setTurnstileUnreachable(true);
+    }, TURNSTILE_UNREACHABLE_MS);
+    const stop = setTimeout(() => clearInterval(timer), 60_000);
+    return () => {
+      clearInterval(timer);
+      clearTimeout(unreachable);
+      clearTimeout(stop);
+    };
+  }, [arcaptchaSiteKey]);
+  useEffect(() => {
+    if (!arcaptchaSiteKey || !arcaptchaScriptLoaded || !window.arcaptcha) return;
+    setTurnstileUnreachable(false);
+    setTurnstileStatus("interactive");
+    const widgetId = window.arcaptcha.render(`#${ARCAPTCHA_CONTAINER_ID}`, {
+      "site-key": arcaptchaSiteKey,
+      lang: locale === "fa" ? "fa" : "en",
+      callback: (token) => {
+        setTurnstileToken(token);
+        setTurnstileStatus("success");
+      },
+      expired_callback: () => {
+        setTurnstileToken(null);
+        setTurnstileStatus("interactive");
+      },
+      error_callback: () => {
+        setTurnstileToken(null);
+        setTurnstileStatus("failed");
+      },
+    });
+    arcaptchaWidgetIdRef.current = widgetId;
+    return () => {
+      arcaptchaWidgetIdRef.current = null;
+      const el = document.getElementById(ARCAPTCHA_CONTAINER_ID);
+      if (el) el.replaceChildren();
+    };
+  }, [arcaptchaSiteKey, arcaptchaScriptLoaded, locale]);
 
   /** W3.2: regenerate idempotency key when payload changes (any form field edits). */
   function regenerateIdempotencyKey() {
@@ -857,7 +940,9 @@ export function EnquiryForm({
     row.extract && attachedFileKeys.has(row.extract.fileKey)
       ? { rawText: row.extract.rawText, review: row.extract.review, reasons: row.extract.reasons, picture: row.extract.source === "image" }
       : null;
-  const turnstileBlocking = Boolean(turnstileSiteKey) && !turnstileToken;
+  // W32: a captcha is required whenever one is configured or the API has not named its captcha yet.
+  const captchaShown = Boolean(turnstileSiteKey) || Boolean(arcaptchaSiteKey) || captchaPending;
+  const turnstileBlocking = captchaShown && !turnstileToken;
   const errorRowEntries = Object.entries(rowErrors);
   const rowIndexById = new Map(rows.map((r, i) => [r.id, i]));
 
@@ -866,6 +951,7 @@ export function EnquiryForm({
       {turnstileSiteKey && (
         <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" strategy="afterInteractive" onLoad={() => setTurnstileScriptLoaded(true)} />
       )}
+      {arcaptchaSiteKey && <Script src={ARCAPTCHA_WIDGET_URL} strategy="afterInteractive" onLoad={() => setArcaptchaScriptLoaded(true)} onError={() => setTurnstileUnreachable(true)} />}
       {/*
        * Honeypot — invisible to real users, catches automated submissions
        * (FORM_ARCHITECTURE.md §18.3 "passive controls first"). Uses the
@@ -1148,9 +1234,10 @@ export function EnquiryForm({
         />
       )}
 
-      {turnstileSiteKey && (
+      {captchaShown && (
         <div className="grid gap-2">
-          <div ref={turnstileContainerRef} />
+          {turnstileSiteKey && <div ref={turnstileContainerRef} />}
+          {arcaptchaSiteKey && <div id={ARCAPTCHA_CONTAINER_ID} />}
           {/* Explains WHY Submit is disabled while Turnstile hasn't produced a
               token yet (Go-Live Readiness Turnstile-UX fix) — purely
               informational, never a way to bypass verification: Submit's own

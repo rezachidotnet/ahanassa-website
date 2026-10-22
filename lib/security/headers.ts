@@ -33,6 +33,15 @@ export const GA4_IMG_ORIGINS = ["https://*.google-analytics.com", "https://*.goo
 export const GA4_CONNECT_ORIGINS = ["https://*.google-analytics.com", "https://*.analytics.google.com", "https://*.googletagmanager.com"] as const;
 
 /**
+ * W32 (W29 P2 §4): arCaptcha, the captcha of the domestic RFQ intake. One artifact serves .com and .ir, so the policy
+ * allows it everywhere; the form loads it ONLY when the RFQ API it talks to names it in GET /api/rfqs/capabilities
+ * (the Cloudflare Worker never does). Widget script + iframe on widget.arcaptcha.ir, its API on api.arcaptcha.ir —
+ * arCaptcha's own hosts (lib/security/arcaptcha.ts), both on Arvan, reachable from MCI.
+ */
+export const ARCAPTCHA_WIDGET_ORIGIN = "https://widget.arcaptcha.ir";
+export const ARCAPTCHA_CONNECT_ORIGINS = ["https://api.arcaptcha.ir", ARCAPTCHA_WIDGET_ORIGIN] as const;
+
+/**
  * W21.2: the Odoo live chat (config/livechat.ts) is an iframe of Odoo's support page — so, ONLY while live chat is
  * on, frame-src gains https://odoo.ahanassa.com and nothing else changes (no Odoo script, style, font, image or
  * connection on the site itself; owner decision 2026-10-17: no 'unsafe-eval'). While off: no Odoo origin at all.
@@ -47,13 +56,13 @@ export function buildCspReportOnly(connectSrc: readonly string[] = [], livechatF
     // Cloudflare Turnstile (RFQ form) requires its own script/frame/connect
     // origin — the narrowest addition that unblocks it, not a broad
     // relaxation (CLAUDE.md "CSP / Security Headers").
-    `script-src 'self' https://challenges.cloudflare.com ${GTM_SCRIPT_ORIGIN}`,
+    `script-src 'self' https://challenges.cloudflare.com ${ARCAPTCHA_WIDGET_ORIGIN} ${GTM_SCRIPT_ORIGIN}`,
     "style-src 'self' 'unsafe-inline'",
     ["img-src 'self' data:", ...GA4_IMG_ORIGINS].join(" "),
     "font-src 'self'",
-    ["connect-src 'self' https://challenges.cloudflare.com", ...connectSrc, ...GA4_CONNECT_ORIGINS].join(" "),
+    ["connect-src 'self' https://challenges.cloudflare.com", ...connectSrc, ...ARCAPTCHA_CONNECT_ORIGINS, ...GA4_CONNECT_ORIGINS].join(" "),
     // W20.2: /about office maps — OpenStreetMap's own embed, loaded only after the visitor clicks «نمایش نقشه».
-    ["frame-src 'self' https://challenges.cloudflare.com https://www.openstreetmap.org", ...(livechatFrame ? [livechatFrame] : [])].join(" "),
+    [`frame-src 'self' https://challenges.cloudflare.com ${ARCAPTCHA_WIDGET_ORIGIN} https://www.openstreetmap.org`, ...(livechatFrame ? [livechatFrame] : [])].join(" "),
     "upgrade-insecure-requests",
   ].join("; ");
 }

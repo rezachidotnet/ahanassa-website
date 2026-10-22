@@ -18,8 +18,9 @@ import {
   type RfqBasketAddOutcome,
   type RfqBasketCustomer,
 } from "@/lib/rfq/rfq-basket";
-import { fetchFilesCapability, filesEndpointFor, type FilesCapability } from "@/lib/rfq/upload-files";
-import { rfqEndpointForHost } from "@/lib/mirror/iran-mirror";
+import { filesEndpointFor, type FilesCapability } from "@/lib/rfq/upload-files";
+import { fetchRfqCapabilities, type CaptchaChoice } from "@/lib/rfq/capabilities-client";
+import { isIranMirrorHost, rfqEndpointForHost } from "@/lib/mirror/iran-mirror";
 
 interface LoadedCatalog {
   items: PublicRfqCatalogItem[];
@@ -86,6 +87,15 @@ const HANDOFF_PARAMS = ["variant", ...Object.values(RFQ_PREFILL_PARAMS)];
  * location.hostname, after hydration (the prerendered HTML is the same for
  * every host). `unreachableContacts`: what the form offers on a mirror host
  * when the Turnstile script cannot load there (EnquiryForm).
+ *
+ * W32 (W29 P2 §3.4): ONE call, GET <rfqEndpoint>/capabilities, answers files,
+ * extract AND which captcha the API verifies (lib/rfq/capabilities-client.ts).
+ * On www.ahanassa.com Turnstile starts at once, as before (the Worker always
+ * names it). On an Iran host no widget loads until the API has answered:
+ * arCaptcha from the domestic intake, Turnstile from the Worker (or an old
+ * Worker without the route) — so the captcha follows wherever Arvan sends the
+ * API host. No answer on an Iran host = Turnstile, i.e. the W27 "could not
+ * load" message with the other channels.
  */
 export function StaticEnquiryForm({
   locale,
@@ -111,6 +121,8 @@ export function StaticEnquiryForm({
   const [extractCapability, setExtractCapability] = useState<FilesCapability["extract"] | null>(null);
   // The baked endpoint until hydration; then the one for this host (W27).
   const [rfqEndpoint, setRfqEndpoint] = useState(bakedRfqEndpoint);
+  // W32: which captcha the API wants; null = not known yet (the prerendered HTML loads none).
+  const [captcha, setCaptcha] = useState<CaptchaChoice | null>(null);
 
   useEffect(() => {
     setContinueHref(resolveContinueBrowsingHref(locale, document.referrer, window.location.origin));
@@ -132,15 +144,19 @@ export function StaticEnquiryForm({
       });
     const hostEndpoint = bakedRfqEndpoint ? rfqEndpointForHost(bakedRfqEndpoint, window.location.hostname) : undefined;
     setRfqEndpoint(hostEndpoint);
+    const iranHost = isIranMirrorHost(window.location.hostname);
+    // .com: Turnstile right away (the Worker always names it); an Iran host waits for the API's answer.
+    if (!iranHost) setCaptcha({ provider: "turnstile" });
     if (hostEndpoint) {
-      const endpoint = filesEndpointFor(hostEndpoint);
-      void fetchFilesCapability(endpoint).then((capability) => {
-        if (!cancelled && capability) {
-          setFilesEndpoint(endpoint);
-          setExtractCapability(capability.extract);
+      void fetchRfqCapabilities(hostEndpoint).then((capabilities) => {
+        if (cancelled) return;
+        setCaptcha(capabilities?.captcha ?? { provider: "turnstile" });
+        if (capabilities?.files) {
+          setFilesEndpoint(filesEndpointFor(hostEndpoint));
+          setExtractCapability(capabilities.files.extract);
         }
       });
-    }
+    } else setCaptcha({ provider: "turnstile" });
     return () => {
       cancelled = true;
     };
@@ -197,7 +213,9 @@ export function StaticEnquiryForm({
       // Remount once the stored basket is restored so the initial rows/fields pick it up.
       key={ready ? "ready" : "loading"}
       locale={locale}
-      turnstileSiteKey={turnstileSiteKey}
+      turnstileSiteKey={captcha?.provider === "turnstile" ? turnstileSiteKey : undefined}
+      arcaptchaSiteKey={captcha?.provider === "arcaptcha" ? captcha.siteKey : undefined}
+      captchaPending={captcha === null && Boolean(turnstileSiteKey)}
       initialRows={ready?.rows}
       initialCustomer={ready?.customer}
       persistBasket={Boolean(ready)}

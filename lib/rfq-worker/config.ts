@@ -28,6 +28,11 @@ export interface RfqWorkerEnv {
   /** Comma-separated hostnames Turnstile Siteverify must report (the static site's host). */
   TURNSTILE_EXPECTED_HOSTNAMES?: string;
   TURNSTILE_SECRET_KEY?: string;
+  /** W32: "turnstile" (default, the Worker) or "arcaptcha" (the domestic intake, lib/rfq-node). Unknown → 503. */
+  CAPTCHA_PROVIDER?: string;
+  /** W32: arCaptcha site key (public; GET /api/rfqs/capabilities hands it to the form) and secret (verify). */
+  ARCAPTCHA_SITE_KEY?: string;
+  ARCAPTCHA_SECRET_KEY?: string;
   ODOO_BASE_URL?: string;
   ODOO_RFQ_API_TOKEN?: string;
   /** "1" = send received_at + website_reference (rfq_intake v1.1). Default off. */

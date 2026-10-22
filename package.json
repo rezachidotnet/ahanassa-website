@@ -26,6 +26,7 @@
     "@types/react-dom": "latest",
     "@vitejs/plugin-react": "latest",
     "@vitejs/plugin-rsc": "latest",
+    "esbuild": "0.28.1",
     "pdf-lib": "1.17.1",
     "sharp": "0.35.2",
     "tailwindcss": "latest",

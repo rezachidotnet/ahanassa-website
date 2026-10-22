@@ -76,7 +76,7 @@ NGINX = {
 }
 
 
-def make_bundle(path: str, env: str, snapshot: str, *, marker: str = "", extra: dict | None = None, drop: str | None = None, swap: dict | None = None, nginx: dict | None = None, symlink: str | None = None) -> tuple[bytes, str]:
+def make_bundle(path: str, env: str, snapshot: str, *, marker: str = "", extra: dict | None = None, drop: str | None = None, swap: dict | None = None, nginx: dict | None = None, symlink: str | None = None, rfq: bytes | None = None, rfq_name: str = "rfq-ir.mjs") -> tuple[bytes, str]:
     """A bundle zip exactly as scripts/iran/bundle.ts lays it out. Returns (manifest bytes, bundle sha256)."""
     pub = public_files(snapshot, marker)
     priv = {"rfq-variant-index.json": json.dumps({"snapshot_version": snapshot, "rows": []}).encode()}
@@ -87,8 +87,13 @@ def make_bundle(path: str, env: str, snapshot: str, *, marker: str = "", extra: 
         "public_assets": [{"path": p, "bytes": len(b), "sha256": sha(b)} for p, b in sorted(pub.items())],
         "private_snapshot": [{"path": p, "bytes": len(b), "sha256": sha(b)} for p, b in priv.items()],
     }).encode()
-    bundle_json = json.dumps({"schema": ai.BUNDLE_SCHEMA, "manifest_sha256": sha(manifest), "nginx": [{"path": n, "bytes": len(t.encode()), "sha256": sha(t.encode())} for n, t in ng.items()]}).encode()
+    bj = {"schema": ai.BUNDLE_SCHEMA, "manifest_sha256": sha(manifest), "nginx": [{"path": n, "bytes": len(t.encode()), "sha256": sha(t.encode())} for n, t in ng.items()]}
+    if rfq is not None:
+        bj["rfq"] = [{"path": rfq_name, "bytes": len(rfq), "sha256": sha(rfq)}]
+    bundle_json = json.dumps(bj).encode()
     entries = {"bundle.json": bundle_json, "manifest.json": manifest, **{f"nginx/{n}": t.encode() for n, t in ng.items()}, **{f"private/{p}": b for p, b in priv.items()}, **{f"public/{p}": b for p, b in pub.items()}}
+    if rfq is not None:
+        entries[f"rfq/{rfq_name}"] = rfq
     entries.update(swap or {})
     entries.update(extra or {})
     if drop:
@@ -467,6 +472,93 @@ class SyncTests(Base):
         self.assertEqual(ai.sync(self.cfg, "production", sources=[src]), 0)
         self.assertEqual(src.bundle_calls, 0)
         self.assertFalse(os.path.exists(os.path.join(self.p["incoming"], "300", "bundle.zip")))
+
+
+
+class RfqServiceTests(Base):
+    """W32: the domestic RFQ intake ships in the same signed bundle (rfq/rfq-ir.mjs) and follows `current`."""
+
+    def setUp(self):
+        super().setUp()
+        self.sysctl_rc = os.path.join(self.d, "systemctl-rc")
+        fake = os.path.join(self.d, "fake-systemctl")
+        with open(fake, "w") as f:
+            f.write(f'#!/bin/sh\necho "systemctl $*" >> {self.calls}\n[ -f {self.sysctl_rc} ] && exit $(cat {self.sysctl_rc})\nexit 0\n')
+        os.chmod(fake, 0o755)
+        self.cfg["systemctl"] = fake
+        self.cfg["envs"]["production"]["rfq"] = {"enabled": True, "port": 8711, "wait_seconds": 0}
+        self.healthy = True
+
+    def probe(self, cfg, env):
+        return self.healthy
+
+    def run_activate(self):
+        return ai.activate(self.cfg, "production", fetch=self.server, rfq_check=self.probe)
+
+    def systemctl_calls(self):
+        with open(self.calls) as f:
+            return [l.strip() for l in f if l.startswith("systemctl")]
+
+    def test_first_release_restarts_both_units_then_unchanged_code_only_reloads_the_index(self):
+        self.offer(rfq=b"// v1")
+        self.assertEqual(self.run_activate(), 0, self.state().get("last_error"))
+        rel = os.path.join(self.p["releases"], self.current())
+        self.assertEqual(ai.read_bytes(os.path.join(rel, "rfq", "rfq-ir.mjs")), b"// v1")
+        self.assertEqual(stat.S_IMODE(os.stat(os.path.join(rel, "rfq", "rfq-ir.mjs")).st_mode), 0o644)
+        self.assertEqual(self.systemctl_calls(), ["systemctl restart ahanassa-rfq@production.service ahanassa-rfq-forward@production.service"])
+        self.offer(rfq=b"// v1", snapshot="snap-aaaa0002", marker="v2")
+        self.assertEqual(self.run_activate(), 0)
+        self.assertEqual(self.systemctl_calls()[-1], "systemctl kill -s HUP ahanassa-rfq@production.service")
+        self.offer(rfq=b"// v2", snapshot="snap-aaaa0003", marker="v3")
+        self.assertEqual(self.run_activate(), 0)
+        self.assertEqual(self.systemctl_calls()[-1], "systemctl restart ahanassa-rfq@production.service ahanassa-rfq-forward@production.service")
+
+    def test_unhealthy_intake_after_switch_puts_the_previous_release_back_and_restarts_it(self):
+        self.offer(rfq=b"// v1")
+        self.assertEqual(self.run_activate(), 0)
+        good = self.current()
+        self.healthy = False
+        self.offer(rfq=b"// broken", snapshot="snap-aaaa0002", marker="v2")
+        self.assertEqual(self.run_activate(), 1)
+        self.assertEqual(self.current(), good)
+        self.assertRegex(self.state()["last_refused"]["reason"], "rfq: intake not healthy after restart")
+        self.assertEqual(self.systemctl_calls()[-1], "systemctl restart ahanassa-rfq@production.service ahanassa-rfq-forward@production.service", "the services follow current back")
+
+    def test_systemctl_failure_is_a_refusal(self):
+        with open(self.sysctl_rc, "w") as f:
+            f.write("1")
+        self.offer(rfq=b"// v1")
+        self.assert_refused("rfq: systemctl restart failed", "bootstrap")
+
+    def test_enabled_env_refuses_a_bundle_without_the_service(self):
+        self.offer()
+        self.assertEqual(self.run_activate(), 1)
+        self.assertRegex(self.state()["last_refused"]["reason"], "carries no rfq/rfq-ir.mjs")
+
+    def test_disabled_env_ignores_the_service_file(self):
+        self.cfg["envs"]["production"]["rfq"] = {"enabled": False}
+        self.offer(rfq=b"// v1")
+        self.assertEqual(self.run_activate(), 0)
+        self.assertEqual(self.systemctl_calls(), [])
+
+    def test_tampered_service_file_is_refused(self):
+        self.offer(rfq=b"// v1", swap={"rfq/rfq-ir.mjs": b"// v9"})  # same length: only the sha256 differs
+        self.assert_refused("rfq/rfq-ir.mjs does not match its sha256", "bootstrap")
+
+    def test_other_service_file_names_are_refused(self):
+        self.offer(rfq=b"// v1", rfq_name="evil.mjs")
+        self.assert_refused("rfq list differs", "bootstrap")
+        self.offer(rfq=b"// v1", extra={"rfq/extra.mjs": b"x"})
+        self.assert_refused("not in manifest.json/bundle.json", "bootstrap")
+
+    def test_private_dir_is_given_to_the_rfq_group(self):
+        import grp
+        group = grp.getgrgid(os.getgid()).gr_name
+        self.cfg["rfq_group"] = group
+        if os.getuid() != 0:
+            self.skipTest("chown to root needs root (the Docker rehearsal covers it)")
+        self.offer(rfq=b"// v1")
+        self.assertEqual(self.run_activate(), 0)
 
 
 if __name__ == "__main__":

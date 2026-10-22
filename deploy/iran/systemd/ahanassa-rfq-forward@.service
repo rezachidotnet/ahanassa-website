@@ -1,0 +1,43 @@
+# W32 (W29 P2 §3.3) domestic outbox → Odoo for %i: IPv6 ONLY to odoo.ahanassa.com, Idempotency-Key rfq-ir-<ulid>,
+# oldest first, one in flight, no maximum age; files to the .ir R2 bucket (IPv6) first, the notes list after
+# IR_R2_WAIT_MS. A separate process, so a stuck Odoo call never slows intake. deploy/iran/RUNBOOK_P2.md §3.
+[Unit]
+Description=Ahan Asa domestic RFQ forwarder (%i)
+After=network-online.target ahanassa-rfq@%i.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ahanassa-rfq
+Group=ahanassa-rfq
+ExecStart=/usr/local/lib/ahanassa-node/bin/node --disable-warning=ExperimentalWarning /srv/ahanassa/site/%i/current/rfq/rfq-ir.mjs forward /etc/ahanassa/rfq-%i.json
+LoadCredential=odoo-token:/etc/ahanassa/credentials/rfq-%i/odoo-token
+LoadCredential=r2-ir:/etc/ahanassa/credentials/rfq-%i/r2-ir
+LoadCredential=bale-token:/etc/ahanassa/credentials/rfq-%i/bale-token
+Restart=always
+RestartSec=5
+MemoryMax=256M
+TasksMax=64
+ReadWritePaths=/var/lib/ahanassa-rfq/%i
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
