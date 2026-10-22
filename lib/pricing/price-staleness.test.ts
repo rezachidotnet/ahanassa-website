@@ -63,6 +63,16 @@ test("across an official holiday: a holiday Thursday counts 0", () => {
   assert.equal(isPriceDataStale("2027-03-17", noon("2027-03-24")), false);
 });
 
+test("lunar holidays of 1405 (official calendar) count 0: Tasua/Ashura, Eid al-Fitr in Esfand", () => {
+  assert.equal(workingDayWeight("2026-06-24"), 0); // 3 Tir — Tasua (Wed)
+  assert.equal(workingDayWeight("2026-06-25"), 0); // 4 Tir — Ashura (Thu)
+  // Monday 2026-06-22 price: Tue 1 + Wed 0 + Thu 0 + Fri 0 + Sat 1 = 2 → still current on Saturday; stale on Sunday.
+  assert.equal(isPriceDataStale("2026-06-22", noon("2026-06-27")), false);
+  assert.equal(isPriceDataStale("2026-06-22", noon("2026-06-28")), true);
+  // 19–20 Esfand 1405 (2027-03-10/11): Eid al-Fitr.
+  assert.equal(workingDaysBetween("2027-03-09", "2027-03-13"), 1);
+});
+
 test("the visitor's day is the Tehran day, whatever the browser's time zone", () => {
   // Saturday price; Monday 23:59 Tehran = 20:29Z → current; Tuesday 00:01 Tehran = 20:31Z → stale.
   assert.equal(isPriceDataStale("2026-10-17", new Date("2026-10-19T20:29:00Z")), false);
