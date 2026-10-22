@@ -108,7 +108,7 @@ test("rfq_submit.v1: strict — unknown keys, a non-empty honeypot, a bad snapsh
 
 test("rfq_submit.v1: response table covers 201/200/400/403/409/413/415/422/429/503; CORS origins are exact production/staging origins", () => {
   assert.deepEqual(RFQ_SUBMIT_RESPONSES.map((r) => r.http).sort(), [200, 201, 400, 403, 409, 413, 415, 422, 429, 503]);
-  assert.deepEqual([...RFQ_SUBMIT_ALLOWED_ORIGINS.production], ["https://www.ahanassa.com"]);
+  assert.deepEqual([...RFQ_SUBMIT_ALLOWED_ORIGINS.production], ["https://www.ahanassa.com", "https://www.ahanassa.ir", "https://ahanassa.ir"]);
   for (const origin of [...RFQ_SUBMIT_ALLOWED_ORIGINS.production, ...RFQ_SUBMIT_ALLOWED_ORIGINS.staging]) assert.match(origin, /^https:\/\/[a-z0-9.-]+$/);
 });
 

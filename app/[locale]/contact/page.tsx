@@ -18,6 +18,7 @@ import { faqPageSchema, jsonLdGraph, localBusinessSchema, organizationSchema } f
 import { contactFaq } from "@/lib/content/pages";
 import { CONTACT_PHONE_DISPLAY, CONTACT_PHONE_E164, CONTACT_SALES_EMAIL } from "@/lib/content/contact-channels";
 import { rfqCatalogSource } from "@/lib/rfq/catalog-source";
+import { whatsappDrawingsHref } from "@/lib/content/whatsapp";
 
 export { generateLocaleStaticParams as generateStaticParams } from "@/lib/static/locale-params";
 
@@ -44,7 +45,9 @@ function rfqSubmitEndpoint(): string {
 async function TargetEnquiryForm({ locale }: { locale: Locale }) {
   await Promise.resolve();
   const catalog = rfqCatalogSource(locale);
-  return <StaticEnquiryForm locale={locale} catalogPath={catalog.path} catalogSnapshotVersion={catalog.snapshotVersion} turnstileSiteKey={getTurnstileSiteKey()} rfqEndpoint={rfqSubmitEndpoint()} />;
+  // W27: unreachableContacts before the target values, so they stay the last strings of this row (r4, above).
+  const unreachableContacts = { whatsappHref: whatsappDrawingsHref(locale), phoneHref: `tel:${CONTACT_PHONE_E164}`, phoneDisplay: CONTACT_PHONE_DISPLAY, emailHref: `mailto:${CONTACT_SALES_EMAIL}`, emailDisplay: CONTACT_SALES_EMAIL };
+  return <StaticEnquiryForm locale={locale} catalogPath={catalog.path} catalogSnapshotVersion={catalog.snapshotVersion} unreachableContacts={unreachableContacts} turnstileSiteKey={getTurnstileSiteKey()} rfqEndpoint={rfqSubmitEndpoint()} />;
 }
 
 interface PageProps {

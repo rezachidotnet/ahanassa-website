@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { artifactManifest, PUBLIC_DIR, type ArtifactManifest } from "../contracts/artifact-v1.ts";
 import { STATIC_TARGETS } from "./targets.ts";
+import { rfqApiMirrorOrigins } from "../mirror/iran-mirror.ts";
 
 /**
  * Allowlisted-diff gate — architecture V1.1 r4 §2 (owner-approved 2026-10-04,
@@ -54,7 +55,8 @@ export function normalizeForTarget(content: string, target: Target): string {
 /** Target-specific values of the OTHER target that must never appear in this target's artifact. */
 export function foreignValues(target: Target): string[] {
   const { turnstileSiteKey, rfqApiOrigin } = STATIC_TARGETS[other(target)];
-  return [turnstileSiteKey, rfqApiOrigin].filter((v): v is string => Boolean(v));
+  // W27: the production origin's Iran mirror (https://api.ahanassa.ir) never appears in the staging artifact either.
+  return [turnstileSiteKey, rfqApiOrigin, ...rfqApiMirrorOrigins(rfqApiOrigin)].filter((v): v is string => Boolean(v));
 }
 
 function firstDifference(a: string, b: string): string {

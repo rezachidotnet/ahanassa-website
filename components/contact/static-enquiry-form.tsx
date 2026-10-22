@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { basketAddSource, sameOriginReferrerPath, trackEvent } from "@/lib/analytics/events";
 import { localizedPath, type Locale } from "@/config/locales";
-import { EnquiryForm, type CatalogArrival } from "@/components/contact/enquiry-form";
+import { EnquiryForm, type CatalogArrival, type UnreachableContacts } from "@/components/contact/enquiry-form";
 import { findCatalogItemByXid, type PublicRfqCatalogItem } from "@/lib/rfq/catalog-selector";
 import { decodeRfqCatalog } from "@/lib/rfq/catalog-wire";
 import { publicRfqCatalogPath } from "@/lib/contracts/public-paths";
@@ -19,6 +19,7 @@ import {
   type RfqBasketCustomer,
 } from "@/lib/rfq/rfq-basket";
 import { fetchFilesCapability, filesEndpointFor, type FilesCapability } from "@/lib/rfq/upload-files";
+import { rfqEndpointForHost } from "@/lib/mirror/iran-mirror";
 
 interface LoadedCatalog {
   items: PublicRfqCatalogItem[];
@@ -78,17 +79,26 @@ const HANDOFF_PARAMS = ["variant", ...Object.values(RFQ_PREFILL_PARAMS)];
  * prerendered HTML never has the field, so the staging and production pages
  * stay byte-identical (r4) while upload is on in one and off in the other.
  * The same answer says whether an attached list is read into rows (W13.3).
+ *
+ * W27 Iran mirror (lib/mirror/iran-mirror.ts): on www.ahanassa.ir / ahanassa.ir the
+ * submit, the files capability, the uploads and the extract call all go to
+ * api.ahanassa.ir instead of api.ahanassa.com — decided here, from
+ * location.hostname, after hydration (the prerendered HTML is the same for
+ * every host). `unreachableContacts`: what the form offers on a mirror host
+ * when the Turnstile script cannot load there (EnquiryForm).
  */
 export function StaticEnquiryForm({
   locale,
   catalogPath,
   catalogSnapshotVersion = null,
+  unreachableContacts,
   turnstileSiteKey,
-  rfqEndpoint,
+  rfqEndpoint: bakedRfqEndpoint,
 }: {
   locale: Locale;
   catalogPath?: string;
   catalogSnapshotVersion?: string | null;
+  unreachableContacts?: UnreachableContacts;
   turnstileSiteKey?: string;
   rfqEndpoint?: string;
 }) {
@@ -99,6 +109,8 @@ export function StaticEnquiryForm({
   const [continueHref, setContinueHref] = useState(() => localizedPath(locale, "/products"));
   const [filesEndpoint, setFilesEndpoint] = useState<string | null>(null);
   const [extractCapability, setExtractCapability] = useState<FilesCapability["extract"] | null>(null);
+  // The baked endpoint until hydration; then the one for this host (W27).
+  const [rfqEndpoint, setRfqEndpoint] = useState(bakedRfqEndpoint);
 
   useEffect(() => {
     setContinueHref(resolveContinueBrowsingHref(locale, document.referrer, window.location.origin));
@@ -118,8 +130,10 @@ export function StaticEnquiryForm({
       .finally(() => {
         if (!cancelled) setCatalogSettled(true);
       });
-    if (rfqEndpoint) {
-      const endpoint = filesEndpointFor(rfqEndpoint);
+    const hostEndpoint = bakedRfqEndpoint ? rfqEndpointForHost(bakedRfqEndpoint, window.location.hostname) : undefined;
+    setRfqEndpoint(hostEndpoint);
+    if (hostEndpoint) {
+      const endpoint = filesEndpointFor(hostEndpoint);
       void fetchFilesCapability(endpoint).then((capability) => {
         if (!cancelled && capability) {
           setFilesEndpoint(endpoint);
@@ -130,7 +144,7 @@ export function StaticEnquiryForm({
     return () => {
       cancelled = true;
     };
-  }, [locale, catalogPath, rfqEndpoint]);
+  }, [locale, catalogPath, bakedRfqEndpoint]);
 
   // Applied once by the form, to the rows it holds when the catalog request settles (loaded or failed).
   const catalogArrival = useCallback(
@@ -193,6 +207,7 @@ export function StaticEnquiryForm({
       catalogArrival={ready && catalogSettled ? catalogArrival : null}
       catalogSnapshotVersion={catalogSnapshotVersion ?? catalog?.snapshotVersion ?? null}
       rfqEndpoint={rfqEndpoint}
+      unreachableContacts={unreachableContacts}
       filesEndpoint={filesEndpoint}
       extractCapability={extractCapability}
     />
