@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { OPS_TARGETS, THRESHOLDS, TEST_FORCE, WINDOW, contentStaleAlertEffective, thresholdsFor } from "./config.ts";
 import {
   annotations,
+  CRON_SOURCE_EMPTY_TITLE,
   evaluateContentPublish,
   evaluateCpu,
   evaluateCronLiveness,
@@ -31,6 +32,44 @@ test("cron liveness: OK within 20 min (W17.3; was 15), ALERT after, ALERT when n
   const none = evaluateCronLiveness("w", null, NOW, THRESHOLDS, 24);
   assert.equal(none.status, "ALERT");
   assert.match(none.value, /no scheduled run in 24 h/);
+});
+
+test("cron liveness W28: scheduled analytics empty account-wide + a fresh invocation = WATCH (not ALERT), job stays green", () => {
+  const r = evaluateCronLiveness("w", null, NOW, THRESHOLDS, 24, { scheduledSourceEmpty: true, lastInvocationAt: minsAgo(3) });
+  assert.equal(r.status, "WATCH");
+  assert.equal(r.id, "cron:w");
+  assert.equal(r.title, `${CRON_SOURCE_EMPTY_TITLE} — w`);
+  assert.match(r.value, /last invocation 3\.0 min ago/);
+  assert.match(r.detail ?? "", /workersInvocationsScheduled\) empty account-wide/);
+  // A bucket start is up to 5 min older than the run in it: 20 + 5 min still WATCH, beyond that ALERT.
+  assert.equal(evaluateCronLiveness("w", null, NOW, THRESHOLDS, 24, { scheduledSourceEmpty: true, lastInvocationAt: minsAgo(25) }).status, "WATCH");
+  const lines = annotations([r]);
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /^::warning title=WATCH%3A cron analytics source empty — w::/);
+});
+
+test("cron liveness W28: ALERT only when both sources are silent", () => {
+  const stale = evaluateCronLiveness("w", null, NOW, THRESHOLDS, 24, { scheduledSourceEmpty: true, lastInvocationAt: minsAgo(25.1) });
+  assert.equal(stale.status, "ALERT");
+  assert.equal(stale.title, "cron silent — w", "the ALERT keeps its title (release watch, runbook)");
+  assert.match(stale.value, /no scheduled run in 24 h; last invocation 25\.1 min ago/);
+  const none = evaluateCronLiveness("w", null, NOW, THRESHOLDS, 24, { scheduledSourceEmpty: true, lastInvocationAt: null });
+  assert.equal(none.status, "ALERT");
+  assert.match(none.value, /no scheduled run in 24 h; no invocation in 24 h/);
+});
+
+test("cron liveness W28: the fallback is ignored when the scheduled dataset has rows for the account", () => {
+  // Other Workers' cron runs are visible, so this Worker's silence is real: ALERT, however fresh its HTTP traffic.
+  const r = evaluateCronLiveness("w", null, NOW, THRESHOLDS, 24, { scheduledSourceEmpty: false, lastInvocationAt: minsAgo(1) });
+  assert.equal(r.status, "ALERT");
+  assert.equal(r.value, "no scheduled run in 24 h");
+  // A scheduled run present: the fallback is never consulted.
+  assert.equal(evaluateCronLiveness("w", minsAgo(21), NOW, THRESHOLDS, 24, { scheduledSourceEmpty: true, lastInvocationAt: minsAgo(1) }).status, "ALERT");
+});
+
+test("cron liveness W28: the staging TEST_FORCE cron override still ALERTs through the fallback", () => {
+  const forced = { ...THRESHOLDS, ...TEST_FORCE.cron };
+  assert.equal(evaluateCronLiveness("w", null, NOW, forced, 24, { scheduledSourceEmpty: true, lastInvocationAt: minsAgo(0.5) }).status, "ALERT");
 });
 
 test("cron liveness: the 2026-10-03 gap (last run 17:55:43Z) alerts from the first check after 18:15:43Z", () => {

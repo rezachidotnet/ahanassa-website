@@ -32,17 +32,20 @@ import {
   unavailable,
   windowStart,
   type CheckResult,
+  type CronFallback,
 } from "./checks.ts";
 import {
   d1Select,
   httpByHost,
   jobAnnotations,
+  lastInvocationBucket,
   lastRunStart,
   lastScheduledRun,
   lastSuccessfulPublish,
   newestPublishedPrice,
   previousJob,
   probeOdoo,
+  scheduledAnalyticsHasRows,
   workerCpu,
   type CloudflareAuth,
   type GitHubAuth,
@@ -95,11 +98,19 @@ async function main(): Promise<number> {
     }
   };
 
-  // 3. cron liveness, per v11 Worker with a cron
+  // 3. cron liveness, per v11 Worker with a cron. W28: a Worker with no scheduled run reads the second source only
+  // when the scheduled dataset is empty account-wide (checked once per run).
+  let scheduledSourceEmpty: Promise<boolean> | undefined;
   for (const worker of target.cronWorkers) {
-    await guard(`cron:${worker}`, `cron silent — ${worker}`, `last scheduled run ≤ ${t.cronSilentMinutes} min ago`, async () =>
-      evaluateCronLiveness(worker, await lastScheduledRun(cf, worker, cronFrom, now), now, t, WINDOW.cronLookbackHours),
-    );
+    await guard(`cron:${worker}`, `cron silent — ${worker}`, `last scheduled run ≤ ${t.cronSilentMinutes} min ago`, async () => {
+      const last = await lastScheduledRun(cf, worker, cronFrom, now);
+      if (last) return evaluateCronLiveness(worker, last, now, t, WINDOW.cronLookbackHours);
+      scheduledSourceEmpty ??= scheduledAnalyticsHasRows(cf, cronFrom, now).then((has) => !has);
+      const fallback: CronFallback = (await scheduledSourceEmpty)
+        ? { scheduledSourceEmpty: true, lastInvocationAt: await lastInvocationBucket(cf, worker, cronFrom, now) }
+        : { scheduledSourceEmpty: false, lastInvocationAt: null };
+      return evaluateCronLiveness(worker, null, now, t, WINDOW.cronLookbackHours, fallback);
+    });
   }
   // 4. undelivered / terminal RFQs
   if (target.dbOpsId) {
