@@ -16,7 +16,7 @@ W30 implements W29 phase P1 (`~/claude-reports/ahanassa/W29_DESIGN.md` §1–§2
   2. Canonical, hreflang, og:url, JSON-LD and sitemaps stay `https://www.ahanassa.com` on **both** hosts (enforced
      by the artifact gate, `lib/static/seo-host-lock.ts`). The domestic copy serves the same bytes.
   3. The server runs **no Node**: CI ships ready files; the server has nginx, a stdlib Python activator and systemd.
-  4. www.ahanassa.com never waits for Iran: every CI step for the copy is `continue-on-error` (W30 main PR).
+  4. www.ahanassa.com never waits for Iran: every CI step for the copy is `continue-on-error` (W30 main PR #93).
 - **Code on the server** always comes from a reviewed commit of this repository (`deploy/iran/`), copied by
   `install.sh code` — never from a bundle (a bundle is data).
 
@@ -32,8 +32,9 @@ W30 implements W29 phase P1 (`~/claude-reports/ahanassa/W29_DESIGN.md` §1–§2
 | O6 | **Turnstile widget** `ahanassa-v11-production`: add hostname `new.ahanassa.ir`; then the owner-approved **RFQ Worker deploy** (§20.6) that carries this PR's `ALLOWED_ORIGINS` / `TURNSTILE_EXPECTED_HOSTNAMES` (+ `new.ahanassa.ir`). Needed only for the MCI-phone form test (go/no-go 5). | Cloudflare dashboard + Worker deploy |
 | O7 | *(Optional now, P2 anyway)* Bale bot token + private staff group chat id for activation alerts. | `/etc/ahanassa/credentials/bale-token`; `"bale": {"chat_id": "…", "credential": "bale-token"}` in `iran.json` |
 
-Merge order: PR #90 → this PR (HIGH, normal merge → staging → Approve path) → the W30 **main** PR (workflows).
-Until the main PR is merged, no activation exists and the server keeps serving its bootstrap page.
+Merge order: PR #90 → PR #92 (this code; HIGH, normal merge → staging → Approve path) → PR #93 (the workflows on `main`).
+After the installation (§3–§5), the owner sets the repository variable `IRAN_COPY_CHECK=on` (ops-health `iran-copy`).
+Until the main PR (#93) is merged, no activation exists and the server keeps serving its bootstrap page.
 
 ## 2. Pre-checks (read-only)
 
@@ -85,7 +86,7 @@ on the server shows Let's Encrypt. Details and the cutoff case: `TLS_PLAN.md`.
 ## 5. First activations (staging first)
 
 1. Merge any change on the application branch (or dispatch `content-publish.yml`, target `staging`). The staging
-   `publish` job ends with "Iran: sign + upload activation (staging)" (main PR).
+   `publish` job ends with "Iran: sign + publish the staging activation" (#93).
 2. On the server: `journalctl -fu 'ahanassa-sync@staging' -u 'ahanassa-activate@staging'` → `handed_off`, `unpacked`,
    `activated`. `ahanassa-activate status staging` → the staging snapshot.
 3. Production follows the next production publish (an Approved release or the daily 11:30 content run):
@@ -144,7 +145,7 @@ Every drill first arms the dead-man's switch: `systemd-run --on-active=15min --u
 | D2 all sources cut | rule `meta skuid ahanassa-sync oifname != "lo" drop`; a staging publish | `no_source`; staging keeps the old copy; ops-health `IR_COPY_DRIFT` after 45 min (staging pair) ; after `nft delete table inet w30drill` it catches up by itself on the next tick |
 | D3 full cutoff | `nft add rule inet w30drill out ct state established,related accept; … oifname lo accept; … drop` (whole server) | `new.ahanassa.ir` still serves through Arvan (MCI phone, curl from Iran); `ss -tn` shows no new outbound; nginx logs show the requests; nothing on the critical path fails (§7.3) |
 | D4 tampered bundle | `systemctl stop ahanassa-activate@staging.path`; wait for `handed_off`; `printf X \| dd of=/srv/ahanassa/incoming/staging/<seq>/bundle.zip bs=1 seek=100 conv=notrunc`; `systemctl start ahanassa-activate@staging.service`; `systemctl start ahanassa-activate@staging.path` | `refused … sha256 differs from the signed activation`, alert, staging unchanged; `ahanassa-activate clear-refused staging` → next tick re-downloads and activates |
-| D5 rollback | Actions → **v11 iran activation** (main PR) → env `staging`, operation `reactivate-previous` (or, only if the owner chooses, `v11-release-watch.yml` operation=rollback for production) | agent `bundle_local`, activator `reuse_release`, no download; `.ir` serves the previous snapshot |
+| D5 rollback | Actions → **v11 iran activation** (main PR) → env `staging`, operation `previous` (or, only if the owner chooses, `v11-release-watch.yml` operation=rollback for production) | agent `bundle_local`, activator `reuse_release`, no download; `.ir` serves the previous snapshot |
 
 ## 9. Removing P1 (nothing outside the server depends on it)
 
@@ -166,7 +167,8 @@ daily run and a code release; drills D1–D5 passed; MCI phone test passed; TLS 
    passthrough (was `www.ahanassa.com`). Purge the Arvan cache for both.
 4. Verify within 5 min: `curl -sI https://www.ahanassa.ir/` from outside and an MCI phone; the response no longer has
    Cloudflare headers (`cf-ray`); `manifest.public.json` = www.ahanassa.com's. Set the GitHub variable
-   `IRAN_COPY_TARGETS` to `new.ahanassa.ir www.ahanassa.ir` so the drift check covers it.
+   `IRAN_COPY_PAIRS` to `https://www.ahanassa.com=https://new.ahanassa.ir https://www.ahanassa.com=https://www.ahanassa.ir https://ahanassa-v11-static-staging.nova-b1e6f0.workers.dev=https://staging.ahanassa.ir`
+   so the drift check covers it.
 5. **Rollback (minutes):** Arvan origin of `www.ahanassa.ir` / `ahanassa.ir` back to `www.ahanassa.com`, purge.
    Nothing else depends on the switch; the server keeps syncing.
 
