@@ -1,0 +1,103 @@
+# W30 (W29 P1; RELEASE_POLICY.md §20.11 draft) — re-point the DOMESTIC COPY (iransrv: staging.ahanassa.ir /
+# new.ahanassa.ir, deploy/iran/) at an earlier, already-published bundle. It never touches www.ahanassa.com, Cloudflare,
+# DB_PUBLIC or the ledger: it only signs an `iran-activation.v1` record (reason "rollback", a new seq) that the server
+# verifies and applies, normally without a download (it keeps 5 releases).
+#
+#   operation = previous   the newest activation whose bundle differs from the newest one (undo the last activation)
+#   operation = www        the activation of the snapshot www serves right now (bring the copy back in line)
+#   operation = snapshot   the activation of the snapshot given in `snapshot`
+#
+# Used for the P1 rollback drill (deploy/iran/RUNBOOK_P1.md §8 D5) and for a domestic-only incident. A www rollback
+# needs no dispatch here: v11-release-watch.yml's rollback job signs the domestic rollback itself. Production runs in
+# environment production-v11, so it waits for the owner's Approve; staging in `staging`.
+name: v11 iran activation
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: "Which domestic copy"
+        type: choice
+        required: true
+        default: staging
+        options: [staging, production]
+      operation:
+        description: "previous = undo the last activation; www = match what www serves now; snapshot = the snapshot below"
+        type: choice
+        required: true
+        default: previous
+        options: [previous, www, snapshot]
+      snapshot:
+        description: "operation=snapshot only: snapshot_version (snap-…)"
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: v11-iran-activation-${{ inputs.env }}
+  cancel-in-progress: false
+
+jobs:
+  activate:
+    name: re-activate the ${{ inputs.env }} domestic copy (${{ inputs.operation }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: ${{ inputs.env == 'production' && 'production-v11' || 'staging' }}
+    steps:
+      - name: Checkout the activation action + scripts (this workflow's own commit on main)
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Choose the activation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ENV_NAME: ${{ inputs.env }}
+          OPERATION: ${{ inputs.operation }}
+          SNAPSHOT: ${{ inputs.snapshot }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/iran-activations"; mkdir -p "$dir"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=iran-activation-$ENV_NAME&per_page=50" \
+            --jq '.artifacts[] | select(.expired | not) | .id' | head -40 | while read -r id; do
+            mkdir -p "$dir/$id"
+            if gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" > "$dir/$id/a.zip"; then unzip -oq "$dir/$id/a.zip" -d "$dir/$id" || true; fi
+          done
+          case "$OPERATION" in
+            previous) node .github/scripts/v11-iran-activation.mjs previous --dir "$dir" > "$RUNNER_TEMP/iran-target.json" ;;
+            www)
+              origin=https://www.ahanassa.com
+              [ "$ENV_NAME" = staging ] && origin=https://ahanassa-v11-static-staging.nova-b1e6f0.workers.dev
+              snap=$(curl -fsS --max-time 20 "$origin/manifest.public.json" | jq -r .snapshot_version)
+              node .github/scripts/v11-iran-activation.mjs match --dir "$dir" --snapshot "$snap" > "$RUNNER_TEMP/iran-target.json" ;;
+            snapshot) node .github/scripts/v11-iran-activation.mjs match --dir "$dir" --snapshot "$SNAPSHOT" > "$RUNNER_TEMP/iran-target.json" ;;
+          esac
+          jq -r '"- target: `\(.snapshot_version)` code `\(.code_sha[0:12])` (activation seq \(.seq), \(.reason))"' "$RUNNER_TEMP/iran-target.json" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Sign + publish
+        uses: ./.github/actions/iran-activation
+        with:
+          mode: rollback
+          env: ${{ inputs.env }}
+          from: ${{ runner.temp }}/iran-target.json
+          scripts: .github/scripts
+          signing-key: ${{ secrets.IRAN_ACTIVATION_SIGNING_KEY }}
+          r2-endpoint: ${{ vars.IRAN_MIRROR_R2_ENDPOINT }}
+          r2-bucket: ${{ vars.IRAN_MIRROR_R2_BUCKET }}
+          r2-access-key-id: ${{ secrets.IRAN_MIRROR_R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.IRAN_MIRROR_R2_SECRET_ACCESS_KEY }}
+          arvan-endpoint: ${{ vars.IRAN_MIRROR_ARVAN_ENDPOINT }}
+          arvan-bucket: ${{ vars.IRAN_MIRROR_ARVAN_BUCKET }}
+          arvan-access-key-id: ${{ secrets.IRAN_MIRROR_ARVAN_ACCESS_KEY_ID }}
+          arvan-secret-access-key: ${{ secrets.IRAN_MIRROR_ARVAN_SECRET_ACCESS_KEY }}

@@ -50,6 +50,12 @@
 #   checkout) and passed as AHANASSA_PRICE_SOURCE_NAMES_FILE to the artifact gate; the tracked tree is scanned too.
 #   Neither ever prints a name. AHANASSA_CONTENT_REPO_TOKEN (read-only, rezachidotnet/ahanassa-content) is given to
 #   the fetch step only (articles, W11.1).
+#
+# W30 (W29 P1; RELEASE_POLICY.md §20.11 draft) — the domestic copy (iransrv behind ArvanCloud, deploy/iran/ on the
+# application branch). The build also writes one bundle per target (iran-bundle-<env>-<snapshot>); each publish job,
+# AFTER www (or staging) is final, signs an activation (ssh-keygen -Y, environment secret IRAN_ACTIVATION_SIGNING_KEY)
+# and uploads it as artifact iran-activation-<env> + to the R2/Arvan mirror (.github/actions/iran-activation). Every
+# such step is continue-on-error: www never waits for, and is never changed by, the domestic copy.
 name: Content publish
 
 # daily-content runs are recognised by this title (.github/scripts/v11-daily-content.mjs DAILY_TITLE); others keep the
@@ -165,6 +171,8 @@ jobs:
       auto_prep: ${{ steps.mode.outputs.mode == 'merge' && vars.V11_AUTO_PRODUCTION_PREP != 'off' && (steps.classify.outputs.risk == 'LOW' || steps.classify.outputs.risk == 'HIGH') && steps.classify.outputs.ledger_only != 'true' && steps.classify.outputs.merge_ledger_only != 'true' && steps.classify.outputs.release_safe == 'true' && 'true' || 'false' }}
       # 'true' when the candidate is the branch tip and contains the live code (never a downgrade or an old re-run).
       release_safe: ${{ steps.classify.outputs.release_safe }}
+      # W30: 'true' when this build also made the domestic-copy bundles (scripts/iran/bundle.ts).
+      iran: ${{ steps.iran.outputs.built }}
     env:
       # Read-only use here: DB_PUBLIC editorial layer + publication state.
       CLOUDFLARE_API_TOKEN: ${{ secrets.V11_STAGING_CLOUDFLARE_DEPLOY_TOKEN }}
@@ -420,6 +428,48 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
+      # W30 (W29 P1; RELEASE_POLICY.md §20.11 draft): the domestic copy's bundles, built from the two artifacts above
+      # (scripts/iran/bundle.ts on the application branch). Never blocks www: continue-on-error, and code that predates
+      # the bundler simply skips. The activation that makes iransrv serve a bundle is signed only after www is final.
+      - name: "Iran: domestic-copy bundles (staging + production twin; never blocks www)"
+        id: iran
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f scripts/iran/bundle.ts ]; then
+            echo "::notice title=no domestic-copy bundle::scripts/iran/bundle.ts is not in this code (before W30)"
+            exit 0
+          fi
+          node scripts/iran/bundle.ts --artifact "$WORK/artifact" --out "$WORK/iran/staging"
+          node scripts/iran/bundle.ts --artifact "$WORK/artifact-production" --out "$WORK/iran/production"
+          echo "built=true" >> "$GITHUB_OUTPUT"
+          for e in staging production; do
+            jq -r --arg e "$e" '"- domestic copy (\($e)): bundle sha256 `\(.bundle_sha256[0:16])…` (\(.bundle_bytes) B), \([.critical_path_externals[] | select(.accepted == null)] | length) unexplained foreign load(s)"' "$WORK/iran/$e/iran-bundle.json" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: "Iran: upload the staging bundle (14 days)"
+        if: ${{ steps.iran.outputs.built == 'true' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v6
+        with:
+          name: iran-bundle-staging-${{ steps.meta.outputs.snapshot_version }}
+          path: ${{ runner.temp }}/content/iran/staging/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: "Iran: upload the production bundle (14 days)"
+        if: ${{ steps.iran.outputs.built == 'true' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v6
+        with:
+          name: iran-bundle-production-${{ steps.meta.outputs.snapshot_version }}
+          path: ${{ runner.temp }}/content/iran/production/
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
+
   publish:
     name: publish (staging DB_PUBLIC + static Worker)
     needs: build
@@ -525,6 +575,38 @@ jobs:
           else
             echo "### Publish failed before any write; nothing to roll back" >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      # W30 (RELEASE_POLICY.md §20.11 draft): signed only after the staging finalize — never earlier, so the domestic copy can never show what www does
+      # not. continue-on-error: www is already final, and nothing here can change or delay it.
+      - name: "Iran: activation action + scripts (this workflow's own commit on main)"
+        if: ${{ steps.finalize.outcome == 'success' && needs.build.outputs.iran == 'true' }}
+        continue-on-error: true
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          path: .ci-iran
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: "Iran: sign + publish the staging activation (domestic copy; never blocks www)"
+        if: ${{ steps.finalize.outcome == 'success' && needs.build.outputs.iran == 'true' }}
+        continue-on-error: true
+        uses: ./.ci-iran/.github/actions/iran-activation
+        with:
+          mode: publish
+          env: staging
+          snapshot: ${{ needs.build.outputs.snapshot_version }}
+          manifest: ${{ runner.temp }}/content/artifact/manifest.json
+          scripts: .ci-iran/.github/scripts
+          signing-key: ${{ secrets.IRAN_ACTIVATION_SIGNING_KEY }}
+          r2-endpoint: ${{ vars.IRAN_MIRROR_R2_ENDPOINT }}
+          r2-bucket: ${{ vars.IRAN_MIRROR_R2_BUCKET }}
+          r2-access-key-id: ${{ secrets.IRAN_MIRROR_R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.IRAN_MIRROR_R2_SECRET_ACCESS_KEY }}
+          arvan-endpoint: ${{ vars.IRAN_MIRROR_ARVAN_ENDPOINT }}
+          arvan-bucket: ${{ vars.IRAN_MIRROR_ARVAN_BUCKET }}
+          arvan-access-key-id: ${{ secrets.IRAN_MIRROR_ARVAN_ACCESS_KEY_ID }}
+          arvan-secret-access-key: ${{ secrets.IRAN_MIRROR_ARVAN_SECRET_ACCESS_KEY }}
 
   # The production twin of the artifact the staging job just published (r4 §2.3): no Odoo fetch, no build;
   # checksums + the allowlisted-diff gate + "staging twin is active" are verified again by publish.ts load.
@@ -738,6 +820,38 @@ jobs:
           retention-days: 90
           if-no-files-found: error
 
+      # W30 (RELEASE_POLICY.md §20.11 draft): signed only after www's finalize and its live-release.json — never earlier, so the domestic copy can never show what www does
+      # not. continue-on-error: www is already final, and nothing here can change or delay it.
+      - name: "Iran: activation action + scripts (this workflow's own commit on main)"
+        if: ${{ steps.record.outcome == 'success' && needs.build.outputs.iran == 'true' }}
+        continue-on-error: true
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          path: .ci-iran
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: "Iran: sign + publish the production activation (domestic copy; never blocks www)"
+        if: ${{ steps.record.outcome == 'success' && needs.build.outputs.iran == 'true' }}
+        continue-on-error: true
+        uses: ./.ci-iran/.github/actions/iran-activation
+        with:
+          mode: publish
+          env: production
+          snapshot: ${{ needs.build.outputs.snapshot_version }}
+          manifest: ${{ runner.temp }}/content/artifact-production/manifest.json
+          scripts: .ci-iran/.github/scripts
+          signing-key: ${{ secrets.IRAN_ACTIVATION_SIGNING_KEY }}
+          r2-endpoint: ${{ vars.IRAN_MIRROR_R2_ENDPOINT }}
+          r2-bucket: ${{ vars.IRAN_MIRROR_R2_BUCKET }}
+          r2-access-key-id: ${{ secrets.IRAN_MIRROR_R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.IRAN_MIRROR_R2_SECRET_ACCESS_KEY }}
+          arvan-endpoint: ${{ vars.IRAN_MIRROR_ARVAN_ENDPOINT }}
+          arvan-bucket: ${{ vars.IRAN_MIRROR_ARVAN_BUCKET }}
+          arvan-access-key-id: ${{ secrets.IRAN_MIRROR_ARVAN_ACCESS_KEY_ID }}
+          arvan-secret-access-key: ${{ secrets.IRAN_MIRROR_ARVAN_SECRET_ACCESS_KEY }}
+
       - name: Keep the classification decision and publish state (90 days)
         if: ${{ always() }}
         uses: actions/upload-artifact@v6
@@ -937,6 +1051,38 @@ jobs:
           path: ${{ runner.temp }}/live-record/live-release.json
           retention-days: 90
           if-no-files-found: error
+
+      # W30 (RELEASE_POLICY.md §20.11 draft): signed only after www's finalize and its live-release.json — never earlier, so the domestic copy can never show what www does
+      # not. continue-on-error: www is already final, and nothing here can change or delay it.
+      - name: "Iran: activation action + scripts (this workflow's own commit on main)"
+        if: ${{ steps.record.outcome == 'success' && needs.build.outputs.iran == 'true' }}
+        continue-on-error: true
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          path: .ci-iran
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: "Iran: sign + publish the production activation (domestic copy; never blocks www)"
+        if: ${{ steps.record.outcome == 'success' && needs.build.outputs.iran == 'true' }}
+        continue-on-error: true
+        uses: ./.ci-iran/.github/actions/iran-activation
+        with:
+          mode: publish
+          env: production
+          snapshot: ${{ needs.build.outputs.snapshot_version }}
+          manifest: ${{ runner.temp }}/content/artifact-production/manifest.json
+          scripts: .ci-iran/.github/scripts
+          signing-key: ${{ secrets.IRAN_ACTIVATION_SIGNING_KEY }}
+          r2-endpoint: ${{ vars.IRAN_MIRROR_R2_ENDPOINT }}
+          r2-bucket: ${{ vars.IRAN_MIRROR_R2_BUCKET }}
+          r2-access-key-id: ${{ secrets.IRAN_MIRROR_R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.IRAN_MIRROR_R2_SECRET_ACCESS_KEY }}
+          arvan-endpoint: ${{ vars.IRAN_MIRROR_ARVAN_ENDPOINT }}
+          arvan-bucket: ${{ vars.IRAN_MIRROR_ARVAN_BUCKET }}
+          arvan-access-key-id: ${{ secrets.IRAN_MIRROR_ARVAN_ACCESS_KEY_ID }}
+          arvan-secret-access-key: ${{ secrets.IRAN_MIRROR_ARVAN_SECRET_ACCESS_KEY }}
 
       - name: Keep the classification decision and publish state (90 days)
         if: ${{ always() }}

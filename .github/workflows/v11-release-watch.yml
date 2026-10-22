@@ -17,6 +17,8 @@
 #                                run), never blocks the row. The site does not depend on Odoo (static build; RFQs queue
 #                                in D1).
 # A rollback is never rolled back; the watch never writes the ledger branch directly (bot PRs only).
+# W30: after a rollback, job `rollback` also signs a `rollback` activation for the domestic copy (iransrv), so it follows
+# www back (RELEASE_POLICY.md §20.11 draft); continue-on-error — it never changes what www does.
 #
 # Lives on `main` (scheduled/dispatchable only from the default branch); it checks out feat/v11-static-site for the
 # ledger, the strict ledger resolver and, for a rollback, wrangler + the Worker configs of the code it returns to.
@@ -219,6 +221,59 @@ jobs:
           path: ${{ runner.temp }}/live-record/live-release.json
           retention-days: 90
           if-no-files-found: error
+
+      # W30 (RELEASE_POLICY.md §20.11 draft): www is back on the previous release, so the domestic copy follows it — a
+      # signed `rollback` activation naming the bundle that served the snapshot www returned to. iransrv normally still
+      # holds that release (5 kept) and needs no download. continue-on-error: the www rollback is already done.
+      - name: "Iran: activation action + scripts (this workflow's own commit on main)"
+        continue-on-error: true
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          path: .ci-iran
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: "Iran: the activation of the release www returned to"
+        id: iran
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rec="$RUNNER_TEMP/live-record/live-release.json"
+          snap=$(jq -r .snapshot_version "$rec"); code=$(jq -r .code_sha "$rec")
+          dir="$RUNNER_TEMP/iran-activations"; mkdir -p "$dir"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=iran-activation-production&per_page=50" \
+            --jq '.artifacts[] | select(.expired | not) | .id' | head -40 | while read -r id; do
+            mkdir -p "$dir/$id"
+            if gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" > "$dir/$id/a.zip"; then unzip -oq "$dir/$id/a.zip" -d "$dir/$id" || true; fi
+          done
+          if node .ci-iran/.github/scripts/v11-iran-activation.mjs match --dir "$dir" --snapshot "$snap" --code "$code" > "$RUNNER_TEMP/iran-target.json"; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=domestic copy not rolled back::no domestic activation for $snap ($code) — the copy may serve the rolled-back release until the next publish; ops-health reports IR_COPY_DRIFT (§20.2b)"
+          fi
+
+      - name: "Iran: sign + publish the rollback activation (domestic copy follows www)"
+        if: ${{ steps.iran.outputs.found == 'true' }}
+        continue-on-error: true
+        uses: ./.ci-iran/.github/actions/iran-activation
+        with:
+          mode: rollback
+          env: production
+          from: ${{ runner.temp }}/iran-target.json
+          scripts: .ci-iran/.github/scripts
+          signing-key: ${{ secrets.IRAN_ACTIVATION_SIGNING_KEY }}
+          r2-endpoint: ${{ vars.IRAN_MIRROR_R2_ENDPOINT }}
+          r2-bucket: ${{ vars.IRAN_MIRROR_R2_BUCKET }}
+          r2-access-key-id: ${{ secrets.IRAN_MIRROR_R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.IRAN_MIRROR_R2_SECRET_ACCESS_KEY }}
+          arvan-endpoint: ${{ vars.IRAN_MIRROR_ARVAN_ENDPOINT }}
+          arvan-bucket: ${{ vars.IRAN_MIRROR_ARVAN_BUCKET }}
+          arvan-access-key-id: ${{ secrets.IRAN_MIRROR_ARVAN_ACCESS_KEY_ID }}
+          arvan-secret-access-key: ${{ secrets.IRAN_MIRROR_ARVAN_SECRET_ACCESS_KEY }}
 
   ledger:
     name: ledger (bot PR on feat/v11-static-site)
