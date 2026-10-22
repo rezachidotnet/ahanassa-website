@@ -127,10 +127,13 @@ export function LivechatHost({ chat }: { chat: LivechatProps }) {
   }, [state.open, chat]);
 
   // The 8 s budget: no `ready` from the frame in time is the failure (an iframe has no error event).
+  // W21.3: statusRef is set at once by whichever of ready / timeout wins, not at the next render — a ready that lands
+  // just before the timer (measured: a cold fa frame ≈ 8 s) must not also report chat_load_error.
   useEffect(() => {
     if (frame?.status !== "loading") return;
     const id = setTimeout(() => {
       if (statusRef.current !== "loading") return;
+      statusRef.current = "error";
       setFrame((f) => (f && f.status === "loading" ? { ...f, status: "error" } : f));
       trackLivechatEvent("chat_load_error", { chat_location: panel.location, chat_error: "timeout" });
     }, chat.timeoutMs);
@@ -145,6 +148,7 @@ export function LivechatHost({ chat }: { chat: LivechatProps }) {
       const event = livechatFrameEvent(e.origin, e.data, chat.config.origin);
       if (event === "ready") {
         if (statusRef.current !== "loading") return;
+        statusRef.current = "ready";
         setFrame((f) => (f && f.status === "loading" ? { ...f, status: "ready" } : f));
         if (panel.open) trackLivechatEvent("chat_open", { chat_location: panel.location });
       } else if (event === "minimized" || event === "closed") {

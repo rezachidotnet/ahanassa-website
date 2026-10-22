@@ -96,7 +96,7 @@ test("office coordinates: exactly the owner's, inside Iran; OSM embed and four r
   assert.deepEqual(Object.values(OFFICE_MAP_COPY.fa.apps), ["نشان", "بلد", "Google Maps", "Waze"]);
 });
 
-test("office map: click-to-load facade (no iframe until the click), OSM attribution, new-tab links, CSP frame-src allows only OSM", () => {
+test("office map: click-to-load facade (no iframe until the click), OSM attribution, new-tab links, CSP frame-src: OSM + the live chat's Odoo origin only", () => {
   const map = code("components/about/office-map.tsx");
   assert.match(map, /\{loaded \? \(\s*<iframe/, "the iframe exists only after the click");
   assert.match(map, /useState\(false\)/);
@@ -104,7 +104,10 @@ test("office map: click-to-load facade (no iframe until the click), OSM attribut
   assert.ok(!/<img|background-image:\s*url|tile\.openstreetmap/.test(map), "the facade loads nothing from a third party");
   assert.equal((map.match(/rel="noopener noreferrer"/g) ?? []).length, 3);
   assert.match(map, /aspect-video/, "same box before and after loading");
-  assert.match(buildCspReportOnly(), /frame-src 'self' https:\/\/challenges\.cloudflare\.com https:\/\/www\.openstreetmap\.org(;|$)/);
+  // W21.3: live chat is ON (config/livechat.ts), so the shipped frame-src is exactly OSM + https://odoo.ahanassa.com
+  // (besides 'self' and Turnstile); with live chat off it is OSM only.
+  assert.match(buildCspReportOnly(), /frame-src 'self' https:\/\/challenges\.cloudflare\.com https:\/\/www\.openstreetmap\.org https:\/\/odoo\.ahanassa\.com(;|$)/);
+  assert.match(buildCspReportOnly([], null), /frame-src 'self' https:\/\/challenges\.cloudflare\.com https:\/\/www\.openstreetmap\.org(;|$)/);
 });
 
 // --- 3/4. Group and timeline -------------------------------------------------------------------------
