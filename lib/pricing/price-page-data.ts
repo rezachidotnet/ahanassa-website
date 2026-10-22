@@ -8,6 +8,7 @@ import { buildPriceTableRows, type PriceTableRow } from "./price-page.ts";
 import { publishedHubFamilies, type PriceHubCategoryCode } from "./price-hubs.ts";
 import { isPriceLocale, type PriceLocale } from "./price-locale.ts";
 import { priceDay, type PriceDay } from "./price-titles.ts";
+import { tehranDay } from "./price-history.ts";
 
 /**
  * The build-time read behind every price-table surface (W9.6 `/prices`, W16.3 `/prices/<family>`) and the
@@ -92,4 +93,21 @@ export function snapshotFetchedAt(): string | null {
 /** W16.8: the dated day of a price time for the titles, H1s and meta of the price pages. */
 export function loadPriceDay(locale: PriceLocale, pricedAt: string): PriceDay {
   return priceDay(locale, pricedAt, snapshotFetchedAt());
+}
+
+/**
+ * W31 — the Tehran day (YYYY-MM-DD) of the snapshot's newest published price, every factory's included: what the
+ * stale-price rule (lib/pricing/price-staleness.ts) compares with the visitor's day. A day, never a time (it also
+ * travels on ar pages). Null without prices (outside the static build).
+ */
+let latestDay: Promise<string | null> | undefined;
+export function loadLatestPriceDay(): Promise<string | null> {
+  return (latestDay ??= readLatestPriceDay());
+}
+
+async function readLatestPriceDay(): Promise<string | null> {
+  const lowest = [...((await listAllPublishedPrices())?.values() ?? [])].map((p) => p.pricedAt);
+  const factories = [...((await listAllFactoryPrices())?.values() ?? [])].flatMap((list) => list.map((p) => p.data.pricedAt));
+  const newest = [...lowest, ...factories].reduce<string | null>((max, t) => (max === null || t > max ? t : max), null);
+  return newest ? tehranDay(newest) : null;
 }

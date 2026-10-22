@@ -1,4 +1,6 @@
 import Link from "@/components/ui/link";
+import { StalePriceText } from "@/components/prices/stale-price";
+import { STALE_PRICE_COPY } from "@/lib/pricing/price-staleness";
 import { localizedPath, type Locale } from "@/config/locales";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
@@ -86,7 +88,8 @@ export function variantRowAnchorId(sku: string): string {
  * gets it (`presentPriceCell` presents nothing for en). Each cell carries
  * `data-aa-price-cell` for the publication gate's allow-list check.
  */
-export function VariantSpecTable({ locale, variants: unsorted, prices }: { locale: Locale; variants: ProductVariant[]; prices?: ReadonlyMap<string, PriceBlockData> | null }) {
+/** `latestPriceDay` (W31): the snapshot-wide newest price day — the price column heading reads «آخرین قیمت ثبت‌شده» / «آخر سعر مسجّل» in the browser once it is stale. */
+export function VariantSpecTable({ locale, variants: unsorted, prices, latestPriceDay }: { locale: Locale; variants: ProductVariant[]; prices?: ReadonlyMap<string, PriceBlockData> | null; latestPriceDay?: string | null }) {
   if (unsorted.length === 0) return null;
   // Natural size order (IPE 80 before IPE 600) — the presenter owns it, W10.0 P0-1.
   const variants = sortVariantsBySize(unsorted);
@@ -146,7 +149,7 @@ export function VariantSpecTable({ locale, variants: unsorted, prices }: { local
               </th>
               {showPrices && (
                 <th scope="col" className={HEAD}>
-                  {priceCopy?.header}
+                  {priceCopy && latestPriceDay && isPriceLocale(locale) ? <StalePriceText day={latestPriceDay} fresh={priceCopy.header} stale={STALE_PRICE_COPY[locale].column} /> : priceCopy?.header}
                   <span className="text-tertiary block text-[11px] font-semibold">{priceCopy?.unit}</span>
                 </th>
               )}

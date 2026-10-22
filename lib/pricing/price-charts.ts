@@ -6,6 +6,7 @@ import { POSITION_MIN_POINTS, priceWindows, windowPoints, type PositionWindow, t
 import type { DailyPoint } from "./price-history.ts";
 import { PRICE_HUB_CATEGORY_CODES } from "./price-hubs.ts";
 import { datedTitleBodies, DESCRIPTION_MAX, fitText, fitTitle, type PriceDay } from "./price-titles.ts";
+import { STALE_PRICE_COPY } from "./price-staleness.ts";
 
 /**
  * W18.2 — the fa decision block (product pages) and the fa chart pages «نمودار و روند قیمت <محصول>»
@@ -98,6 +99,11 @@ export function chartTitle(product: string, day: PriceDay): string {
 /** W16.8: the chart page H1: «نمودار و روند قیمت {product} — امروز ۲۸ مهر ۱۴۰۵» / «… — به‌روزرسانی ۲۶ مهر ۱۴۰۵». */
 export function chartHeading(product: string, day: PriceDay): string {
   return `${PRICE_CHART_COPY.title(product)} — ${day.today ? "امروز" : "به‌روزرسانی"} ${day.date}`;
+}
+
+/** W31: a chart page H1 while the price data is stale: «نمودار قیمت … — آخرین قیمت ثبت‌شده ۲۸ مهر ۱۴۰۵». */
+export function chartStaleHeading(product: string, day: PriceDay): string {
+  return `${PRICE_CHART_COPY.title(product)} — ${STALE_PRICE_COPY.fa.lead} ${day.date}`;
 }
 
 /** W16.8: the product name inside a chart page H1 (chartHeading's inverse; the price gate checks the chart texts against it). */

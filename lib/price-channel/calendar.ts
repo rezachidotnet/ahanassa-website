@@ -2,7 +2,7 @@
  * W23 — Tehran dates and times for the bulletin. Iran has kept UTC+03:30 all year since 2022, but every value here
  * goes through Intl with the Asia/Tehran zone, so the runner's own time zone never matters.
  */
-import { HOLIDAYS } from "../../config/price-channel.ts";
+import { HOLIDAYS } from "../../config/iran-holidays.ts";
 
 const TZ = "Asia/Tehran";
 const dayFmt = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" });

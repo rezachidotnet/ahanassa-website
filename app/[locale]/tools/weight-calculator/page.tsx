@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { isLocale, type Locale } from "@/config/locales";
+import { isLocale, localizedPath, type Locale } from "@/config/locales";
 import { buildPageMetadata, buildLanguageAlternatesFromEntries } from "@/lib/metadata/resolve";
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";
 import { getPublishedCatalogTemplateBySlug, listPublicCatalogCategories, listPublishedCatalogTemplates } from "@/lib/catalog/editorial-repository";
@@ -8,6 +8,8 @@ import { buildCalculatorProducts } from "@/lib/weight-calculator/model";
 import { BASIS_LINES, BASIS_STANDARDS, WEIGHT_CALCULATOR_COPY } from "@/lib/weight-calculator/copy";
 import { toCalculatorPrices, type CalculatorPrices } from "@/lib/weight-calculator/price";
 import { listProductPagePrices } from "@/lib/pricing/product-page-price-repository";
+import { loadLatestPriceDay } from "@/lib/pricing/price-page-data";
+import { StalePriceNotice } from "@/components/prices/stale-price";
 import { isPriceLocale } from "@/lib/pricing/product-page-price";
 import type { CalculatorProduct } from "@/lib/weight-calculator/model";
 import { WEIGHT_CALCULATOR_LOCALES, WEIGHT_CALCULATOR_ROUTE } from "@/lib/weight-calculator/publication";
@@ -58,7 +60,14 @@ async function PricedWeightCalculator({ locale, products }: { locale: Locale; pr
   }
   // The product funnel's `product_family` (rfq_cta_click): Odoo group code → public category code.
   const families = Object.fromEntries((await listPublicCatalogCategories(locale)).flatMap((c) => c.groupCodes.map((g) => [g, c.code])));
-  return <WeightCalculator locale={locale} products={products} prices={prices} families={families} />;
+  // W31: the stale-price notice over the calculator when it can show a price estimate (the browser decides).
+  const latestDay = prices && Object.keys(prices).length > 0 ? await loadLatestPriceDay() : null;
+  return (
+    <>
+      {latestDay && isPriceLocale(locale) && <StalePriceNotice locale={locale} day={latestDay} href={localizedPath(locale, "/contact")} className="mb-6" />}
+      <WeightCalculator locale={locale} products={products} prices={prices} families={families} />
+    </>
+  );
 }
 
 /**

@@ -26,7 +26,8 @@ import { PriceDecision } from "@/components/products/price-decision";
 import { priceWindows, windowPoints } from "@/lib/pricing/price-position";
 import { chartWindowStart, priceChartPath, PRICE_CHART_WINDOW_DAYS } from "@/lib/pricing/price-charts";
 import { priceChartForSlug } from "@/lib/pricing/price-chart-data";
-import { loadPriceDay } from "@/lib/pricing/price-page-data";
+import { loadLatestPriceDay, loadPriceDay } from "@/lib/pricing/price-page-data";
+import { StalePriceNotice } from "@/components/prices/stale-price";
 import { faProductPriceTitle, type PriceDay } from "@/lib/pricing/price-titles";
 import { listIndicators } from "@/lib/indicators/repository";
 import { ProductRelatedLinks } from "@/components/products/product-related-links";
@@ -119,6 +120,8 @@ async function ProductSpecs({ locale, variants, title, slug }: { locale: Locale;
   const history = main && currentDay ? await listDailyPriceHistory(main.xid) : [];
   const series = main && currentDay ? sparklineSeries(history, currentDay) : null;
   const contact = localizedPath(locale, "/contact");
+  // W31: the snapshot-wide newest price day — the stale-price notice and headings turn on in the browser.
+  const latestDay = prices && prices.size > 0 ? await loadLatestPriceDay() : null;
   // W18.2: the decision block — the 30/90-day position of today's price, a 90-day mini trend when the history reaches
   // past 30 days, the market drivers line and «قیمت قطعی برای حجم شما» (fa only; nothing without a priced main variant).
   const windows = main && currentDay ? priceWindows(history, currentDay) : [];
@@ -127,6 +130,7 @@ async function ProductSpecs({ locale, variants, title, slug }: { locale: Locale;
   const indicators = windows.length ? await listIndicators() : [];
   return (
     <>
+      {latestDay && isPriceLocale(locale) && <StalePriceNotice locale={locale} day={latestDay} href={main && mainPrice ? priceRfqHref("fa", main.xid, mainPrice.factoryName) : contact} className="mt-6 max-w-md" />}
       {prices && locale === "fa" && (
         <div className="mt-6 max-w-md">
           <div {...{ [PRICE_BLOCK_ATTRIBUTE]: main?.xid ?? PRICE_BLOCK_ON_REQUEST }}>
@@ -137,6 +141,7 @@ async function ProductSpecs({ locale, variants, title, slug }: { locale: Locale;
               priceCtaLabel={PRICE_RFQ_COPY.fa}
               productName={mainSize ? `${title} ${mainSize}` : title}
               trend={series && currentDay ? <PriceSparkline series={series} currentDay={currentDay} /> : undefined}
+              latestPriceDay={latestDay}
             />
           </div>
           {main && mainPrice && currentDay && windows.length > 0 && (
@@ -155,7 +160,7 @@ async function ProductSpecs({ locale, variants, title, slug }: { locale: Locale;
         </div>
       )}
       <div className="mt-6">
-        <VariantSpecTable locale={locale} variants={variants} prices={prices} />
+        <VariantSpecTable locale={locale} variants={variants} prices={prices} latestPriceDay={latestDay} />
       </div>
     </>
   );

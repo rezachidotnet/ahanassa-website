@@ -8,8 +8,9 @@ import { datasetSchema, jsonLdGraph } from "@/lib/seo/schema";
 import { PRICE_DISCLAIMER } from "@/lib/pricing/product-page-price";
 import { PRICE_PAGE_COPY, PRICE_PAGE_ROUTE } from "@/lib/pricing/price-page";
 import { priceWindows } from "@/lib/pricing/price-position";
-import { chartDescription, chartHeading, chartTitle, PRICE_CHART_COPY, priceChartPath } from "@/lib/pricing/price-charts";
-import { loadPriceDay } from "@/lib/pricing/price-page-data";
+import { chartDescription, chartHeading, chartStaleHeading, chartTitle, PRICE_CHART_COPY, priceChartPath } from "@/lib/pricing/price-charts";
+import { loadLatestPriceDay, loadPriceDay } from "@/lib/pricing/price-page-data";
+import { StalePriceNotice, StalePriceText } from "@/components/prices/stale-price";
 import { listPriceChartProducts, loadPriceChart } from "@/lib/pricing/price-chart-data";
 import { chartShareImagePath, SHARE_IMAGE_SIZE } from "@/lib/og/share-image-paths";
 import { priceRfqHref } from "@/lib/pricing/price-rfq";
@@ -72,11 +73,13 @@ async function ChartContent({ slug }: { slug: string }) {
   const t = PRICE_CHART_COPY;
   const indicators = await listIndicators();
   const url = `${siteConfig.baseUrl}${localizedPath("fa", priceChartPath(slug))}`;
+  const latestDay = await loadLatestPriceDay();
   return (
     <>
       <section className="border-border bg-background border-b section-y">
         <div className="container-x grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:items-start">
           <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
+            {latestDay && <StalePriceNotice locale="fa" day={latestDay} href={priceRfqHref("fa", product.xid, row.price.factoryName)} />}
             <p className="text-neutral-700 text-sm font-semibold">
               {t.referenceSize}: <bdi dir="ltr">{product.size}</bdi>
             </p>
@@ -119,12 +122,16 @@ export default async function PriceChartPage({ params }: PageProps) {
   const chart = await resolve(locale, slug);
   if (!chart) notFound();
   const t = PRICE_CHART_COPY;
+  const day = loadPriceDay("fa", chart.row.price.pricedAt);
+  // W31: «… — آخرین قیمت ثبت‌شده …» in the browser once the newest price is more than 2 working days old.
+  const latestDay = await loadLatestPriceDay();
+  const heading = chartHeading(chart.product.productName, day);
   return (
     <>
       <PageHero
         locale="fa"
         eyebrow={t.eyebrow}
-        title={chartHeading(chart.product.productName, loadPriceDay("fa", chart.row.price.pricedAt))}
+        title={latestDay ? <StalePriceText day={latestDay} fresh={heading} stale={chartStaleHeading(chart.product.productName, day)} /> : heading}
         body={t.body}
         breadcrumb={[
           { path: PRICE_PAGE_ROUTE, label: PRICE_PAGE_COPY.fa.eyebrow },

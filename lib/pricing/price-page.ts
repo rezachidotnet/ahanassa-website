@@ -2,6 +2,7 @@ import type { Locale } from "../../config/locales.ts";
 import type { PriceBlockData } from "./price-block-presentation.ts";
 import type { FactoryPrice } from "./product-page-price-repository.ts";
 import { PRICE_LOCALES, type PriceLocale } from "./price-locale.ts";
+import { staleHeading } from "./price-staleness.ts";
 import { arPriceDescription, datedHeading, datedTitleBodies, DESCRIPTION_MAX, faPriceDescription, fitText, fitTitle, listAr, listFa, type PriceDay } from "./price-titles.ts";
 
 /**
@@ -131,6 +132,11 @@ export function pricePageTitle(locale: PriceLocale, day: PriceDay, families: rea
 /** W16.8: the H1 of `/prices`: «قیمت امروز آهن‌آلات — ۲۸ مهر ۱۴۰۵» / «أسعار الحديد اليوم — …» (stale: «… — به‌روزرسانی …»). */
 export function pricePageHeading(locale: PriceLocale, day: PriceDay): string {
   return locale === "fa" ? datedHeading("fa", "قیمت", "آهن‌آلات", day) : datedHeading("ar", "أسعار", "الحديد", day);
+}
+
+/** W31: the H1 of `/prices` while the price data is stale: «آخرین قیمت ثبت‌شده آهن‌آلات — ۲۸ مهر ۱۴۰۵» / «آخر سعر مسجّل للحديد — …». */
+export function pricePageStaleHeading(locale: PriceLocale, day: PriceDay): string {
+  return staleHeading(locale, locale === "fa" ? "آهن‌آلات" : "الحديد", day.date);
 }
 
 /** W16.8: the meta description of `/prices` (≤ 155, no amount): the date, the families (fewer when long) and what the table shows. */
