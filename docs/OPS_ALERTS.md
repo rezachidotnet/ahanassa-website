@@ -92,7 +92,7 @@ All thresholds live in `scripts/ops/health/config.ts`.
 
 | Check | Source | ALERT when |
 |---|---|---|
-| cron silent (per v11 Worker with a cron) | GraphQL `workersInvocationsScheduled` (24 h lookback) | last scheduled run > **20 min** ago (W17.3; was 15), or none in 24 h |
+| cron silent (per v11 Worker with a cron) | GraphQL `workersInvocationsScheduled` (24 h lookback); W28 fallback `workersInvocationsAdaptive` | last scheduled run > **20 min** ago (W17.3; was 15), or none in 24 h. **W28:** when `workersInvocationsScheduled` is empty for the whole account, the check reads the Worker's invocations of any kind instead: a fresh one (≤ 20 + 5 min, the 5-minute bucket) is **WATCH** "cron analytics source empty" (warning, job green); ALERT only when both sources are silent |
 | RFQ undelivered | D1 `DB_OPS` (count/min only) | oldest pending/queued/syncing/retry RFQ > **45 min** |
 | RFQ in terminal failure | D1 `DB_OPS` | any `manual_review`, or `failed` not closed by an admin (`CLOSED_BY_ADMIN` is reported, not alerted) |
 | exceededCpu / 1102 | GraphQL `workersInvocationsAdaptive` status `exceededCpu`/`exceededResources` + scheduled runs | **> 0** in the window |
@@ -117,6 +117,8 @@ Local commands assume a checkout of `feat/v11-static-site` with `npx wrangler lo
 **Meaning:** Cloudflare has not run the Worker's cron for over 20 minutes (W17.3: 15 raised false alerts). RFQs then wait for the hourly CI reconciler.
 
 **Seen before:** 2026-10-03 17:55Z → 2026-10-04 07:16Z. Triggers looked correct, but no runs happened until the triggers were re-applied.
+
+**Not a cron stop (W28):** from 2026-10-20 19:40:11Z `workersInvocationsScheduled` returned no rows for the whole account while `wrangler tail` showed every `*/5` run succeed. Since W28 that case is a WATCH "cron analytics source empty — <worker>", not this ALERT. If it persists, report it to Cloudflare support (Analytics / GraphQL) and confirm the runs with `wrangler tail` (step 3). Re-applying the triggers does not help.
 
 1. Check the registered schedule. It should say `*/5 * * * *`:
    ```bash

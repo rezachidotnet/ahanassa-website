@@ -59,6 +59,38 @@ export async function lastScheduledRun(auth: CloudflareAuth, script: string, fro
   return data.viewer.accounts[0]?.runs[0]?.datetime ?? null;
 }
 
+/**
+ * W28: whether `workersInvocationsScheduled` holds any row for the whole account in [from, to). False = the dataset
+ * itself is empty (on 2026-10-20 it went empty account-wide at 19:40:11Z while the crons kept running).
+ */
+export async function scheduledAnalyticsHasRows(auth: CloudflareAuth, from: Date, to: Date): Promise<boolean> {
+  const data = await graphql<Accounts<{ runs: { datetime: string }[] }>>(
+    auth,
+    `query($accountTag:String!,$from:Time!,$to:Time!){ viewer{ accounts(filter:{accountTag:$accountTag}){
+      runs: workersInvocationsScheduled(limit:1, filter:{datetime_geq:$from, datetime_lt:$to}){ datetime }
+    }}}`,
+    { from: from.toISOString(), to: to.toISOString() },
+  );
+  return (data.viewer.accounts[0]?.runs.length ?? 0) > 0;
+}
+
+/**
+ * W28: start of the newest 5-minute bucket with an invocation of `script` of any kind (cron, HTTP, queue) in
+ * [from, to), from `workersInvocationsAdaptive` — the second source when the scheduled dataset is empty.
+ */
+export async function lastInvocationBucket(auth: CloudflareAuth, script: string, from: Date, to: Date): Promise<string | null> {
+  const data = await graphql<Accounts<{ inv: { dimensions: { datetimeFiveMinutes: string }; sum: { requests: number } }[] }>>(
+    auth,
+    `query($accountTag:String!,$script:String!,$from:Time!,$to:Time!){ viewer{ accounts(filter:{accountTag:$accountTag}){
+      inv: workersInvocationsAdaptive(limit:1, orderBy:[datetimeFiveMinutes_DESC], filter:{scriptName:$script, datetime_geq:$from, datetime_lt:$to}){
+        dimensions{ datetimeFiveMinutes } sum{ requests } }
+    }}}`,
+    { script, from: from.toISOString(), to: to.toISOString() },
+  );
+  const newest = data.viewer.accounts[0]?.inv[0];
+  return newest && newest.sum.requests > 0 ? newest.dimensions.datetimeFiveMinutes : null;
+}
+
 export async function workerCpu(auth: CloudflareAuth, script: string, from: Date, to: Date): Promise<{ groups: InvocationGroup[]; scheduled: ScheduledRun[] }> {
   const data = await graphql<
     Accounts<{

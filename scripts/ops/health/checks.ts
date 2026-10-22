@@ -28,9 +28,42 @@ export function unavailable(id: string, title: string, threshold: string, error:
 
 // 3. Cron liveness -------------------------------------------------------------------------------
 
-export function evaluateCronLiveness(worker: string, lastRunAt: string | null, now: Date, t: Thresholds, lookbackHours: number): CheckResult {
+/** W28: the second source, read only when the Worker has no scheduled run in the lookback. */
+export interface CronFallback {
+  /** `workersInvocationsScheduled` has no row for the whole account in the lookback: an analytics gap, not a cron stop. */
+  scheduledSourceEmpty: boolean;
+  /** Start of the newest 5-minute bucket with any invocation of the Worker (`workersInvocationsAdaptive`), or null. */
+  lastInvocationAt: string | null;
+}
+
+/** A bucket start is up to 5 min older than the invocation in it. */
+const INVOCATION_BUCKET_MINUTES = 5;
+
+export const CRON_SOURCE_EMPTY_TITLE = "cron analytics source empty";
+
+export function evaluateCronLiveness(worker: string, lastRunAt: string | null, now: Date, t: Thresholds, lookbackHours: number, fallback?: CronFallback): CheckResult {
   const threshold = `last scheduled run ≤ ${t.cronSilentMinutes} min ago`;
   const base = { id: `cron:${worker}`, title: `cron silent — ${worker}` };
+  if (!lastRunAt && fallback?.scheduledSourceEmpty) {
+    // W28: the scheduled dataset is empty account-wide, so its silence says nothing about this cron. Invocations of any
+    // kind stand in: they cannot tell a cron run from an HTTP request, so a fresh one is WATCH, never OK. Only both
+    // sources silent ALERTs. A test threshold below 0 (TEST_FORCE) gets no bucket allowance, so it still ALERTs.
+    const limit = t.cronSilentMinutes + (t.cronSilentMinutes >= 0 ? INVOCATION_BUCKET_MINUTES : 0);
+    const age = fallback.lastInvocationAt ? minutesBetween(fallback.lastInvocationAt, now) : null;
+    const detail = "scheduled-run analytics (workersInvocationsScheduled) empty account-wide; fallback: workersInvocationsAdaptive, any invocation";
+    if (age === null || age > limit) {
+      const seen = age === null ? `no invocation in ${lookbackHours} h` : `last invocation ${fmtMin(age)} ago (bucket ${fallback.lastInvocationAt})`;
+      return { ...base, value: `no scheduled run in ${lookbackHours} h; ${seen}`, threshold, status: "ALERT", detail };
+    }
+    return {
+      id: base.id,
+      title: `${CRON_SOURCE_EMPTY_TITLE} — ${worker}`,
+      value: `last invocation ${fmtMin(age)} ago (bucket ${fallback.lastInvocationAt})`,
+      threshold: `any invocation ≤ ${limit} min ago`,
+      status: "WATCH",
+      detail,
+    };
+  }
   if (!lastRunAt) return { ...base, value: `no scheduled run in ${lookbackHours} h`, threshold, status: "ALERT" };
   const age = minutesBetween(lastRunAt, now);
   return { ...base, value: `${fmtMin(age)} (last ${lastRunAt})`, threshold, status: age > t.cronSilentMinutes ? "ALERT" : "OK" };
