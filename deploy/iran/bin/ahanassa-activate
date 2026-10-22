@@ -1,0 +1,9 @@
+#!/usr/bin/python3 -I
+# W30: the root activator of the domestic copy (deploy/iran/lib/ahanassa_iran.py). Installed by the operator to
+# /usr/local/sbin; the module to /usr/local/lib/ahanassa/ (root 0755/0644). Never run from a bundle.
+import sys
+
+sys.path.insert(0, "/usr/local/lib/ahanassa")
+from ahanassa_iran import main_activate  # noqa: E402
+
+sys.exit(main_activate())

@@ -9,7 +9,7 @@ const PROD = `${STATIC_TARGETS.production.rfqApiOrigin}/api/rfqs`;
 const STAGING = `${STATIC_TARGETS.staging.rfqApiOrigin}/api/rfqs`;
 
 test("W27: the Iran mirror hosts, case-insensitive; nothing else", () => {
-  for (const host of ["www.ahanassa.ir", "ahanassa.ir", "WWW.AHANASSA.IR"]) assert.equal(isIranMirrorHost(host), true, host);
+  for (const host of ["www.ahanassa.ir", "ahanassa.ir", "new.ahanassa.ir", "WWW.AHANASSA.IR"]) assert.equal(isIranMirrorHost(host), true, host);
   for (const host of ["www.ahanassa.com", "api.ahanassa.ir", "evil.ahanassa.ir", "ahanassa.ir.evil.example", "localhost", ""]) assert.equal(isIranMirrorHost(host), false, host);
 });
 

@@ -1,0 +1,5 @@
+# W30 — /etc/ahanassa/allowed_signers (root 0644). One line per environment's CI signing key (the PUBLIC half; the
+# private half is only a GitHub environment secret). ssh-keygen -Y verify -I <principal> -n ahanassa-ir-release.
+# The staging key can never activate production: the principal is checked, not just the key.
+ci-production namespaces="ahanassa-ir-release" ssh-ed25519 AAAA...production-public-key... ahanassa-ir-release production
+ci-staging namespaces="ahanassa-ir-release" ssh-ed25519 AAAA...staging-public-key... ahanassa-ir-release staging
