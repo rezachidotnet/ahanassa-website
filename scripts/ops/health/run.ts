@@ -17,6 +17,9 @@ import { ODOO_META_URL, ODOO_PRICING_CURRENT_URL, OPS_TARGETS, WINDOW, contentSt
 import {
   annotations,
   evaluateContentPublish,
+  evaluateContentPublishFallback,
+  activePublicationFromRow,
+  ACTIVE_PUBLICATION_SQL,
   evaluateCpu,
   evaluateCronLiveness,
   evaluateIntake,
@@ -41,6 +44,7 @@ import {
   lastInvocationBucket,
   lastRunStart,
   lastScheduledRun,
+  isTransientGitHubError,
   lastSuccessfulPublish,
   newestPublishedPrice,
   previousJob,
@@ -134,13 +138,17 @@ async function main(): Promise<number> {
   }
   // 7. content publication (+ active_version, §15)
   await guard("content:publish", "content publish stale", `last successful publish ≤ ${t.contentPublishMaxAgeHours} h ago`, async () => {
-    const last = await lastSuccessfulPublish(gh, target.contentPublishWorkflow, target.contentPublishJobPrefix, target.contentPublishProofStep);
-    let active: string | null = null;
-    if (target.dbPublicId) {
-      const rows = await d1Select(cf, target.dbPublicId, "SELECT active_version FROM publication_pointer WHERE id = 1");
-      active = (rows[0]?.active_version as string | undefined) ?? null;
+    // W37: the active publication (version + its creation time) — reported as before, and the fallback below.
+    const live = target.dbPublicId ? activePublicationFromRow((await d1Select(cf, target.dbPublicId, ACTIVE_PUBLICATION_SQL))[0]) : null;
+    let last: string | null;
+    try {
+      last = await lastSuccessfulPublish(gh, target.contentPublishWorkflow, target.contentPublishJobPrefix, target.contentPublishProofStep);
+    } catch (error) {
+      // A 5xx/429/timeout that outlived the retries: bridge with the live publication. Anything else stays an ALERT.
+      if (!isTransientGitHubError(error) || !target.dbPublicId) throw error;
+      return evaluateContentPublishFallback((error as Error).message, live, now, t, contentStaleAlertEffective(target));
     }
-    return evaluateContentPublish(last, active, now, t, contentStaleAlertEffective(target));
+    return evaluateContentPublish(last, live?.version ?? null, now, t, contentStaleAlertEffective(target));
   });
   // 8. Odoo reachability (GET only). W17.3: ALERT only on the 2nd failed check in a row; the count of the previous
   // completed run of this job is read from its annotations (only after a failure: a passing check needs no history).
