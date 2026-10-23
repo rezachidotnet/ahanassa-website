@@ -104,7 +104,7 @@ test("exception caption + card: moves vs the morning bulletin, 60–100 words, t
   const n = captionWords(m);
   assert.ok(n >= 60 && n <= 100, `${n} words`);
   assert.match(m.paragraphs.join("\n"), /نسبت به بولتن صبح امروز، قیمت ۳ قلم/);
-  assert.equal(new URL(m.links.request).searchParams.get("variant"), "CVAR-000089");
+  assert.equal(new URL(m.links.request).searchParams.get("variant"), "CVAR-000456");
   assert.equal(new URL(m.links.request).searchParams.get("utm_content"), "2026-10-20-exception1");
   const card = buildCard({ ...exceptionCard(later, morning, "13:40", "ahanassa.com/prices"), logoDataUri: "data:," });
   assert.ok(card.texts.includes("نسبت به صبح"));

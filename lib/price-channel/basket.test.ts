@@ -148,3 +148,11 @@ test("exception rule: ≥ 3 items moved ≥ 1 % against the morning bulletin (sa
   assert.equal(exceptionMoves(morning, otherFactory).moves.length, 0);
   assert.equal(CHANNEL_CONFIG.exception.items, 3);
 });
+
+test("basket: the SHS item is 40×40×2 (CVAR-000456, W36 owner OK 2026-10-23) — variant, expect and label together", () => {
+  const shs = BASKET.find((i) => i.id === "shs-40x40")!;
+  assert.equal(shs.variant, "CVAR-000456");
+  assert.deepEqual(shs.expect, { name: "SHS", size: "40×40×2" });
+  assert.deepEqual(shs.label, { product: "قوطی مربع", grade: null, size: "40×40×2" });
+  assert.equal(new Set(BASKET.map((i) => i.variant)).size, BASKET.length, "one item per variant");
+});
