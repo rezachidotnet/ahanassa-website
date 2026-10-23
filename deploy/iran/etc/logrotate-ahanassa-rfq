@@ -1,0 +1,13 @@
+# W32 — API access logs keep a truncated IP and no query string; 14 days, then gone (W29 §3.5).
+/var/log/nginx/ahanassa-rfq-*.log {
+    daily
+    rotate 14
+    missingok
+    notifempty
+    compress
+    delaycompress
+    sharedscripts
+    postrotate
+        [ -s /run/nginx.pid ] && kill -USR1 "$(cat /run/nginx.pid)" || true
+    endscript
+}

@@ -55,6 +55,10 @@ NGINX_FILES = (
     "headers.conf",
 )
 PRIVATE_FILES = ("rfq-variant-index.json",)
+# W32 (W29 P2): the domestic RFQ intake, one file built in CI (scripts/iran/build-rfq-service.ts), listed with its sha256
+# in bundle.json `rfq`. Optional in a bundle (a P1-era bundle has none); when present it must be exactly this file.
+RFQ_FILES = ("rfq-ir.mjs",)
+RFQ_UNITS = ("ahanassa-rfq@{env}.service", "ahanassa-rfq-forward@{env}.service")
 # Text assets the activator precompresses (nginx gzip_static / brotli_static). Derived files are the only extra files allowed.
 COMPRESSIBLE = re.compile(r"\.(?:html|js|mjs|css|json|svg|txt|xml|md|webmanifest|map|dxf|m3u8|ico)$")
 DERIVED = (".gz", ".br")
@@ -131,6 +135,10 @@ DEFAULT_CONFIG = {
     "nginx_reload": ["systemctl", "reload", "nginx"],
     "brotli": "brotli",
     "curl": "curl",
+    "systemctl": "systemctl",
+    # W32: group of the RFQ service users; the release's private/ dir is made readable to it (root:<group> 0750).
+    "rfq_group": None,
+    # W32: per env, "rfq": {"enabled": true, "port": 8711} turns on the RFQ service steps after a switch.
     "envs": {
         "production": {"principal": "ci-production", "smoke_host": "new.ahanassa.ir"},
         "staging": {"principal": "ci-staging", "smoke_host": "staging.ahanassa.ir"},
@@ -367,6 +375,11 @@ def unpack_bundle(zip_path: str, activation: dict, dest: str, current_public: st
             if p not in priv:
                 raise Refused(f"bundle: manifest lists no private-snapshot/{p}")
             expected[f"private/{p}"] = (priv[p]["sha256"], priv[p]["bytes"])
+        rfq = {n.get("path"): n for n in bundle.get("rfq", [])}
+        if rfq and set(rfq) != set(RFQ_FILES):
+            raise Refused("bundle: bundle.json rfq list differs from the allowed service files")
+        for n in rfq:
+            expected[f"rfq/{n}"] = (rfq[n]["sha256"], rfq[n]["bytes"])
         nginx = {n.get("path"): n for n in bundle.get("nginx", [])}
         if set(nginx) != set(NGINX_FILES):
             raise Refused("bundle: bundle.json nginx list differs from the allowed include files")
@@ -417,6 +430,8 @@ def unpack_bundle(zip_path: str, activation: dict, dest: str, current_public: st
                     f.write(manifest_raw if meta == "manifest.json" else zf.read("bundle.json"))
                 os.chmod(os.path.join(dest, meta), 0o644)
             os.chmod(os.path.join(dest, "private"), 0o750)
+            if rfq:
+                os.chmod(os.path.join(dest, "rfq"), 0o755)
         except BaseException:
             shutil.rmtree(dest, ignore_errors=True)
             raise
@@ -506,6 +521,67 @@ def nginx_reload(cfg: dict) -> None:
     r = run(list(cfg["nginx_reload"]))
     if r.returncode != 0:
         raise Refused(f"nginx reload failed: {r.stderr.decode(errors='replace').strip()[:300]}")
+
+
+# --- W32: the domestic RFQ intake that ships in the same release ---------------------------------------------------------------
+def rfq_spec(cfg: dict, env: str) -> dict:
+    return (cfg["envs"].get(env) or {}).get("rfq") or {}
+
+
+def grant_private(cfg: dict, release: str) -> None:
+    """private/ (the variant index) readable by the RFQ service group only: root:<rfq_group> 0750 / 0640."""
+    group = cfg.get("rfq_group")
+    if not group:
+        return
+    import grp
+
+    gid = grp.getgrnam(group).gr_gid
+    priv = os.path.join(release, "private")
+    for p in [priv] + [os.path.join(priv, n) for n in os.listdir(priv)]:
+        os.chown(p, 0, gid)
+
+
+def rfq_probe(cfg: dict, env: str) -> bool:
+    """GET http://127.0.0.1:<port>/healthz of the intake answers {"ok": true}."""
+    port = int(rfq_spec(cfg, env).get("port", 0))
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/healthz", timeout=3) as r:
+            return r.status == 200 and json.loads(r.read(4096)).get("ok") is True
+    except Exception:  # noqa: BLE001 - any failure is "not healthy yet"
+        return False
+
+
+def rfq_after_switch(cfg: dict, env: str, release: str, previous_release: str | None, probe=None) -> str | None:
+    """After `current` moved: restart the intake + forwarder if rfq-ir.mjs changed, else SIGHUP the intake (it re-reads
+    the variant index); then wait for /healthz. Raises Refused (the caller puts the previous release back)."""
+    spec = rfq_spec(cfg, env)
+    if not spec.get("enabled"):
+        return None
+    new = os.path.join(release, "rfq", RFQ_FILES[0])
+    if not os.path.isfile(new):
+        raise Refused("rfq: the domestic RFQ intake is enabled for this env but the release carries no rfq/rfq-ir.mjs")
+    old = os.path.join(previous_release, "rfq", RFQ_FILES[0]) if previous_release else None
+    units = [u.format(env=env) for u in RFQ_UNITS]
+    changed = not (old and os.path.isfile(old) and sha256_file(old) == sha256_file(new))
+    r = run([cfg["systemctl"], "restart", *units], timeout=90) if changed else run([cfg["systemctl"], "kill", "-s", "HUP", units[0]])
+    if r.returncode != 0:
+        raise Refused(f"rfq: systemctl {'restart' if changed else 'kill -s HUP'} failed: {r.stderr.decode(errors='replace').strip()[:200]}")
+    deadline = time.time() + float(spec.get("wait_seconds", 20))
+    while not (probe or rfq_probe)(cfg, env):
+        if time.time() >= deadline:
+            raise Refused(f"rfq: intake not healthy after {'restart' if changed else 'reload'} (127.0.0.1:{spec.get('port')}/healthz)")
+        time.sleep(0.5)
+    action = "restarted" if changed else "reloaded_index"
+    log("rfq", env=env, action=action)
+    return action
+
+
+def rfq_restore(cfg: dict, env: str) -> None:
+    """Best effort after a refused switch: the services follow `current` back."""
+    if rfq_spec(cfg, env).get("enabled"):
+        r = run([cfg["systemctl"], "restart", *[u.format(env=env) for u in RFQ_UNITS]], timeout=90)
+        if r.returncode != 0:
+            log("rfq_restore_failed", env=env)
 
 
 # --- smoke (curl --resolve <host>:443:127.0.0.1) -----------------------------------------------------------------------------
@@ -651,7 +727,7 @@ def _copy_in(src: str, dst: str, limit: int) -> None:
         shutil.copyfileobj(s, d, 1 << 20)
 
 
-def activate(cfg: dict, env: str, fetch=None) -> int:
+def activate(cfg: dict, env: str, fetch=None, rfq_check=None) -> int:
     """Process the newest pending activation for `env`. 0 = activated or nothing to do, 1 = refused (old release kept)."""
     p = env_paths(cfg, env)
     for d in (p["releases"], p["work"]):
@@ -705,6 +781,7 @@ def activate(cfg: dict, env: str, fetch=None) -> int:
                 current_public = os.path.join(p["current"], "public") if current_id and current_id != "bootstrap" else None
                 stats = unpack_bundle(bundle, a, tmp, current_public)
                 made = precompress(cfg, os.path.join(tmp, "public"))
+                grant_private(cfg, tmp)
                 for n in ("activation.json", "activation.json.sig"):
                     shutil.copy(os.path.join(work, n), os.path.join(tmp, n))
                 release = os.path.join(p["releases"], rid)
@@ -720,6 +797,8 @@ def activate(cfg: dict, env: str, fetch=None) -> int:
                 nginx_test_live(cfg)
                 nginx_reload(cfg)
                 smoke_until(cfg, release, a, fetch or CurlFetcher(cfg, cfg["envs"][env]["smoke_host"]), seq)
+                prev_release = os.path.join(p["releases"], switched_from) if switched_from and switched_from != "bootstrap" else None
+                rfq_after_switch(cfg, env, release, prev_release, rfq_check)
             except Refused:
                 if switched_from:
                     _point(p["current"], os.path.join("releases", switched_from))
@@ -728,6 +807,7 @@ def activate(cfg: dict, env: str, fetch=None) -> int:
                         nginx_reload(cfg)
                     except Refused as e:
                         log("restore_reload_failed", env=env, error=str(e))
+                    rfq_restore(cfg, env)
                 raise
             if switched_from and switched_from != rid:
                 _point(p["previous"], os.path.join("releases", switched_from))
@@ -791,7 +871,7 @@ def bootstrap(cfg: dict, env: str) -> None:
     log("bootstrapped", env=env)
 
 
-def local_rollback(cfg: dict, env: str, fetch=None) -> int:
+def local_rollback(cfg: dict, env: str, fetch=None, rfq_check=None) -> int:
     """Operator break-glass: point `current` back at `previous` (already verified when it was activated), test, reload, smoke."""
     p = env_paths(cfg, env)
     with open(p["lock"], "w") as lockf:
@@ -808,9 +888,11 @@ def local_rollback(cfg: dict, env: str, fetch=None) -> int:
             nginx_reload(cfg)
             r = state["releases"][prev]
             smoke_until(cfg, os.path.join(p["releases"], prev), {"snapshot_version": r["snapshot_version"]}, fetch or CurlFetcher(cfg, cfg["envs"][env]["smoke_host"]), int(time.time()))
+            rfq_after_switch(cfg, env, os.path.join(p["releases"], prev), os.path.join(p["releases"], cur), rfq_check)
         except Refused as e:
             _point(p["current"], os.path.join("releases", cur))
             nginx_reload(cfg)
+            rfq_restore(cfg, env)
             print(f"rollback refused, kept {cur}: {e}", file=sys.stderr)
             return 1
         _point(p["previous"], os.path.join("releases", cur))

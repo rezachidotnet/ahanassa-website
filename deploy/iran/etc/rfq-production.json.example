@@ -1,0 +1,20 @@
+{
+  "env": "production",
+  "listen": { "host": "127.0.0.1", "port": 8711 },
+  "public_origin": "https://api-new.ahanassa.ir",
+  "allowed_origins": ["https://new.ahanassa.ir"],
+  "data_dir": "/var/lib/ahanassa-rfq/production",
+  "release_dir": "/srv/ahanassa/site/production/current",
+  "captcha": { "provider": "arcaptcha", "site_key": "<ARCAPTCHA_SITE_KEY — public, from the arCaptcha panel>" },
+  "files_enabled": true,
+  "odoo": { "base_url": "https://odoo.ahanassa.com", "intake_v11": true },
+  "r2": { "endpoint": "https://<ACCOUNT_ID>.eu.r2.cloudflarestorage.com", "bucket": "ahanassa-v11-rfq-files-ir", "region": "auto" },
+  "r2_wait_ms": 7200000,
+  "files_storage_hint": "held on the domestic server; open with https://api-new.ahanassa.ir/__admin/ir/",
+  "bale": { "chat_id": "<BALE_STAFF_GROUP_CHAT_ID>" },
+  "backup": {
+    "dir": "/var/backups/ahanassa-rfq/production",
+    "age_recipient": "<age1… — the OWNER's public key; the private key never comes to this server>",
+    "offsite": { "endpoint": "https://s3.ir-thr-at1.arvanstorage.ir", "bucket": "<ARVAN_BACKUP_BUCKET>", "region": "ir-thr-at1" }
+  }
+}

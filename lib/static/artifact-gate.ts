@@ -16,7 +16,7 @@ import { STATIC_TARGETS, TURNSTILE_ORIGIN } from "./targets.ts";
 import { checkStaticCacheRules } from "./static-rules.ts";
 import { bootstrapModuleIsLowPriority } from "./postprocess.ts";
 import { checkIndexingPolicy, PRODUCTION_ORIGIN } from "./indexing-gate.ts";
-import { GA4_CONNECT_ORIGINS } from "../security/headers.ts";
+import { ARCAPTCHA_CONNECT_ORIGINS, GA4_CONNECT_ORIGINS } from "../security/headers.ts";
 import { rfqApiMirrorOrigins } from "../mirror/iran-mirror.ts";
 import { checkSeoHostLock } from "./seo-host-lock.ts";
 
@@ -203,7 +203,7 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
     // mirror (W27, production only) and GA4's collection endpoints (owner decision 2026-10-13, DAR-066).
     const origin = STATIC_TARGETS[parsed.data.environment].rfqApiOrigin;
     const connect = /connect-src ([^;\n]*)/.exec(headers)?.[1]?.trim().split(/\s+/) ?? [];
-    const expected = ["'self'", TURNSTILE_ORIGIN, origin, ...rfqApiMirrorOrigins(origin), ...GA4_CONNECT_ORIGINS];
+    const expected = ["'self'", TURNSTILE_ORIGIN, origin, ...rfqApiMirrorOrigins(origin), ...ARCAPTCHA_CONNECT_ORIGINS, ...GA4_CONNECT_ORIGINS];
     if (connect.length !== expected.length || expected.some((e) => !connect.includes(e))) failures.push(`_headers: CSP connect-src must be exactly ${expected.join(" ")} (got ${connect.join(" ") || "none"})`);
     // W10.6: immutable caching names each /_next/static/ file; a wildcard would also cache a chunk's 404 for a year.
     failures.push(...checkStaticCacheRules(headers, publicEntries.map((e) => e.path)));

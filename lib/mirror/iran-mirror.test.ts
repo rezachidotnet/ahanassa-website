@@ -27,16 +27,17 @@ test("W27: on www.ahanassa.ir / ahanassa.ir the production endpoint moves to api
 test("W27: www.ahanassa.com, staging, local and relative endpoints are left exactly as baked", () => {
   assert.equal(rfqEndpointForHost(PROD, "www.ahanassa.com"), PROD);
   assert.equal(rfqEndpointForHost(STAGING, "ahanassa-v11-static-staging.nova-b1e6f0.workers.dev"), STAGING);
-  // Staging's API has no mirror, even if a staging page were ever opened on an .ir host.
+  // Each Iran page host rewrites only its own target's API: a staging page on www.ahanassa.ir stays on staging.
   assert.equal(rfqEndpointForHost(STAGING, "www.ahanassa.ir"), STAGING);
+  assert.equal(rfqEndpointForHost(PROD, "staging.ahanassa.ir"), PROD);
   assert.equal(rfqEndpointForHost("/api/rfqs", "www.ahanassa.ir"), "/api/rfqs");
   assert.equal(rfqEndpointForHost("http://api.ahanassa.com/api/rfqs", "www.ahanassa.ir"), "http://api.ahanassa.com/api/rfqs");
   assert.equal(rfqEndpointForHost(PROD, "localhost"), PROD);
 });
 
-test("W27: CSP mirror origins — production gets https://api.ahanassa.ir, staging none", () => {
-  assert.deepEqual(rfqApiMirrorOrigins(STATIC_TARGETS.production.rfqApiOrigin), ["https://api.ahanassa.ir"]);
-  assert.deepEqual(rfqApiMirrorOrigins(STATIC_TARGETS.staging.rfqApiOrigin), []);
+test("W32: CSP Iran API origins — production: api.ahanassa.ir + the shadow api-new.ahanassa.ir; staging: api-staging.ahanassa.ir", () => {
+  assert.deepEqual(rfqApiMirrorOrigins(STATIC_TARGETS.production.rfqApiOrigin), ["https://api.ahanassa.ir", "https://api-new.ahanassa.ir"]);
+  assert.deepEqual(rfqApiMirrorOrigins(STATIC_TARGETS.staging.rfqApiOrigin), ["https://api-staging.ahanassa.ir"]);
   assert.deepEqual(rfqApiMirrorOrigins("not a url"), []);
 });
 
@@ -58,4 +59,13 @@ test("W27: share/copied page URLs move to the mirror host only on the mirror and
   assert.equal(pageUrlForHost("https://wa.me/989134222795", "www.ahanassa.ir"), "https://wa.me/989134222795");
   assert.equal(pageUrlForHost("/prices", "www.ahanassa.ir"), "/prices");
   assert.equal(pageUrlForHost(`https://${CANONICAL_SITE_HOST}/`, "www.ahanassa.ir"), "https://www.ahanassa.ir/");
+});
+
+test("W32: P2 API hosts — new.ahanassa.ir → api-new.ahanassa.ir (shadow), staging.ahanassa.ir → api-staging.ahanassa.ir; www/apex .ir stay on api.ahanassa.ir (NOT switched)", () => {
+  assert.equal(rfqEndpointForHost(PROD, "new.ahanassa.ir"), "https://api-new.ahanassa.ir/api/rfqs");
+  assert.equal(rfqEndpointForHost(STAGING, "staging.ahanassa.ir"), "https://api-staging.ahanassa.ir/api/rfqs");
+  assert.equal(rfqEndpointForHost(PROD, "www.ahanassa.ir"), "https://api.ahanassa.ir/api/rfqs");
+  assert.equal(rfqEndpointForHost(PROD, "ahanassa.ir"), "https://api.ahanassa.ir/api/rfqs");
+  assert.equal(isIranMirrorHost("staging.ahanassa.ir"), true);
+  for (const host of ["api-new.ahanassa.ir", "api-staging.ahanassa.ir"]) assert.equal(isIranMirrorHost(host), false, host);
 });

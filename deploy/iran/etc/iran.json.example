@@ -4,11 +4,29 @@
   "allowed_signers": "/etc/ahanassa/allowed_signers",
   "keep_releases": 5,
   "envs": {
-    "production": { "principal": "ci-production", "smoke_host": "new.ahanassa.ir" },
-    "staging": { "principal": "ci-staging", "smoke_host": "staging.ahanassa.ir" }
+    "production": {
+      "principal": "ci-production",
+      "smoke_host": "new.ahanassa.ir",
+      "rfq": {
+        "enabled": false,
+        "port": 8711
+      }
+    },
+    "staging": {
+      "principal": "ci-staging",
+      "smoke_host": "staging.ahanassa.ir",
+      "rfq": {
+        "enabled": false,
+        "port": 8712
+      }
+    }
   },
   "sources": [
-    { "name": "github", "type": "github", "credential": "github-token" },
+    {
+      "name": "github",
+      "type": "github",
+      "credential": "github-token"
+    },
     {
       "name": "r2",
       "type": "s3",
@@ -29,5 +47,6 @@
       "credential": "arvan-read"
     }
   ],
-  "bale": null
+  "bale": null,
+  "rfq_group": "ahanassa-rfq"
 }

@@ -4,6 +4,7 @@
 #   deploy/iran/install.sh <step> [args]      run as root, from a checkout of the reviewed commit
 #
 # Order: packages, users, dirs, code, signers <file>, bootstrap, tls-snakeoil, nginx, units (RUNBOOK_P1.md §3–§4).
+# W32 (P2, RUNBOOK_P2.md §3): rfq-packages, node, rfq-users, rfq-dirs, rfq-config, rfq-nginx, rfq-units <env>, rfq-enable <env>.
 # Each step is idempotent, prints what it changes, and touches nothing outside its own list. The ops session runs one
 # step per owner OK, under the host lock (/var/lib/host-change/LOCK.d). No step changes ArvanCloud, DNS, ufw, sshd, or
 # anything that www.ahanassa.com / api.ahanassa.ir depend on. The same script is rehearsed in Docker
@@ -138,6 +139,134 @@ step_status() {
   done
 }
 
+# --- W32 (W29 P2): the domestic RFQ intake — RUNBOOK_P2.md §3. Same rules: one step per owner OK, idempotent. ---------
+RFQ_CREDS=(admin-token arcaptcha-secret odoo-token r2-ir bale-token backup-s3)
+NODE_HOME=/usr/local/lib/ahanassa-node
+
+step_rfq_packages() {
+  # sqlite3 (operator inspection, restore drill), age (backup encryption), logrotate (14-day API logs).
+  apt-get update -q
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends sqlite3 age logrotate
+  age --version
+}
+
+step_node() {
+  # install.sh node <vX.Y.Z> <sha256 of node-vX.Y.Z-linux-<arch>.tar.xz> [--from <local tarball>]
+  # Node 24 LTS from the official tarball. The sha256 is checked TWICE: against nodejs.org's SHASUMS256.txt and against
+  # the value the owner copied from nodejs.org on another machine (so a tampered download AND a tampered list fail).
+  local v=${1:?version, e.g. v24.11.1} want=${2:?sha256 from https://nodejs.org/dist/<version>/SHASUMS256.txt} from=""
+  [ "${3:-}" = "--from" ] && from=${4:?tarball}
+  [[ $v =~ ^v24\.[0-9]+\.[0-9]+$ ]] || { echo "Node 24 only (got $v)" >&2; exit 1; }
+  [[ $want =~ ^[0-9a-f]{64}$ ]] || { echo "sha256 must be 64 hex chars" >&2; exit 1; }
+  local arch
+  case $(uname -m) in x86_64) arch=x64 ;; aarch64) arch=arm64 ;; *) echo "unsupported arch" >&2; exit 1 ;; esac
+  local name="node-$v-linux-$arch.tar.xz" tmp
+  tmp=$(mktemp -d)
+  if [ -n "$from" ]; then cp "$from" "$tmp/$name"; else
+    curl -fsSL --retry 3 -o "$tmp/$name" "https://nodejs.org/dist/$v/$name"
+    curl -fsSL --retry 3 -o "$tmp/SHASUMS256.txt" "https://nodejs.org/dist/$v/SHASUMS256.txt"
+    grep -q "^$want  $name\$" "$tmp/SHASUMS256.txt" || { echo "the pasted sha256 is not nodejs.org's for $name" >&2; rm -rf "$tmp"; exit 1; }
+  fi
+  echo "$want  $tmp/$name" | sha256sum -c --quiet - || { echo "tarball sha256 mismatch" >&2; rm -rf "$tmp"; exit 1; }
+  install -d -m 0755 "$NODE_HOME-$v"
+  tar -xJf "$tmp/$name" -C "$NODE_HOME-$v" --strip-components=1 --no-same-owner
+  rm -rf "$tmp"
+  ln -sfn "$NODE_HOME-$v" "$NODE_HOME"
+  "$NODE_HOME/bin/node" -e 'const m=+process.versions.node.split(".")[0]; if (m!==24) process.exit(1); require("node:sqlite")' || { echo "not a working Node 24 with node:sqlite" >&2; exit 1; }
+  say "node $("$NODE_HOME/bin/node" --version) at $NODE_HOME (no npm is used on this server)"
+}
+
+step_rfq_users() {
+  if id ahanassa-rfq >/dev/null 2>&1; then say "user ahanassa-rfq exists"; else
+    useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin --user-group ahanassa-rfq
+    say "created system user ahanassa-rfq (no shell, no home)"
+  fi
+}
+
+step_rfq_dirs() {
+  for env in "${ENVS[@]}"; do
+    install -d -m 0700 -o ahanassa-rfq -g ahanassa-rfq "/var/lib/ahanassa-rfq/$env"
+    install -d -m 0700 -o ahanassa-rfq -g ahanassa-rfq "/var/backups/ahanassa-rfq/$env"
+    install -d -m 0700 -o root -g root "/etc/ahanassa/credentials/rfq-$env"
+    for c in "${RFQ_CREDS[@]}"; do
+      [ -e "/etc/ahanassa/credentials/rfq-$env/$c" ] || { install -m 0600 -o root -g root /dev/null "/etc/ahanassa/credentials/rfq-$env/$c"; say "placeholder credential rfq-$env/$c (empty)"; }
+    done
+  done
+  install -d -m 0755 /var/lib/ahanassa-rfq /var/backups/ahanassa-rfq
+  [ -e /etc/ahanassa/rfq-admin-allow.conf ] || install -m 0644 "$here/etc/rfq-admin-allow.conf.example" /etc/ahanassa/rfq-admin-allow.conf
+  install -m 0644 "$here/etc/logrotate-ahanassa-rfq" /etc/logrotate.d/ahanassa-rfq
+  say "rfq dirs + credential placeholders ready"
+}
+
+step_rfq_config() {
+  for env in "${ENVS[@]}"; do
+    if [ ! -e "/etc/ahanassa/rfq-$env.json" ]; then
+      install -m 0644 "$here/etc/rfq-$env.json.example" "/etc/ahanassa/rfq-$env.json"
+      say "/etc/ahanassa/rfq-$env.json created from the example — fill in the <…> values"
+    fi
+    if grep -q '<' "/etc/ahanassa/rfq-$env.json"; then say "rfq-$env.json still has <placeholders>: $(grep -o '<[^>]*>' "/etc/ahanassa/rfq-$env.json" | head -3 | tr '\n' ' ')"; fi
+  done
+}
+
+step_rfq_nginx() {
+  local tmp
+  tmp=$(mktemp -d)
+  "$here/nginx/render-templates.sh" "$tmp" >/dev/null
+  install -m 0644 "$here/nginx/conf.d/ahanassa-rfq.conf" /etc/nginx/conf.d/ahanassa-rfq.conf
+  install -m 0644 "$tmp"/snippets/ahanassa-rfq-proxy-*.conf /etc/nginx/snippets/
+  rm -rf "$tmp"
+  step_tls_snakeoil api-staging.ahanassa.ir api-new.ahanassa.ir
+  for f in api-staging.ahanassa.ir.conf api-new.ahanassa.ir.conf; do
+    install -m 0644 "$here/nginx/sites/$f" "/etc/nginx/sites-available/$f"
+    ln -sfn "/etc/nginx/sites-available/$f" "/etc/nginx/sites-enabled/$f"
+  done
+  nginx -t
+  reload_nginx
+  say "API hosts api-staging / api-new installed (api.ahanassa.ir is NOT: owner rule, it is not switched)"
+}
+
+step_rfq_enable() {
+  # install.sh rfq-enable <env>  — AFTER rfq-units: from now on the activator restarts (new rfq-ir.mjs) or HUPs (new
+  # variant index) the services after each activation of <env>, health-checks them, and refuses + restores if unhealthy.
+  local env=${1:?env}
+  systemctl is-active --quiet "ahanassa-rfq@$env.service" || { echo "ahanassa-rfq@$env is not running (run rfq-units $env first)" >&2; exit 1; }
+  python3 -I - "$env" <<'PY'
+import json, sys
+env = sys.argv[1]
+p = "/etc/ahanassa/iran.json"
+d = json.load(open(p))
+d["rfq_group"] = "ahanassa-rfq"
+d.setdefault("envs", {}).setdefault(env, {})["rfq"] = {"enabled": True, "port": 8711 if env == "production" else 8712}
+open(p, "w").write(json.dumps(d, indent=2) + "\n")
+print(f"[install] iran.json: rfq enabled for {env}")
+PY
+}
+
+step_rfq_units() {
+  # install.sh rfq-units <env>  — install the units (all envs) and start them for <env>.
+  local env=${1:?env}
+  [ -x "$NODE_HOME/bin/node" ] || { echo "run install.sh node first" >&2; exit 1; }
+  [ -f "/etc/ahanassa/rfq-$env.json" ] || { echo "run install.sh rfq-config first" >&2; exit 1; }
+  [ -f "/srv/ahanassa/site/$env/current/rfq/rfq-ir.mjs" ] || { echo "the current $env release carries no rfq/rfq-ir.mjs yet (wait for a W32 activation)" >&2; exit 1; }
+  # The current release was unpacked before the service group existed: give its private/ (the variant index) to it.
+  chgrp -R ahanassa-rfq "/srv/ahanassa/site/$env/current/private"
+  install -m 0644 "$here"/systemd/ahanassa-rfq*.{service,timer} /etc/systemd/system/
+  systemctl daemon-reload
+  systemctl enable --now "ahanassa-rfq@$env.service" "ahanassa-rfq-forward@$env.service" \
+    "ahanassa-rfq-health@$env.timer" "ahanassa-rfq-maintain@$env.timer" "ahanassa-rfq-backup@$env.timer" "ahanassa-rfq-backup-offsite@$env.timer"
+  sleep 2
+  curl -fsS "http://127.0.0.1:$([ "$env" = production ] && echo 8711 || echo 8712)/healthz" && echo
+  say "rfq $env running"
+}
+
+step_rfq_status() {
+  for env in "${ENVS[@]}"; do
+    echo "== rfq $env"
+    systemctl --no-pager --lines=0 status "ahanassa-rfq@$env" "ahanassa-rfq-forward@$env" 2>/dev/null | grep -E '●|Active' || true
+    [ -r "/var/lib/ahanassa-rfq/$env/status.json" ] && cat "/var/lib/ahanassa-rfq/$env/status.json"
+  done
+}
+
 step=${1:-}
 shift || true
 need_root
@@ -153,5 +282,15 @@ case "$step" in
   bootstrap) step_bootstrap ;;
   units) step_units ;;
   status) step_status ;;
-  *) echo "usage: install.sh packages|users|dirs|code|signers <file>|tls-snakeoil|tls-letsencrypt <host> <email>|nginx|bootstrap|units|status" >&2; exit 64 ;;
+  rfq-packages) step_rfq_packages ;;
+  node) step_node "$@" ;;
+  rfq-users) step_rfq_users ;;
+  rfq-dirs) step_rfq_dirs ;;
+  rfq-config) step_rfq_config ;;
+  rfq-nginx) step_rfq_nginx ;;
+  rfq-enable) step_rfq_enable "$@" ;;
+  rfq-units) step_rfq_units "$@" ;;
+  rfq-status) step_rfq_status ;;
+  *) echo "usage: install.sh packages|users|dirs|code|signers <file>|tls-snakeoil|tls-letsencrypt <host> <email>|nginx|bootstrap|units|status" >&2
+     echo "       W32: rfq-packages|node <vX.Y.Z> <sha256> [--from <tarball>]|rfq-users|rfq-dirs|rfq-config|rfq-nginx|rfq-enable <env>|rfq-units <env>|rfq-status" >&2; exit 64 ;;
 esac

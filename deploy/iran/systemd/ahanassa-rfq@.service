@@ -1,0 +1,45 @@
+# W32 (W29 P2) domestic RFQ intake for %i (production|staging): the RFQ Worker's own code (rfq-ir.mjs, shipped in the
+# signed release) on 127.0.0.1, behind nginx (api-new / api-staging.ahanassa.ir). Writes only its data dir.
+# The activator restarts it when rfq-ir.mjs changes and sends SIGHUP (re-read the variant index) otherwise.
+# deploy/iran/RUNBOOK_P2.md §3.
+[Unit]
+Description=Ahan Asa domestic RFQ intake (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ahanassa-rfq
+Group=ahanassa-rfq
+ExecStart=/usr/local/lib/ahanassa-node/bin/node --disable-warning=ExperimentalWarning /srv/ahanassa/site/%i/current/rfq/rfq-ir.mjs serve /etc/ahanassa/rfq-%i.json
+ExecReload=/bin/kill -HUP $MAINPID
+# Secrets of THIS process only (the Odoo bearer and the R2 key are the forwarder's, not the intake's).
+LoadCredential=admin-token:/etc/ahanassa/credentials/rfq-%i/admin-token
+LoadCredential=arcaptcha-secret:/etc/ahanassa/credentials/rfq-%i/arcaptcha-secret
+Restart=always
+RestartSec=2
+MemoryMax=384M
+TasksMax=64
+ReadWritePaths=/var/lib/ahanassa-rfq/%i
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

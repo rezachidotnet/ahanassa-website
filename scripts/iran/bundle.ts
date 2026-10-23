@@ -11,6 +11,9 @@
  *   public/**                         public-assets/ unchanged, byte for byte
  *   private/rfq-variant-index.json    the only private file (W29 P2 reads it; never snapshot.json, never under public/)
  *   nginx/*                           scripts/iran/render-nginx.ts output (maps + headers.conf, strict grammar)
+ *   rfq/rfq-ir.mjs                    W32: the domestic RFQ intake, one file (scripts/iran/build-rfq-service.ts), built
+ *                                     from the same checkout; listed with its sha256 in bundle.json `rfq`. The activator
+ *                                     verifies it like every other file and restarts the services when it changed.
  *
  * The zip is deterministic (scripts/iran/zip.ts): the same artifact gives the same bytes, so the sha256 CI signs is
  * the same whether the server fetches the zip from the GitHub artifact or from the R2/Arvan mirror. The bundle is
@@ -23,6 +26,8 @@ import { artifactManifest, PRIVATE_DIR, PUBLIC_DIR } from "../../lib/contracts/a
 import { listFiles } from "../../lib/static/artifact-gate.ts";
 import { renderNginxIncludes, NGINX_INCLUDE_FILES } from "./render-nginx.ts";
 import { writeZip, type ZipEntry } from "./zip.ts";
+import { buildRfqService, RFQ_SERVICE_FILE } from "./build-rfq-service.ts";
+import os from "node:os";
 
 export const BUNDLE_SCHEMA = "iran-bundle.v1";
 /** The one private file the domestic copy carries. */
@@ -121,7 +126,12 @@ export interface BundleSummary {
   critical_path_externals: CriticalPathFinding[];
 }
 
-export function buildBundle(artifactDir: string, outDir: string): BundleSummary {
+export interface BundleOptions {
+  /** W32: include rfq/rfq-ir.mjs (default true). Off only in tests that do not exercise the service. */
+  rfqService?: boolean;
+}
+
+export function buildBundle(artifactDir: string, outDir: string, options: BundleOptions = {}): BundleSummary {
   const manifestBytes = fs.readFileSync(path.join(artifactDir, "manifest.json"));
   const manifest = artifactManifest.parse(JSON.parse(manifestBytes.toString("utf8")));
   const read = (dir: string, p: string) => fs.readFileSync(path.join(artifactDir, dir, p));
@@ -145,6 +155,16 @@ export function buildBundle(artifactDir: string, outDir: string): BundleSummary 
     .flatMap(([p, b]) => criticalPathExternals(p, b.toString("utf8")))
     .map((f) => ({ ...f, accepted: acceptedReason(f) }));
   const manifestSha = sha256(manifestBytes);
+  let rfqCode: Buffer | null = null;
+  if (options.rfqService ?? true) {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "rfq-ir-build-"));
+    try {
+      buildRfqService(path.join(tmpDir, RFQ_SERVICE_FILE));
+      rfqCode = fs.readFileSync(path.join(tmpDir, RFQ_SERVICE_FILE));
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  }
   const bundleJson = {
     schema: BUNDLE_SCHEMA,
     environment: manifest.environment,
@@ -153,11 +173,13 @@ export function buildBundle(artifactDir: string, outDir: string): BundleSummary 
     manifest_sha256: manifestSha,
     nginx: NGINX_INCLUDE_FILES.map((name) => ({ path: name, bytes: Buffer.byteLength(nginx[name]), sha256: sha256(nginx[name]) })),
     private: privateEntries,
+    rfq: rfqCode ? [{ path: RFQ_SERVICE_FILE, bytes: rfqCode.length, sha256: sha256(rfqCode) }] : [],
     critical_path_externals: critical,
   };
   entries.push({ name: "bundle.json", data: Buffer.from(`${JSON.stringify(bundleJson, null, 1)}\n`) });
   entries.push({ name: "manifest.json", data: manifestBytes });
   for (const name of NGINX_INCLUDE_FILES) entries.push({ name: `nginx/${name}`, data: Buffer.from(nginx[name]) });
+  if (rfqCode) entries.push({ name: `rfq/${RFQ_SERVICE_FILE}`, data: rfqCode });
   for (const f of privateEntries) {
     const data = read(PRIVATE_DIR, f.path);
     if (data.length !== f.bytes || sha256(data) !== f.sha256) throw new Error(`bundle: ${PRIVATE_DIR}/${f.path} does not match manifest.json`);

@@ -1,0 +1,24 @@
+# W32 (W29 P2) — api.ahanassa.ir → the PRODUCTION domestic intake. Installed as /etc/nginx/sites-available/api.ahanassa.ir.conf.later + sites-enabled symlink (RUNBOOK_P2.md §3).
+# Reached only through ArvanCloud (no Arvan cache: "bypass" for this host); the firewall admits 443 from Arvan only.
+# !!! NOT INSTALLED IN P2 (owner rule 2026-10-22: api.ahanassa.ir is NOT switched). Enabled only by the LATER Arvan origin
+# switch of api.ahanassa.ir (RUNBOOK_P2.md §9, an owner decision). Until then api.ahanassa.ir's Arvan origin stays
+# api.ahanassa.com (the Cloudflare Worker) and this file stays here.
+server {
+    listen 80;
+    server_name api.ahanassa.ir;
+    include /etc/nginx/snippets/ahanassa-acme.conf;
+    location / { return 301 https://$host$request_uri; }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name api.ahanassa.ir;
+    ssl_certificate /etc/ahanassa/tls/api.ahanassa.ir/fullchain.pem;
+    ssl_certificate_key /etc/ahanassa/tls/api.ahanassa.ir/privkey.pem;
+    include /etc/nginx/snippets/ahanassa-tls.conf;
+    include /etc/nginx/snippets/ahanassa-arvan-real-ip.conf;
+    access_log /var/log/nginx/ahanassa-rfq-production.access.log ahanassa_api;
+    error_log /var/log/nginx/ahanassa-rfq-production.error.log warn;
+    include /etc/nginx/snippets/ahanassa-rfq-proxy-production.conf;
+}

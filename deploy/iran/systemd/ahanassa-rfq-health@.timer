@@ -1,0 +1,12 @@
+# W32 — every 5 minutes (deploy/iran/RUNBOOK_P2.md).
+[Unit]
+Description=Ahan Asa domestic RFQ: health timer (%i)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+RandomizedDelaySec=30
+Persistent=true
+
+[Install]
+WantedBy=timers.target

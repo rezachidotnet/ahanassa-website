@@ -1,0 +1,11 @@
+# W32 — hourly (deploy/iran/RUNBOOK_P2.md).
+[Unit]
+Description=Ahan Asa domestic RFQ: backup timer (%i)
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=300
+Persistent=true
+
+[Install]
+WantedBy=timers.target
