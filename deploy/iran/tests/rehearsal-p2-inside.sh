@@ -1,5 +1,5 @@
 #!/bin/bash
-# W32 — the container half of docker-rehearsal-p2.sh. --network none: loopback only. Staging env, as RUNBOOK_P2.md
+# W32/W35 — the container half of docker-rehearsal-p2.sh. --network none: loopback only. Staging env, as RUNBOOK_P2.md
 # installs it first. Every RFQ here is fake ("Rehearsal Buyer N", example.com).
 set -uo pipefail
 fail=0
@@ -9,20 +9,21 @@ bad() { fail=$((fail + 1)); printf '  FAIL %s\n' "$*"; }
 I=/opt/iran/install.sh
 ENV=staging
 API=api-staging.ahanassa.ir
-ACCT=a9fd0000000000000000000000000000
+ARVAN=s3.ir-thr-at1.arvanstorage.ir
+FILES_BUCKET=ahanassa-rfq-files-ir-staging
 
-echo "== 0. test world: CA, /etc/hosts, stubs (Odoo + R2 on [::1] only = abroad; arCaptcha + Bale on 127.0.0.3 = domestic)"
+echo "== 0. test world: CA, /etc/hosts, stubs (Odoo on [::1] only = abroad; Arvan S3 + Bale on 127.0.0.3 = domestic)"
 install -m 0755 /work/systemctl-shim.sh /usr/local/bin/systemctl
 mkdir -p /etc/ahanassa-test && cd /etc/ahanassa-test
 openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=rehearsal CA" -keyout ca.key -out ca.pem 2>/dev/null
 openssl req -newkey rsa:2048 -nodes -subj "/CN=stubs" -keyout stub.key -out stub.csr 2>/dev/null
-printf 'subjectAltName=DNS:odoo.ahanassa.com,DNS:%s.eu.r2.cloudflarestorage.com,DNS:api.arcaptcha.ir,DNS:tapi.bale.ai\n' "$ACCT" > san.ext
+printf 'subjectAltName=DNS:odoo.ahanassa.com,DNS:%s,DNS:tapi.bale.ai\n' "$ARVAN" > san.ext
 openssl x509 -req -in stub.csr -CA ca.pem -CAkey ca.key -CAcreateserial -days 2 -extfile san.ext -out stub.pem 2>/dev/null
 chmod 0644 ca.pem
 cd /
-{ echo "::1 odoo.ahanassa.com $ACCT.eu.r2.cloudflarestorage.com"; echo "127.0.0.3 api.arcaptcha.ir tapi.bale.ai"; } >> /etc/hosts
+{ echo "::1 odoo.ahanassa.com"; echo "127.0.0.3 $ARVAN tapi.bale.ai"; } >> /etc/hosts
 ip addr add 127.0.0.3/8 dev lo 2>/dev/null || true
-iptables -t nat -A OUTPUT -d 127.0.0.3 -p tcp --dport 443 -j DNAT --to-destination 127.0.0.1:9443 || bad "iptables nat (arCaptcha/Bale on :443)"
+iptables -t nat -A OUTPUT -d 127.0.0.3 -p tcp --dport 443 -j DNAT --to-destination 127.0.0.1:9443 || bad "iptables nat (Arvan S3/Bale on :443)"
 ip -6 addr show dev lo | grep -q '::1' && ok "IPv6 loopback present" || bad "no ::1"
 
 echo "== 1. install (P1 steps + W32 P2 steps of deploy/iran/install.sh)"
@@ -37,7 +38,14 @@ set +e
 /usr/local/lib/ahanassa-node/bin/node /work/p2-stubs.mjs /etc/ahanassa-test/stub.pem /etc/ahanassa-test/stub.key > /var/log/stubs.log 2>&1 &
 sleep 1
 STATS() { curl -s --cacert /etc/ahanassa-test/ca.pem "https://odoo.ahanassa.com:9444/__test/stats"; }
-STATS | jq -e .odoo_rfqs >/dev/null && ok "stubs up (Odoo + R2 over IPv6)" || bad "stubs: $(cat /var/log/stubs.log)"
+STATS | jq -e .odoo_rfqs >/dev/null && ok "stubs up (Odoo over IPv6)" || bad "stubs: $(cat /var/log/stubs.log)"
+# The same stats from the domestic side (reachable during the cutoff drill).
+STATSD() { curl -s --cacert /etc/ahanassa-test/ca.pem "https://$ARVAN/__test/stats"; }
+STATSD | jq -e .store >/dev/null && ok "Arvan S3 stub up (domestic, IPv4)" || bad "domestic stub"
+K=/etc/ahanassa/credentials/rfq-$ENV/altcha-hmac-key
+[ "$(stat -c '%a %U' $K)" = "600 root" ] && [ "$(tr -d '\n' < $K | grep -cE '^[0-9a-f]{64}$')" = 1 ] && ok "rfq-dirs generated the ALTCHA key on the server (64 hex, root 0600)" || bad "altcha key $(stat -c '%a %U %s' $K)"
+ksum=$(sha256sum < $K); bash $I rfq-dirs >/dev/null; [ "$(sha256sum < $K)" = "$ksum" ] && ok "rerunning rfq-dirs keeps the key" || bad "key regenerated"
+[ ! -e /etc/ahanassa/credentials/rfq-$ENV/arcaptcha-secret ] && [ ! -e /etc/ahanassa/credentials/rfq-$ENV/r2-ir ] && ok "no arCaptcha / R2 credential placeholders" || bad "old credentials present"
 
 age-keygen -o /root/owner-age.key 2>/dev/null
 RECIPIENT=$(grep -o 'age1[0-9a-z]*' /root/owner-age.key | head -1)
@@ -49,19 +57,20 @@ cat > /etc/ahanassa/rfq-$ENV.json <<EOF
   "allowed_origins": ["https://staging.ahanassa.ir"],
   "data_dir": "/var/lib/ahanassa-rfq/$ENV",
   "release_dir": "/srv/ahanassa/site/$ENV/current",
-  "captcha": { "provider": "arcaptcha", "site_key": "rehearsal-site-key" },
+  "captcha": { "provider": "altcha" },
   "files_enabled": true,
   "odoo": { "base_url": "https://odoo.ahanassa.com:9444", "intake_v11": true },
-  "r2": { "endpoint": "https://$ACCT.eu.r2.cloudflarestorage.com:9444", "bucket": "ahanassa-v11-rfq-files-ir-staging", "region": "auto" },
-  "r2_wait_ms": 7200000,
+  "files_store": { "endpoint": "https://$ARVAN", "bucket": "$FILES_BUCKET", "region": "ir-thr-at1" },
+  "files_store_wait_ms": 7200000,
   "files_storage_hint": "held on the domestic server; open with https://$API/__admin/ir/",
   "bale": { "chat_id": "-1001" },
-  "backup": { "dir": "/var/backups/ahanassa-rfq/$ENV", "age_recipient": "$RECIPIENT", "offsite": null }
+  "backup": { "dir": "/var/backups/ahanassa-rfq/$ENV", "age_recipient": "$RECIPIENT", "offsite": { "endpoint": "https://$ARVAN", "bucket": "ahanassa-backup-ir", "region": "ir-thr-at1" } }
 }
 EOF
 C=/etc/ahanassa/credentials/rfq-$ENV
-echo rehearsal-admin > $C/admin-token; echo rehearsal-arcaptcha-secret > $C/arcaptcha-secret; echo rehearsal-ir-bearer > $C/odoo-token
-echo '{"access_key_id":"AKREHEARSAL","secret_access_key":"rehearsal-secret"}' > $C/r2-ir; echo "123:REHEARSALBALE" > $C/bale-token
+echo rehearsal-admin > $C/admin-token; echo rehearsal-ir-bearer > $C/odoo-token
+# W35: one Arvan machine user (ahanassa-iransrv) for the files bucket and the backup bucket, one credential file per unit.
+echo '{"access_key_id":"AKREHEARSAL","secret_access_key":"rehearsal-secret"}' | tee $C/files-s3 > $C/backup-s3; echo "123:REHEARSALBALE" > $C/bale-token
 cat > /etc/ahanassa/iran.json <<'EOF'
 { "nginx_reload": ["nginx", "-s", "reload"], "sources": [{ "name": "github", "type": "github" }], "timeouts": { "api": 5, "download": 30 } }
 EOF
@@ -92,14 +101,19 @@ grep -q '"event":"variant_index","version":"snap-0123456789abcdef"' /var/log/shi
 echo "== 4. through nginx (curl --resolve $API:443:127.0.0.1)"
 c() { curl -sk --resolve "$API:443:127.0.0.1" -H 'Origin: https://staging.ahanassa.ir' "$@"; }
 caps=$(c "https://$API/api/rfqs/capabilities")
-[ "$(echo "$caps" | jq -c .captcha)" = '{"provider":"arcaptcha","siteKey":"rehearsal-site-key"}' ] && ok "capabilities: arCaptcha + site key" || bad "capabilities: $caps"
+[ "$(echo "$caps" | jq -c .captcha)" = '{"provider":"altcha","challengePath":"/api/rfqs/captcha-challenge"}' ] && ok "capabilities: ALTCHA + its challenge path" || bad "capabilities: $caps"
+hdr=$(c -D - -o /tmp/challenge.json "https://$API/api/rfqs/captcha-challenge")
+grep -qi '^cache-control: no-store' <<< "$hdr" && grep -qi '^access-control-allow-origin: https://staging.ahanassa.ir' <<< "$hdr" && jq -e '.signature | test("^[0-9a-f]{64}$")' /tmp/challenge.json >/dev/null && ok "challenge through nginx: signed, no-store, exact-origin CORS" || bad "challenge: $hdr $(cat /tmp/challenge.json)"
+[ "$(c -o /dev/null -w '%{http_code}' -X POST "https://$API/api/rfqs/captcha-challenge")" = 403 ] && ok "challenge path is GET-only at nginx" || bad "challenge POST"
 [ "$(c -o /dev/null -w '%{http_code}' "https://$API/api/rfqs/extract" -X POST)" = 404 ] && ok "/api/rfqs/extract is 404 (Workers AI off)" || bad extract
 [ "$(c -o /dev/null -w '%{http_code}' "https://$API/anything-else")" = 404 ] && ok "other paths 404" || bad "other"
 big=$(head -c 30000 /dev/zero | tr '\0' a)
 [ "$(c -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' --data "$big" "https://$API/api/rfqs")" = 413 ] && ok "a 30 kB submit body stops at nginx (413)" || bad "body limit"
 
-submit() { # n token files…
+solve() { c "https://$API/api/rfqs/captcha-challenge" | /usr/local/lib/ahanassa-node/bin/node /work/altcha-solve.mjs; }
+submit() { # n token|solve files…   ("solve" = a fresh challenge, solved as the widget would)
   local n=$1 tok=$2; shift 2
+  [ "$tok" = solve ] && tok=$(solve)
   local key att='[]' f
   key=$(cat /proc/sys/kernel/random/uuid)
   for f in "$@"; do att=$(jq -c --arg nm "$(basename "$f")" --argjson sz "$(stat -c %s "$f")" '. + [{name:$nm,size:$sz}]' <<< "$att"); done
@@ -119,20 +133,25 @@ wait_for() { # seconds jq-condition-on-stats
   for t in $(seq 1 "$1"); do STATS | jq -e "$2" >/dev/null 2>&1 && return 0; sleep 1; done; return 1
 }
 
-r=$(submit 0 bad-token); [ "${r%% *}" = 403 ] && ok "a rejected arCaptcha token → 403 (fail closed)" || bad "bad token: $r"
-r=$(submit 1 ok-token /work/files/list.png); ref1=${r#* }
+r=$(submit 0 bad-token); [ "${r%% *}" = 403 ] && ok "a bogus captcha payload → 403 (fail closed)" || bad "bad token: $r"
+t0=$(date +%s%N); tok1=$(solve); solve_ms=$(( ($(date +%s%N) - t0) / 1000000 ))
+[ -n "$tok1" ] && ok "ALTCHA challenge solved in ${solve_ms} ms (Node, one core, this box)" || bad "solve"
+r=$(submit 1 "$tok1" /work/files/list.png); ref1=${r#* }
 [ "${r%% *}" = 201 ] && ok "submit + 1 file → 201 $ref1" || bad "submit: $r"
-wait_for 40 '.odoo_rfqs | length == 1' && ok "forwarded to Odoo within 40 s" || bad "not forwarded: $(STATS | jq -c .odoo_requests)"
+r=$(submit 1r "$tok1"); [ "${r%% *}" = 403 ] && ok "the same solution again (new idempotency key) → 403: single use" || bad "replay: $r"
+[ "$(sqlite3 /var/lib/ahanassa-rfq/$ENV/ops.sqlite 'SELECT count(*) FROM ir_captcha_used')" = 1 ] && ok "the used challenge is recorded until it expires" || bad "captcha store"
+wait_for 40 '.odoo_rfqs | length == 1' && ok "forwarded to Odoo within 40 s" || bad "not forwarded: $(STATS | jq -c .odoo_requests) — forwarder log: $(tail -5 /var/log/shim-ahanassa-rfq-forward@$ENV.service.log 2>&1)"
 STATS | jq -e '.odoo_rfqs[0].idempotency_key | startswith("rfq-ir-")' >/dev/null && ok "Idempotency-Key rfq-ir-<ulid>" || bad "key prefix"
 STATS | jq -e '[.odoo_families[] | select(. != "IPv6")] | length == 0' >/dev/null && ok "every Odoo connection came over IPv6 (the stub has no IPv4 socket at all)" || bad "families $(STATS | jq -c .odoo_families)"
 png_sha=$(sha256sum < /work/files/list.png | cut -d' ' -f1)
-STATS | jq -e --arg k "rfq-files/$ref1/1.png" --arg s "$png_sha" '.r2[$k].sha256 == $s and .r2[$k].meta == $s' >/dev/null && ok "file in R2 under the v1.2 key, sha256 = the customer's bytes" || bad "r2: $(STATS | jq -c .r2)"
+STATS | jq -e --arg k "$FILES_BUCKET/rfq-files/$ref1/1.png" --arg s "$png_sha" '.store[$k].sha256 == $s and .store[$k].meta == $s' >/dev/null && ok "file in the Arvan files bucket under the v1.2 key, sha256 = the customer's bytes" || bad "store: $(STATS | jq -c .store)"
+STATS | jq -e '(.store_families | length) > 0 and ([.store_families[] | select(. != "IPv4")] | length == 0)' >/dev/null && ok "the Arvan copy went over IPv4 (domestic); Odoo stayed IPv6" || bad "store families $(STATS | jq -c .store_families)"
 
-echo "== 5. CUTOFF: all egress abroad dropped (ip6tables DROP to [::1]:9444) — arCaptcha and Bale are domestic and stay"
+echo "== 5. CUTOFF: all egress abroad dropped (ip6tables DROP to [::1]:9444) — the Arvan bucket and Bale are domestic and stay; the captcha is local"
 ip6tables -A OUTPUT -d ::1 -p tcp --dport 9444 -j DROP
 declare -A sent
 for n in $(seq 2 11); do
-  if [ $((n % 3)) = 0 ]; then r=$(submit $n ok-token /work/files/list.png /work/files/list.pdf); else r=$(submit $n ok-token); fi
+  if [ $((n % 3)) = 0 ]; then r=$(submit $n solve /work/files/list.png /work/files/list.pdf); else r=$(submit $n solve); fi
   sent[$n]=${r#* }; [ "${r%% *}" = 201 ] || bad "cutoff submit $n: $r"
   sleep 1
 done
@@ -140,6 +159,12 @@ done
 sleep 45
 before=$(curl -s --max-time 3 --cacert /etc/ahanassa-test/ca.pem https://odoo.ahanassa.com:9444/__test/stats >/dev/null; echo $?)
 [ "$before" != 0 ] && ok "Odoo unreachable from the server (cutoff holds)" || bad "cutoff not effective"
+in_store=1
+pdf_sha=$(sha256sum < /work/files/list.pdf | cut -d' ' -f1)
+for n in 3 6 9; do
+  STATSD | jq -e --arg a "$FILES_BUCKET/rfq-files/${sent[$n]}/1.png" --arg b "$FILES_BUCKET/rfq-files/${sent[$n]}/2.pdf" --arg p "$png_sha" --arg d "$pdf_sha" '.store[$a].sha256 == $p and .store[$b].sha256 == $d' >/dev/null || in_store=0
+done
+[ $in_store = 1 ] && ok "DURING the cutoff the files are already in the Arvan bucket, sha256-checked (they stay in Iran)" || bad "cutoff files not in store: $(STATSD | jq -c '.store | keys')"
 und=$(sqlite3 /var/lib/ahanassa-rfq/$ENV/ops.sqlite "SELECT count(*) FROM rfqs WHERE odoo_rfq_reference IS NULL")
 [ "$und" = 10 ] && ok "10 RFQs held (pending/retry), none lost" || bad "held: $und"
 adm=$(c -H 'authorization: Bearer rehearsal-admin' -H 'x-admin-actor: rehearsal' "https://$API/__admin/ir/rfqs?status=undelivered")
@@ -150,12 +175,7 @@ echo "   link restored at $(date -u +%T); waiting for delivery (backoff ≤ 2.4 
 wait_for 420 '.odoo_rfqs | length == 11' && ok "all 10 delivered after the link returned" || bad "after restore: $(STATS | jq '.odoo_rfqs | length') of 11"
 STATS | jq -e '[.odoo_requests[] | select(.status == 201)] | length == 11' >/dev/null && ok "exactly 11 creations in Odoo (no duplicate)" || bad "creations $(STATS | jq -c '[.odoo_requests[].status]')"
 STATS | jq -e '[.odoo_requests[] | select(.status == 409)] | length == 0' >/dev/null && ok "no idempotency conflict" || bad "409s"
-files_ok=1
-pdf_sha=$(sha256sum < /work/files/list.pdf | cut -d' ' -f1)
-for n in 3 6 9; do
-  STATS | jq -e --arg a "rfq-files/${sent[$n]}/1.png" --arg b "rfq-files/${sent[$n]}/2.pdf" --arg p "$png_sha" --arg d "$pdf_sha" '.r2[$a].sha256 == $p and .r2[$b].sha256 == $d' >/dev/null || files_ok=0
-done
-[ $files_ok = 1 ] && ok "files of the cutoff RFQs in R2, sha256-checked (png + pdf × 3)" || bad "cutoff files: $(STATS | jq -c '.r2 | keys')"
+[ "$(sqlite3 /var/lib/ahanassa-rfq/$ENV/ops.sqlite "SELECT count(*) FROM rfqs WHERE attachment_count > 0 AND attachments_channel = 'odoo_v12'")" = 4 ] && ok "the 4 RFQs with files went to Odoo as v1.2 attachments (the Arvan objects)" || bad "cutoff file channel"
 recv=$(sqlite3 /var/lib/ahanassa-rfq/$ENV/ops.sqlite "SELECT 'rfq-ir-'||id||'|'||submitted_at FROM rfqs ORDER BY id")
 ok_ra=1
 while IFS='|' read -r k t; do STATS | jq -e --arg k "$k" --arg t "$t" '.odoo_rfqs[] | select(.idempotency_key == $k) | (.received_at | sub("\\.[0-9]+";"") | sub("Z$";"")) == ($t | sub("\\.[0-9]+";"") | sub("Z$";""))' >/dev/null || ok_ra=0; done <<< "$recv"
@@ -163,7 +183,7 @@ while IFS='|' read -r k t; do STATS | jq -e --arg k "$k" --arg t "$t" '.odoo_rfq
 
 echo "== 6. CRASH between Odoo's answer and the forwarder's result write"
 touch /tmp/odoo-slow
-r=$(submit 12 ok-token); ref12=${r#* }
+r=$(submit 12 solve); ref12=${r#* }
 wait_for 40 '.odoo_rfqs | length == 12' && ok "Odoo stored RFQ 12 (its answer is held 8 s)" || bad "crash prep"
 kill -9 "$(cat /run/shim/ahanassa-rfq-forward@$ENV.service.pid)" && ok "forwarder killed (-9) before the answer"
 rm -f /tmp/odoo-slow
@@ -188,6 +208,8 @@ f=$(ls /var/backups/ahanassa-rfq/$ENV/hourly/*.age | tail -1)
 ! grep -q "Rehearsal Buyer" "$f" && head -c 21 "$f" | grep -q age-encryption && ok "backup is age-encrypted (no plaintext)" || bad "backup plaintext"
 [ -z "$(ls -A /var/backups/ahanassa-rfq/$ENV/.work)" ] && ok "no plaintext copy left in the work dir" || bad "plaintext left"
 age -d -i /root/owner-age.key -o /tmp/restored.sqlite "$f" && [ "$(sqlite3 /tmp/restored.sqlite 'SELECT count(*) FROM rfqs')" = 12 ] && ok "restore drill: the owner's key decrypts it; 12 RFQs" || bad "restore"
+systemctl start ahanassa-rfq-backup-offsite@$ENV.service && STATSD | jq -e --arg d "$(date -u +%Y%m%d)" '.store | keys | any(startswith("ahanassa-backup-ir/ahanassa-rfq/staging/" + $d + "/ops.sqlite.age"))' >/dev/null && ok "daily offsite backup in the Arvan backup bucket (ahanassa-backup-ir/ahanassa-rfq/staging/…)" || bad "offsite: $(tail -3 /var/log/shim-ahanassa-rfq-backup-offsite@$ENV.service.log) $(STATSD | jq -c '.store | keys')"
+STATSD | jq -e '[.store[] | select(.bucket == "ahanassa-backup-ir")] | length >= 1' >/dev/null && ! STATSD | jq -r '.store | keys[]' | grep -q '^ahanassa-backup-ir/rfq-files/' && ok "backups and RFQ files in their own buckets" || bad "bucket split"
 systemctl start ahanassa-rfq-maintain@$ENV.service && grep -q '"rfqsPurged":0' /var/log/shim-ahanassa-rfq-maintain@$ENV.service.log && ok "maintain: nothing purged before 30 days" || bad "maintain"
 systemctl start ahanassa-rfq-health@$ENV.service; jq -e '.ok == true and .outbox_due == 0' /var/lib/ahanassa-rfq/$ENV/status.json >/dev/null && ok "health: ok, nothing due" || bad "health: $(cat /var/lib/ahanassa-rfq/$ENV/status.json)"
 STATS | jq -e '.bale | length >= 12' >/dev/null && ok "Bale: one new-RFQ notice per RFQ ($(STATS | jq '.bale | length'))" || bad "bale $(STATS | jq '.bale | length')"

@@ -13,9 +13,10 @@ User=ahanassa-rfq
 Group=ahanassa-rfq
 ExecStart=/usr/local/lib/ahanassa-node/bin/node --disable-warning=ExperimentalWarning /srv/ahanassa/site/%i/current/rfq/rfq-ir.mjs serve /etc/ahanassa/rfq-%i.json
 ExecReload=/bin/kill -HUP $MAINPID
-# Secrets of THIS process only (the Odoo bearer and the R2 key are the forwarder's, not the intake's).
+# Secrets of THIS process only (the Odoo bearer and the Arvan key are the forwarder's, not the intake's). W35: the
+# ALTCHA HMAC key — the intake issues and verifies its own captcha challenges; no captcha service is called.
 LoadCredential=admin-token:/etc/ahanassa/credentials/rfq-%i/admin-token
-LoadCredential=arcaptcha-secret:/etc/ahanassa/credentials/rfq-%i/arcaptcha-secret
+LoadCredential=altcha-hmac-key:/etc/ahanassa/credentials/rfq-%i/altcha-hmac-key
 Restart=always
 RestartSec=2
 MemoryMax=384M

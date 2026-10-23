@@ -6,8 +6,9 @@
 # Host side: p2-prep.ts builds a staging artifact, the domestic bundle WITH rfq/rfq-ir.mjs (as CI does) and the stubs;
 # throwaway signing keys sign the activation exactly as CI will. Container side (rehearsal-p2-inside.sh), with
 # `--network none` (loopback only): install.sh P1 + P2 steps, the REAL activator activates the bundle and starts the
-# services through the real unit files, then the drills run against stubs on loopback — Odoo + R2 on IPv6 only
-# ("abroad"), arCaptcha + Bale on IPv4 ("domestic").
+# services through the real unit files, then the drills run against stubs on loopback — Odoo on IPv6 only
+# ("abroad"), the Arvan S3 store + Bale on IPv4 ("domestic"). W35: the captcha is the intake's own ALTCHA, solved by
+# altcha-solve.mjs as the browser widget would.
 set -euo pipefail
 repo=$(cd "$(dirname "$0")/../../.." && pwd)
 tarball=$(cd "$(dirname "${1:?usage: docker-rehearsal-p2.sh <node tarball> <sha256>}")" && pwd)/$(basename "$1")

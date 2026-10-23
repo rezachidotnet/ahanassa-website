@@ -3,6 +3,8 @@
  * and vars come from workers/rfq/wrangler.jsonc; secrets via `wrangler secret`.
  * Nothing here imports vinext/Next.
  */
+import type { RfqCaptchaVerifier } from "../security/rfq-captcha.ts";
+
 export interface RateLimiter {
   limit(options: { key: string }): Promise<{ success: boolean }>;
 }
@@ -28,11 +30,10 @@ export interface RfqWorkerEnv {
   /** Comma-separated hostnames Turnstile Siteverify must report (the static site's host). */
   TURNSTILE_EXPECTED_HOSTNAMES?: string;
   TURNSTILE_SECRET_KEY?: string;
-  /** W32: "turnstile" (default, the Worker) or "arcaptcha" (the domestic intake, lib/rfq-node). Unknown → 503. */
+  /** W32/W35: "turnstile" (default, the Worker) or "altcha" (the domestic intake, lib/rfq-node). Unknown → 503. */
   CAPTCHA_PROVIDER?: string;
-  /** W32: arCaptcha site key (public; GET /api/rfqs/capabilities hands it to the form) and secret (verify). */
-  ARCAPTCHA_SITE_KEY?: string;
-  ARCAPTCHA_SECRET_KEY?: string;
+  /** W35: the ALTCHA verifier (challenge HMAC key + single-use store) — a binding of the domestic intake only. */
+  ALTCHA?: RfqCaptchaVerifier;
   ODOO_BASE_URL?: string;
   ODOO_RFQ_API_TOKEN?: string;
   /** "1" = send received_at + website_reference (rfq_intake v1.1). Default off. */

@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import http from "node:http";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { familyFetch } from "./family-fetch.ts";
 import { signS3, s3Client } from "./s3.ts";
@@ -21,6 +21,7 @@ import { SlidingWindowLimiter } from "./rate-limiter.ts";
 import { buildOutboundRfqIdempotencyKey } from "../odoo/rfq-payload-mapper.ts";
 import { makeWorld } from "../testing/rfq-ir-world.ts";
 import { forwardOnce } from "./forwarder.ts";
+import { loadConfig } from "./config.ts";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "rfq-node-parts-"));
 
@@ -78,9 +79,11 @@ test("S3 client: PUT carries the body's real SHA-256 + x-amz-meta-sha256; HEAD r
     seen.push({ method: String(init?.method), url: String(url), headers: new Headers(init?.headers), body: init?.body });
     return init?.method === "HEAD" ? new Response(null, { status: 200, headers: { "content-length": "3", "x-amz-meta-sha256": "abc" } }) : new Response("", { status: 200 });
   };
-  const c = s3Client({ endpoint: "https://acct.eu.r2.cloudflarestorage.com", bucket: "ahanassa-v11-rfq-files-ir", region: "auto", accessKeyId: "k", secretAccessKey: "s" }, fetchImpl);
+  // W35: the Arvan files bucket (path-style, region ir-thr-at1).
+  const c = s3Client({ endpoint: "https://s3.ir-thr-at1.arvanstorage.ir", bucket: "ahanassa-rfq-files-ir", region: "ir-thr-at1", accessKeyId: "k", secretAccessKey: "s" }, fetchImpl);
   await c.put("rfq-files/AA-RFQ-1/1.png", Buffer.from("abc"), { sha256: "abc", contentType: "image/png" });
-  assert.equal(seen[0].url, "https://acct.eu.r2.cloudflarestorage.com/ahanassa-v11-rfq-files-ir/rfq-files/AA-RFQ-1/1.png");
+  assert.equal(seen[0].url, "https://s3.ir-thr-at1.arvanstorage.ir/ahanassa-rfq-files-ir/rfq-files/AA-RFQ-1/1.png");
+  assert.match(seen[0].headers.get("authorization") ?? "", /Credential=k\/\d{8}\/ir-thr-at1\/s3\/aws4_request/);
   assert.equal(seen[0].headers.get("x-amz-content-sha256"), createHash("sha256").update("abc").digest("hex"));
   assert.equal(seen[0].headers.get("x-amz-meta-sha256"), "abc");
   assert.match(seen[0].headers.get("authorization") ?? "", /SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date;x-amz-meta-sha256/);
@@ -251,4 +254,53 @@ test("sliding-window limiter: 20 per 60 s per key, exact", async () => {
   assert.equal((await l.limit({ key: "b" })).success, true);
   now = 60_001;
   assert.equal((await l.limit({ key: "a" })).success, true);
+});
+
+test("W35 example configs: ALTCHA, the Arvan files bucket per env + the shared Arvan backup bucket, owner's age recipient; arCaptcha and R2 are gone; loadConfig refuses the old keys", () => {
+  for (const env of ["staging", "production"] as const) {
+    const file = path.resolve(import.meta.dirname, `../../deploy/iran/etc/rfq-${env}.json.example`);
+    const text = fs.readFileSync(file, "utf8");
+    assert.ok(!/arcaptcha|r2\.cloudflarestorage|"r2"|r2_wait/i.test(text), file);
+    const c = loadConfig(file);
+    assert.deepEqual(c.captcha, { provider: "altcha" });
+    assert.deepEqual(c.files_store, { endpoint: "https://s3.ir-thr-at1.arvanstorage.ir", bucket: env === "production" ? "ahanassa-rfq-files-ir" : "ahanassa-rfq-files-ir-staging", region: "ir-thr-at1" });
+    assert.deepEqual(c.backup?.offsite, { endpoint: "https://s3.ir-thr-at1.arvanstorage.ir", bucket: "ahanassa-backup-ir", region: "ir-thr-at1" });
+    assert.equal(c.backup?.age_recipient, "age18an8579663dnnpznpqvwcm5w8h9z9cx5tutavuzq582k90h0udhsellxh6");
+    const old = { ...JSON.parse(text), captcha: { provider: "arcaptcha", site_key: "k" } };
+    const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "w35-cfg-")), "c.json");
+    fs.writeFileSync(tmp, JSON.stringify(old));
+    assert.throws(() => loadConfig(tmp), /captcha\.provider must be altcha/);
+    const { files_store: _drop, ...noStore } = JSON.parse(text);
+    fs.writeFileSync(tmp, JSON.stringify({ ...noStore, r2: { endpoint: "https://x", bucket: "b", region: "auto" }, r2_wait_ms: 7200000 }));
+    assert.throws(() => loadConfig(tmp), /files_store/);
+  }
+});
+
+test("W35: processes opening a fresh ops.sqlite at the same moment (intake + forwarder at rfq-units) all succeed; each migration recorded once", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "w35-race-"));
+  try {
+    const file = path.join(dir, "ops.sqlite");
+    const script = `import { NodeD1 } from ${JSON.stringify(path.resolve(import.meta.dirname, "sqlite-d1.ts"))};
+import { loadMigrations } from ${JSON.stringify(path.resolve(import.meta.dirname, "migrations.ts"))};
+const m = loadMigrations();
+new NodeD1(process.argv[1], [...m.ops, ...m.ir.map((x) => ({ ...x, name: "ir/" + x.name }))]);`;
+    const runs = await Promise.all(
+      Array.from({ length: 8 }, () =>
+        new Promise<{ code: number | null; err: string }>((resolve) => {
+          const c = spawn(process.execPath, ["--disable-warning=ExperimentalWarning", "--input-type=module", "-e", script, file], { stdio: ["ignore", "ignore", "pipe"] });
+          let err = "";
+          c.stderr.on("data", (d) => (err += d));
+          c.on("exit", (code) => resolve({ code, err }));
+        }),
+      ),
+    );
+    assert.deepEqual(runs.map((r) => r.code), Array(8).fill(0), runs.map((r) => r.err).join("\n"));
+    const db = new NodeD1(file);
+    const names = db.q<{ name: string; n: number }>(`SELECT name, count(*) AS n FROM d1_migrations GROUP BY name`);
+    const m = loadMigrations();
+    assert.equal(names.length, m.ops.length + m.ir.length);
+    assert.ok(names.every((r) => Number(r.n) === 1));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -9,11 +9,13 @@ import path from "node:path";
  *                                           /etc/ahanassa/credentials/ (root 0600) — never in the JSON, the
  *                                           environment of a shell, the repo or a log:
  *       admin-token        ADMIN_TOKEN of /__admin (intake)
- *       arcaptcha-secret   arCaptcha secret key (intake)
+ *       altcha-hmac-key    W35: the ALTCHA challenge HMAC key (intake) — generated ON the server by install.sh rfq-dirs,
+ *                          never pasted, never leaves it
  *       odoo-token         the iransrv bearer for POST /api/v1/rfq (forwarder; Odoo's third slot, D-IR-5)
- *       r2-ir              {"access_key_id","secret_access_key"} — write-only token on the .ir RFQ-files bucket (forwarder)
+ *       files-s3           W35: {"access_key_id","secret_access_key"} of the Arvan machine user ahanassa-iransrv on the
+ *                          .ir RFQ-files bucket (forwarder: PUT + HEAD)
  *       bale-token         Bale bot token (forwarder, health)
- *       backup-s3          {"access_key_id","secret_access_key"} — Arvan Object Storage backup bucket (backup)
+ *       backup-s3          {"access_key_id","secret_access_key"} — the same machine user, on the Arvan backup bucket (backup)
  * A process reads only the secrets its own unit was given.
  */
 export interface S3Settings {
@@ -29,11 +31,17 @@ export interface IrConfig {
   allowed_origins: string[];
   data_dir: string;
   release_dir: string;
-  captcha: { provider: "arcaptcha" | "turnstile"; site_key?: string };
+  /** W35: ALTCHA only — the domestic intake issues and verifies its own challenges (lib/rfq-node/altcha.ts). */
+  captcha: { provider: "altcha" };
   files_enabled: boolean;
   odoo: { base_url: string; intake_v11: boolean };
-  r2: S3Settings | null;
-  r2_wait_ms: number;
+  /**
+   * W35: the object store the forwarder copies RFQ files to before Odoo gets them — the Arvan bucket in Iran
+   * (`https://s3.ir-thr-at1.arvanstorage.ir`, ahanassa-rfq-files-ir[-staging]); Odoo abroad reads it. null = none
+   * (files then reach Odoo as a notes list after files_store_wait_ms).
+   */
+  files_store: S3Settings | null;
+  files_store_wait_ms: number;
   files_storage_hint: string;
   bale: { chat_id: string } | null;
   backup: { dir: string; age_recipient: string; offsite: S3Settings | null } | null;
@@ -52,11 +60,11 @@ export function loadConfig(file: string): IrConfig {
   if (!ORIGIN.test(c.public_origin ?? "")) fail("public_origin");
   if (!Array.isArray(c.allowed_origins) || !c.allowed_origins.length || c.allowed_origins.some((o) => !ORIGIN.test(o))) fail("allowed_origins");
   for (const k of ["data_dir", "release_dir"] as const) if (!path.isAbsolute(c[k] ?? "")) fail(`${k} must be absolute`);
-  if (c.captcha?.provider !== "arcaptcha" && c.captcha?.provider !== "turnstile") fail("captcha.provider");
-  if (c.captcha.provider === "arcaptcha" && !c.captcha.site_key) fail("captcha.site_key");
+  if (c.captcha?.provider !== "altcha") fail("captcha.provider must be altcha (W35)");
   if (!/^https:\/\//.test(c.odoo?.base_url ?? "")) fail("odoo.base_url");
-  if (!Number.isFinite(c.r2_wait_ms) || c.r2_wait_ms < 60_000) fail("r2_wait_ms (≥ 60000)");
-  if (c.r2 && (!/^https:\/\//.test(c.r2.endpoint) || !c.r2.bucket || !c.r2.region)) fail("r2");
+  if (!Number.isFinite(c.files_store_wait_ms) || c.files_store_wait_ms < 60_000) fail("files_store_wait_ms (≥ 60000)");
+  if (c.files_store === undefined) fail("files_store (an S3 endpoint/bucket/region, or null)");
+  if (c.files_store && (!/^https:\/\//.test(c.files_store.endpoint) || !c.files_store.bucket || !c.files_store.region)) fail("files_store");
   return c;
 }
 

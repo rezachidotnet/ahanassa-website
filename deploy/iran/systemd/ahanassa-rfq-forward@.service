@@ -1,6 +1,6 @@
 # W32 (W29 P2 §3.3) domestic outbox → Odoo for %i: IPv6 ONLY to odoo.ahanassa.com, Idempotency-Key rfq-ir-<ulid>,
-# oldest first, one in flight, no maximum age; files to the .ir R2 bucket (IPv6) first, the notes list after
-# IR_R2_WAIT_MS. A separate process, so a stuck Odoo call never slows intake. deploy/iran/RUNBOOK_P2.md §3.
+# oldest first, one in flight, no maximum age; files to the Arvan .ir files bucket (W35; IPv4, domestic) first, the
+# notes list after files_store_wait_ms. A separate process, so a stuck Odoo call never slows intake. RUNBOOK_P2.md §3.
 [Unit]
 Description=Ahan Asa domestic RFQ forwarder (%i)
 After=network-online.target ahanassa-rfq@%i.service
@@ -12,7 +12,7 @@ User=ahanassa-rfq
 Group=ahanassa-rfq
 ExecStart=/usr/local/lib/ahanassa-node/bin/node --disable-warning=ExperimentalWarning /srv/ahanassa/site/%i/current/rfq/rfq-ir.mjs forward /etc/ahanassa/rfq-%i.json
 LoadCredential=odoo-token:/etc/ahanassa/credentials/rfq-%i/odoo-token
-LoadCredential=r2-ir:/etc/ahanassa/credentials/rfq-%i/r2-ir
+LoadCredential=files-s3:/etc/ahanassa/credentials/rfq-%i/files-s3
 LoadCredential=bale-token:/etc/ahanassa/credentials/rfq-%i/bale-token
 Restart=always
 RestartSec=5

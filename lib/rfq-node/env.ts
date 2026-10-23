@@ -5,6 +5,7 @@ import { FsBucket } from "./fs-bucket.ts";
 import { loadMigrations } from "./migrations.ts";
 import { SlidingWindowLimiter } from "./rate-limiter.ts";
 import { NodeD1 } from "./sqlite-d1.ts";
+import type { AltchaService } from "./altcha.ts";
 
 /**
  * W32: the RFQ Worker's bindings, built from Node parts (W29 P2 §3.1):
@@ -13,6 +14,7 @@ import { NodeD1 } from "./sqlite-d1.ts";
  *   DB_PUBLIC         <data_dir>/public.sqlite   — migrations_public/, filled from the release's variant index
  *   RFQ_FILES         <data_dir>/files/          — FsBucket
  *   RFQ_RATE_LIMITER  in-process, 20 / 60 s      — SlidingWindowLimiter
+ *   ALTCHA            the intake's own captcha     — lib/rfq-node/altcha.ts (W35; no key → no binding → 503)
  *   no RFQ_QUEUE (QUEUE_FAST_PATH=0), no AI (extract off), delivery only by the forwarder process
  */
 export interface OpenedStores {
@@ -30,7 +32,7 @@ export function openStores(dataDir: string): OpenedStores {
   };
 }
 
-export function intakeEnv(cfg: IrConfig, stores: OpenedStores, secrets: { adminToken: string | null; arcaptchaSecret: string | null }): RfqWorkerEnv {
+export function intakeEnv(cfg: IrConfig, stores: OpenedStores, secrets: { adminToken: string | null; altcha: AltchaService | null }): RfqWorkerEnv {
   return {
     DB_OPS: stores.ops.asD1(),
     DB_PUBLIC: stores.pub.asD1(),
@@ -40,8 +42,7 @@ export function intakeEnv(cfg: IrConfig, stores: OpenedStores, secrets: { adminT
     APP_ENV: cfg.env,
     ALLOWED_ORIGINS: cfg.allowed_origins.join(","),
     CAPTCHA_PROVIDER: cfg.captcha.provider,
-    ARCAPTCHA_SITE_KEY: cfg.captcha.site_key,
-    ARCAPTCHA_SECRET_KEY: secrets.arcaptchaSecret ?? undefined,
+    ALTCHA: secrets.altcha ?? undefined,
     ADMIN_TOKEN: secrets.adminToken ?? undefined,
     QUEUE_FAST_PATH: "0",
     DELIVERY_ON_QUEUE: "0",

@@ -4,9 +4,9 @@ import { forwardOnce, reclaimOnStart, sendNotices } from "./forwarder.ts";
 import { makeWorld, PDF, PNG, sha256, type World } from "../testing/rfq-ir-world.ts";
 
 /**
- * W32 (W29 P2 go/no-go 3): the domestic forwarder against the real HTTP intake, the repository's Odoo stub (Odoo's
- * idempotency semantics, contract v1.2) and an R2 that can be cut. "Cutoff" = every outbound call fails like a
- * filtered network (Odoo, R2 and arCaptcha alike).
+ * W32 (W29 P2 go/no-go 3), W35: the domestic forwarder against the real HTTP intake, the repository's Odoo stub (Odoo's
+ * idempotency semantics, contract v1.2) and an S3 store standing in for the Arvan files bucket. "Cutoff" = every call
+ * ABROAD (Odoo) fails like a filtered network; the Arvan bucket and the captcha are domestic and keep working.
  */
 const MIN = 60_000;
 
@@ -25,20 +25,17 @@ async function drain(w: World, deps: ReturnType<World["deps"]>, minutes: number)
 
 const undelivered = (w: World) => Number(w.ops.q<{ n: number }>(`SELECT count(*) n FROM rfqs WHERE odoo_rfq_reference IS NULL`)[0].n);
 
-test("cutoff simulation: all egress dropped → 10 submits stored (201) → 2 h of failures lose nothing → restored → each delivered ONCE, files in R2 sha256-checked, received_at = acceptance time", async () => {
+test("cutoff simulation: all egress abroad dropped → 10 submits stored (201) → 2 h of failures lose nothing, files already verified in the Arvan bucket → restored → each delivered ONCE as v1.2, received_at = acceptance time", async () => {
   const w = await makeWorld();
   try {
-    // 1. Cut: Odoo and R2 (abroad) unreachable. arCaptcha is domestic (Arvan) and still answers in a real cutoff;
-    //    the world's cut() also drops it, so it is lifted only for the moment of each submit (fail-closed captcha).
+    // 1. Cut: Odoo (abroad) unreachable. The captcha is the intake's own and the files bucket is Arvan's (domestic).
+    w.cut(true);
     const files = new Map<number, Uint8Array[]>();
     const subs = [];
     for (let i = 0; i < 10; i++) {
       const f = i % 3 === 0 ? [PNG, PDF] : [];
       files.set(i, f);
-      w.cut(false);
-      const s = await w.submit(i, f);
-      w.cut(true);
-      subs.push({ i, ...s });
+      subs.push({ i, ...(await w.submit(i, f)) });
     }
     assert.deepEqual(subs.map((s) => s.status), Array(10).fill(201));
     assert.equal(undelivered(w), 10);
@@ -47,8 +44,10 @@ test("cutoff simulation: all egress dropped → 10 submits stored (201) → 2 h 
     const deps = w.deps();
     const during = await drain(w, deps, 120);
     assert.ok(during.includes("RETRY_PENDING"), during.join(","));
-    assert.ok(during.includes("waiting_for_r2"));
+    assert.ok(!during.includes("waiting_for_files_store"), "the domestic bucket is reachable during the cutoff");
     assert.equal(w.odooCalls.length, 0);
+    assert.equal(w.store.size, 8, "all 8 files copied to the Arvan bucket while Odoo was cut off");
+    assert.equal(w.ops.q(`SELECT 1 FROM ir_file_remote WHERE verified_at IS NULL`).length, 0);
     assert.equal(undelivered(w), 10);
     assert.equal(w.ops.q(`SELECT 1 FROM rfqs WHERE sync_status NOT IN ('pending', 'retry')`).length, 0, "no RFQ left in a terminal or claimed state");
 
@@ -72,14 +71,14 @@ test("cutoff simulation: all egress dropped → 10 submits stored (201) → 2 h 
     // [website-ir] first notes line on every RFQ.
     assert.ok(w.odooCalls.every((c) => String(c.body.notes ?? "").startsWith("[website-ir]")));
 
-    // Files: 4 RFQs × 2 in R2 under the v1.2 key, bytes sha256-identical to what the customer sent; sent as v1.2.
-    assert.equal(w.r2.size, 8);
+    // Files: 4 RFQs × 2 in the Arvan bucket under the v1.2 key, bytes sha256-identical to what the customer sent; sent as v1.2.
+    assert.equal(w.store.size, 8);
     for (const s of subs.filter((x) => files.get(x.i)!.length)) {
       const sent = files.get(s.i)!;
       sent.forEach((bytes, n) => {
         const key = `rfq-files/${s.reference}/${n + 1}.${bytes[0] === 0x89 ? "png" : "pdf"}`;
-        assert.equal(sha256(w.r2.get(key)!.body), sha256(bytes), key);
-        assert.equal(w.r2.get(key)!.sha256, sha256(bytes));
+        assert.equal(sha256(w.store.get(key)!.body), sha256(bytes), key);
+        assert.equal(w.store.get(key)!.sha256, sha256(bytes));
       });
       const call = w.odooCalls.find((c) => c.status === 201 && c.body.website_reference === s.reference)!;
       const att = call.body.attachments as { key: string; sha256: string }[];
@@ -118,16 +117,16 @@ test("crash between Odoo's answer and the result batch: the restarted forwarder 
   }
 });
 
-test("R2 unreachable but Odoo up: the RFQ waits IR_R2_WAIT_MS, then goes on the notes channel naming the domestic admin view; the channel is kept", async () => {
+test("Arvan bucket unreachable but Odoo up: the RFQ waits files_store_wait_ms, then goes on the notes channel naming the domestic admin view; the channel is kept", async () => {
   const w = await makeWorld();
   try {
     const { reference } = await w.submit(2, [PNG]);
-    const base = w.deps({ r2WaitMs: 30 * MIN });
-    const failingR2 = { ...base, r2: { put: async () => { throw new TypeError("fetch failed"); }, head: async () => { throw new TypeError("fetch failed"); } } };
-    const actions = await drain(w, failingR2, 25);
-    assert.ok(actions.every((a) => a === "waiting_for_r2" || a === "idle"), actions.join(","));
+    const deps = w.deps({ filesStoreWaitMs: 30 * MIN });
+    w.cutStore(true);
+    const actions = await drain(w, deps, 25);
+    assert.ok(actions.every((a) => a === "waiting_for_files_store" || a === "idle"), actions.join(","));
     assert.equal(w.odooCalls.length, 0);
-    await drain(w, failingR2, 10);
+    await drain(w, deps, 10);
     assert.equal(w.odooCalls.length, 1);
     const sent = w.odooCalls[0].body;
     assert.equal("attachments" in sent, false);
@@ -135,8 +134,13 @@ test("R2 unreachable but Odoo up: the RFQ waits IR_R2_WAIT_MS, then goes on the 
     assert.match(String(sent.notes), /held on the domestic server; open with https:\/\/api-staging\.ahanassa\.ir\/__admin\/ir\//);
     assert.match(String(sent.notes), new RegExp(`received — rfq-files/${reference}/1\\.png`));
     assert.equal(w.ops.q<{ c: string }>(`SELECT attachments_channel c FROM rfqs`)[0].c, "notes");
-    assert.equal(w.r2.size, 0);
-    assert.ok(w.ops.q<{ last_error: string }>(`SELECT last_error FROM ir_file_remote`)[0].last_error.startsWith("r2_"));
+    assert.equal(w.store.size, 0);
+    assert.equal(w.ops.q<{ last_error: string }>(`SELECT last_error FROM ir_file_remote`)[0].last_error, "store_network");
+    // The store coming back later changes nothing: the frozen notes channel is kept (same payload on any retry).
+    w.cutStore(false);
+    await drain(w, deps, 5);
+    assert.equal(w.odooCalls.length, 1);
+    assert.equal(w.ops.q<{ c: string }>(`SELECT attachments_channel c FROM rfqs`)[0].c, "notes");
   } finally {
     await w.close();
   }

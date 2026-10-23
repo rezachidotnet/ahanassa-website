@@ -2,9 +2,11 @@ import { createHash, createHmac } from "node:crypto";
 import type { FetchLike } from "./family-fetch.ts";
 
 /**
- * W32: a minimal S3 client (AWS Signature V4, path-style) for the two object stores the domestic intake writes to:
- *  - the .ir RFQ-files R2 bucket (D-IR-4; `<account>.eu.r2.cloudflarestorage.com`, region `auto`, over IPv6);
- *  - the Arvan Object Storage backup bucket (D-IR-9; `s3.ir-thr-at1.arvanstorage.ir`, IPv4 — no AAAA there).
+ * W32: a minimal S3 client (AWS Signature V4, path-style) for the object stores the domestic intake writes to. W35
+ * (owner, 2026-10-23): both are ArvanCloud Object Storage in Iran, `s3.ir-thr-at1.arvanstorage.ir` (region
+ * `ir-thr-at1`, IPv4 — no AAAA there; a domestic hop):
+ *  - the .ir RFQ-files bucket `ahanassa-rfq-files-ir` (+ `-staging`), which Odoo abroad reads (D-IR-4);
+ *  - the backup bucket `ahanassa-backup-ir` (D-IR-9).
  * The signing is the same algorithm as deploy/iran/lib/ahanassa_iran.py `s3_signed_headers` and is pinned by the
  * same AWS documented example (lib/rfq-node/s3.test.ts). The payload hash is the real SHA-256 of the body, so the
  * store itself rejects a body that changed on the way.

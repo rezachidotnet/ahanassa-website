@@ -37,6 +37,13 @@ location = /api/rfqs/capabilities {
     client_max_body_size 1k;
     proxy_pass http://127.0.0.1:@PORT@;
 }
+# W35: the intake's own ALTCHA challenge (no captcha service anywhere). GET only; Node answers no-store (single use).
+location = /api/rfqs/captcha-challenge {
+    limit_except GET { deny all; }
+    client_max_body_size 1k;
+    limit_req zone=ahanassa_rfq_captcha burst=10 nodelay;
+    proxy_pass http://127.0.0.1:@PORT@;
+}
 # Reading pictures into rows needs Workers AI: off on the domestic intake (the form asks capabilities first).
 location = /api/rfqs/extract { return 404; }
 location = /healthz {

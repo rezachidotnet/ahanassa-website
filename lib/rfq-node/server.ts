@@ -5,6 +5,8 @@ import type { RfqWorkerEnv } from "../rfq-worker/config.ts";
 import type { NodeD1 } from "./sqlite-d1.ts";
 import { handleIrAdmin } from "./admin-ir.ts";
 import { outboxDue } from "./health.ts";
+import { ALTCHA_CHALLENGE_PATH, handleAltchaChallenge, type AltchaService } from "./altcha.ts";
+import { csv } from "../rfq-worker/config.ts";
 
 /**
  * W32 (W29 P2 §3.1–§3.4): the domestic RFQ intake's HTTP front — node:http on 127.0.0.1 behind nginx, handing every
@@ -16,7 +18,8 @@ import { outboxDue } from "./health.ts";
  *    lib/security/rate-limit.ts reads; any client-sent CF-Connecting-IP / X-Real-IP / X-Ahanassa-Client-IP is dropped
  *    first. X-Forwarded-For is never used. The IP is only a rate-limit key in memory; it is never stored or logged;
  *  - `GET /healthz`: `{ok, outbox_due, oldest_due_min}` (no personal data) for the external check;
- *  - `/__admin/ir/*`: the domestic admin view (lib/rfq-node/admin-ir.ts).
+ *  - `/__admin/ir/*`: the domestic admin view (lib/rfq-node/admin-ir.ts);
+ *  - `GET /api/rfqs/captcha-challenge`: ALTCHA challenges (W35, lib/rfq-node/altcha.ts) — the Worker has no such route.
  *
  * The URL the shared code sees is built from the configured public origin, never from the Host header.
  * `ctx.waitUntil` promises are tracked; shutdown waits for them.
@@ -25,6 +28,8 @@ export interface IntakeOptions {
   env: RfqWorkerEnv;
   db: NodeD1;
   publicOrigin: string;
+  /** W35: the ALTCHA service that also sits in env.ALTCHA (null = no key: challenge and submit answer 503). */
+  altcha?: AltchaService | null;
   now?: () => Date;
 }
 
@@ -56,6 +61,7 @@ export function createIntake(options: IntakeOptions) {
       const { due, oldestMin } = outboxDue(options.db, options.now?.() ?? new Date());
       return new Response(JSON.stringify({ ok: true, outbox_due: due, oldest_due_min: oldestMin }), { status: 200, headers: { "content-type": "application/json", "Cache-Control": "no-store" } });
     }
+    if (url.pathname === ALTCHA_CHALLENGE_PATH) return handleAltchaChallenge(request, csv(options.env.ALLOWED_ORIGINS), options.altcha ?? null);
     const admin = await handleIrAdmin(request, url, options.db, options.env.ADMIN_TOKEN);
     if (admin) return admin;
     return worker.fetch(request, options.env, ctx);
