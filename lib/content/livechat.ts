@@ -10,7 +10,7 @@ import { homeExpertCopy, homeExpertWhatsAppHref } from "./home-expert.ts";
  * floating WhatsApp button (components/layout/sticky-whatsapp.tsx). A click opens ONE panel per page with Odoo's
  * support page in an iframe (no Odoo JS on the site). All of it exists only while config/livechat.ts is on.
  *
- * Fallback: when the iframe has not loaded within 8 s, the panel shows WhatsApp and «ارسال لیست خرید» instead — the
+ * Fallback: when the iframe has not loaded within 18 s (W21.3; it says «در حال اتصال به کارشناس…» meanwhile), the panel shows WhatsApp and «ارسال لیست خرید» instead — the
  * same destinations as the expert section. No response-time promise, and «کارشناس آنلاین است» only when Odoo said so.
  */
 
@@ -22,7 +22,7 @@ export interface LivechatCopy {
   /** The panel's heading and the iframe's accessible name. */
   title: string;
   frameTitle: string;
-  /** Screen-reader status while the iframe loads (the panel shows a spinner). */
+  /** The status while the iframe loads: shown under the spinner and announced (role="status"). */
   loading: string;
   /** The fallback message. */
   unavailable: string;
@@ -52,7 +52,7 @@ const copy: Record<Locale, Omit<LivechatCopy, "label" | "whatsapp" | "newTab">> 
   en: {
     title: "Chat with a sales expert",
     frameTitle: "Live chat with an Ahan Asa sales expert",
-    loading: "Connecting to an expert…",
+    loading: "Connecting you to a sales expert…",
     unavailable: "Live chat is not available right now. You can reach us here instead:",
     rfq: "Send your purchase list",
     close: "Close chat",
@@ -63,7 +63,7 @@ const copy: Record<Locale, Omit<LivechatCopy, "label" | "whatsapp" | "newTab">> 
   ar: {
     title: "تحدث مع خبير المبيعات",
     frameTitle: "دردشة مباشرة مع خبير مبيعات آهن آسا",
-    loading: "جارٍ الاتصال بخبير…",
+    loading: "جارٍ الاتصال بخبير المبيعات…",
     unavailable: "الدردشة المباشرة غير متاحة الآن. يمكنك التواصل معنا عبر:",
     rfq: "أرسل قائمة الشراء",
     close: "إغلاق الدردشة",

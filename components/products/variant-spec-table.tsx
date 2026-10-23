@@ -7,7 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { normalizeVariantDimensions, normalizeVariantNominalWeight, normalizeVariantSpecifications, sortVariantsBySize, NOMINAL_WEIGHT_DISCLAIMER, HOLLOW_SECTION_MASS_NOTE, isEn10219HollowSection, variantPageNotes } from "@/lib/catalog/specification-presenter";
 import type { ProductVariant } from "@/lib/catalog/types";
 import type { PriceBlockData } from "@/lib/pricing/price-block-presentation";
-import { isPriceLocale, presentPriceCell, PRICE_CELL_ATTRIBUTE, PRICE_COLUMN_COPY } from "@/lib/pricing/product-page-price";
+import { isPriceLocale, presentPriceCell, PRICE_CELL_ATTRIBUTE, PRICE_COLUMN_COPY, PRICE_ORIGIN_ATTRIBUTE, PRICE_ORIGIN_COPY, type PriceOrigin } from "@/lib/pricing/product-page-price";
 import { PriceCellContent } from "@/components/products/price-cell-content";
 import { FORM_SHAPES, resolveVariantBasis } from "@/lib/weight-calculator/model";
 import { isWeightCalculatorPublished, WEIGHT_CALCULATOR_ROUTE } from "@/lib/weight-calculator/publication";
@@ -87,9 +87,14 @@ export function variantRowAnchorId(sku: string): string {
  * 2026-10-09). Hidden when none of the page's variants has a price. en never
  * gets it (`presentPriceCell` presents nothing for en). Each cell carries
  * `data-aa-price-cell` for the publication gate's allow-list check.
+ *
+ * W34: `importedPrices` (the lowest imported price per variant) gets its own column, «کمترین قیمت وارداتی» /
+ * «أدنى سعر مستورد», never merged with the domestic one; its cells carry `data-aa-price-origin="imported"`. Each
+ * column shows only when some variant has a price of that origin; with an imported column, the domestic one is
+ * titled «کمترین قیمت داخلی» / «أدنى سعر محلي» (without one it keeps «قیمت روز», as before W34).
  */
 /** `latestPriceDay` (W31): the snapshot-wide newest price day — the price column heading reads «آخرین قیمت ثبت‌شده» / «آخر سعر مسجّل» in the browser once it is stale. */
-export function VariantSpecTable({ locale, variants: unsorted, prices, latestPriceDay }: { locale: Locale; variants: ProductVariant[]; prices?: ReadonlyMap<string, PriceBlockData> | null; latestPriceDay?: string | null }) {
+export function VariantSpecTable({ locale, variants: unsorted, prices, importedPrices, latestPriceDay }: { locale: Locale; variants: ProductVariant[]; prices?: ReadonlyMap<string, PriceBlockData> | null; importedPrices?: ReadonlyMap<string, PriceBlockData> | null; latestPriceDay?: string | null }) {
   if (unsorted.length === 0) return null;
   // Natural size order (IPE 80 before IPE 600) — the presenter owns it, W10.0 P0-1.
   const variants = sortVariantsBySize(unsorted);
@@ -117,6 +122,12 @@ export function VariantSpecTable({ locale, variants: unsorted, prices, latestPri
 
   const priceCopy = isPriceLocale(locale) ? PRICE_COLUMN_COPY[locale] : null;
   const showPrices = priceCopy !== null && Boolean(prices) && variants.some((v) => prices!.has(v.xid));
+  const showImported = priceCopy !== null && Boolean(importedPrices) && variants.some((v) => importedPrices!.has(v.xid));
+  const originCopy = isPriceLocale(locale) ? PRICE_ORIGIN_COPY[locale] : null;
+  const priceColumns: { origin: PriceOrigin; header: string; prices: ReadonlyMap<string, PriceBlockData> }[] = [
+    ...(showPrices ? [{ origin: "domestic" as const, header: showImported ? originCopy!.domestic : priceCopy!.header, prices: prices! }] : []),
+    ...(showImported ? [{ origin: "imported" as const, header: originCopy!.imported, prices: importedPrices! }] : []),
+  ];
 
   // «محاسبه وزن» only where the calculator is published and offers this exact size (same rule it builds its list with).
   const calculable = (variant: ProductVariant) => {
@@ -147,12 +158,13 @@ export function VariantSpecTable({ locale, variants: unsorted, prices, latestPri
               <th scope="col" className={cn(HEAD, "bg-surface sticky start-0 z-[2]")}>
                 {t.size}
               </th>
-              {showPrices && (
-                <th scope="col" className={HEAD}>
-                  {priceCopy && latestPriceDay && isPriceLocale(locale) ? <StalePriceText day={latestPriceDay} fresh={priceCopy.header} stale={STALE_PRICE_COPY[locale].column} /> : priceCopy?.header}
+              {priceColumns.map((c) => (
+                <th key={c.origin} scope="col" className={HEAD}>
+                  {/* W31 stale heading; W34: an origin column keeps its origin («آخرین قیمت ثبت‌شده: کمترین قیمت وارداتی»). */}
+                  {priceCopy && latestPriceDay && isPriceLocale(locale) ? <StalePriceText day={latestPriceDay} fresh={c.header} stale={c.header === priceCopy.header ? STALE_PRICE_COPY[locale].column : `${STALE_PRICE_COPY[locale].column}: ${c.header}`} /> : c.header}
                   <span className="text-tertiary block text-[11px] font-semibold">{priceCopy?.unit}</span>
                 </th>
-              )}
+              ))}
               {dimensionColumns.map((c) => (
                 <th key={c.key} scope="col" className={HEAD}>
                   {c.label}
@@ -186,7 +198,9 @@ export function VariantSpecTable({ locale, variants: unsorted, prices, latestPri
                   <th scope="row" className={cn(CELL, "text-navy bg-background group-hover:bg-surface sticky start-0 z-[1] text-start font-bold")}>
                     <span dir="ltr">{variant.commercialSize ?? variant.sectionSize ?? "—"}</span>
                   </th>
-                  {showPrices && <PriceCell locale={locale} xid={variant.xid} price={prices?.get(variant.xid)} />}
+                  {priceColumns.map((c) => (
+                    <PriceCell key={c.origin} locale={locale} xid={variant.xid} price={c.prices.get(variant.xid)} origin={c.origin} />
+                  ))}
                   {dimensionColumns.map((c) => (
                     <td key={c.key} className={cn(CELL, "text-muted-foreground group-hover:bg-surface")}>
                       <span dir="ltr">{dimByKey.get(c.key) ?? "—"}</span>
@@ -229,7 +243,7 @@ export function VariantSpecTable({ locale, variants: unsorted, prices, latestPri
         </table>
       </div>
 
-      {showPrices && <p className="text-muted-foreground mt-3 text-xs leading-relaxed">{priceCopy?.note}</p>}
+      {priceColumns.length > 0 && <p className="text-muted-foreground mt-3 text-xs leading-relaxed">{priceCopy?.note}</p>}
       {weightColumns.length > 0 && <p className="text-muted-foreground mt-3 text-xs leading-relaxed">{NOMINAL_WEIGHT_DISCLAIMER[locale]}</p>}
       {/* W9.12: SHS/RHS (EN 10219-2) — a mill's bar may weigh more than the nominal mass. */}
       {weightColumns.length > 0 && variants.some((v) => isEn10219HollowSection({ groupCode: v.group.code, formCode: v.form.code, standard: v.standard.code ?? v.standard.name })) && <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{HOLLOW_SECTION_MASS_NOTE[locale]}</p>}
@@ -244,11 +258,11 @@ export function VariantSpecTable({ locale, variants: unsorted, prices, latestPri
   );
 }
 
-function PriceCell({ locale, xid, price }: { locale: Locale; xid: string; price: PriceBlockData | undefined }) {
+function PriceCell({ locale, xid, price, origin }: { locale: Locale; xid: string; price: PriceBlockData | undefined; origin: PriceOrigin }) {
   const view = presentPriceCell(locale, price, xid);
   if (!view) return null;
   return (
-    <td {...{ [PRICE_CELL_ATTRIBUTE]: xid }} className={cn(CELL, "group-hover:bg-surface")}>
+    <td {...{ [PRICE_CELL_ATTRIBUTE]: xid, ...(origin === "imported" ? { [PRICE_ORIGIN_ATTRIBUTE]: origin } : {}) }} className={cn(CELL, "group-hover:bg-surface")}>
       <PriceCellContent view={view} />
     </td>
   );

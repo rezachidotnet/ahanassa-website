@@ -26,8 +26,9 @@ export interface BasketItem {
 }
 
 /**
- * The basket (owner brief, W23). SHS 40×40×2 does not exist in the catalog, so the item uses the nearest priced
- * size, 40×40×2.5 (flagged in the W23 PR; change `variant`/`expect`/`label` together if the owner picks another).
+ * The basket (owner brief, W23). SHS 40×40×2 is CVAR-000456 (W9.12, ahanassa-odoo #33; public and priced since
+ * 2026-10-23); W36 (owner OK 2026-10-23, before any post, so the one-month freeze had not started) moved the item
+ * from the stand-in 40×40×2.5. Change `variant`/`expect`/`label` together if the owner picks another.
  * «ST37» is sold on the site as S235JR (same steel); the 10 mm plate is the 1500×6000 sheet.
  */
 export const BASKET: readonly BasketItem[] = [
@@ -39,7 +40,7 @@ export const BASKET: readonly BasketItem[] = [
   { id: "ipe-160", variant: "CVAR-000055", label: { product: "تیرآهن", grade: null, size: "IPE 160" }, expect: { name: "IPE", size: "IPE 160" }, factories: [] },
   { id: "ipe-200", variant: "CVAR-000056", label: { product: "تیرآهن", grade: null, size: "IPE 200" }, expect: { name: "IPE", size: "IPE 200" }, factories: [] },
   { id: "plate-st37-10", variant: "CVAR-000172", label: { product: "ورق سیاه", grade: "ST37", size: "10 mm" }, expect: { name: "S235JR", size: "10×1500×6000" }, factories: [] },
-  { id: "shs-40x40", variant: "CVAR-000089", label: { product: "قوطی مربع", grade: null, size: "40×40×2.5" }, expect: { name: "SHS", size: "40×40×2.5" }, factories: [] },
+  { id: "shs-40x40", variant: "CVAR-000456", label: { product: "قوطی مربع", grade: null, size: "40×40×2" }, expect: { name: "SHS", size: "40×40×2" }, factories: [] },
   { id: "angle-50x50x5", variant: "CVAR-000242", label: { product: "نبشی", grade: null, size: "50×50×5" }, expect: { name: "نبشی", size: "50X50X5" }, factories: [] },
 ];
 

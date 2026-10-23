@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { isLocale, localizedPath, type Locale } from "@/config/locales";
 import { buildPageMetadata, buildLanguageAlternatesFromEntries } from "@/lib/metadata/resolve";
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";
-import { presentPriceCell, PRICE_CELL_ATTRIBUTE, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, PRICE_RANK_ATTRIBUTE, type PriceLocale } from "@/lib/pricing/product-page-price";
+import { presentPriceCell, PRICE_CELL_ATTRIBUTE, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, PRICE_ORIGIN_ATTRIBUTE, PRICE_ORIGIN_COPY, PRICE_RANK_ATTRIBUTE, type PriceLocale } from "@/lib/pricing/product-page-price";
 import { filterOptions, isPricePagePublished, latestPricedAt, PRICE_PAGE_COPY, pricePageDescription, pricePageHeading, pricePageStaleHeading, pricePageTitle, PRICE_PAGE_LOCALES, PRICE_PAGE_ROUTE, PRICE_ROW_FACTORY_ATTRIBUTE, PRICE_ROW_FAMILY_ATTRIBUTE, type PriceTableRow } from "@/lib/pricing/price-page";
 import { loadLatestPriceDay, loadPriceDay, loadPriceTableRows } from "@/lib/pricing/price-page-data";
 import { STALE_PRICE_COPY, STALE_TABLE_TITLE } from "@/lib/pricing/price-staleness";
@@ -18,6 +18,7 @@ import { PriceCellContent } from "@/components/products/price-cell-content";
 import { PriceUpdatedLine } from "@/components/prices/price-updated-line";
 import { PriceTableFilter } from "@/components/prices/price-table-filter";
 import { StalePriceNotice, StalePriceText } from "@/components/prices/stale-price";
+import { ImportedBadge } from "@/components/prices/imported-badge";
 import { TrackOnView } from "@/components/analytics/track-on-view";
 import { IndicatorStrip } from "@/components/indicators/indicator-strip";
 import { listIndicators } from "@/lib/indicators/repository";
@@ -126,20 +127,22 @@ async function DailyPriceTable({ locale }: { locale: PriceLocale }) {
               {rows.flatMap((row) => {
                 // W20.7: fa lists every factory's price of the size (the lowest first, marked when there are several);
                 // without factory rows (ar, or a snapshot without them) the one row shows the lowest, as before.
+                // W34: an imported row (the lowest imported price) is its own row, labelled, never ranked or marked.
                 const entries = row.factoryPrices.length ? row.factoryPrices.map((p, rank) => ({ price: p.data, factory: p.data.factoryName, rank, lowest: p.lowest && row.factoryPrices.length > 1 })) : [{ price: row.price, factory: row.factory, rank: null, lowest: false }];
                 return entries.map((entry) => {
                   const view = presentPriceCell(locale, entry.price, row.xid);
                   return (
-                    <tr key={`${row.xid}:${entry.rank ?? "lowest"}`} className="group" {...{ [PRICE_ROW_FAMILY_ATTRIBUTE]: row.familyCode, ...(entry.factory ? { [PRICE_ROW_FACTORY_ATTRIBUTE]: entry.factory } : {}) }}>
+                    <tr key={`${row.xid}:${row.origin}:${entry.rank ?? "lowest"}`} className="group" {...{ [PRICE_ROW_FAMILY_ATTRIBUTE]: row.familyCode, ...(entry.factory ? { [PRICE_ROW_FACTORY_ATTRIBUTE]: entry.factory } : {}) }}>
                       <th scope="row" className={cn(CELL, "bg-background group-hover:bg-surface min-w-32 text-start font-bold")}>
                         <Link href={localizedPath(locale, row.productPath)} className="text-navy hover:text-copper underline-offset-4 hover:underline">
                           {row.productName}
                         </Link>
                         <span className="text-tertiary block text-xs font-semibold">{row.familyLabel}</span>
                         {entry.lowest && <span className="border-copper/30 bg-copper/10 text-copper mt-1 inline-block rounded border px-1.5 py-0.5 text-[11px] font-bold">{t.lowest}</span>}
+                        {row.origin === "imported" && <ImportedBadge label={PRICE_ORIGIN_COPY[locale].imported} />}
                       </th>
                       {view && (
-                        <td {...{ [PRICE_CELL_ATTRIBUTE]: row.xid, ...(entry.rank !== null ? { [PRICE_RANK_ATTRIBUTE]: String(entry.rank) } : {}) }} className={cn(CELL, "group-hover:bg-surface whitespace-nowrap")}>
+                        <td {...{ [PRICE_CELL_ATTRIBUTE]: row.xid, ...(entry.rank !== null ? { [PRICE_RANK_ATTRIBUTE]: String(entry.rank) } : {}), ...(row.origin === "imported" ? { [PRICE_ORIGIN_ATTRIBUTE]: row.origin } : {}) }} className={cn(CELL, "group-hover:bg-surface whitespace-nowrap")}>
                           <PriceCellContent view={view} />
                         </td>
                       )}

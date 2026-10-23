@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { SNAPSHOT_VERSION_PATTERN } from "./snapshot-version.ts";
-import { PUBLISHED_FACTORY_PRICES_TABLE, PUBLISHED_PRICE_HISTORY_TABLE, PUBLISHED_PRICES_TABLE, publishedFactoryPriceRow, publishedPriceHistoryRow, publishedPriceRow } from "./snapshot-prices.ts";
+import { PUBLISHED_FACTORY_PRICES_TABLE, PUBLISHED_IMPORTED_PRICES_TABLE, PUBLISHED_PRICE_HISTORY_TABLE, PUBLISHED_PRICES_TABLE, publishedFactoryPriceRow, publishedImportedPriceRow, publishedPriceHistoryRow, publishedPriceRow } from "./snapshot-prices.ts";
 import { PUBLISHED_ARTICLES_TABLE, publishedArticleRow } from "./snapshot-articles.ts";
 import { PUBLISHED_INDICATOR_POINTS_TABLE, PUBLISHED_INDICATORS_TABLE, publishedIndicatorPointRow, publishedIndicatorRow } from "./snapshot-indicators.ts";
 
@@ -176,6 +176,8 @@ export const SNAPSHOT_TABLES = {
   [PUBLISHED_PRICE_HISTORY_TABLE]: publishedPriceHistoryRow,
   // W20.7: build-only, every factory's price of a priced variant (fa price page).
   [PUBLISHED_FACTORY_PRICES_TABLE]: publishedFactoryPriceRow,
+  // W34: build-only, the lowest imported price per variant (never mixed with published_prices, the domestic lowest).
+  [PUBLISHED_IMPORTED_PRICES_TABLE]: publishedImportedPriceRow,
   // W11.1: build-only articles from the private content repository (lib/contracts/snapshot-articles.ts).
   [PUBLISHED_ARTICLES_TABLE]: publishedArticleRow,
   // W18.2: build-only market indicators (reference indices, never a selling price; lib/contracts/snapshot-indicators.ts).
@@ -185,9 +187,10 @@ export const SNAPSHOT_TABLES = {
 /**
  * Snapshot tables that exist only in the static build's in-memory database, never in the remote
  * DB_PUBLIC (no migrations_public file; never loaded or mirrored into D1). W9.4: the published prices;
- * W9.6: their daily history; W20.7: every factory's price; W11.1: the articles; W18.2: the market indicators.
+ * W9.6: their daily history; W20.7: every factory's price; W34: the lowest imported prices; W11.1: the articles; W18.2:
+ * the market indicators.
  */
-export const BUILD_ONLY_SNAPSHOT_TABLES: ReadonlySet<string> = new Set([PUBLISHED_PRICES_TABLE, PUBLISHED_PRICE_HISTORY_TABLE, PUBLISHED_FACTORY_PRICES_TABLE, PUBLISHED_ARTICLES_TABLE, PUBLISHED_INDICATORS_TABLE, PUBLISHED_INDICATOR_POINTS_TABLE]);
+export const BUILD_ONLY_SNAPSHOT_TABLES: ReadonlySet<string> = new Set([PUBLISHED_PRICES_TABLE, PUBLISHED_PRICE_HISTORY_TABLE, PUBLISHED_FACTORY_PRICES_TABLE, PUBLISHED_IMPORTED_PRICES_TABLE, PUBLISHED_ARTICLES_TABLE, PUBLISHED_INDICATORS_TABLE, PUBLISHED_INDICATOR_POINTS_TABLE]);
 export type SnapshotTableName = keyof typeof SNAPSHOT_TABLES;
 /**
  * W9.8: snapshot columns of a DB_PUBLIC table that exist only in the static build's in-memory database
@@ -233,6 +236,7 @@ export const snapshotV1 = z
         published_prices: z.array(publishedPriceRow).default([]),
         published_price_history: z.array(publishedPriceHistoryRow).default([]),
         published_factory_prices: z.array(publishedFactoryPriceRow).default([]),
+        published_imported_prices: z.array(publishedImportedPriceRow).default([]),
         published_articles: z.array(publishedArticleRow).default([]),
         published_indicators: z.array(publishedIndicatorRow).default([]),
         published_indicator_points: z.array(publishedIndicatorPointRow).default([]),
@@ -256,6 +260,13 @@ export const snapshotV1 = z
       if (!variantXids.has(r.canonical_variant_id)) ctx.addIssue({ code: "custom", path: ["tables", "published_prices", i, "canonical_variant_id"], message: "unknown variant" });
       if (priced.has(r.canonical_variant_id)) ctx.addIssue({ code: "custom", path: ["tables", "published_prices", i, "canonical_variant_id"], message: "duplicate price for one variant" });
       priced.add(r.canonical_variant_id);
+    });
+    // W34: an imported price belongs to a known catalog variant, at most one per variant (it needs no domestic price).
+    const importedPriced = new Set<string>();
+    s.tables.published_imported_prices.forEach((r, i) => {
+      if (!variantXids.has(r.canonical_variant_id)) ctx.addIssue({ code: "custom", path: ["tables", "published_imported_prices", i, "canonical_variant_id"], message: "unknown variant" });
+      if (importedPriced.has(r.canonical_variant_id)) ctx.addIssue({ code: "custom", path: ["tables", "published_imported_prices", i, "canonical_variant_id"], message: "duplicate imported price for one variant" });
+      importedPriced.add(r.canonical_variant_id);
     });
     // W9.6: history only for a priced variant, one point per day, its newest point = the current price.
     const current = new Map(s.tables.published_prices.map((r) => [r.canonical_variant_id, r]));

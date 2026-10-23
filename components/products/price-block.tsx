@@ -25,18 +25,22 @@ import { STALE_PRICE_COPY } from "@/lib/pricing/price-staleness";
  *
  * W31: `latestPriceDay` (the snapshot-wide newest price day) — the title reads «آخرین قیمت ثبت‌شده …» in the browser
  * once the price data is stale (lib/pricing/price-staleness.ts); the static HTML keeps «قیمت روز …».
+ *
+ * W34: `heading` replaces «قیمت روز» in the title — «کمترین قیمت داخلی» / «کمترین قیمت وارداتی» when the page
+ * shows both origins' lowest prices, each in its own block (never one block with the lower of the two). Stale, such a
+ * title keeps its origin: «آخرین قیمت ثبت‌شده: کمترین قیمت وارداتی …». `titleId` keeps the two blocks' heading ids apart.
  */
-export function PriceBlock({ locale, price, rfqHref, productName, priceCtaLabel, trend, latestPriceDay }: { locale: Locale; price: PriceBlockData | null | undefined; rfqHref: string; productName?: string; priceCtaLabel?: string; trend?: ReactNode; latestPriceDay?: string | null }) {
+export function PriceBlock({ locale, price, rfqHref, productName, priceCtaLabel, trend, latestPriceDay, heading, titleId = "price-block-title" }: { locale: Locale; price: PriceBlockData | null | undefined; rfqHref: string; productName?: string; priceCtaLabel?: string; trend?: ReactNode; latestPriceDay?: string | null; heading?: string; titleId?: string }) {
   const view = presentPriceBlock(locale, price);
   if (!view) return null;
   const t = PRICE_BLOCK_COPY;
-  const title = productName ? `${t.title} ${productName}` : t.title;
-  const staleTitle = productName ? `${STALE_PRICE_COPY.fa.lead} ${productName}` : STALE_PRICE_COPY.fa.lead;
+  const title = productName ? `${heading ?? t.title} ${productName}` : (heading ?? t.title);
+  const staleTitle = heading ? `${STALE_PRICE_COPY.fa.lead}: ${title}` : productName ? `${STALE_PRICE_COPY.fa.lead} ${productName}` : STALE_PRICE_COPY.fa.lead;
 
   return (
-    <section aria-labelledby="price-block-title" className={cardVariants({ className: "overflow-hidden shadow-[var(--aa-shadow-sm)]" })}>
+    <section aria-labelledby={titleId} className={cardVariants({ className: "overflow-hidden shadow-[var(--aa-shadow-sm)]" })}>
       <div className="border-border bg-cream border-b px-5 py-4">
-        <h2 id="price-block-title" className="text-navy text-sm font-bold">
+        <h2 id={titleId} className="text-navy text-sm font-bold">
           {latestPriceDay && view.kind === "price" ? <StalePriceText day={latestPriceDay} fresh={title} stale={staleTitle} /> : title}
         </h2>
       </div>

@@ -1,6 +1,7 @@
 import type { Locale } from "../../config/locales.ts";
 import type { PriceBlockData } from "./price-block-presentation.ts";
 import type { FactoryPrice } from "./product-page-price-repository.ts";
+import type { PriceOrigin } from "./product-page-price.ts";
 import { PRICE_LOCALES, type PriceLocale } from "./price-locale.ts";
 import { staleHeading } from "./price-staleness.ts";
 import { arPriceDescription, datedHeading, datedTitleBodies, DESCRIPTION_MAX, faPriceDescription, fitText, fitTitle, listAr, listFa, type PriceDay } from "./price-titles.ts";
@@ -174,6 +175,12 @@ export interface PriceTableRow {
    * per entry; the hubs keep the lowest.
    */
   factoryPrices: FactoryPrice[];
+  /**
+   * W34 — whose lowest `price` is: "domestic" (the mills; with its factory rows on fa) or "imported" (the lowest
+   * imported price, its factory the origin «وارداتی (چین)», never any factory rows). A variant with both has two
+   * rows, the domestic first; they are never compared (no "lowest" mark, filter or title takes one against the other).
+   */
+  origin: PriceOrigin;
 }
 
 export interface PriceTableTemplateInput {
@@ -191,29 +198,33 @@ export interface FamilyResolver {
  * Rows of the price table: every variant of `templates` that has an (eligible) price, grouped by family
  * in catalog order, then the template order, then size order. Pure.
  */
-export function buildPriceTableRows(locale: PriceLocale, templates: readonly PriceTableTemplateInput[], prices: ReadonlyMap<string, PriceBlockData>, family: FamilyResolver, factoryPrices: ReadonlyMap<string, FactoryPrice[]> | null = null): PriceTableRow[] {
+export function buildPriceTableRows(locale: PriceLocale, templates: readonly PriceTableTemplateInput[], prices: ReadonlyMap<string, PriceBlockData>, family: FamilyResolver, factoryPrices: ReadonlyMap<string, FactoryPrice[]> | null = null, importedPrices: ReadonlyMap<string, PriceBlockData> | null = null): PriceTableRow[] {
   const rows: Array<PriceTableRow & { position: number; order: number }> = [];
   let order = 0;
   for (const t of templates) {
     for (const v of t.variants) {
-      const price = prices.get(v.xid);
-      if (!price) continue;
-      const f = family(v.groupCode, v.familyName, v.formCode ?? null);
-      rows.push({
-        xid: v.xid,
-        productName: t.productName,
-        productPath: `/products/${t.slug}?variant=${encodeURIComponent(v.xid)}`,
-        productPagePath: `/products/${t.slug}`,
-        size: v.size,
-        familyCode: f.code,
-        familyLabel: f.label,
-        factory: locale === "fa" ? price.factoryName : null,
-        price,
-        weight: v.weight ?? null,
-        factoryPrices: locale === "fa" ? (factoryPrices?.get(v.xid) ?? []) : [],
-        position: f.position,
-        order: order++,
-      });
+      // W34: the domestic lowest (with its factory rows), then, apart, the imported lowest.
+      const entries: [PriceOrigin, PriceBlockData | undefined][] = [["domestic", prices.get(v.xid)], ["imported", importedPrices?.get(v.xid)]];
+      for (const [origin, price] of entries) {
+        if (!price) continue;
+        const f = family(v.groupCode, v.familyName, v.formCode ?? null);
+        rows.push({
+          xid: v.xid,
+          productName: t.productName,
+          productPath: `/products/${t.slug}?variant=${encodeURIComponent(v.xid)}`,
+          productPagePath: `/products/${t.slug}`,
+          size: v.size,
+          familyCode: f.code,
+          familyLabel: f.label,
+          factory: locale === "fa" ? price.factoryName : null,
+          price,
+          weight: v.weight ?? null,
+          factoryPrices: locale === "fa" && origin === "domestic" ? (factoryPrices?.get(v.xid) ?? []) : [],
+          origin,
+          position: f.position,
+          order: order++,
+        });
+      }
     }
   }
   rows.sort((a, b) => a.position - b.position || a.order - b.order);

@@ -184,9 +184,12 @@ test("expert photo: a configured photo must be a real file under public/", () =>
   assert.ok(existsSync(new URL(`../../public${SALES_EXPERT.photo.src}`, import.meta.url)), `${SALES_EXPERT.photo.src} must exist in public/`);
 });
 
-test("live chat (W21.2): no button while config/livechat.ts is off; both layouts render the button when on", () => {
-  for (const locale of LOCALES) assert.equal(livechatProps(locale), null);
+test("live chat (W21.2/W21.3): shipped ON, so both layouts render the button; no button while config/livechat.ts is off", () => {
   const on = livechatConfig(true, "https://odoo.ahanassa.com/im_livechat/support/2");
+  for (const locale of LOCALES) {
+    assert.deepEqual(livechatProps(locale), livechatProps(locale, on), `${locale}: shipped ON (W21.3)`);
+    assert.equal(livechatProps(locale, null), null, `${locale}: off`);
+  }
   assert.equal(livechatProps("fa", on)?.copy.label, "چت با کارشناس");
   assert.equal(livechatProps("en", on)?.copy.label, "Chat with an expert");
   for (const name of ["ConciergeCard", "SplitBand"]) assert.match(fn(name), /\{actions\.chat && <LivechatButton chat=\{actions\.chat\} variant="inline"/, name);

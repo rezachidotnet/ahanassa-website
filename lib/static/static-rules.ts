@@ -8,6 +8,7 @@ import { EXPORT_LOCALES, EXPORT_ROUTE } from "../content/export.ts";
 import { PRICE_CHART_LOCALES, priceChartPath } from "../pricing/price-charts.ts";
 import { MARKET_INDICATORS_LOCALES, MARKET_INDICATORS_ROUTE } from "../indicators/page.ts";
 import { publicRfqCatalogPath, RFQ_CATALOG_ASSET_PATTERN } from "../contracts/public-paths.ts";
+import { rfqApiMirrorOrigins } from "../mirror/iran-mirror.ts";
 
 /**
  * Static replacements for what `proxy.ts` and the metadata routes did on the
@@ -52,7 +53,8 @@ export const MAX_HEADER_RULES = 100;
  */
 export const CONTENT_SIGNAL = "search=yes, ai-input=yes, ai-train=yes";
 export function buildHeadersFile(env: StaticEnvironment, rfqApiOrigin: string, staticAssetPaths: readonly string[] = [], rfqCatalogAssetPaths: readonly string[] = []): string {
-  const lines = ["/*", ...buildSecurityHeaders([rfqApiOrigin]).map(([name, value]) => `  ${name}: ${value}`), `  Content-Signal: ${CONTENT_SIGNAL}`, "  Vary: Accept"];
+  // W27: + the origin's Iran mirror (api.ahanassa.com → api.ahanassa.ir, production only; lib/mirror/iran-mirror.ts).
+  const lines = ["/*", ...buildSecurityHeaders([rfqApiOrigin, ...rfqApiMirrorOrigins(rfqApiOrigin)]).map(([name, value]) => `  ${name}: ${value}`), `  Content-Signal: ${CONTENT_SIGNAL}`, "  Vary: Accept"];
   if (env === "staging") lines.push("  X-Robots-Tag: noindex, nofollow");
   const noindex = new Set<string>(env === "production" ? PRODUCTION_NOINDEX_HEADER_PATHS : []);
   for (const p of [...staticAssetPaths].sort()) {

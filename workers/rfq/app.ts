@@ -6,6 +6,7 @@
  *   OPTIONS/POST /api/rfqs     rfq_submit.v1 intake (CORS: exact allow-list)
  *   GET/OPTIONS/PUT /api/rfqs/files[/<reference>/<slot>]  RFQ file upload (D-RFQ-FILE, lib/rfq-worker/attachments.ts)
  *   OPTIONS/POST /api/rfqs/extract  read a picture/PDF list into draft rows before submit (W13.3, lib/rfq-worker/extract.ts)
+ *   GET          /api/rfqs/capabilities  captcha provider + files + extract, one answer (W32, capabilities.ts)
  *   GET          /healthz      liveness (no D1)
  *   /__admin/*                 §15 manual-review tool + reconcile trigger (lib/rfq-worker/admin.ts)
  *   queue                      one message = one RFQ (max_batch_size 1)
@@ -20,6 +21,7 @@ import { filesCapability, filesPreflight, handleFileUpload, isFilesPath, FILES_P
 import { consumeOne, reconcileOnce, type QueueMessageLike } from "../../lib/rfq-worker/runners.ts";
 import { EXTRACT_PATH, extractPreflight, handleExtract } from "../../lib/rfq-worker/extract.ts";
 import { sweepRfqFiles } from "../../lib/rfq-worker/file-retention.ts";
+import { CAPABILITIES_PATH, rfqCapabilities } from "../../lib/rfq-worker/capabilities.ts";
 import { handleAdmin, type AdminExtension } from "../../lib/rfq-worker/admin.ts";
 import { csv, type RfqWorkerEnv } from "../../lib/rfq-worker/config.ts";
 import type { OdooSyncEvent } from "../../lib/queue/types.ts";
@@ -72,6 +74,7 @@ export function createRfqWorker(options: RfqWorkerOptions = {}) {
         const prepared = options.prepareExtract?.(env) ?? { env };
         return handleExtract(request, prepared.env, { fetchImpl: prepared.fetchImpl });
       }
+      if (url.pathname === CAPABILITIES_PATH) return rfqCapabilities(request, env);
       if (isFilesPath(url.pathname)) {
         if (request.method === "OPTIONS") return filesPreflight(request, csv(env.ALLOWED_ORIGINS));
         if (url.pathname === FILES_PATH && request.method === "GET") return filesCapability(request, env);

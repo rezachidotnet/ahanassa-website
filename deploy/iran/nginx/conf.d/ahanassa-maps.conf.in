@@ -1,0 +1,23 @@
+# W30 domestic copy — the @ENV@ release's generated maps (installed as /etc/nginx/conf.d/ahanassa-maps-@ENV@.conf).
+# The included files are DATA from the active release (scripts/iran/render-nginx.ts), re-checked against a strict
+# grammar by the root activator before `nginx -t`; they can only hold map entries.
+# `current` is switched atomically by ahanassa-activate, which then runs `nginx -t` and reloads.
+
+# _redirects (Cloudflare: always followed, before any asset; the top-most rule for a source wins).
+map $uri $ah_@ENV@_r301 { default ""; include /srv/ahanassa/site/@ENV@/current/nginx/redirects-301.map; }
+map $uri $ah_@ENV@_r302 { default ""; include /srv/ahanassa/site/@ENV@/current/nginx/redirects-302.map; }
+map $uri $ah_@ENV@_r307 { default ""; include /srv/ahanassa/site/@ENV@/current/nginx/redirects-307.map; }
+map $uri $ah_@ENV@_r308 { default ""; include /srv/ahanassa/site/@ENV@/current/nginx/redirects-308.map; }
+
+# _headers per path: Cache-Control (one rule per hashed file + the 5-minute v1 catalog files) and X-Robots-Tag.
+map $ah_path_raw $ah_@ENV@_cc_path { default ""; include /srv/ahanassa/site/@ENV@/current/nginx/cache-control.map; }
+# W10.6: a path's own Cache-Control only on a successful answer — a 404 (e.g. a chunk of a release that just left)
+# always gets the default, never the one-year immutable value.
+map "$status:$ah_@ENV@_cc_path" $ah_@ENV@_cc {
+    "~^(?:200|206|304):(?<ah_@ENV@_ccv>.+)$" $ah_@ENV@_ccv;
+    default "public, max-age=0, must-revalidate";
+}
+map $ah_path_raw $ah_@ENV@_robots { default ""; include /srv/ahanassa/site/@ENV@/current/nginx/robots.map; }
+
+# not_found_handling "404-page": the nearest 404.html (deepest prefix first; the root 404.html otherwise).
+map $ah_path_raw $ah_@ENV@_nf { default "/404.html"; include /srv/ahanassa/site/@ENV@/current/nginx/notfound.map; }

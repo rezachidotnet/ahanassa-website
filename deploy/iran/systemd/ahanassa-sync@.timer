@@ -1,0 +1,12 @@
+# W30 — every 60 s after the previous run ended (never overlapping), with jitter. RUNBOOK_P1.md §4.
+[Unit]
+Description=Ahan Asa domestic copy: sync agent timer (%i)
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=60s
+RandomizedDelaySec=15s
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

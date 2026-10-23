@@ -7,7 +7,7 @@ import { isUomAllowedForCatalogGroup } from "../rfq/uom-policy.ts";
 import type { RfqItemRecord, RfqSubmissionRecord } from "../rfq/types.ts";
 import { persistRfq, type DeclaredAttachment, type PersistRfqResult } from "../rfq/intake-store.ts";
 import { checkDeclaredFile, RFQ_FILE_TYPES, sanitizeFilename } from "../rfq/attachment-policy.ts";
-import { verifyTurnstileToken } from "../security/turnstile.ts";
+import { verifyRfqCaptcha } from "../security/rfq-captcha.ts";
 import { getClientIp, hashRateLimitKey } from "../security/rate-limit.ts";
 import { ulid } from "../rfq/ulid.ts";
 import { corsHeaders, isAllowedOrigin } from "./cors.ts";
@@ -206,15 +206,10 @@ export async function handleRfqSubmit(request: Request, env: RfqWorkerEnv, deps:
   });
   if (Object.keys(quantityErrors).length) return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors: quantityErrors }, cors);
 
-  // 8. Turnstile: Siteverify must report our static host and action rfq_submit.
+  // 8. Captcha: Turnstile (Siteverify must report our static host and action rfq_submit), or ALTCHA on the
+  // domestic intake (W35, lib/security/rfq-captcha.ts; single-use). The token travels in `turnstileToken` either way.
   const clientIp = getClientIp(request);
-  const turnstile = await verifyTurnstileToken(body.turnstileToken, {
-    secret: env.TURNSTILE_SECRET_KEY ?? "",
-    expectedHostnames: csv(env.TURNSTILE_EXPECTED_HOSTNAMES),
-    requireAction: true,
-    remoteIp: clientIp === "unknown" ? undefined : clientIp,
-    fetchImpl: deps.fetchImpl,
-  });
+  const turnstile = await verifyRfqCaptcha(env, body.turnstileToken, { remoteIp: clientIp === "unknown" ? undefined : clientIp, fetchImpl: deps.fetchImpl });
   if (!turnstile.ok) {
     if (turnstile.reason === "unavailable") return json(503, { ok: false, code: "SERVICE_UNAVAILABLE" }, { ...cors, "Retry-After": "10" });
     return json(403, { ok: false, code: "VERIFICATION_FAILED" }, cors);

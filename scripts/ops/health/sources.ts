@@ -139,13 +139,61 @@ export interface GitHubAuth {
   repo: string;
 }
 
+/**
+ * W37: a GitHub API failure. `transient` = worth retrying and may be bridged by another source: a 5xx, a 429, a
+ * timeout or a network error. A 4xx (bad token, missing workflow) is a configuration error and never transient.
+ */
+export class GitHubApiError extends Error {
+  readonly transient: boolean;
+  constructor(message: string, transient: boolean) {
+    super(message);
+    this.name = "GitHubApiError";
+    this.transient = transient;
+  }
+}
+
+export function isTransientGitHubError(error: unknown): boolean {
+  return error instanceof GitHubApiError && error.transient;
+}
+
+/** W37 (after run 39918757832, "GitHub API 502"): 3 retries after the first try, with these waits (backoff). */
+export const GITHUB_RETRY_DELAYS_MS = [2_000, 5_000, 10_000] as const;
+
+export interface GitHubDeps {
+  fetch: typeof fetch;
+  sleep: (ms: number) => Promise<void>;
+  delaysMs: readonly number[];
+}
+
+const defaultGitHubDeps: GitHubDeps = { fetch: (...a) => fetch(...a), sleep: (ms) => new Promise((r) => setTimeout(r, ms)), delaysMs: GITHUB_RETRY_DELAYS_MS };
+
+/** One GET of the GitHub REST API; a transient failure is retried `delaysMs.length` times, then thrown. */
+export async function ghRequest<T>(auth: GitHubAuth, path: string, deps: GitHubDeps = defaultGitHubDeps): Promise<T> {
+  const where = path.split("?")[0];
+  for (let attempt = 0; ; attempt++) {
+    let error: GitHubApiError;
+    try {
+      const res = await deps.fetch(`https://api.github.com/repos/${auth.repo}${path}`, {
+        headers: { Authorization: `Bearer ${auth.token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (res.ok) return (await res.json()) as T;
+      error = new GitHubApiError(`GitHub API ${res.status} for ${where}`, res.status >= 500 || res.status === 429);
+    } catch (e) {
+      // fetch throws only for a timeout, an abort or a network failure: all transient.
+      const name = e instanceof Error ? e.name : "Error";
+      error = new GitHubApiError(`GitHub API ${name === "TimeoutError" ? "timeout" : `network error (${name})`} for ${where}`, true);
+    }
+    if (!error.transient || attempt >= deps.delaysMs.length) {
+      if (attempt > 0) error.message += ` (after ${attempt + 1} attempts)`;
+      throw error;
+    }
+    await deps.sleep(deps.delaysMs[attempt]);
+  }
+}
+
 async function gh<T>(auth: GitHubAuth, path: string): Promise<T> {
-  const res = await fetch(`https://api.github.com/repos/${auth.repo}${path}`, {
-    headers: { Authorization: `Bearer ${auth.token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!res.ok) throw new Error(`GitHub API ${res.status} for ${path.split("?")[0]}`);
-  return (await res.json()) as T;
+  return ghRequest<T>(auth, path);
 }
 
 interface Run {
@@ -264,11 +312,11 @@ export function publishedAt(jobs: readonly Job[], jobPrefix: string, proofStep: 
 }
 
 /** Completion time of the newest actual publish (publishedAt) among the workflow's recent completed runs. */
-export async function lastSuccessfulPublish(auth: GitHubAuth, workflow: string, jobPrefix: string, proofStep: string): Promise<string | null> {
+export async function lastSuccessfulPublish(auth: GitHubAuth, workflow: string, jobPrefix: string, proofStep: string, deps?: GitHubDeps): Promise<string | null> {
   // completed, not only success: a run whose publish finalized but a later step (evidence upload) failed still published.
-  const { workflow_runs } = await gh<{ workflow_runs: Run[] }>(auth, `/actions/workflows/${workflow}/runs?status=completed&per_page=30`);
+  const { workflow_runs } = await ghRequest<{ workflow_runs: Run[] }>(auth, `/actions/workflows/${workflow}/runs?status=completed&per_page=30`, deps);
   for (const run of workflow_runs) {
-    const { jobs } = await gh<{ jobs: Job[] }>(auth, `/actions/runs/${run.id}/jobs?per_page=50`);
+    const { jobs } = await ghRequest<{ jobs: Job[] }>(auth, `/actions/runs/${run.id}/jobs?per_page=50`, deps);
     const at = publishedAt(jobs, jobPrefix, proofStep);
     if (at) return at;
   }

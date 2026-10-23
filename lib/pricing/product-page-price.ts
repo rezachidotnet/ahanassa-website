@@ -35,6 +35,22 @@ export const PRICE_RANK_ATTRIBUTE = "data-aa-price-rank";
 export const PRICE_BLOCK_ON_REQUEST = "request";
 
 /**
+ * W34 (Odoo W9.14, owner 2026-10-21) — domestic and imported prices are shown APART, never compared or mixed: a
+ * variant's lowest domestic price (`published_prices`) and its lowest imported price (`published_imported_prices`,
+ * the origin named by Odoo with its country in parentheses, «وارداتی (چین)») each get their own labelled cell or
+ * block; nothing ever picks the lower of the two. A price element of the imported price carries
+ * `data-aa-price-origin="imported"` (the gate then checks it against the imported row); without it, the domestic one.
+ * Without any imported price (an Odoo before W9.14) every page renders exactly as before, with the «قیمت روز» copy.
+ */
+export type PriceOrigin = "domestic" | "imported";
+export const PRICE_ORIGIN_ATTRIBUTE = "data-aa-price-origin";
+/** Labels of the two origins. ar PROPOSED, pending the owner (like the other ar price copy); Arabic letters only (ي ك). */
+export const PRICE_ORIGIN_COPY: Record<PriceLocale, Record<PriceOrigin, string>> = {
+  fa: { domestic: "کمترین قیمت داخلی", imported: "کمترین قیمت وارداتی" },
+  ar: { domestic: "أدنى سعر محلي", imported: "أدنى سعر مستورد" },
+};
+
+/**
  * ar labels — PROPOSED, pending the owner's approval (2026-10-09): «سعر اليوم»، «تومان/كغ»،
  * «شامل ضريبة القيمة المضافة» (the calculator's «تقدير التكلفة» lives in lib/weight-calculator/copy.ts).
  * `missing` («السعر عند الطلب», the cell of an unpriced variant) is an addition, also pending approval.
@@ -150,7 +166,7 @@ export function firstPricedVariant<T extends { xid: string }>(orderedVariants: r
 /** Every string the price markup of one variant may show on a page of `locale` (the gate's allow-list). */
 export function allowedPriceTexts(row: PublishedPriceRow | null, locale: PriceLocale = "fa", productName?: string): string[] {
   if (locale === "ar") {
-    const out: string[] = [...Object.values(AR_PRICE_COPY), PRICE_RFQ_COPY.ar, ...Object.values(PRICE_CHANGE_GLYPHS), ...Object.values(PRICE_CHANGE_WORDS.ar)];
+    const out: string[] = [...Object.values(AR_PRICE_COPY), PRICE_RFQ_COPY.ar, ...Object.values(PRICE_CHANGE_GLYPHS), ...Object.values(PRICE_CHANGE_WORDS.ar), ...Object.values(PRICE_ORIGIN_COPY.ar)];
     if (row) {
       out.push(renderedAmount(row, "ar"), priceStampLabel("ar", row.published_at));
       const compact = presentCompactChange("ar", priceBlockDataFromRow(row));
@@ -158,7 +174,7 @@ export function allowedPriceTexts(row: PublishedPriceRow | null, locale: PriceLo
     }
     return out;
   }
-  const fixed = [PRICE_BLOCK_COPY.title, PRICE_BLOCK_COPY.unit, PRICE_BLOCK_COPY.vat, PRICE_BLOCK_COPY.factory, PRICE_BLOCK_COPY.delivery, PRICE_BLOCK_COPY.updated, PRICE_BLOCK_COPY.askToday, PRICE_BLOCK_COPY.missing, PRICE_BLOCK_COPY.cta, PRICE_BLOCK_COPY.unchanged, PRICE_RFQ_COPY.fa, PRICE_TREND_COPY.fa, PRICE_CHANGE_COPY.up, PRICE_CHANGE_COPY.down, PRICE_CHANGE_COPY.upWord, PRICE_CHANGE_COPY.downWord];
+  const fixed = [PRICE_BLOCK_COPY.title, PRICE_BLOCK_COPY.unit, PRICE_BLOCK_COPY.vat, PRICE_BLOCK_COPY.factory, PRICE_BLOCK_COPY.delivery, PRICE_BLOCK_COPY.updated, PRICE_BLOCK_COPY.askToday, PRICE_BLOCK_COPY.missing, PRICE_BLOCK_COPY.cta, PRICE_BLOCK_COPY.unchanged, PRICE_RFQ_COPY.fa, PRICE_TREND_COPY.fa, PRICE_CHANGE_COPY.up, PRICE_CHANGE_COPY.down, PRICE_CHANGE_COPY.upWord, PRICE_CHANGE_COPY.downWord, ...Object.values(PRICE_ORIGIN_COPY.fa)];
   const out: string[] = [...fixed];
   if (productName) out.push(productName);
   if (!row) return out;

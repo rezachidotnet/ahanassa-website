@@ -1,0 +1,52 @@
+{
+  "repo": "rezachidotnet/ahanassa-website",
+  "root": "/srv/ahanassa",
+  "allowed_signers": "/etc/ahanassa/allowed_signers",
+  "keep_releases": 5,
+  "envs": {
+    "production": {
+      "principal": "ci-production",
+      "smoke_host": "new.ahanassa.ir",
+      "rfq": {
+        "enabled": false,
+        "port": 8711
+      }
+    },
+    "staging": {
+      "principal": "ci-staging",
+      "smoke_host": "staging.ahanassa.ir",
+      "rfq": {
+        "enabled": false,
+        "port": 8712
+      }
+    }
+  },
+  "sources": [
+    {
+      "name": "github",
+      "type": "github",
+      "credential": "github-token"
+    },
+    {
+      "name": "r2",
+      "type": "s3",
+      "endpoint": "https://<ACCOUNT_ID>.r2.cloudflarestorage.com",
+      "region": "auto",
+      "bucket": "<IRAN_MIRROR_BUCKET>",
+      "prefix": "iran",
+      "credential": "r2-read"
+    },
+    {
+      "name": "arvan",
+      "type": "s3",
+      "enabled": false,
+      "endpoint": "https://s3.ir-thr-at1.arvanstorage.ir",
+      "region": "ir-thr-at1",
+      "bucket": "<ARVAN_BUCKET>",
+      "prefix": "iran",
+      "credential": "arvan-read"
+    }
+  ],
+  "bale": null,
+  "rfq_group": "ahanassa-rfq"
+}

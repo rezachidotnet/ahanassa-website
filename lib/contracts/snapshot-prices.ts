@@ -59,6 +59,25 @@ export const PUBLISHED_PRICES_BUILD_DDL = `CREATE TABLE IF NOT EXISTS published_
   previous_published_at TEXT
 );`;
 
+/**
+ * snapshot.v1 extension — `published_imported_prices` (W34; Odoo W9.14 `imported_lowest`, owner decision 2026-10-21:
+ * domestic and imported prices are never compared or mixed). One row per catalog variant that has a published
+ * IMPORTED price: the lowest of its imported origins, with exactly the columns of `published_prices` (the same
+ * rendering helpers and gate allow-list). `published_prices` stays the variant's lowest DOMESTIC price, unchanged, so
+ * a snapshot without this table (an Odoo before W9.14, or an older snapshot) renders exactly as before.
+ *
+ * The factory is the origin, named by Odoo with the country in parentheses («وارداتی (چین)»). A variant may have an
+ * imported row without a domestic one (an imported-only pipe size: "price on request" in the v1 fields). Nothing
+ * ever takes the lower of the two. BUILD-ONLY, like published_prices: never a DB_PUBLIC table, never mirrored or loaded.
+ */
+export const PUBLISHED_IMPORTED_PRICES_TABLE = "published_imported_prices" as const;
+
+export const publishedImportedPriceRow = publishedPriceRow;
+
+export const PUBLISHED_IMPORTED_PRICE_COLUMNS = PUBLISHED_PRICE_COLUMNS;
+
+export const PUBLISHED_IMPORTED_PRICES_BUILD_DDL = PUBLISHED_PRICES_BUILD_DDL.replace("published_prices", PUBLISHED_IMPORTED_PRICES_TABLE);
+
 /** Toman per kg as shown on the page: IRR ÷ 10, rounded to a whole Toman. */
 export function irrToToman(irr: number): number {
   return Math.round(irr / 10);

@@ -27,7 +27,11 @@ import { PRICE_CLOCK_SKEW_MS, PRICE_EARLIEST_UTC, PRICE_IRR_PER_KG_BOUNDS, PRICI
 export const PRICING_HISTORY_DAYS = 90;
 export const PRICING_HISTORY_PATH = `/api/v1/pricing/history?days=${PRICING_HISTORY_DAYS}`;
 
-export const PRICING_HISTORY_ROW_KEYS = new Set(["id", "canonical_id", "canonical_template_id", "sku", "unit", "currency", "vat_included", "price_at_window_start", "prices"]);
+/**
+ * W34: `imported_prices` / `imported_price_at_window_start` (Odoo W9.14) are the imported lowest's own series: known,
+ * never read or stored (the charts, gauge and sparkline draw the domestic lowest only; imported is never mixed in).
+ */
+export const PRICING_HISTORY_ROW_KEYS = new Set(["id", "canonical_id", "canonical_template_id", "sku", "unit", "currency", "vat_included", "price_at_window_start", "prices", "imported_prices", "imported_price_at_window_start"]);
 export const PRICING_HISTORY_META_KEYS = new Set(["days", "total_prices", "updated_at_utc", "unit", "currency", "vat_included"]);
 const ENVELOPE_KEYS = new Set(["data", "meta"]);
 const API_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;

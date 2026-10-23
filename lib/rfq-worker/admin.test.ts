@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SqliteD1, OPS_MIGRATIONS, PUBLIC_MIGRATIONS } from "../testing/sqlite-d1.ts";
+import { makeDb, type TestDb } from "../testing/rfq-runtime.ts";
 import { bearerMatches } from "./admin.ts";
 import { pickDueRfq } from "./delivery.ts";
 import { persistRfq } from "../rfq/intake-store.ts";
@@ -17,8 +17,8 @@ const TOKEN = "admin-secret-for-tests";
 const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext;
 
 function setup(overrides: Partial<RfqWorkerEnv> = {}) {
-  const ops = new SqliteD1([OPS_MIGRATIONS]);
-  const env: RfqWorkerEnv = { DB_OPS: ops.asD1(), DB_PUBLIC: new SqliteD1([PUBLIC_MIGRATIONS]).asD1(), ADMIN_TOKEN: TOKEN, ODOO_BASE_URL: "https://stub.example", ODOO_RFQ_API_TOKEN: "b", ODOO_INTAKE_V11: "1", DELIVERY_ON_CRON: "0", ...overrides };
+  const ops = makeDb("ops");
+  const env: RfqWorkerEnv = { DB_OPS: ops.asD1(), DB_PUBLIC: makeDb("public").asD1(), ADMIN_TOKEN: TOKEN, ODOO_BASE_URL: "https://stub.example", ODOO_RFQ_API_TOKEN: "b", ODOO_INTAKE_V11: "1", DELIVERY_ON_CRON: "0", ...overrides };
   return { ops, env };
 }
 
@@ -28,7 +28,7 @@ async function seed(env: RfqWorkerEnv, tag: string, syncStatus = "manual_review"
   assert.ok(v.ok && v.value);
   const items = v.value.items.map((i) => buildFreeformItemRecord({ productRef: i.productRef, productLabel: i.productLabel, categoryLabel: i.categoryLabel, freeformTitle: i.freeformTitle, sizeText: i.sizeText, quantityText: i.quantityText, quantityValue: i.quantityValue, quantityScale: i.quantityScale, description: i.description, lengthMm: i.lengthMm }, { code: i.unit, label: "kg" }));
   const res = await persistRfq(env.DB_OPS, { ...v.value, items }, await hashIdempotencyKey(key), `t-${tag}`, { payloadFingerprint: "0".repeat(64), catalogSnapshotVersion: null });
-  const ops = env.DB_OPS as unknown as SqliteD1;
+  const ops = env.DB_OPS as unknown as TestDb;
   ops.sqlite.prepare(`UPDATE rfqs SET sync_status = ?, last_sync_error_code = 'ODOO_400_invalid_payload' WHERE id = ?`).run(syncStatus, res.rfqId!);
   ops.sqlite.prepare(`UPDATE integration_outbox SET status = ? WHERE aggregate_id = ?`).run(syncStatus === "retry" ? "retry" : "dead", res.rfqId!);
   return res.rfqId!;

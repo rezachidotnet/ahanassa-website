@@ -223,6 +223,39 @@ export function evaluateContentPublish(lastSuccessAt: string | null, activeVersi
   return { ...base, value: `${hours.toFixed(1)} h (${lastSuccessAt})${active}`, threshold, status: hours > t.contentPublishMaxAgeHours ? stale : "OK" };
 }
 
+/** W37: the live publication as DB_PUBLIC records it: the active version and when that version was created. */
+export interface ActivePublication {
+  version: string;
+  /** `publication_state.created_at` of the active version (not the pointer's time: a rollback moves the pointer); null = unreadable. */
+  createdAt: string | null;
+}
+
+/** W37: `SELECT p.active_version, s.created_at …` row → the active publication, or null when there is none. */
+export const ACTIVE_PUBLICATION_SQL = "SELECT p.active_version AS active_version, s.created_at AS created_at FROM publication_pointer p LEFT JOIN publication_state s ON s.version = p.active_version WHERE p.id = 1";
+export function activePublicationFromRow(row: Record<string, unknown> | undefined): ActivePublication | null {
+  const version = row?.active_version;
+  const createdAt = row?.created_at;
+  if (typeof version !== "string" || !version) return null;
+  return { version, createdAt: typeof createdAt === "string" && !Number.isNaN(Date.parse(createdAt)) ? createdAt : null };
+}
+
+/**
+ * W37 (release-watch ALERT 2026-10-23 07:35Z, run 39918757832: "GitHub API 502"): GitHub still failed after its
+ * retries with a TRANSIENT error, so the check reads the live publication instead — the active version in DB_PUBLIC,
+ * which only a finalized publish (the same "12. Finalize" step the GitHub path counts) or a rollback sets. Still
+ * fail-closed: no readable active publication is "check could not run" (ALERT); a stale one is stale, as above.
+ * Same id and title as evaluateContentPublish.
+ */
+export function evaluateContentPublishFallback(githubError: string, live: ActivePublication | null, now: Date, t: Thresholds, alert = true): CheckResult {
+  const threshold = `last successful publish ≤ ${t.contentPublishMaxAgeHours} h ago${alert ? "" : " (report only: alert off)"}`;
+  const base = { id: "content:publish", title: "content publish stale" };
+  const detail = `GitHub API unavailable after retries (${githubError.slice(0, 200)}); read the live publication from DB_PUBLIC instead`;
+  if (!live?.createdAt) return { ...base, value: "check could not run", threshold, status: "ALERT", detail: `${detail}, but it has no readable active version${live ? ` (${live.version} has no creation time)` : ""}` };
+  const hours = minutesBetween(live.createdAt, now) / 60;
+  const status = hours < 0 || hours > t.contentPublishMaxAgeHours ? (alert ? "ALERT" : "INFO") : "OK";
+  return { ...base, value: `${hours.toFixed(1)} h (active_version ${live.version}, created ${live.createdAt}; from DB_PUBLIC, GitHub API unavailable)`, threshold, status, detail };
+}
+
 // 8. Odoo reachability ---------------------------------------------------------------------------
 
 export interface OdooProbe {
@@ -270,15 +303,21 @@ export function evaluateOdoo(p: OdooProbe, t: Thresholds, previousFailures: numb
 
 /**
  * Newest `published_at_utc` among the numeric prices of a GET /api/v1/pricing/current body; null when
- * nothing is priced. Only that one field is read — never a price, factory or location.
+ * nothing is priced. Only that one field is read — never a price, factory or location. W34 (Odoo W9.14): the lowest
+ * imported price's time (`imported_lowest.published_at_utc`) counts too — an imported-only variant is "price on
+ * request" in the v1 fields, so without it a site that shows only imported prices would read as unpriced.
  */
 export function newestPublishedPriceAt(body: unknown): string | null {
   const data = (body as { data?: unknown } | null)?.data;
   if (!Array.isArray(data)) throw new Error("pricing response is not {data: [...]}");
   let newest: string | null = null;
-  for (const r of data as { price_on_request?: unknown; published_at_utc?: unknown }[]) {
-    if (r?.price_on_request !== false || typeof r.published_at_utc !== "string" || Number.isNaN(Date.parse(r.published_at_utc))) continue;
-    if (newest === null || r.published_at_utc > newest) newest = r.published_at_utc;
+  const consider = (at: unknown) => {
+    if (typeof at !== "string" || Number.isNaN(Date.parse(at))) return;
+    if (newest === null || at > newest) newest = at;
+  };
+  for (const r of data as { price_on_request?: unknown; published_at_utc?: unknown; imported_lowest?: { published_at_utc?: unknown } | null }[]) {
+    if (r?.price_on_request === false) consider(r.published_at_utc);
+    consider(r?.imported_lowest?.published_at_utc);
   }
   return newest;
 }

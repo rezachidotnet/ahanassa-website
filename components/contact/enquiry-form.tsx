@@ -3,12 +3,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Script from "next/script";
 import { Plus, ChevronDown } from "lucide-react";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { Button, ButtonLink, buttonVariants } from "@/components/ui/button";
 import { controlClass, labelClass, textareaClass } from "@/components/ui/form-control";
 import type { Locale } from "@/config/locales";
 import type { RfqItemInput } from "@/lib/rfq/types";
 import { createIdempotencyKeyLifecycle } from "@/lib/rfq/idempotency-key-lifecycle";
 import { TURNSTILE_RFQ_ACTION } from "@/lib/security/turnstile-action";
+import { turnstileUnreachableDelay } from "@/lib/mirror/iran-mirror";
+import type { AltchaHandle, AltchaStatus } from "./altcha-widget";
+import { cn } from "@/lib/utils";
+import { WHATSAPP_REL } from "@/lib/content/whatsapp";
 import { groupCatalogItemsForSelector, type PublicRfqCatalogItem } from "@/lib/rfq/catalog-selector";
 import {
   buildRfqItemInput,
@@ -86,6 +90,8 @@ declare global {
 }
 
 const turnstileLanguage: Record<Locale, string> = { fa: "fa", en: "en", ar: "ar" };
+/** W32: the least time a captcha script gets, from the moment the form asks for it, before the "could not load" message. */
+const CAPTCHA_SCRIPT_MIN_WAIT_MS = 4_000;
 
 const copy: Record<
   Locale,
@@ -112,6 +118,7 @@ const copy: Record<
     requiredMark: string;
     phoneRequired: string; phoneInvalid: string;
     turnstileVerifying: string; turnstileInteractive: string; turnstileFailed: string;
+    turnstileUnreachable: string; unreachableWhatsapp: string; unreachablePhone: string; unreachableEmail: string;
     continueBrowsing: string;
     basketNotice: Record<RfqBasketAddOutcome, string>;
     uploadingFiles: (done: number, total: number) => string;
@@ -150,6 +157,8 @@ const copy: Record<
     turnstileVerifying: "در حال انجام تأیید امنیتی…",
     turnstileInteractive: "برای فعال شدن ارسال درخواست، تأیید امنیتی را تکمیل کنید.",
     turnstileFailed: "تأیید امنیتی کامل نشد. لطفاً دوباره تلاش کنید.",
+    turnstileUnreachable: "تأیید امنیتی فرم روی این شبکه بارگذاری نشد، به همین دلیل ارسال فرم ممکن نیست. لطفاً لیست خرید یا فاکتور خود را از یکی از راه‌های زیر برای ما بفرستید:",
+    unreachableWhatsapp: "ارسال در واتس‌اپ", unreachablePhone: "تماس تلفنی", unreachableEmail: "ارسال با ایمیل",
     continueBrowsing: "ادامه انتخاب محصول",
     uploadingFiles: (done, total) => `در حال ارسال فایل‌ها (${done} از ${total})…`,
     basketNotice: {
@@ -191,6 +200,8 @@ const copy: Record<
     turnstileVerifying: "Running security verification…",
     turnstileInteractive: "Complete the security verification to enable sending your request.",
     turnstileFailed: "Security verification did not complete. Please try again.",
+    turnstileUnreachable: "The form's security check could not load on this network, so the form cannot be sent. Please send us your purchase list or invoice another way:",
+    unreachableWhatsapp: "Send on WhatsApp", unreachablePhone: "Call us", unreachableEmail: "Send by e-mail",
     continueBrowsing: "Continue browsing",
     uploadingFiles: (done, total) => `Uploading files (${done} of ${total})…`,
     basketNotice: {
@@ -232,6 +243,8 @@ const copy: Record<
     turnstileVerifying: "جارٍ إجراء التحقق الأمني…",
     turnstileInteractive: "أكمل التحقق الأمني لتفعيل إرسال الطلب.",
     turnstileFailed: "لم يكتمل التحقق الأمني. يرجى المحاولة مرة أخرى.",
+    turnstileUnreachable: "تعذّر تحميل التحقق الأمني للنموذج على هذه الشبكة، لذا لا يمكن إرسال النموذج. يرجى إرسال قائمة المشتريات أو الفاتورة إلينا بإحدى الطرق التالية:",
+    unreachableWhatsapp: "الإرسال عبر واتساب", unreachablePhone: "اتصل بنا", unreachableEmail: "الإرسال بالبريد الإلكتروني",
     continueBrowsing: "متابعة اختيار المنتجات",
     uploadingFiles: (done, total) => `جارٍ رفع الملفات (${done} من ${total})…`,
     basketNotice: {
@@ -283,6 +296,24 @@ export interface CatalogArrival {
 /** A form row; one read from an attached file carries what was read (W13.3). */
 type FormRow = RfqRow & { extract?: RfqRowExtract };
 
+/**
+ * W27: the channels the form offers on the Iran mirror when the Turnstile script (challenges.cloudflare.com) cannot
+ * load there. Passed by the /contact page (lib/content/contact-channels.ts, lib/content/whatsapp.ts), so the e-mail
+ * address stays in the /contact page files only (leak scan, COMPANY_EMAIL_PAGES) and never enters a shared JS chunk.
+ */
+export interface UnreachableContacts {
+  whatsappHref: string | null;
+  /** tel:+983135134 */
+  phoneHref: string;
+  phoneDisplay: string;
+  /** The /contact page's own mail link (W20.7: no other file builds one). */
+  emailHref: string;
+  emailDisplay: string;
+}
+
+/** Wraps instead of overflowing a 360 px phone (the e-mail button is long in ar). */
+const unreachableLinkClass = cn(buttonVariants({ variant: "secondary", size: "sm" }), "h-auto min-h-10 max-w-full shrink py-2 whitespace-normal");
+
 function generateIdempotencyKey(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
   return `key-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -300,11 +331,22 @@ export function EnquiryForm({
   catalogArrival = null,
   catalogSnapshotVersion = null,
   rfqEndpoint = "/api/rfqs",
+  unreachableContacts,
   filesEndpoint = null,
   extractCapability = null,
+  altchaChallengeUrl,
+  captchaPending = false,
 }: {
   locale: Locale;
   turnstileSiteKey?: string;
+  /**
+   * W35: set instead of `turnstileSiteKey` when the RFQ API names ALTCHA (GET <rfqEndpoint>/capabilities — the
+   * domestic intake on iransrv): the challenge URL on that API host. The widget (./altcha-widget.ts) is loaded on
+   * demand from our own assets; its payload travels in the same `turnstileToken` field and the API verifies it.
+   */
+  altchaChallengeUrl?: string;
+  /** W32: the API has not said yet which captcha it wants — Submit stays disabled, no widget loads. */
+  captchaPending?: boolean;
   /**
    * W10.5 basket (lib/rfq/rfq-basket.ts): the rows to start with — the visitor's stored rows plus the
    * `?variant=` item (resolved against `catalogItems` only, never a raw URL value), built by
@@ -327,6 +369,8 @@ export function EnquiryForm({
   catalogSnapshotVersion?: string | null;
   /** rfq_submit.v1 endpoint: the RFQ Worker origin + /api/rfqs on the static site; same-origin /api/rfqs on the legacy SSR runtime. */
   rfqEndpoint?: string;
+  /** W27: shown instead of a silently disabled Submit when Turnstile does not load on the Iran mirror (www.ahanassa.ir / ahanassa.ir). */
+  unreachableContacts?: UnreachableContacts;
   /** D-RFQ-FILE: `<rfqEndpoint>/files` when the RFQ Worker reports upload as enabled; null = no file field. */
   filesEndpoint?: string | null;
   /** W13.3: whether attached lists are read into rows (from GET <rfqEndpoint>/files); null = not at all. */
@@ -339,6 +383,8 @@ export function EnquiryForm({
   const [turnstileScriptLoaded, setTurnstileScriptLoaded] = useState(false);
   /** UI-only status for explaining the disabled Submit button while Turnstile hasn't produced a token yet — never affects whether Submit is actually enabled (that remains solely `Boolean(turnstileToken)`, unchanged). */
   const [turnstileStatus, setTurnstileStatus] = useState<"verifying" | "interactive" | "failed" | "success">("verifying");
+  /** W27: on the Iran mirror only — the Turnstile script did not arrive within TURNSTILE_UNREACHABLE_MS (lib/mirror/iran-mirror.ts). Turnstile stays mandatory; this only explains why and offers other channels. */
+  const [turnstileUnreachable, setTurnstileUnreachable] = useState(false);
   const [rows, setRows] = useState<FormRow[]>(() => (initialRows && initialRows.length > 0 ? initialRows : [createEmptyCatalogRow()]));
   // The latest rows/status for the list reader's callback, which runs after an await.
   const rowsRef = useRef(rows);
@@ -348,6 +394,8 @@ export function EnquiryForm({
   const formRenderedAtRef = useRef(Date.now());
   const turnstileContainerRef = useRef<HTMLDivElement>(null);
   const turnstileWidgetIdRef = useRef<string | null>(null);
+  const altchaContainerRef = useRef<HTMLDivElement>(null);
+  const altchaRef = useRef<AltchaHandle | null>(null);
   const rowElementRefs = useRef<Record<string, HTMLElement | null>>({});
   const t = copy[locale];
   const [phoneCountry, setPhoneCountry] = useState<string>(() =>
@@ -464,6 +512,10 @@ export function EnquiryForm({
     if (turnstileWidgetIdRef.current) {
       window.turnstile?.reset(turnstileWidgetIdRef.current);
     }
+    if (altchaRef.current) {
+      setTurnstileStatus("interactive");
+      altchaRef.current.reset();
+    }
   }, []);
 
   // The Turnstile script may already be loaded (or still loading) when this
@@ -490,6 +542,24 @@ export function EnquiryForm({
       clearTimeout(stop);
     };
   }, [turnstileSiteKey]);
+
+  // W27: on the Iran mirror, challenges.cloudflare.com may be unreachable (MCI mobile). If the script is not there
+  // ~8 s after navigation start, say so and offer WhatsApp / phone / e-mail. If it arrives later, the message goes.
+  useEffect(() => {
+    if (!turnstileSiteKey || turnstileScriptLoaded) return;
+    const budget = turnstileUnreachableDelay(window.location.hostname, performance.now());
+    if (budget === null) return;
+    // W32: on an Iran host the key arrives only after GET …/capabilities answered, so the script may start loading
+    // late in the 8 s budget — it always gets at least CAPTCHA_SCRIPT_MIN_WAIT_MS of its own.
+    const delay = Math.max(budget, CAPTCHA_SCRIPT_MIN_WAIT_MS);
+    const id = setTimeout(() => {
+      if (!window.turnstile) setTurnstileUnreachable(true);
+    }, delay);
+    return () => clearTimeout(id);
+  }, [turnstileSiteKey, turnstileScriptLoaded]);
+  useEffect(() => {
+    if (turnstileScriptLoaded) setTurnstileUnreachable(false);
+  }, [turnstileScriptLoaded]);
 
   // Render the Turnstile widget once its script has loaded. A single-use
   // token must never be silently reused across attempts (CLAUDE.md "Token
@@ -530,6 +600,37 @@ export function EnquiryForm({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turnstileSiteKey, turnstileScriptLoaded, locale]);
+
+  // W35: ALTCHA (the domestic intake). Its widget is OUR code (./altcha-widget.ts, same origin, loaded only now), and
+  // its one network call is the challenge GET on the RFQ API host — so it loads wherever the form itself loaded, also
+  // during an international cutoff. The visitor ticks the box (or solving starts when the form is focused); a fresh
+  // challenge per attempt via reset. If even our own chunk cannot load, the W27 message offers phone / e-mail / WhatsApp.
+  useEffect(() => {
+    const container = altchaContainerRef.current;
+    if (!altchaChallengeUrl || !container) return;
+    let cancelled = false;
+    setTurnstileUnreachable(false);
+    setTurnstileStatus("interactive");
+    import("./altcha-widget").then(
+      ({ mountAltcha }) => {
+        if (cancelled) return;
+        altchaRef.current = mountAltcha(container, {
+          challengeUrl: altchaChallengeUrl,
+          locale,
+          onToken: (token) => setTurnstileToken(token),
+          onStatus: (status: AltchaStatus) => setTurnstileStatus(status),
+        });
+      },
+      () => {
+        if (!cancelled) setTurnstileUnreachable(true);
+      },
+    );
+    return () => {
+      cancelled = true;
+      altchaRef.current?.destroy();
+      altchaRef.current = null;
+    };
+  }, [altchaChallengeUrl, locale]);
 
   /** W3.2: regenerate idempotency key when payload changes (any form field edits). */
   function regenerateIdempotencyKey() {
@@ -809,7 +910,9 @@ export function EnquiryForm({
     row.extract && attachedFileKeys.has(row.extract.fileKey)
       ? { rawText: row.extract.rawText, review: row.extract.review, reasons: row.extract.reasons, picture: row.extract.source === "image" }
       : null;
-  const turnstileBlocking = Boolean(turnstileSiteKey) && !turnstileToken;
+  // W32: a captcha is required whenever one is configured or the API has not named its captcha yet.
+  const captchaShown = Boolean(turnstileSiteKey) || Boolean(altchaChallengeUrl) || captchaPending;
+  const turnstileBlocking = captchaShown && !turnstileToken;
   const errorRowEntries = Object.entries(rowErrors);
   const rowIndexById = new Map(rows.map((r, i) => [r.id, i]));
 
@@ -1100,15 +1203,16 @@ export function EnquiryForm({
         />
       )}
 
-      {turnstileSiteKey && (
+      {captchaShown && (
         <div className="grid gap-2">
-          <div ref={turnstileContainerRef} />
+          {turnstileSiteKey && <div ref={turnstileContainerRef} />}
+          {altchaChallengeUrl && <div ref={altchaContainerRef} data-altcha="" className="min-w-0" />}
           {/* Explains WHY Submit is disabled while Turnstile hasn't produced a
               token yet (Go-Live Readiness Turnstile-UX fix) — purely
               informational, never a way to bypass verification: Submit's own
               `disabled` condition below is unchanged (`turnstileBlocking`,
               still solely `Boolean(turnstileSiteKey) && !turnstileToken`). */}
-          {!turnstileToken && turnstileStatus === "verifying" && (
+          {!turnstileToken && turnstileStatus === "verifying" && !turnstileUnreachable && (
             <p role="status" className="text-muted-foreground text-xs">
               {t.turnstileVerifying}
             </p>
@@ -1122,6 +1226,32 @@ export function EnquiryForm({
             <p role="alert" className="text-xs font-medium text-[var(--aa-color-danger-700)]">
               {t.turnstileFailed}
             </p>
+          )}
+          {!turnstileToken && turnstileUnreachable && (
+            <div role="alert" data-turnstile-unreachable="" className="border-border grid gap-3 rounded-[var(--aa-radius-md)] border bg-[var(--aa-color-bg-warm)] p-4">
+              <p className="text-navy text-sm leading-relaxed font-medium">{t.turnstileUnreachable}</p>
+              {unreachableContacts && (
+                <ul role="list" className="flex min-w-0 flex-wrap gap-2">
+                  {unreachableContacts.whatsappHref && (
+                    <li>
+                      <a href={unreachableContacts.whatsappHref} target="_blank" rel={WHATSAPP_REL} className={unreachableLinkClass}>
+                        {t.unreachableWhatsapp}
+                      </a>
+                    </li>
+                  )}
+                  <li>
+                    <a href={unreachableContacts.phoneHref} className={unreachableLinkClass}>
+                      {t.unreachablePhone} <span dir="ltr">{unreachableContacts.phoneDisplay}</span>
+                    </a>
+                  </li>
+                  <li>
+                    <a href={unreachableContacts.emailHref} className={unreachableLinkClass}>
+                      {t.unreachableEmail} <span dir="ltr" className="break-all">{unreachableContacts.emailDisplay}</span>
+                    </a>
+                  </li>
+                </ul>
+              )}
+            </div>
           )}
         </div>
       )}

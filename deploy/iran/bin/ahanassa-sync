@@ -1,0 +1,9 @@
+#!/usr/bin/python3 -I
+# W30: the unprivileged sync agent of the domestic copy (deploy/iran/lib/ahanassa_iran.py). Installed by the operator
+# to /usr/local/bin; the module to /usr/local/lib/ahanassa/. -I: no user site, no current directory on sys.path.
+import sys
+
+sys.path.insert(0, "/usr/local/lib/ahanassa")
+from ahanassa_iran import main_sync  # noqa: E402
+
+sys.exit(main_sync())
