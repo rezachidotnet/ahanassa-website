@@ -303,15 +303,21 @@ export function evaluateOdoo(p: OdooProbe, t: Thresholds, previousFailures: numb
 
 /**
  * Newest `published_at_utc` among the numeric prices of a GET /api/v1/pricing/current body; null when
- * nothing is priced. Only that one field is read — never a price, factory or location.
+ * nothing is priced. Only that one field is read — never a price, factory or location. W34 (Odoo W9.14): the lowest
+ * imported price's time (`imported_lowest.published_at_utc`) counts too — an imported-only variant is "price on
+ * request" in the v1 fields, so without it a site that shows only imported prices would read as unpriced.
  */
 export function newestPublishedPriceAt(body: unknown): string | null {
   const data = (body as { data?: unknown } | null)?.data;
   if (!Array.isArray(data)) throw new Error("pricing response is not {data: [...]}");
   let newest: string | null = null;
-  for (const r of data as { price_on_request?: unknown; published_at_utc?: unknown }[]) {
-    if (r?.price_on_request !== false || typeof r.published_at_utc !== "string" || Number.isNaN(Date.parse(r.published_at_utc))) continue;
-    if (newest === null || r.published_at_utc > newest) newest = r.published_at_utc;
+  const consider = (at: unknown) => {
+    if (typeof at !== "string" || Number.isNaN(Date.parse(at))) return;
+    if (newest === null || at > newest) newest = at;
+  };
+  for (const r of data as { price_on_request?: unknown; published_at_utc?: unknown; imported_lowest?: { published_at_utc?: unknown } | null }[]) {
+    if (r?.price_on_request === false) consider(r.published_at_utc);
+    consider(r?.imported_lowest?.published_at_utc);
   }
   return newest;
 }

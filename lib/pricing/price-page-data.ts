@@ -3,7 +3,7 @@ import { getPublishedCatalogTemplateBySlug, listPublicCatalogCategories, listPub
 import { indexPublicCategoriesByGroupCode, resolveRfqPublicCategory } from "../catalog/public-categories.ts";
 import { normalizeVariantNominalWeight, sortVariantsBySize } from "../catalog/specification-presenter.ts";
 import type { ProductVariant } from "../catalog/types.ts";
-import { listAllFactoryPrices, listAllPublishedPrices } from "./product-page-price-repository.ts";
+import { listAllFactoryPrices, listAllImportedPrices, listAllPublishedPrices } from "./product-page-price-repository.ts";
 import { buildPriceTableRows, type PriceTableRow } from "./price-page.ts";
 import { publishedHubFamilies, type PriceHubCategoryCode } from "./price-hubs.ts";
 import { isPriceLocale, type PriceLocale } from "./price-locale.ts";
@@ -40,7 +40,9 @@ export function loadPriceTableRows(locale: PriceLocale): Promise<PriceTableRow[]
 
 async function readPriceTableRows(locale: PriceLocale): Promise<PriceTableRow[]> {
   const prices = await listAllPublishedPrices();
-  if (!prices || prices.size === 0) return [];
+  // W34: the lowest imported prices, apart (an imported-only variant has a row too).
+  const imported = await listAllImportedPrices();
+  if (!prices || (prices.size === 0 && !imported?.size)) return [];
   const templates = await listPublishedCatalogTemplates(locale);
   const details = await Promise.all(templates.map((t) => getPublishedCatalogTemplateBySlug(locale, t.seo.slug)));
   const categoryIndex = indexPublicCategoriesByGroupCode(await listPublicCatalogCategories(locale));
@@ -72,6 +74,7 @@ async function readPriceTableRows(locale: PriceLocale): Promise<PriceTableRow[]>
     family,
     // W20.7: every factory's price, fa only (ar shows the lowest + date, en no price).
     locale === "fa" ? await listAllFactoryPrices() : null,
+    imported,
   );
 }
 

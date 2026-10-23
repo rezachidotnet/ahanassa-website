@@ -45,7 +45,7 @@ export function sourceCounts(tables: Tables): Record<string, number> {
   return counts;
 }
 
-/** `previousCounts` = the active publication's source counts (the pricing check needs its `prices_published`). */
+/** `previousCounts` = the active publication's source counts (the pricing check needs its `prices_published` and, W34, `prices_imported`). */
 export function validateSource(odoo: OdooSource, tables: Tables, previousCounts: Record<string, number> | null = null): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -162,7 +162,8 @@ export function validateSource(odoo: OdooSource, tables: Tables, previousCounts:
   if (odoo.processing_groups.fa.length === 0) errors.push("processing groups: Odoo returned none");
 
   // W9.4 prices: allow-listed fields only, known variants, positive integers, fa factory/location, sane times.
-  const pricing = validatePricing(odoo.prices, odoo.products, odoo.fetched_at, previousCounts?.prices_published ?? null);
+  // W34: a run that would wipe the live site's imported prices blocks too (prices_imported).
+  const pricing = validatePricing(odoo.prices, odoo.products, odoo.fetched_at, previousCounts?.prices_published ?? null, previousCounts?.prices_imported ?? null);
   errors.push(...pricing.errors);
   warnings.push(...pricing.warnings);
   // W9.6: the 30-day history never fails a run; problems are warnings (the chart is then not drawn).

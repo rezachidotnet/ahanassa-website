@@ -19,6 +19,7 @@ const tables = (): SnapshotV1["tables"] => ({
   published_prices: [],
   published_price_history: [],
   published_factory_prices: [],
+  published_imported_prices: [],
   published_articles: [],
   published_indicators: [],
   published_indicator_points: [],

@@ -17,8 +17,8 @@ import { breadcrumbListSchema, jsonLdGraph, productOffersSchema, productSchema }
 import { siteConfig } from "@/lib/metadata/site";
 import { primaryCta } from "@/lib/content/nav";
 import { PriceBlock } from "@/components/products/price-block";
-import { listDailyPriceHistory, listLowestPricesIrr, listProductPagePrices } from "@/lib/pricing/product-page-price-repository";
-import { firstPricedVariant, isPriceLocale, PRICE_BLOCK_ATTRIBUTE, PRICE_BLOCK_ON_REQUEST } from "@/lib/pricing/product-page-price";
+import { listDailyPriceHistory, listLowestPricesIrr, listProductPageImportedPrices, listProductPagePrices } from "@/lib/pricing/product-page-price-repository";
+import { firstPricedVariant, isPriceLocale, PRICE_BLOCK_ATTRIBUTE, PRICE_BLOCK_ON_REQUEST, PRICE_ORIGIN_ATTRIBUTE, PRICE_ORIGIN_COPY } from "@/lib/pricing/product-page-price";
 import { sparklineSeries, tehranDay } from "@/lib/pricing/price-history";
 import { PRICE_RFQ_COPY, priceRfqHref } from "@/lib/pricing/price-rfq";
 import { PriceSparkline } from "@/components/products/price-sparkline";
@@ -87,10 +87,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   });
 }
 
-/** W16.8: the fa day of the newest published price of the page's variants, or null when none has a price (or outside the static build). */
+/** W16.8: the fa day of the newest published price of the page's variants, or null when none has a price (or outside the static build). W34: domestic or imported (a date, never a price comparison). */
 async function newestPriceDay(variants: readonly ProductVariant[]): Promise<PriceDay | null> {
-  const prices = await listProductPagePrices(variants.map((v) => v.xid));
-  const newest = [...(prices?.values() ?? [])].reduce<string | null>((max, p) => (max === null || p.pricedAt > max ? p.pricedAt : max), null);
+  const xids = variants.map((v) => v.xid);
+  const prices = [...((await listProductPagePrices(xids))?.values() ?? []), ...((await listProductPageImportedPrices(xids))?.values() ?? [])];
+  const newest = prices.reduce<string | null>((max, p) => (max === null || p.pricedAt > max ? p.pricedAt : max), null);
   return newest ? loadPriceDay("fa", newest) : null;
 }
 
@@ -100,6 +101,11 @@ async function newestPriceDay(variants: readonly ProductVariant[]): Promise<Pric
  * variant, and the «قیمت روز» column; ar — the price-only «سعر اليوم» column (no PriceBlock, no factory or
  * location); en — nothing. Prices come from the snapshot at build time. W20.7: the JSON-LD offers (the lowest
  * per variant) are ProductOffers below, fa/ar only.
+ *
+ * W34 (owner 2026-10-21): the lowest IMPORTED price is shown apart, never compared with the domestic one: on fa its
+ * own PriceBlock («کمترین قیمت وارداتی …», the first variant that has one, no chart) and on fa/ar its own table
+ * column. With both origins the domestic block is titled «کمترین قیمت داخلی …»; with only imported prices there is
+ * no domestic "on request" block. The chart, gauge, JSON-LD offers and weight calculator stay domestic.
  *
  * r4 isolation (same technique as TargetEnquiryForm in contact/page.tsx and NotFoundContent in
  * not-found.tsx): this async boundary always suspends once, so React emits the price block and the
@@ -111,7 +117,11 @@ async function ProductSpecs({ locale, variants, title, slug }: { locale: Locale;
   await Promise.resolve();
   // fa: PriceBlock + column; ar: price-only column; en: no price data at all (owner decision change 2026-10-09).
   const prices = isPriceLocale(locale) ? await listProductPagePrices(variants.map((v) => v.xid)) : null;
+  const imported = isPriceLocale(locale) ? await listProductPageImportedPrices(variants.map((v) => v.xid)) : null;
   const main = prices && locale === "fa" ? firstPricedVariant(sortVariantsBySize(variants), prices) : null;
+  const mainImported = imported && locale === "fa" ? firstPricedVariant(sortVariantsBySize(variants), imported) : null;
+  const mainImportedPrice = mainImported ? imported?.get(mainImported.xid) : undefined;
+  const mainImportedSize = mainImported ? (mainImported.commercialSize ?? mainImported.sectionSize ?? mainImported.sku) : null;
   const mainSize = main ? (main.commercialSize ?? main.sectionSize ?? main.sku) : null;
   const mainPrice = main ? prices?.get(main.xid) : undefined;
   // W9.6: the 30-day chart of the main variant — only with ≥ 7 daily points (sparklineSeries), else nothing.
@@ -129,16 +139,19 @@ async function ProductSpecs({ locale, variants, title, slug }: { locale: Locale;
     <>
       {prices && locale === "fa" && (
         <div className="mt-6 max-w-md">
-          <div {...{ [PRICE_BLOCK_ATTRIBUTE]: main?.xid ?? PRICE_BLOCK_ON_REQUEST }}>
-            <PriceBlock
-              locale={locale}
-              price={mainPrice ?? null}
-              rfqHref={main && mainPrice ? priceRfqHref("fa", main.xid, mainPrice.factoryName) : contact}
-              priceCtaLabel={PRICE_RFQ_COPY.fa}
-              productName={mainSize ? `${title} ${mainSize}` : title}
-              trend={series && currentDay ? <PriceSparkline series={series} currentDay={currentDay} /> : undefined}
-            />
-          </div>
+          {(main || !mainImported) && (
+            <div {...{ [PRICE_BLOCK_ATTRIBUTE]: main?.xid ?? PRICE_BLOCK_ON_REQUEST }}>
+              <PriceBlock
+                locale={locale}
+                price={mainPrice ?? null}
+                rfqHref={main && mainPrice ? priceRfqHref("fa", main.xid, mainPrice.factoryName) : contact}
+                priceCtaLabel={PRICE_RFQ_COPY.fa}
+                productName={mainSize ? `${title} ${mainSize}` : title}
+                trend={series && currentDay ? <PriceSparkline series={series} currentDay={currentDay} /> : undefined}
+                heading={mainImported ? PRICE_ORIGIN_COPY.fa.domestic : undefined}
+              />
+            </div>
+          )}
           {main && mainPrice && currentDay && windows.length > 0 && (
             <div className="mt-4">
               <PriceDecision
@@ -152,10 +165,23 @@ async function ProductSpecs({ locale, variants, title, slug }: { locale: Locale;
               />
             </div>
           )}
+          {mainImported && mainImportedPrice && (
+            // W34: the lowest imported price, its own block (no chart: the history drawn is the domestic one).
+            <div className={main ? "mt-4" : undefined} {...{ [PRICE_BLOCK_ATTRIBUTE]: mainImported.xid, [PRICE_ORIGIN_ATTRIBUTE]: "imported" }}>
+              <PriceBlock
+                locale={locale}
+                price={mainImportedPrice}
+                rfqHref={priceRfqHref("fa", mainImported.xid, mainImportedPrice.factoryName)}
+                priceCtaLabel={PRICE_RFQ_COPY.fa}
+                productName={`${title} ${mainImportedSize}`}
+                heading={PRICE_ORIGIN_COPY.fa.imported}
+              />
+            </div>
+          )}
         </div>
       )}
       <div className="mt-6">
-        <VariantSpecTable locale={locale} variants={variants} prices={prices} />
+        <VariantSpecTable locale={locale} variants={variants} prices={prices} importedPrices={imported} />
       </div>
     </>
   );

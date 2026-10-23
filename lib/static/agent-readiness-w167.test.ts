@@ -161,7 +161,7 @@ test("the leak, publication and source-name scans read .md files in their page's
   assert.match(gate, /checkMarkdownMirrors\(textFiles, visibleText\)/);
   // W18.3: plus the en indicator texts that name a currency (the strip's «IRR per USD»), nothing else.
   assert.match(gate, /checkAgentTexts\(textFiles, everyPriceRow, \[\.\.\.indicatorInput\.indicators\.values\(\)\]\.flatMap\(\(i\) => allowedIndicatorTexts\("en", i\)\)\)/);
-  assert.match(gate, /const everyPriceRow = \[...priceInput\.rows, ...\[...priceInput\.factoryRows\.values\(\)\]\.flat\(\)\];/, "W20.7: the factory prices count too");
+  assert.match(gate, /const everyPriceRow = \[...priceInput\.rows, ...\[...priceInput\.factoryRows\.values\(\)\]\.flat\(\), ...priceInput\.importedRows\];/, "W20.7: the factory prices count too; W34: and the imported lowest");
 });
 
 // --- 2. llms.txt -----------------------------------------------------------------------------------------

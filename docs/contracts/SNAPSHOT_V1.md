@@ -122,6 +122,21 @@ The schema checks that:
 
 The table is omitted from the content hash when it is empty. Absent or unusable `factory_prices` means an empty table, and the run continues.
 
+W34 (Odoo W9.14): `factory_prices` lists both origins. Only the domestic factories (`factory.is_imported` false or absent) are stored here; the imported ones are checked against `imported_lowest` and dropped.
+
+## `published_imported_prices` (W34, extension)
+
+Build-only, like `published_prices`. It holds the variant's lowest **imported** price, from Odoo `/current` `imported_lowest` (W9.14, owner decision 2026-10-21: domestic and imported prices are never compared or mixed). Its columns are exactly those of `published_prices`. `published_prices` stays the lowest **domestic** price and keeps its meaning and key.
+
+- The factory is the origin as Odoo names it, with the country in parentheses («وارداتی (چین)»).
+- A variant may have an imported row and no domestic one: an imported-only size has the v1 "price on request" shape.
+- The schema checks one row per known variant. It does not require a `published_prices` row.
+- The table is omitted from the content hash when it is empty, so snapshots made before W34 keep their hash.
+- Before Odoo W9.14 there is no `imported_lowest` and no `is_imported`: the table is empty and every page renders as before.
+- If the imported data is invalid, every imported row is dropped with a warning and the domestic prices publish as before. If the live site already shows imported prices (`prices_imported` > 0), the run is blocked instead.
+
+**Rendering.** The imported price is always shown apart, labelled «کمترین قیمت وارداتی» / «أدنى سعر مستورد». It gets its own table column on product pages, its own row on `/prices` and the hubs, and on fa its own price block. Its elements carry `data-aa-price-origin="imported"`, and price-gate rule 10 checks them against this table. The charts, gauge, sparkline, JSON-LD offers, weight calculator and price bulletin stay domestic. Nothing shows the lower of the two prices.
+
 ## `published_price_history` (W9.6, extension)
 
 Owner-approved 2026-10-09 (W9.6: price page, ▲/▼, 30-day chart). Code: `lib/contracts/snapshot-prices.ts` (row),

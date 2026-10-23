@@ -62,7 +62,7 @@ function odooSource(products: CatalogApiProduct[]): OdooSource {
 }
 
 function emptyTables(): SnapshotV1["tables"] {
-  return { catalog_public_categories: [], catalog_products: [], product_variants: [], product_seo_contents: [], public_processing_groups: [], route_redirects: [], homepage_product_rank: [], catalog_group_labels: [], published_prices: [], published_price_history: [], published_factory_prices: [], published_articles: [], published_indicators: [], published_indicator_points: [] };
+  return { catalog_public_categories: [], catalog_products: [], product_variants: [], product_seo_contents: [], public_processing_groups: [], route_redirects: [], homepage_product_rank: [], catalog_group_labels: [], published_prices: [], published_price_history: [], published_factory_prices: [], published_imported_prices: [], published_articles: [], published_indicators: [], published_indicator_points: [] };
 }
 
 const d1 = (tables: SnapshotV1["tables"]): D1Source => ({ schema: "d1-source.v1", read_at: "2026-10-21T08:00:00.000Z", tables, publication: { active_version: null, versions: [] } });

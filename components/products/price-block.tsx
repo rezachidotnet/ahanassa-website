@@ -20,12 +20,15 @@ import { PriceAge } from "./price-age";
  *
  * W9.6: `priceCtaLabel` replaces the CTA text when a price is shown («استعلام قیمت نهایی», the RFQ form
  * prefilled by `rfqHref`); `trend` is the optional 30-day chart, drawn under the details.
+ *
+ * W34: `heading` replaces «قیمت روز» in the title — «کمترین قیمت داخلی» / «کمترین قیمت وارداتی» when the page
+ * shows both origins' lowest prices, each in its own block (never one block with the lower of the two).
  */
-export function PriceBlock({ locale, price, rfqHref, productName, priceCtaLabel, trend }: { locale: Locale; price: PriceBlockData | null | undefined; rfqHref: string; productName?: string; priceCtaLabel?: string; trend?: ReactNode }) {
+export function PriceBlock({ locale, price, rfqHref, productName, priceCtaLabel, trend, heading }: { locale: Locale; price: PriceBlockData | null | undefined; rfqHref: string; productName?: string; priceCtaLabel?: string; trend?: ReactNode; heading?: string }) {
   const view = presentPriceBlock(locale, price);
   if (!view) return null;
   const t = PRICE_BLOCK_COPY;
-  const title = productName ? `${t.title} ${productName}` : t.title;
+  const title = productName ? `${heading ?? t.title} ${productName}` : (heading ?? t.title);
 
   return (
     <section aria-label={title} className={cardVariants({ className: "overflow-hidden shadow-[var(--aa-shadow-sm)]" })}>

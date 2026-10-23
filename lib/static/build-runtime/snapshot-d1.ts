@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
-import { PUBLISHED_FACTORY_PRICES_BUILD_DDL, PUBLISHED_PRICE_HISTORY_BUILD_DDL, PUBLISHED_PRICES_BUILD_DDL } from "../../contracts/snapshot-prices.ts";
+import { PUBLISHED_FACTORY_PRICES_BUILD_DDL, PUBLISHED_IMPORTED_PRICES_BUILD_DDL, PUBLISHED_PRICE_HISTORY_BUILD_DDL, PUBLISHED_PRICES_BUILD_DDL } from "../../contracts/snapshot-prices.ts";
 import { PUBLISHED_ARTICLES_BUILD_DDL } from "../../contracts/snapshot-articles.ts";
 import { BUILD_ONLY_COLUMNS_DDL } from "../../contracts/snapshot-v1.ts";
 import { PUBLISHED_INDICATOR_POINTS_BUILD_DDL, PUBLISHED_INDICATORS_BUILD_DDL } from "../../contracts/snapshot-indicators.ts";
@@ -28,6 +28,8 @@ export function openSnapshotDatabase(snapshotFile: string, migrationsDir: string
   db.exec(PUBLISHED_PRICE_HISTORY_BUILD_DDL);
   // W20.7: every factory's price (fa price page).
   db.exec(PUBLISHED_FACTORY_PRICES_BUILD_DDL);
+  // W34: the lowest imported price per variant (never mixed with published_prices).
+  db.exec(PUBLISHED_IMPORTED_PRICES_BUILD_DDL);
   // W11.1: build-only articles (lib/contracts/snapshot-articles.ts).
   db.exec(PUBLISHED_ARTICLES_BUILD_DDL);
   // W18.2: build-only market indicators (lib/contracts/snapshot-indicators.ts).

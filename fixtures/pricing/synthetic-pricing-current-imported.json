@@ -1,0 +1,646 @@
+{
+ "synthetic": true,
+ "note": "SYNTHETIC test data only (W34): the W20.7 factories fixture in the Odoo W9.14 shape — factory.is_imported on every factory, imported_lowest on every row, and two seamless-pipe sizes: CVAR-000237 with a domestic AND an imported lowest, CVAR-000238 imported only (v1 'price on request'). No real price, factory or market source.",
+ "fetched_at": "2026-10-08T08:00:00Z",
+ "response": {
+  "data": [
+   {
+    "id": null,
+    "canonical_id": "CVAR-000031",
+    "canonical_template_id": "CTMPL-000001",
+    "sku": "AA-RB-AJ400-D10-L12",
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "price_irr_per_kg": 489470,
+    "price_on_request": false,
+    "published_at_utc": "2026-10-08T07:20:00Z",
+    "factory": {
+     "code": "FAC-9001",
+     "name": {
+      "fa": "کارخانه آزمایشی الف",
+      "en": "Test Mill A",
+      "ar": null
+     },
+     "is_imported": false
+    },
+    "location": {
+     "fa": "درب کارخانه",
+     "en": "Factory gate",
+     "ar": null
+    },
+    "previous": {
+     "price_irr_per_kg": 495610,
+     "price_on_request": false,
+     "published_at_utc": "2026-10-05T07:20:00Z",
+     "factory": {
+      "code": "FAC-9001",
+      "name": {
+       "fa": "کارخانه آزمایشی الف",
+       "en": "Test Mill A",
+       "ar": null
+      },
+      "is_imported": false
+     },
+     "location": {
+      "fa": "درب کارخانه",
+      "en": "Factory gate",
+      "ar": null
+     }
+    },
+    "basis_note": {
+     "fa": "یادداشت آزمایشی",
+     "en": null,
+     "ar": null
+    },
+    "factory_prices": [
+     {
+      "factory": {
+       "code": "FAC-9001",
+       "name": {
+        "fa": "کارخانه آزمایشی الف",
+        "en": "Test Mill A",
+        "ar": null
+       },
+       "is_imported": false
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      },
+      "price_irr_per_kg": 489470,
+      "published_at_utc": "2026-10-08T07:20:00Z",
+      "previous": {
+       "price_irr_per_kg": 495610,
+       "published_at_utc": "2026-10-05T07:20:00Z"
+      },
+      "change_pct": -1.24,
+      "is_lowest": true
+     },
+     {
+      "factory": {
+       "code": "FAC-9004",
+       "name": {
+        "fa": "کارخانه آزمایشی د",
+        "en": "Test Mill D",
+        "ar": null
+       },
+       "is_imported": false
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      },
+      "price_irr_per_kg": 501810,
+      "published_at_utc": "2026-10-08T07:20:00Z",
+      "previous": {
+       "price_irr_per_kg": 504470,
+       "published_at_utc": "2026-10-06T07:20:00Z"
+      },
+      "change_pct": -0.53,
+      "is_lowest": false
+     },
+     {
+      "factory": {
+       "code": "FAC-9005",
+       "name": {
+        "fa": "کارخانه آزمایشی ه",
+        "en": null,
+        "ar": null
+       },
+       "is_imported": false
+      },
+      "location": {
+       "fa": "انبار تهران",
+       "en": "Tehran warehouse",
+       "ar": null
+      },
+      "price_irr_per_kg": 515130,
+      "published_at_utc": "2026-10-08T07:20:00Z",
+      "previous": null,
+      "change_pct": null,
+      "is_lowest": false
+     }
+    ],
+    "imported_lowest": null
+   },
+   {
+    "id": null,
+    "canonical_id": "CVAR-000032",
+    "canonical_template_id": "CTMPL-000001",
+    "sku": "AA-RB-AJ400-D12-L12",
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "price_irr_per_kg": 478200,
+    "price_on_request": false,
+    "published_at_utc": "2026-10-08T07:20:00Z",
+    "factory": {
+     "code": "FAC-9002",
+     "name": {
+      "fa": "کارخانه آزمایشی ب",
+      "en": null,
+      "ar": null
+     },
+     "is_imported": false
+    },
+    "location": {
+     "fa": "انبار تهران",
+     "en": "Tehran warehouse",
+     "ar": null
+    },
+    "previous": null,
+    "basis_note": {
+     "fa": null,
+     "en": null,
+     "ar": null
+    },
+    "factory_prices": [
+     {
+      "factory": {
+       "code": "FAC-9002",
+       "name": {
+        "fa": "کارخانه آزمایشی ب",
+        "en": null,
+        "ar": null
+       },
+       "is_imported": false
+      },
+      "location": {
+       "fa": "انبار تهران",
+       "en": "Tehran warehouse",
+       "ar": null
+      },
+      "price_irr_per_kg": 478200,
+      "published_at_utc": "2026-10-08T07:20:00Z",
+      "previous": null,
+      "change_pct": null,
+      "is_lowest": true
+     },
+     {
+      "factory": {
+       "code": "FAC-9004",
+       "name": {
+        "fa": "کارخانه آزمایشی د",
+        "en": "Test Mill D",
+        "ar": null
+       },
+       "is_imported": false
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      },
+      "price_irr_per_kg": 490540,
+      "published_at_utc": "2026-10-08T07:20:00Z",
+      "previous": {
+       "price_irr_per_kg": 493200,
+       "published_at_utc": "2026-10-06T07:20:00Z"
+      },
+      "change_pct": -0.54,
+      "is_lowest": false
+     }
+    ],
+    "imported_lowest": null
+   },
+   {
+    "id": null,
+    "canonical_id": "CVAR-000033",
+    "canonical_template_id": "CTMPL-000001",
+    "sku": "AA-RB-AJ400-D14-L12",
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "price_irr_per_kg": null,
+    "price_on_request": true,
+    "published_at_utc": null,
+    "factory": null,
+    "location": null,
+    "previous": null,
+    "basis_note": {
+     "fa": null,
+     "en": null,
+     "ar": null
+    },
+    "factory_prices": [],
+    "imported_lowest": null
+   },
+   {
+    "id": null,
+    "canonical_id": "CVAR-000053",
+    "canonical_template_id": "CTMPL-000002",
+    "sku": "AA-BM-IPE-S120-L12",
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "price_irr_per_kg": 552000,
+    "price_on_request": false,
+    "published_at_utc": "2026-10-07T07:15:00Z",
+    "factory": {
+     "code": "FAC-9003",
+     "name": {
+      "fa": "کارخانه آزمایشی ج",
+      "en": null,
+      "ar": null
+     },
+     "is_imported": false
+    },
+    "location": {
+     "fa": "انبار تهران",
+     "en": null,
+     "ar": null
+    },
+    "previous": {
+     "price_irr_per_kg": 540000,
+     "price_on_request": false,
+     "published_at_utc": "2026-10-01T07:15:00Z",
+     "factory": {
+      "code": "FAC-9003",
+      "name": {
+       "fa": "کارخانه آزمایشی ج",
+       "en": null,
+       "ar": null
+      },
+      "is_imported": false
+     },
+     "location": {
+      "fa": "انبار تهران",
+      "en": null,
+      "ar": null
+     }
+    },
+    "basis_note": {
+     "fa": null,
+     "en": null,
+     "ar": null
+    },
+    "factory_prices": [
+     {
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       },
+       "is_imported": false
+      },
+      "location": {
+       "fa": "انبار تهران",
+       "en": null,
+       "ar": null
+      },
+      "price_irr_per_kg": 552000,
+      "published_at_utc": "2026-10-07T07:15:00Z",
+      "previous": {
+       "price_irr_per_kg": 540000,
+       "published_at_utc": "2026-10-01T07:15:00Z"
+      },
+      "change_pct": 2.22,
+      "is_lowest": true
+     },
+     {
+      "factory": {
+       "code": "FAC-9004",
+       "name": {
+        "fa": "کارخانه آزمایشی د",
+        "en": "Test Mill D",
+        "ar": null
+       },
+       "is_imported": false
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      },
+      "price_irr_per_kg": 564340,
+      "published_at_utc": "2026-10-07T07:15:00Z",
+      "previous": {
+       "price_irr_per_kg": 567000,
+       "published_at_utc": "2026-10-06T07:20:00Z"
+      },
+      "change_pct": -0.47,
+      "is_lowest": false
+     }
+    ],
+    "imported_lowest": null
+   },
+   {
+    "id": null,
+    "canonical_id": "CVAR-000054",
+    "canonical_template_id": "CTMPL-000002",
+    "sku": "AA-BM-IPE-S140-L12",
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "price_irr_per_kg": 552000,
+    "price_on_request": false,
+    "published_at_utc": "2026-10-07T07:15:00Z",
+    "factory": {
+     "code": "FAC-9003",
+     "name": {
+      "fa": "کارخانه آزمایشی ج",
+      "en": null,
+      "ar": null
+     },
+     "is_imported": false
+    },
+    "location": {
+     "fa": "درب کارخانه",
+     "en": null,
+     "ar": null
+    },
+    "previous": {
+     "price_irr_per_kg": null,
+     "price_on_request": true,
+     "published_at_utc": "2026-10-02T07:15:00Z",
+     "factory": null,
+     "location": null
+    },
+    "basis_note": {
+     "fa": null,
+     "en": null,
+     "ar": null
+    },
+    "factory_prices": [
+     {
+      "factory": {
+       "code": "FAC-9003",
+       "name": {
+        "fa": "کارخانه آزمایشی ج",
+        "en": null,
+        "ar": null
+       },
+       "is_imported": false
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": null,
+       "ar": null
+      },
+      "price_irr_per_kg": 552000,
+      "published_at_utc": "2026-10-07T07:15:00Z",
+      "previous": null,
+      "change_pct": null,
+      "is_lowest": true
+     },
+     {
+      "factory": {
+       "code": "FAC-9004",
+       "name": {
+        "fa": "کارخانه آزمایشی د",
+        "en": "Test Mill D",
+        "ar": null
+       },
+       "is_imported": false
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      },
+      "price_irr_per_kg": 564340,
+      "published_at_utc": "2026-10-07T07:15:00Z",
+      "previous": {
+       "price_irr_per_kg": 567000,
+       "published_at_utc": "2026-10-06T07:20:00Z"
+      },
+      "change_pct": -0.47,
+      "is_lowest": false
+     }
+    ],
+    "imported_lowest": null
+   },
+   {
+    "id": null,
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "canonical_template_id": "CTMPL-000016",
+    "canonical_id": "CVAR-000237",
+    "sku": "AA-PP-SMLS-A106B-S114P3X6P02-L6",
+    "price_irr_per_kg": 1318000,
+    "price_on_request": false,
+    "published_at_utc": "2026-10-08T07:20:00Z",
+    "factory": {
+     "code": "FAC-9101",
+     "name": {
+      "fa": "کارخانه آزمایشی لوله",
+      "en": "Test Pipe Mill",
+      "ar": null
+     },
+     "is_imported": false
+    },
+    "location": {
+     "fa": "درب کارخانه",
+     "en": "Factory gate",
+     "ar": null
+    },
+    "previous": {
+     "price_irr_per_kg": 1302000,
+     "price_on_request": false,
+     "published_at_utc": "2026-10-05T07:20:00Z",
+     "factory": {
+      "code": "FAC-9101",
+      "name": {
+       "fa": "کارخانه آزمایشی لوله",
+       "en": "Test Pipe Mill",
+       "ar": null
+      },
+      "is_imported": false
+     },
+     "location": {
+      "fa": "درب کارخانه",
+      "en": "Factory gate",
+      "ar": null
+     }
+    },
+    "basis_note": {
+     "fa": null,
+     "en": null,
+     "ar": null
+    },
+    "factory_prices": [
+     {
+      "factory": {
+       "code": "FAC-9101",
+       "name": {
+        "fa": "کارخانه آزمایشی لوله",
+        "en": "Test Pipe Mill",
+        "ar": null
+       },
+       "is_imported": false
+      },
+      "location": {
+       "fa": "درب کارخانه",
+       "en": "Factory gate",
+       "ar": null
+      },
+      "price_irr_per_kg": 1318000,
+      "published_at_utc": "2026-10-08T07:20:00Z",
+      "previous": {
+       "price_irr_per_kg": 1302000,
+       "published_at_utc": "2026-10-05T07:20:00Z"
+      },
+      "change_pct": 1.23,
+      "is_lowest": true
+     },
+     {
+      "factory": {
+       "code": "IMPORTED-CN",
+       "name": {
+        "fa": "وارداتی (چین)",
+        "en": "Imported (China)",
+        "ar": "مستورد (الصين)"
+       },
+       "is_imported": true
+      },
+      "location": {
+       "fa": "انبار تهران",
+       "en": "Tehran warehouse",
+       "ar": null
+      },
+      "price_irr_per_kg": 1187000,
+      "published_at_utc": "2026-10-08T07:25:00Z",
+      "previous": {
+       "price_irr_per_kg": 1199000,
+       "published_at_utc": "2026-10-05T07:25:00Z"
+      },
+      "change_pct": -1,
+      "is_lowest": true
+     },
+     {
+      "factory": {
+       "code": "IMPORTED-RU",
+       "name": {
+        "fa": "وارداتی (روسیه)",
+        "en": "Imported (Russia)",
+        "ar": "مستورد (روسيا)"
+       },
+       "is_imported": true
+      },
+      "location": {
+       "fa": "انبار تهران",
+       "en": "Tehran warehouse",
+       "ar": null
+      },
+      "price_irr_per_kg": 1243000,
+      "published_at_utc": "2026-10-08T07:25:00Z",
+      "previous": null,
+      "change_pct": null,
+      "is_lowest": false
+     }
+    ],
+    "imported_lowest": {
+     "price_irr_per_kg": 1187000,
+     "published_at_utc": "2026-10-08T07:25:00Z",
+     "factory": {
+      "code": "IMPORTED-CN",
+      "name": {
+       "fa": "وارداتی (چین)",
+       "en": "Imported (China)",
+       "ar": "مستورد (الصين)"
+      },
+      "is_imported": true
+     },
+     "location": {
+      "fa": "انبار تهران",
+      "en": "Tehran warehouse",
+      "ar": null
+     },
+     "previous": {
+      "price_irr_per_kg": 1199000,
+      "published_at_utc": "2026-10-05T07:25:00Z",
+      "factory": {
+       "code": "IMPORTED-CN",
+       "name": {
+        "fa": "وارداتی (چین)",
+        "en": "Imported (China)",
+        "ar": "مستورد (الصين)"
+       },
+       "is_imported": true
+      },
+      "location": {
+       "fa": "انبار تهران",
+       "en": "Tehran warehouse",
+       "ar": null
+      }
+     }
+    }
+   },
+   {
+    "id": null,
+    "unit": "kg",
+    "currency": "IRR",
+    "vat_included": true,
+    "canonical_template_id": "CTMPL-000016",
+    "canonical_id": "CVAR-000238",
+    "sku": "AA-PP-SMLS-A106B-S141P3X6P553-L6",
+    "price_irr_per_kg": null,
+    "price_on_request": true,
+    "published_at_utc": null,
+    "factory": null,
+    "location": null,
+    "previous": null,
+    "basis_note": {
+     "fa": null,
+     "en": null,
+     "ar": null
+    },
+    "factory_prices": [
+     {
+      "factory": {
+       "code": "IMPORTED-CN",
+       "name": {
+        "fa": "وارداتی (چین)",
+        "en": "Imported (China)",
+        "ar": "مستورد (الصين)"
+       },
+       "is_imported": true
+      },
+      "location": {
+       "fa": "انبار تهران",
+       "en": "Tehran warehouse",
+       "ar": null
+      },
+      "price_irr_per_kg": 1176000,
+      "published_at_utc": "2026-10-08T07:25:00Z",
+      "previous": null,
+      "change_pct": null,
+      "is_lowest": true
+     }
+    ],
+    "imported_lowest": {
+     "price_irr_per_kg": 1176000,
+     "published_at_utc": "2026-10-08T07:25:00Z",
+     "factory": {
+      "code": "IMPORTED-CN",
+      "name": {
+       "fa": "وارداتی (چین)",
+       "en": "Imported (China)",
+       "ar": "مستورد (الصين)"
+      },
+      "is_imported": true
+     },
+     "location": {
+      "fa": "انبار تهران",
+      "en": "Tehran warehouse",
+      "ar": null
+     },
+     "previous": null
+    }
+   }
+  ],
+  "meta": {
+   "total": 7,
+   "updated_at_utc": "2026-10-08T07:25:00Z",
+   "unit": "kg",
+   "currency": "IRR",
+   "vat_included": true
+  }
+ }
+}

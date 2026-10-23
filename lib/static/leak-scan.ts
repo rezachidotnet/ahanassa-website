@@ -52,6 +52,8 @@ export const PRICING_FIELD_KEYS = [
   "tomanPerKg", "previousTomanPerKg", "pricedAt", "previousPricedAt", "factoryName", "deliveryLocation",
   // W20.7: Odoo's factory_prices keys and the server-side factory list of a price-table row.
   "factory_prices", "is_lowest", "change_pct", "factoryPrices",
+  // W34: Odoo W9.14's imported-price keys (the snapshot table name `published_imported_prices` is private too).
+  "is_imported", "imported_lowest", "imported_prices", "imported_price_at_window_start", "import_country", "published_imported_prices",
   // Source-like keys: the pricing API never serves a source; a key like these in a public file is a leak.
   "source_code", "source_name", "source_url", "source_id", "market_source", "observations",
 ] as const;
