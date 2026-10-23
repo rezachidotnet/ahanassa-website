@@ -9,7 +9,7 @@ import { SAFE_TOKEN } from "../analytics/events.ts";
 export const LIVECHAT_EVENTS = {
   /** The chat panel opened and Odoo's chat page loaded in it; `chat_location`: home_expert (expert section) | sticky (floating fa button). */
   chat_open: ["chat_location"],
-  /** Odoo's chat page did not load within 8 s and the WhatsApp / purchase-list links were shown instead; `chat_error`: timeout. */
+  /** Odoo's chat page did not load within 18 s (W21.3; W21.2: 8 s) and the WhatsApp / purchase-list links were shown instead; `chat_error`: timeout. */
   chat_load_error: ["chat_location", "chat_error"],
   /**
    * The floating button's teaser appeared (Odoo reported an operator online, in sales hours, once per session);
