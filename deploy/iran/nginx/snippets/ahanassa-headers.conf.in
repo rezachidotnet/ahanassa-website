@@ -1,0 +1,5 @@
+# W30 — the response headers of the @ENV@ release (included in every location that answers: add_header is not
+# inherited into a location that sets its own). headers.conf = the `/*` rule of the artifact's _headers.
+include /srv/ahanassa/site/@ENV@/current/nginx/headers.conf;
+add_header Cache-Control $ah_@ENV@_cc always;
+add_header X-Robots-Tag $ah_@ENV@_robots always;

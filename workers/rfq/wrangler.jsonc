@@ -99,9 +99,10 @@
         "APP_ENV": "production",
         // W27 Iran mirror (owner 2026-10-22): www.ahanassa.ir / ahanassa.ir are ArvanCloud CDN hostnames in front of
         // www.ahanassa.com (for MCI mobile users who cannot reach Cloudflare); the form there posts to api.ahanassa.ir
-        // (Arvan -> api.ahanassa.com). The Turnstile widget must list the same two hostnames (dashboard).
-        "ALLOWED_ORIGINS": "https://www.ahanassa.com,https://www.ahanassa.ir,https://ahanassa.ir",
-        "TURNSTILE_EXPECTED_HOSTNAMES": "www.ahanassa.com,www.ahanassa.ir,ahanassa.ir",
+        // (Arvan -> api.ahanassa.com). The Turnstile widget must list the same hostnames (dashboard).
+        // W30: + new.ahanassa.ir, the P1 shadow host of the domestic copy (deploy/iran/RUNBOOK_P1.md).
+        "ALLOWED_ORIGINS": "https://www.ahanassa.com,https://www.ahanassa.ir,https://ahanassa.ir,https://new.ahanassa.ir",
+        "TURNSTILE_EXPECTED_HOSTNAMES": "www.ahanassa.com,www.ahanassa.ir,ahanassa.ir,new.ahanassa.ir",
         "ODOO_BASE_URL": "https://odoo.ahanassa.com",
         "ODOO_INTAKE_V11": "1",
         "DELIVERY_ON_QUEUE": "0",

@@ -1,0 +1,27 @@
+# W30 domestic copy — verify (ed25519 signature, seq, sha256 of the bundle and of every file, nginx include grammar,
+# nginx -t), switch `current` atomically, reload nginx, smoke-test; on any failure keep / restore the previous release
+# and alert. Root, fixed code from /usr/local/lib/ahanassa (installed from the repository, never from a bundle).
+[Unit]
+Description=Ahan Asa domestic copy: activator (%i)
+# The path unit may fire again right after a run; never hit the start limit.
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/ahanassa-activate %i
+Environment=AHANASSA_IRAN_CONFIG=/etc/ahanassa/iran.json
+LoadCredential=bale-token:/etc/ahanassa/credentials/bale-token
+UMask=0022
+TimeoutStartSec=30min
+Nice=5
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native

@@ -11,7 +11,12 @@
  * Hostnames only, never origins: the staging artifact must not contain the production RFQ origin string (r4,
  * lib/static/target-diff-gate.ts), and the map only ever rewrites the production API host.
  */
-export const IRAN_MIRROR_HOSTS: readonly string[] = ["www.ahanassa.ir", "ahanassa.ir"];
+/**
+ * W30 (P1): + new.ahanassa.ir, the shadow host on which the domestic copy (iransrv, deploy/iran/) is proven before the
+ * owner moves www.ahanassa.ir's Arvan origin to it. Same behaviour as the other mirror hosts (its form posts to
+ * api.ahanassa.ir); canonical/hreflang/og/JSON-LD stay on www.ahanassa.com on every host.
+ */
+export const IRAN_MIRROR_HOSTS: readonly string[] = ["www.ahanassa.ir", "ahanassa.ir", "new.ahanassa.ir"];
 
 /** Cloudflare API host → its ArvanCloud mirror host. */
 export const IRAN_MIRROR_API_HOSTS: Readonly<Record<string, string>> = { "api.ahanassa.com": "api.ahanassa.ir" };

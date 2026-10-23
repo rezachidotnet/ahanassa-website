@@ -94,7 +94,7 @@ export const RFQ_SUBMIT_RESPONSES = [
 /** Allowed browser Origins per environment (exact match; no wildcard). */
 export const RFQ_SUBMIT_ALLOWED_ORIGINS = {
   // W27: + the ArvanCloud Iran mirror hosts (same static site, served via Arvan; their form posts to api.ahanassa.ir).
-  production: ["https://www.ahanassa.com", "https://www.ahanassa.ir", "https://ahanassa.ir"],
+  production: ["https://www.ahanassa.com", "https://www.ahanassa.ir", "https://ahanassa.ir", "https://new.ahanassa.ir"],
   // The v11 static staging site (assets-only Worker, W2).
   staging: ["https://ahanassa-v11-static-staging.nova-b1e6f0.workers.dev"],
 } as const;

@@ -39,7 +39,7 @@ const config = JSON.parse(stripJsonc(readFileSync(new URL("../../workers/rfq/wra
 const production = config.env.production.vars;
 const staging = config.env.staging.vars;
 
-const MIRROR_ORIGINS = ["https://www.ahanassa.ir", "https://ahanassa.ir"];
+const MIRROR_ORIGINS = ["https://www.ahanassa.ir", "https://ahanassa.ir", "https://new.ahanassa.ir"];
 
 test("W27: production ALLOWED_ORIGINS = the rfq_submit.v1 contract, incl. both Iran mirror origins; staging unchanged", () => {
   assert.deepEqual(csv(production.ALLOWED_ORIGINS), [...RFQ_SUBMIT_ALLOWED_ORIGINS.production]);
@@ -90,6 +90,6 @@ test("W27: look-alike origins are still refused (exact match, no suffix/wildcard
 test("W27: a Turnstile token solved on www.ahanassa.ir / ahanassa.ir passes the production hostname check; others do not", async () => {
   const siteverify = (hostname: string) => (async () => Response.json({ success: true, action: "rfq_submit", hostname })) as typeof fetch;
   const verify = (hostname: string) => verifyTurnstileToken("token", { secret: "s", fetchImpl: siteverify(hostname), expectedHostnames: csv(production.TURNSTILE_EXPECTED_HOSTNAMES), requireAction: true });
-  for (const hostname of ["www.ahanassa.com", "www.ahanassa.ir", "ahanassa.ir"]) assert.deepEqual(await verify(hostname), { ok: true }, hostname);
+  for (const hostname of ["www.ahanassa.com", "www.ahanassa.ir", "ahanassa.ir", "new.ahanassa.ir"]) assert.deepEqual(await verify(hostname), { ok: true }, hostname);
   for (const hostname of ["evil.ahanassa.ir", "ahanassa.com", "api.ahanassa.ir"]) assert.deepEqual(await verify(hostname), { ok: false, reason: "invalid" }, hostname);
 });

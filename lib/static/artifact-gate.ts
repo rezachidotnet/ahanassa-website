@@ -18,6 +18,7 @@ import { bootstrapModuleIsLowPriority } from "./postprocess.ts";
 import { checkIndexingPolicy, PRODUCTION_ORIGIN } from "./indexing-gate.ts";
 import { GA4_CONNECT_ORIGINS } from "../security/headers.ts";
 import { rfqApiMirrorOrigins } from "../mirror/iran-mirror.ts";
+import { checkSeoHostLock } from "./seo-host-lock.ts";
 
 /**
  * artifact.v1 gate (architecture V1.1 §7.1 step 6, docs/contracts/ARTIFACT_V1.md).
@@ -191,6 +192,9 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
       if (src.startsWith(`${PRODUCTION_ORIGIN}/`) && !publicPaths.has(decodeURI(src.slice(PRODUCTION_ORIGIN.length + 1)))) failures.push(`${e.path}: share image not in the artifact: ${src}`);
     }
   }
+  // W30 hard rule: canonical, hreflang, og:url, JSON-LD, sitemap and robots name www.ahanassa.com — the same bytes are
+  // served on the domestic copy (www/new.ahanassa.ir), and no build may move a page's address (lib/static/seo-host-lock.ts).
+  failures.push(...checkSeoHostLock([...publicPaths], readPublic));
   if (publicPaths.has("_headers") && parsed.success) {
     const headers = readPublic("_headers");
     // Indexing (D6): staging never indexable; production exactly lib/seo/indexing-policy.ts.
