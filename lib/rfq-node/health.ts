@@ -28,12 +28,12 @@ export interface HealthStatus {
   oldest_due_min: number | null;
   manual_review: number;
   odoo_auth_failing: boolean;
-  files_waiting_for_r2: number;
+  files_waiting_for_store: number;
   disk_free_ratio: number | null;
   conditions: string[];
 }
 
-export const LIMITS = { oldestDueMin: 60, forwarderStaleMs: 5 * 60_000, r2StuckMin: 30, diskFreeMin: 0.25 };
+export const LIMITS = { oldestDueMin: 60, forwarderStaleMs: 5 * 60_000, storeStuckMin: 30, diskFreeMin: 0.25 };
 
 /** Undelivered RFQs owned by the automatic path, and how old the oldest one is. */
 export function outboxDue(db: NodeD1, now: Date): { due: number; oldestMin: number | null } {
@@ -48,8 +48,8 @@ export function healthStatus(input: HealthInput): HealthStatus {
   const { due, oldestMin } = outboxDue(db, now);
   const manual = Number(db.q<{ n: number }>(`SELECT count(*) AS n FROM rfqs WHERE sync_status = 'manual_review'`)[0]?.n ?? 0);
   const auth = db.q<{ n: number }>(`SELECT count(*) AS n FROM rfqs WHERE odoo_rfq_reference IS NULL AND (last_sync_error_code LIKE 'ODOO_401%' OR last_sync_error_code LIKE 'ODOO_403%')`)[0];
-  const stuckBefore = new Date(now.getTime() - LIMITS.r2StuckMin * 60_000).toISOString();
-  const r2 = Number(db.q<{ n: number }>(`SELECT count(*) AS n FROM ir_file_remote WHERE verified_at IS NULL AND first_attempt_at <= ?`, stuckBefore)[0]?.n ?? 0);
+  const stuckBefore = new Date(now.getTime() - LIMITS.storeStuckMin * 60_000).toISOString();
+  const storeStuck = Number(db.q<{ n: number }>(`SELECT count(*) AS n FROM ir_file_remote WHERE verified_at IS NULL AND first_attempt_at <= ?`, stuckBefore)[0]?.n ?? 0);
   const forwarderAlive = input.forwarderAgeMs !== null && input.forwarderAgeMs < LIMITS.forwarderStaleMs;
   const conditions: string[] = [];
   if (!input.intakeUp) conditions.push("intake_down");
@@ -57,7 +57,7 @@ export function healthStatus(input: HealthInput): HealthStatus {
   if (oldestMin !== null && oldestMin > LIMITS.oldestDueMin) conditions.push("outbox_old");
   if (manual > 0) conditions.push("manual_review");
   if (Number(auth?.n ?? 0) > 0) conditions.push("odoo_auth");
-  if (r2 > 0) conditions.push("r2_unreachable");
+  if (storeStuck > 0) conditions.push("files_store_unreachable");
   if (input.diskFreeRatio !== null && input.diskFreeRatio < LIMITS.diskFreeMin) conditions.push("disk_low");
   return {
     checked_at: now.toISOString(),
@@ -68,7 +68,7 @@ export function healthStatus(input: HealthInput): HealthStatus {
     oldest_due_min: oldestMin,
     manual_review: manual,
     odoo_auth_failing: conditions.includes("odoo_auth"),
-    files_waiting_for_r2: r2,
+    files_waiting_for_store: storeStuck,
     disk_free_ratio: input.diskFreeRatio,
     conditions,
   };
@@ -80,7 +80,7 @@ const TEXT: Record<string, string> = {
   outbox_old: "an RFQ has waited more than 60 min for Odoo (international link or Odoo down?)",
   manual_review: "RFQ(s) in MANUAL_REVIEW — open the domestic admin view",
   odoo_auth: "Odoo answers 401/403 — the iransrv bearer token is wrong or revoked",
-  r2_unreachable: "file copy to R2 failing for 30+ min (files will go to Odoo as a notes list after IR_R2_WAIT_MS)",
+  files_store_unreachable: "file copy to the Arvan files bucket failing for 30+ min (files will go to Odoo as a notes list after files_store_wait_ms)",
   disk_low: "disk under 25 % free",
 };
 

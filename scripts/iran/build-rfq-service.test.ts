@@ -33,17 +33,21 @@ test("rfq-ir.mjs: deterministic, self-contained (runs from an empty dir), embedd
       allowed_origins: ["https://staging.ahanassa.ir"],
       data_dir: path.join(run, "data"),
       release_dir: release,
-      captcha: { provider: "arcaptcha", site_key: "site-key-1" },
+      captcha: { provider: "altcha" },
       files_enabled: true,
       odoo: { base_url: "https://odoo.ahanassa.com", intake_v11: true },
-      r2: null,
-      r2_wait_ms: 7_200_000,
+      files_store: null,
+      files_store_wait_ms: 7_200_000,
       files_storage_hint: "held on the domestic server",
       bale: null,
       backup: null,
     };
     fs.writeFileSync(path.join(run, "rfq.json"), JSON.stringify(cfg));
-    const child = spawn(process.execPath, [path.join(run, "rfq-ir.mjs"), "serve", path.join(run, "rfq.json")], { cwd: run, stdio: ["ignore", "pipe", "pipe"] });
+    // W35: the ALTCHA key arrives as a systemd credential, exactly as LoadCredential= hands it over.
+    const creds = path.join(run, "creds");
+    fs.mkdirSync(creds);
+    fs.writeFileSync(path.join(creds, "altcha-hmac-key"), "bundle-test-altcha-key-0123456789abcdef\n");
+    const child = spawn(process.execPath, [path.join(run, "rfq-ir.mjs"), "serve", path.join(run, "rfq.json")], { cwd: run, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, CREDENTIALS_DIRECTORY: creds } });
     let out = "";
     child.stdout.on("data", (c) => (out += c));
     child.stderr.on("data", (c) => (out += c));
@@ -54,7 +58,12 @@ test("rfq-ir.mjs: deterministic, self-contained (runs from an empty dir), embedd
       const health = (await (await fetch(`http://127.0.0.1:${port}/healthz`)).json()) as { ok: boolean; outbox_due: number };
       assert.deepEqual(health, { ok: true, outbox_due: 0, oldest_due_min: null });
       const caps = (await (await fetch(`http://127.0.0.1:${port}/api/rfqs/capabilities`, { headers: { origin: "https://staging.ahanassa.ir" } })).json()) as { captcha: unknown };
-      assert.deepEqual(caps.captcha, { provider: "arcaptcha", siteKey: "site-key-1" });
+      assert.deepEqual(caps.captcha, { provider: "altcha", challengePath: "/api/rfqs/captcha-challenge" });
+      // altcha-lib is bundled into the one file: the service signs challenges with no node_modules beside it.
+      const ch = (await (await fetch(`http://127.0.0.1:${port}/api/rfqs/captcha-challenge`)).json()) as { signature: string; parameters: { algorithm: string; keySignature: string } };
+      assert.match(ch.signature, /^[0-9a-f]{64}$/);
+      assert.equal(ch.parameters.algorithm, "PBKDF2/SHA-256");
+      assert.ok(ch.parameters.keySignature);
     } finally {
       child.kill("SIGTERM");
       await new Promise((r) => child.on("exit", r));

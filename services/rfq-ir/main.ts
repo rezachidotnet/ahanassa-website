@@ -4,7 +4,7 @@
  *
  *   rfq-ir.mjs serve    <config>   HTTP intake on loopback (the RFQ Worker's own code, Node bindings); SIGHUP reloads
  *                                  the release's variant index (the activator sends one after each activation)
- *   rfq-ir.mjs forward  <config>   outbox → Odoo over IPv6, files → .ir R2 bucket first; one RFQ at a time, forever
+ *   rfq-ir.mjs forward  <config>   outbox → Odoo over IPv6, files → the Arvan .ir files bucket first; one RFQ at a time, forever
  *   rfq-ir.mjs maintain <config>   daily: PII clear, local file retention, purge 30 days after Odoo confirmed (D-IR-1)
  *   rfq-ir.mjs backup   <config> [--offsite]   hourly age-encrypted DB copy; daily + undelivered files → Arvan S3
  *   rfq-ir.mjs health   <config>   status.json + state-change Bale alerts
@@ -15,6 +15,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { credential, loadConfig, s3Credential, type IrConfig } from "../../lib/rfq-node/config.ts";
+import { altchaService } from "../../lib/rfq-node/altcha.ts";
 import { intakeEnv, openStores } from "../../lib/rfq-node/env.ts";
 import { createIntake, listen } from "../../lib/rfq-node/server.ts";
 import { loadVariantIndex } from "../../lib/rfq-node/public-index.ts";
@@ -47,8 +48,11 @@ function reloadIndex(cfg: IrConfig, stores: ReturnType<typeof openStores>): void
 async function serve(cfg: IrConfig): Promise<void> {
   const stores = openStores(cfg.data_dir);
   reloadIndex(cfg, stores);
-  const env = intakeEnv(cfg, stores, { adminToken: credential("admin-token"), arcaptchaSecret: credential("arcaptcha-secret") });
-  const intake = createIntake({ env, db: stores.ops, publicOrigin: cfg.public_origin });
+  // W35: no usable key → no ALTCHA service → capabilities, challenge and submit answer 503 (fail closed).
+  const altcha = altchaService({ hmacKey: credential("altcha-hmac-key"), db: stores.ops });
+  if (!altcha) log("no_altcha_key", { note: "captcha unavailable: every submit is 503 until altcha-hmac-key is set (install.sh rfq-dirs)" });
+  const env = intakeEnv(cfg, stores, { adminToken: credential("admin-token"), altcha });
+  const intake = createIntake({ env, db: stores.ops, publicOrigin: cfg.public_origin, altcha });
   const server = await listen(intake, cfg.listen.host, cfg.listen.port);
   log("listening", { env: cfg.env, port: cfg.listen.port, captcha: cfg.captcha.provider, files: cfg.files_enabled });
   process.on("SIGHUP", () => reloadIndex(cfg, stores));
@@ -63,17 +67,18 @@ async function serve(cfg: IrConfig): Promise<void> {
 
 async function forward(cfg: IrConfig): Promise<void> {
   const stores = openStores(cfg.data_dir);
-  const r2Key = s3Credential("r2-ir");
+  const storeKey = s3Credential("files-s3");
   const v6 = familyFetch(6);
   const deps = {
     db: stores.ops,
     bucket: stores.bucket,
-    r2: cfg.r2 && r2Key ? s3Client({ ...cfg.r2, ...r2Key }, v6) : null,
+    // W35: the Arvan bucket in Iran, over IPv4 (domestic; no AAAA). Odoo stays IPv6-only below.
+    filesStore: cfg.files_store && storeKey ? s3Client({ ...cfg.files_store, ...storeKey }, familyFetch(4)) : null,
     odooBaseUrl: cfg.odoo.base_url,
     odooToken: credential("odoo-token"),
     intakeV11: cfg.odoo.intake_v11,
     odooFetch: v6,
-    r2WaitMs: cfg.r2_wait_ms,
+    filesStoreWaitMs: cfg.files_store_wait_ms,
     filesStorageHint: cfg.files_storage_hint,
     env: cfg.env,
     notify: bale(cfg),
@@ -93,7 +98,7 @@ async function forward(cfg: IrConfig): Promise<void> {
       log("forward_error", { errorClass: err instanceof Error ? err.name : "unknown" });
       step = { action: "idle" as const };
     }
-    // Busy while anything is due (a deferred RFQ waiting for R2 never blocks the next one: it is not due for a
+    // Busy while anything is due (a deferred RFQ waiting for the files store never blocks the next one: it is not due for a
     // minute); a short sleep only when nothing is due (a new RFQ waits at most 15 s).
     if (step.action === "idle") await sleep(15_000, controller.signal);
   }

@@ -92,7 +92,8 @@ const HANDOFF_PARAMS = ["variant", ...Object.values(RFQ_PREFILL_PARAMS)];
  * extract AND which captcha the API verifies (lib/rfq/capabilities-client.ts).
  * On www.ahanassa.com Turnstile starts at once, as before (the Worker always
  * names it). On an Iran host no widget loads until the API has answered:
- * arCaptcha from the domestic intake, Turnstile from the Worker (or an old
+ * ALTCHA from the domestic intake (W35; its widget is our own lazily loaded
+ * chunk, its challenge comes from that same API host), Turnstile from the Worker (or an old
  * Worker without the route) — so the captcha follows wherever Arvan sends the
  * API host. No answer on an Iran host = Turnstile, i.e. the W27 "could not
  * load" message with the other channels.
@@ -214,7 +215,7 @@ export function StaticEnquiryForm({
       key={ready ? "ready" : "loading"}
       locale={locale}
       turnstileSiteKey={captcha?.provider === "turnstile" ? turnstileSiteKey : undefined}
-      arcaptchaSiteKey={captcha?.provider === "arcaptcha" ? captcha.siteKey : undefined}
+      altchaChallengeUrl={captcha?.provider === "altcha" ? captcha.challengeUrl : undefined}
       captchaPending={captcha === null && Boolean(turnstileSiteKey)}
       initialRows={ready?.rows}
       initialCustomer={ready?.customer}

@@ -5,16 +5,16 @@
   "allowed_origins": ["https://new.ahanassa.ir"],
   "data_dir": "/var/lib/ahanassa-rfq/production",
   "release_dir": "/srv/ahanassa/site/production/current",
-  "captcha": { "provider": "arcaptcha", "site_key": "<ARCAPTCHA_SITE_KEY — public, from the arCaptcha panel>" },
+  "captcha": { "provider": "altcha" },
   "files_enabled": true,
   "odoo": { "base_url": "https://odoo.ahanassa.com", "intake_v11": true },
-  "r2": { "endpoint": "https://<ACCOUNT_ID>.eu.r2.cloudflarestorage.com", "bucket": "ahanassa-v11-rfq-files-ir", "region": "auto" },
-  "r2_wait_ms": 7200000,
+  "files_store": { "endpoint": "https://s3.ir-thr-at1.arvanstorage.ir", "bucket": "ahanassa-rfq-files-ir", "region": "ir-thr-at1" },
+  "files_store_wait_ms": 7200000,
   "files_storage_hint": "held on the domestic server; open with https://api-new.ahanassa.ir/__admin/ir/",
   "bale": { "chat_id": "<BALE_STAFF_GROUP_CHAT_ID>" },
   "backup": {
     "dir": "/var/backups/ahanassa-rfq/production",
-    "age_recipient": "<age1… — the OWNER's public key; the private key never comes to this server>",
-    "offsite": { "endpoint": "https://s3.ir-thr-at1.arvanstorage.ir", "bucket": "<ARVAN_BACKUP_BUCKET>", "region": "ir-thr-at1" }
+    "age_recipient": "age18an8579663dnnpznpqvwcm5w8h9z9cx5tutavuzq582k90h0udhsellxh6",
+    "offsite": { "endpoint": "https://s3.ir-thr-at1.arvanstorage.ir", "bucket": "ahanassa-backup-ir", "region": "ir-thr-at1" }
   }
 }

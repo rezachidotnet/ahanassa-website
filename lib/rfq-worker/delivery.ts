@@ -51,8 +51,8 @@ export interface DeliveryConfig {
    * W32 (domestic intake, lib/rfq-node/forwarder.ts) — all three default to the Worker's behaviour:
    *  - `idempotencyKeyPrefix`: `rfq-ir-` instead of `rfq-` (lib/odoo/rfq-payload-mapper.ts);
    *  - `notesOrigin`: a first `notes` line naming the origin (`[website-ir]`), identical on every retry;
-   *  - `attachmentChannel`: the channel of a FIRST attempt (`notes` when the files could not reach R2 within
-   *    IR_R2_WAIT_MS); a channel already kept by an earlier attempt always wins;
+   *  - `attachmentChannel`: the channel of a FIRST attempt (`notes` when the files could not reach the .ir files
+   *    store within files_store_wait_ms — W35: Arvan Object Storage); a channel already kept by an earlier attempt always wins;
    *  - `filesStorageHint`: where staff open the files on the `notes` channel (the domestic admin view).
    */
   idempotencyKeyPrefix?: string;

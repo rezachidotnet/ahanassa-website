@@ -140,7 +140,9 @@ step_status() {
 }
 
 # --- W32 (W29 P2): the domestic RFQ intake — RUNBOOK_P2.md §3. Same rules: one step per owner OK, idempotent. ---------
-RFQ_CREDS=(admin-token arcaptcha-secret odoo-token r2-ir bale-token backup-s3)
+# W35: no arCaptcha; the .ir files bucket is Arvan's (files-s3), as the backups (backup-s3). altcha-hmac-key is made
+# HERE by rfq-dirs (never pasted, never leaves the server).
+RFQ_CREDS=(admin-token odoo-token files-s3 bale-token backup-s3)
 NODE_HOME=/usr/local/lib/ahanassa-node
 
 step_rfq_packages() {
@@ -191,6 +193,17 @@ step_rfq_dirs() {
     for c in "${RFQ_CREDS[@]}"; do
       [ -e "/etc/ahanassa/credentials/rfq-$env/$c" ] || { install -m 0600 -o root -g root /dev/null "/etc/ahanassa/credentials/rfq-$env/$c"; say "placeholder credential rfq-$env/$c (empty)"; }
     done
+    # W35: the ALTCHA challenge HMAC key — 32 random bytes from the kernel, hex. Made once; an existing non-empty key
+    # is kept (rotating it = delete the file, rerun this step, restart ahanassa-rfq@<env>: open challenges then fail
+    # once and the visitor ticks the box again).
+    local k="/etc/ahanassa/credentials/rfq-$env/altcha-hmac-key"
+    if [ ! -s "$k" ]; then
+      (umask 077; od -An -N32 -tx1 /dev/urandom | tr -d ' \n' > "$k.tmp" && echo >> "$k.tmp")
+      chown root:root "$k.tmp"; chmod 0600 "$k.tmp"; mv -f "$k.tmp" "$k"
+      say "generated rfq-$env/altcha-hmac-key (64 hex, root 0600; never printed)"
+    fi
+    # The removed W32 credentials (arCaptcha secret, R2 key) are deleted if an earlier install left them.
+    rm -f "/etc/ahanassa/credentials/rfq-$env/arcaptcha-secret" "/etc/ahanassa/credentials/rfq-$env/r2-ir"
   done
   install -d -m 0755 /var/lib/ahanassa-rfq /var/backups/ahanassa-rfq
   [ -e /etc/ahanassa/rfq-admin-allow.conf ] || install -m 0644 "$here/etc/rfq-admin-allow.conf.example" /etc/ahanassa/rfq-admin-allow.conf

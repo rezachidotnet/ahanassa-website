@@ -13,7 +13,7 @@ import type { S3Client } from "./s3.ts";
  *   hourly  `rfq-ir.mjs backup`        consistent online copy (node:sqlite backup API) → age → <dir>/hourly/
  *                                      (24 kept); the first copy of each UTC day is also kept in <dir>/daily/ (7 kept)
  *   daily   `rfq-ir.mjs backup --offsite`   + that day's copy and a tar of the files of UNDELIVERED RFQs only
- *                                      (delivered ones are already in R2/Odoo) → Arvan Object Storage (domestic,
+ *                                      (delivered ones are already in the Arvan files bucket/Odoo) → Arvan Object Storage (domestic,
  *                                      reachable during a cutoff; IPv4)
  *
  * The plaintext copy exists only in a 0700 work dir for the seconds `age` needs, then is removed. A missing `age` or

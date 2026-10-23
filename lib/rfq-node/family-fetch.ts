@@ -5,8 +5,9 @@ import type { LookupFunction } from "node:net";
 
 /**
  * W32 (P0 2026-10-22 finding 1): from iransrv, IPv4 to `*.ahanassa.com` is filtered by SNI (TLS completes, then the
- * request stalls); IPv6 worked 3/3. R2 works on both. So the forwarder talks to Odoo and to the .ir R2 bucket over
- * IPv6 ONLY — never "IPv6 first, then IPv4", which would spend every timeout on a path known to stall.
+ * request stalls); IPv6 worked 3/3. So the forwarder talks to Odoo over IPv6 ONLY — never "IPv6 first, then IPv4",
+ * which would spend every timeout on a path known to stall. W35: the .ir files store and the backups are Arvan
+ * Object Storage in Iran (no AAAA; a domestic hop), reached with `familyFetch(4)`, like Bale.
  *
  * `familyFetch(6)` is a fetch-compatible function over node:http(s) with the socket pinned to one address family:
  * the DNS lookup asks only for that family (AAAA; the TCI IPv4 resolvers answer AAAA fine, so a dead IPv6 resolver

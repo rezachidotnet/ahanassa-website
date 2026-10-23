@@ -52,6 +52,12 @@ export class NodeD1 {
       if (done.has(m.name)) continue;
       this.sqlite.exec("BEGIN IMMEDIATE");
       try {
+        // W35: the intake and the forwarder open the same file at the same moment (rfq-units starts both). The other
+        // process may have applied this migration while we waited for the write lock: re-check under the lock.
+        if (this.sqlite.prepare(`SELECT 1 FROM d1_migrations WHERE name = ?`).get(m.name)) {
+          this.sqlite.exec("COMMIT");
+          continue;
+        }
         this.sqlite.exec(m.sql);
         this.sqlite.prepare(`INSERT INTO d1_migrations (name, applied_at) VALUES (?, ?)`).run(m.name, new Date().toISOString());
         this.sqlite.exec("COMMIT");

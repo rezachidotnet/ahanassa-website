@@ -5,8 +5,9 @@
  *
  * <work>/artifact     a small STAGING artifact with the real _headers/_redirects builders (scripts/iran/test-fixture.ts)
  * <work>/bundle       the signed-to-be domestic bundle — WITH rfq/rfq-ir.mjs, exactly as CI builds it
- * <work>/p2-stubs.mjs the Odoo / R2 / arCaptcha / Bale stubs (deploy/iran/tests/p2-stubs.ts), one file
- * <work>/files        a PNG and a PDF the drills upload (their sha256 is checked at the R2 stub)
+ * <work>/p2-stubs.mjs the Odoo / Arvan S3 / Bale stubs (deploy/iran/tests/p2-stubs.ts), one file
+ * <work>/altcha-solve.mjs  W35: solves an ALTCHA challenge like the browser widget (deploy/iran/tests/altcha-solve.ts)
+ * <work>/files        a PNG and a PDF the drills upload (their sha256 is checked at the Arvan S3 stub)
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -20,17 +21,19 @@ const artifact = makeFixtureArtifact("staging", { "ar.html": "<!DOCTYPE html><ht
 fs.cpSync(artifact, path.join(work, "artifact"), { recursive: true });
 fs.rmSync(artifact, { recursive: true, force: true });
 const summary = buildBundle(path.join(work, "artifact"), path.join(work, "bundle"));
-buildSync({
-  entryPoints: [path.resolve(import.meta.dirname, "p2-stubs.ts")],
-  bundle: true,
-  platform: "node",
-  target: "node24",
-  format: "esm",
-  outfile: path.join(work, "p2-stubs.mjs"),
-  loader: { ".sql": "text" },
-  banner: { js: 'import { createRequire as __cr } from "node:module"; const require = __cr(import.meta.url);' },
-  logLevel: "error",
-});
+for (const name of ["p2-stubs", "altcha-solve"]) {
+  buildSync({
+    entryPoints: [path.resolve(import.meta.dirname, `${name}.ts`)],
+    bundle: true,
+    platform: "node",
+    target: "node24",
+    format: "esm",
+    outfile: path.join(work, `${name}.mjs`),
+    loader: { ".sql": "text" },
+    banner: { js: 'import { createRequire as __cr } from "node:module"; const require = __cr(import.meta.url);' },
+    logLevel: "error",
+  });
+}
 fs.mkdirSync(path.join(work, "files"), { recursive: true });
 const png = Buffer.alloc(6008, 0x41);
 Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(png);

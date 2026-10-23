@@ -206,8 +206,8 @@ export async function handleRfqSubmit(request: Request, env: RfqWorkerEnv, deps:
   });
   if (Object.keys(quantityErrors).length) return json(422, { ok: false, code: "VALIDATION_ERROR", fieldErrors: quantityErrors }, cors);
 
-  // 8. Captcha: Turnstile (Siteverify must report our static host and action rfq_submit), or arCaptcha on the
-  // domestic intake (W32, lib/security/rfq-captcha.ts). The token travels in `turnstileToken` either way.
+  // 8. Captcha: Turnstile (Siteverify must report our static host and action rfq_submit), or ALTCHA on the
+  // domestic intake (W35, lib/security/rfq-captcha.ts; single-use). The token travels in `turnstileToken` either way.
   const clientIp = getClientIp(request);
   const turnstile = await verifyRfqCaptcha(env, body.turnstileToken, { remoteIp: clientIp === "unknown" ? undefined : clientIp, fetchImpl: deps.fetchImpl });
   if (!turnstile.ok) {

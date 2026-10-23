@@ -340,11 +340,11 @@ test("W25 gate: the compact catalog must exist once per locale, be named by its 
   assert.ok(failures.some((f) => f === `en/contact.html: does not carry snapshot_version ${d.snap}`));
 });
 
-test("W2: CSP connect-src is exactly 'self', Turnstile, the target's RFQ API origin (+ its W27/W32 Iran API hosts), arCaptcha (W32) and GA4 (DAR-066)", () => {
+test("W2: CSP connect-src is exactly 'self', Turnstile, the target's RFQ API origin (+ its W27/W32 Iran API hosts) and GA4 (DAR-066); W35: no captcha origin for .ir (ALTCHA is same-origin)", () => {
   const mirror = { staging: ["https://api-staging.ahanassa.ir"], production: ["https://api.ahanassa.ir", "https://api-new.ahanassa.ir"] };
   for (const env of ["staging", "production"] as const) {
     const csp = /connect-src ([^;\n]*)/.exec(buildHeadersFile(env, STATIC_TARGETS[env].rfqApiOrigin))![1].split(" ");
-    assert.deepEqual(csp, ["'self'", "https://challenges.cloudflare.com", STATIC_TARGETS[env].rfqApiOrigin, ...mirror[env], "https://api.arcaptcha.ir", "https://widget.arcaptcha.ir", "https://*.google-analytics.com", "https://*.analytics.google.com", "https://*.googletagmanager.com"]);
+    assert.deepEqual(csp, ["'self'", "https://challenges.cloudflare.com", STATIC_TARGETS[env].rfqApiOrigin, ...mirror[env], "https://*.google-analytics.com", "https://*.analytics.google.com", "https://*.googletagmanager.com"]);
   }
   assert.equal(STATIC_TARGETS.staging.rfqApiOrigin, "https://api-staging.ahanassa.com");
   assert.equal(STATIC_TARGETS.production.rfqApiOrigin, "https://api.ahanassa.com");
