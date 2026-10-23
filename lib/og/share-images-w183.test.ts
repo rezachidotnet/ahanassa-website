@@ -185,7 +185,10 @@ test("chart_share: its own event (share_method + product_slug), sent instead of 
   assert.match(handler, /trackEvent\("chart_share", share\);\n\s*return;/);
   const share = fs.readFileSync(path.join(REPO, "components/prices/chart-share.tsx"), "utf8");
   assert.ok(!share.includes('"use client"'), "server-rendered links, no client component");
-  assert.ok(share.includes("CHART_SHARE_ATTRIBUTE") && CHART_SHARE_ATTRIBUTE === "data-chart-share");
+  // W27: each link is prerendered by ChartShareLink with the canonical URL (the Iran mirror host only after hydration there).
+  const link = fs.readFileSync(path.join(REPO, "components/prices/chart-share-link.tsx"), "utf8");
+  assert.ok(link.includes("CHART_SHARE_ATTRIBUTE") && CHART_SHARE_ATTRIBUTE === "data-chart-share");
+  assert.match(link, /useState\(url\)/);
   const gtm = fs.readFileSync(path.join(REPO, "docs/analytics/GTM_SETUP.md"), "utf8");
   assert.ok(gtm.includes("| `GA4 - chart_share` | `chart_share` |") && gtm.includes("| `DLV - share_method` | `share_method` |"));
 });
@@ -222,7 +225,9 @@ test("Bale: no web share URL, so «کپی لینک برای بله» copies the 
   assert.match(copy, /role="status" className=\{cn\("bg-navy pointer-events-none fixed [^"]*", copied \? "opacity-100" : "opacity-0"\)\}/);
   assert.doesNotMatch(copy, /<a\b/, "a button, not a link: the click listener's link path never sees it");
   const share = fs.readFileSync(path.join(REPO, "components/prices/chart-share.tsx"), "utf8");
-  assert.match(share, /<ChartCopyLink slug=\{slug\} text=\{chartShareText\(url, title\)\} label=\{t\.shareBale\} copiedLabel=\{t\.linkCopied\}/);
+  assert.match(share, /<ChartCopyLink slug=\{slug\} url=\{url\} title=\{title\} label=\{t\.shareBale\} copiedLabel=\{t\.linkCopied\}/);
+  // W27: the copied text is the same title + link, the link on the page's own host when that is the Iran mirror.
+  assert.match(copy, /copyText\(chartShareText\(pageUrlForHost\(url, window\.location\.hostname\), title\)\)/);
   const gtm = fs.readFileSync(path.join(REPO, "docs/analytics/GTM_SETUP.md"), "utf8");
   assert.match(gtm, /`share_method`: `whatsapp` \/ `telegram` \/ `bale`/);
 });

@@ -12,6 +12,7 @@ import { describeFiles, forbiddenPublicPath, REQUIRED_PUBLIC_FILES, runArtifactG
 import { headerBlocks, PRODUCTION_ROBOTS_TXT, STAGING_ROBOTS_TXT } from "./indexing-gate.ts";
 import { buildSecurityHeaders } from "../security/headers.ts";
 import { STATIC_TARGETS } from "./targets.ts";
+import { rfqApiMirrorOrigins } from "../mirror/iran-mirror.ts";
 import { toPublicPathname } from "../../config/locales.ts";
 import { toPublicRfqCatalogItem } from "../rfq/catalog-selector.ts";
 import { encodeRfqCatalog } from "../rfq/catalog-wire.ts";
@@ -75,7 +76,8 @@ test("A6 scan: forbidden commercial fields and foreign contact data are flagged;
 test("_headers is generated from lib/security/headers.ts (single source); staging adds noindex, production only on data files (D6)", () => {
   for (const env of ["staging", "production"] as const) {
     const file = buildHeadersFile(env, STATIC_TARGETS[env].rfqApiOrigin);
-    for (const [name, value] of buildSecurityHeaders([STATIC_TARGETS[env].rfqApiOrigin])) assert.ok(file.includes(`  ${name}: ${value}`), `${env}: ${name}`);
+    const origin = STATIC_TARGETS[env].rfqApiOrigin;
+    for (const [name, value] of buildSecurityHeaders([origin, ...rfqApiMirrorOrigins(origin)])) assert.ok(file.includes(`  ${name}: ${value}`), `${env}: ${name}`);
   }
   assert.match(buildHeadersFile("staging", STATIC_TARGETS["staging"].rfqApiOrigin), /X-Robots-Tag: noindex, nofollow/);
   const production = headerBlocks(buildHeadersFile("production", STATIC_TARGETS["production"].rfqApiOrigin));
@@ -340,10 +342,11 @@ test("W25 gate: the compact catalog must exist once per locale, be named by its 
   assert.ok(failures.some((f) => f === `en/contact.html: does not carry snapshot_version ${d.snap}`));
 });
 
-test("W2: CSP connect-src is exactly 'self', Turnstile, the target's RFQ API origin and GA4 (DAR-066)", () => {
+test("W2: CSP connect-src is exactly 'self', Turnstile, the target's RFQ API origin (+ its W27/W32 Iran API hosts) and GA4 (DAR-066); W35: no captcha origin for .ir (ALTCHA is same-origin)", () => {
+  const mirror = { staging: ["https://api-staging.ahanassa.ir"], production: ["https://api.ahanassa.ir", "https://api-new.ahanassa.ir"] };
   for (const env of ["staging", "production"] as const) {
     const csp = /connect-src ([^;\n]*)/.exec(buildHeadersFile(env, STATIC_TARGETS[env].rfqApiOrigin))![1].split(" ");
-    assert.deepEqual(csp, ["'self'", "https://challenges.cloudflare.com", STATIC_TARGETS[env].rfqApiOrigin, "https://*.google-analytics.com", "https://*.analytics.google.com", "https://*.googletagmanager.com"]);
+    assert.deepEqual(csp, ["'self'", "https://challenges.cloudflare.com", STATIC_TARGETS[env].rfqApiOrigin, ...mirror[env], "https://*.google-analytics.com", "https://*.analytics.google.com", "https://*.googletagmanager.com"]);
   }
   assert.equal(STATIC_TARGETS.staging.rfqApiOrigin, "https://api-staging.ahanassa.com");
   assert.equal(STATIC_TARGETS.production.rfqApiOrigin, "https://api.ahanassa.com");
@@ -373,8 +376,8 @@ test("W2: the /contact form posts to the build-time RFQ origin and sends the bui
   const page = read("app/[locale]/contact/page.tsx");
   assert.match(page, /AHANASSA_RFQ_API_ORIGIN/);
   assert.match(page, /rfqEndpoint=\{rfqSubmitEndpoint\(\)\}/);
-  // r4: the target-specific values stay last in the form's props; the catalog path and snapshot are the same on both targets.
-  assert.match(page, /<StaticEnquiryForm locale=\{locale\} catalogPath=\{catalog\.path\} catalogSnapshotVersion=\{catalog\.snapshotVersion\} turnstileSiteKey=\{getTurnstileSiteKey\(\)\} rfqEndpoint=\{rfqSubmitEndpoint\(\)\} \/>/);
+  // r4: the target-specific values stay last in the form's props; the catalog path, snapshot and W27 contacts are the same on both targets.
+  assert.match(page, /<StaticEnquiryForm locale=\{locale\} catalogPath=\{catalog\.path\} catalogSnapshotVersion=\{catalog\.snapshotVersion\} unreachableContacts=\{unreachableContacts\} turnstileSiteKey=\{getTurnstileSiteKey\(\)\} rfqEndpoint=\{rfqSubmitEndpoint\(\)\} \/>/);
   assert.match(read("scripts/static/build.ts"), /buildEnv\[SNAPSHOT_VERSION_ENV\] = process\.env\[SNAPSHOT_VERSION_ENV\] = snapshot\.snapshot_version;/);
   const wrapper = read("components/contact/static-enquiry-form.tsx");
   assert.doesNotMatch(wrapper, /PUBLIC_MANIFEST_PATH/, "no second request before the form knows its snapshot");

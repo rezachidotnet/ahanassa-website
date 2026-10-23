@@ -59,6 +59,38 @@ export async function lastScheduledRun(auth: CloudflareAuth, script: string, fro
   return data.viewer.accounts[0]?.runs[0]?.datetime ?? null;
 }
 
+/**
+ * W28: whether `workersInvocationsScheduled` holds any row for the whole account in [from, to). False = the dataset
+ * itself is empty (on 2026-10-20 it went empty account-wide at 19:40:11Z while the crons kept running).
+ */
+export async function scheduledAnalyticsHasRows(auth: CloudflareAuth, from: Date, to: Date): Promise<boolean> {
+  const data = await graphql<Accounts<{ runs: { datetime: string }[] }>>(
+    auth,
+    `query($accountTag:String!,$from:Time!,$to:Time!){ viewer{ accounts(filter:{accountTag:$accountTag}){
+      runs: workersInvocationsScheduled(limit:1, filter:{datetime_geq:$from, datetime_lt:$to}){ datetime }
+    }}}`,
+    { from: from.toISOString(), to: to.toISOString() },
+  );
+  return (data.viewer.accounts[0]?.runs.length ?? 0) > 0;
+}
+
+/**
+ * W28: start of the newest 5-minute bucket with an invocation of `script` of any kind (cron, HTTP, queue) in
+ * [from, to), from `workersInvocationsAdaptive` — the second source when the scheduled dataset is empty.
+ */
+export async function lastInvocationBucket(auth: CloudflareAuth, script: string, from: Date, to: Date): Promise<string | null> {
+  const data = await graphql<Accounts<{ inv: { dimensions: { datetimeFiveMinutes: string }; sum: { requests: number } }[] }>>(
+    auth,
+    `query($accountTag:String!,$script:String!,$from:Time!,$to:Time!){ viewer{ accounts(filter:{accountTag:$accountTag}){
+      inv: workersInvocationsAdaptive(limit:1, orderBy:[datetimeFiveMinutes_DESC], filter:{scriptName:$script, datetime_geq:$from, datetime_lt:$to}){
+        dimensions{ datetimeFiveMinutes } sum{ requests } }
+    }}}`,
+    { script, from: from.toISOString(), to: to.toISOString() },
+  );
+  const newest = data.viewer.accounts[0]?.inv[0];
+  return newest && newest.sum.requests > 0 ? newest.dimensions.datetimeFiveMinutes : null;
+}
+
 export async function workerCpu(auth: CloudflareAuth, script: string, from: Date, to: Date): Promise<{ groups: InvocationGroup[]; scheduled: ScheduledRun[] }> {
   const data = await graphql<
     Accounts<{
@@ -107,13 +139,61 @@ export interface GitHubAuth {
   repo: string;
 }
 
+/**
+ * W37: a GitHub API failure. `transient` = worth retrying and may be bridged by another source: a 5xx, a 429, a
+ * timeout or a network error. A 4xx (bad token, missing workflow) is a configuration error and never transient.
+ */
+export class GitHubApiError extends Error {
+  readonly transient: boolean;
+  constructor(message: string, transient: boolean) {
+    super(message);
+    this.name = "GitHubApiError";
+    this.transient = transient;
+  }
+}
+
+export function isTransientGitHubError(error: unknown): boolean {
+  return error instanceof GitHubApiError && error.transient;
+}
+
+/** W37 (after run 39918757832, "GitHub API 502"): 3 retries after the first try, with these waits (backoff). */
+export const GITHUB_RETRY_DELAYS_MS = [2_000, 5_000, 10_000] as const;
+
+export interface GitHubDeps {
+  fetch: typeof fetch;
+  sleep: (ms: number) => Promise<void>;
+  delaysMs: readonly number[];
+}
+
+const defaultGitHubDeps: GitHubDeps = { fetch: (...a) => fetch(...a), sleep: (ms) => new Promise((r) => setTimeout(r, ms)), delaysMs: GITHUB_RETRY_DELAYS_MS };
+
+/** One GET of the GitHub REST API; a transient failure is retried `delaysMs.length` times, then thrown. */
+export async function ghRequest<T>(auth: GitHubAuth, path: string, deps: GitHubDeps = defaultGitHubDeps): Promise<T> {
+  const where = path.split("?")[0];
+  for (let attempt = 0; ; attempt++) {
+    let error: GitHubApiError;
+    try {
+      const res = await deps.fetch(`https://api.github.com/repos/${auth.repo}${path}`, {
+        headers: { Authorization: `Bearer ${auth.token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (res.ok) return (await res.json()) as T;
+      error = new GitHubApiError(`GitHub API ${res.status} for ${where}`, res.status >= 500 || res.status === 429);
+    } catch (e) {
+      // fetch throws only for a timeout, an abort or a network failure: all transient.
+      const name = e instanceof Error ? e.name : "Error";
+      error = new GitHubApiError(`GitHub API ${name === "TimeoutError" ? "timeout" : `network error (${name})`} for ${where}`, true);
+    }
+    if (!error.transient || attempt >= deps.delaysMs.length) {
+      if (attempt > 0) error.message += ` (after ${attempt + 1} attempts)`;
+      throw error;
+    }
+    await deps.sleep(deps.delaysMs[attempt]);
+  }
+}
+
 async function gh<T>(auth: GitHubAuth, path: string): Promise<T> {
-  const res = await fetch(`https://api.github.com/repos/${auth.repo}${path}`, {
-    headers: { Authorization: `Bearer ${auth.token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!res.ok) throw new Error(`GitHub API ${res.status} for ${path.split("?")[0]}`);
-  return (await res.json()) as T;
+  return ghRequest<T>(auth, path);
 }
 
 interface Run {
@@ -232,11 +312,11 @@ export function publishedAt(jobs: readonly Job[], jobPrefix: string, proofStep: 
 }
 
 /** Completion time of the newest actual publish (publishedAt) among the workflow's recent completed runs. */
-export async function lastSuccessfulPublish(auth: GitHubAuth, workflow: string, jobPrefix: string, proofStep: string): Promise<string | null> {
+export async function lastSuccessfulPublish(auth: GitHubAuth, workflow: string, jobPrefix: string, proofStep: string, deps?: GitHubDeps): Promise<string | null> {
   // completed, not only success: a run whose publish finalized but a later step (evidence upload) failed still published.
-  const { workflow_runs } = await gh<{ workflow_runs: Run[] }>(auth, `/actions/workflows/${workflow}/runs?status=completed&per_page=30`);
+  const { workflow_runs } = await ghRequest<{ workflow_runs: Run[] }>(auth, `/actions/workflows/${workflow}/runs?status=completed&per_page=30`, deps);
   for (const run of workflow_runs) {
-    const { jobs } = await gh<{ jobs: Job[] }>(auth, `/actions/runs/${run.id}/jobs?per_page=50`);
+    const { jobs } = await ghRequest<{ jobs: Job[] }>(auth, `/actions/runs/${run.id}/jobs?per_page=50`, deps);
     const at = publishedAt(jobs, jobPrefix, proofStep);
     if (at) return at;
   }

@@ -1,0 +1,60 @@
+# W32 (W29 P2) — the domestic RFQ intake (@ENV@) behind nginx: Node on 127.0.0.1:@PORT@ (ahanassa-rfq@@ENV@.service).
+# Only the RFQ API's own paths exist on this host; everything else is 404. No caching anywhere (Arvan: bypass).
+
+proxy_http_version 1.1;
+proxy_set_header Host $host;
+proxy_set_header Connection "";
+# The ONE client-IP header Node trusts (from loopback only); every other one is blanked.
+proxy_set_header X-Ahanassa-Client-IP $remote_addr;
+proxy_set_header X-Real-IP "";
+proxy_set_header X-Forwarded-For "";
+proxy_set_header Forwarded "";
+proxy_set_header CF-Connecting-IP "";
+proxy_connect_timeout 5s;
+proxy_read_timeout 120s;
+proxy_send_timeout 120s;
+proxy_buffering off;
+add_header X-Content-Type-Options "nosniff" always;
+
+# rfq_submit.v1: 20,000 B JSON (lib/contracts/rfq-submit-v1-check.ts); a bigger body never reaches Node.
+location = /api/rfqs {
+    client_max_body_size 20k;
+    limit_req zone=ahanassa_rfq burst=10 nodelay;
+    proxy_pass http://127.0.0.1:@PORT@;
+}
+# One file ≤ 15 MiB per PUT, streamed (Node checks magic bytes / macros on the way and hashes every byte).
+location ^~ /api/rfqs/files/ {
+    client_max_body_size 16m;
+    proxy_request_buffering off;
+    limit_req zone=ahanassa_rfq_files burst=10 nodelay;
+    proxy_pass http://127.0.0.1:@PORT@;
+}
+location = /api/rfqs/files {
+    client_max_body_size 1k;
+    proxy_pass http://127.0.0.1:@PORT@;
+}
+location = /api/rfqs/capabilities {
+    client_max_body_size 1k;
+    proxy_pass http://127.0.0.1:@PORT@;
+}
+# W35: the intake's own ALTCHA challenge (no captcha service anywhere). GET only; Node answers no-store (single use).
+location = /api/rfqs/captcha-challenge {
+    limit_except GET { deny all; }
+    client_max_body_size 1k;
+    limit_req zone=ahanassa_rfq_captcha burst=10 nodelay;
+    proxy_pass http://127.0.0.1:@PORT@;
+}
+# Reading pictures into rows needs Workers AI: off on the domestic intake (the form asks capabilities first).
+location = /api/rfqs/extract { return 404; }
+location = /healthz {
+    proxy_pass http://127.0.0.1:@PORT@;
+}
+# The domestic admin view (D-IR-8): bearer ADMIN_TOKEN in Node + an optional allow-list (/etc/ahanassa/rfq-admin-allow.conf;
+# `allow all;` by default, because staff may sit anywhere in Iran during a cutoff) + a low rate.
+location ^~ /__admin/ {
+    include /etc/ahanassa/rfq-admin-allow.conf;
+    client_max_body_size 4k;
+    limit_req zone=ahanassa_rfq_admin burst=10 nodelay;
+    proxy_pass http://127.0.0.1:@PORT@;
+}
+location / { return 404; }

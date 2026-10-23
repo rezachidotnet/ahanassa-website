@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { SqliteD1, OPS_MIGRATIONS, PUBLIC_MIGRATIONS } from "../testing/sqlite-d1.ts";
+import { makeDb, type TestDb } from "../testing/rfq-runtime.ts";
 import { handleRfqSubmit } from "./submit.ts";
 import { preflightResponse } from "./cors.ts";
 import { backoffMs, deliverOne, pickDueRfq, STALE_SYNCING_MS, type DeliveryConfig } from "./delivery.ts";
@@ -24,8 +24,8 @@ function selection(id: string, group = "REBAR") {
 }
 
 function setup(overrides: Partial<RfqWorkerEnv> = {}) {
-  const ops = new SqliteD1([OPS_MIGRATIONS]);
-  const pub = new SqliteD1([PUBLIC_MIGRATIONS]);
+  const ops = makeDb("ops");
+  const pub = makeDb("public");
   const now = new Date().toISOString();
   for (const v of [SNAP, PREV]) pub.sqlite.prepare(`INSERT INTO publication_state (version, created_at, status, updated_at) VALUES (?, ?, ?, ?)`).run(v, now, v === SNAP ? "active" : "superseded", now);
   pub.sqlite.prepare(`INSERT INTO publication_pointer (id, active_version, updated_at) VALUES (1, ?, ?)`).run(SNAP, now);
@@ -325,7 +325,7 @@ test("W3.2.1: replay with a token Siteverify would reject -> 200 with the same r
 });
 
 test("the intake write is one atomic batch: a failing statement leaves no RFQ, line, contact or outbox row", async () => {
-  const ops = new SqliteD1([OPS_MIGRATIONS]);
+  const ops = makeDb("ops");
   const validated = validateRfqSubmission(body());
   assert.ok(validated.ok && validated.value);
   const failing = {
@@ -342,7 +342,7 @@ test("the intake write is one atomic batch: a failing statement leaves no RFQ, l
 async function seedRfq(env: RfqWorkerEnv, key = "seed-key-000000000001") {
   const res = await handleRfqSubmit(post(body({ idempotencyKey: key })), env, { fetchImpl: turnstileOk() });
   assert.equal(res.status, 201);
-  return (env.DB_OPS as unknown as SqliteD1).q<{ id: string; reference_number: string; submitted_at: string }>("SELECT id, reference_number, submitted_at FROM rfqs WHERE idempotency_key_hash IS NOT NULL ORDER BY created_at DESC LIMIT 1")[0];
+  return (env.DB_OPS as unknown as TestDb).q<{ id: string; reference_number: string; submitted_at: string }>("SELECT id, reference_number, submitted_at FROM rfqs WHERE idempotency_key_hash IS NOT NULL ORDER BY created_at DESC LIMIT 1")[0];
 }
 
 function odoo(responses: (Response | Error)[], seen: { headers: Headers; body: Record<string, unknown> }[] = []) {
@@ -542,4 +542,19 @@ test("queue handoff: a QUEUED RFQ is delivered by its Queue message at once, whi
   assert.equal(result?.status === "done" && result.classification, "DELIVERED");
   assert.deepEqual(calls, ["ack"]);
   assert.equal(ops.q("SELECT sync_status FROM rfqs")[0].sync_status, "synced");
+});
+
+// --- W32: which runtime this run exercises (lib/testing/rfq-runtime.ts) ---------------------------------------
+
+test("W32 runtime guard: RFQ_TEST_RUNTIME=node runs on the domestic intake's NodeD1 (WAL file, d1_migrations), else on the D1 stand-in", async () => {
+  const { ops } = setup();
+  const { RFQ_TEST_RUNTIME } = await import("../testing/rfq-runtime.ts");
+  const { NodeD1 } = await import("../rfq-node/sqlite-d1.ts");
+  const { SqliteD1 } = await import("../testing/sqlite-d1.ts");
+  if (RFQ_TEST_RUNTIME === "node") {
+    assert.ok(ops instanceof NodeD1);
+    assert.equal(ops.q<{ journal_mode: string }>("PRAGMA journal_mode")[0].journal_mode, "wal");
+    const names = ops.q<{ name: string }>("SELECT name FROM d1_migrations ORDER BY id").map((r) => r.name);
+    assert.ok(names.includes("0009_rfq_attachments.sql") && names.includes("ir/0001_ir_buffer.sql"), names.join(","));
+  } else assert.ok(ops instanceof SqliteD1);
 });

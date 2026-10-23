@@ -1,6 +1,6 @@
-import { factoryRowAsPriceRow, irrToToman, orderFactoryRows, PUBLISHED_FACTORY_PRICE_COLUMNS, PUBLISHED_PRICE_COLUMNS, PUBLISHED_PRICE_HISTORY_COLUMNS, type PublishedFactoryPriceRow, type PublishedPriceRow } from "../contracts/snapshot-prices.ts";
+import { factoryRowAsPriceRow, irrToToman, orderFactoryRows, PUBLISHED_FACTORY_PRICE_COLUMNS, PUBLISHED_IMPORTED_PRICE_COLUMNS, PUBLISHED_PRICE_COLUMNS, PUBLISHED_PRICE_HISTORY_COLUMNS, type PublishedFactoryPriceRow, type PublishedPriceRow } from "../contracts/snapshot-prices.ts";
 import { PRICE_BLOCK_COPY } from "../pricing/price-block-presentation.ts";
-import { allowedPriceTexts, AR_PRICE_COPY, PRICE_BLOCK_ATTRIBUTE, PRICE_BLOCK_ON_REQUEST, PRICE_CELL_ATTRIBUTE, PRICE_CHANGE_COPY, PRICE_CHANGE_WORDS, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, PRICE_RANK_ATTRIBUTE, PRICE_SPARKLINE_ATTRIBUTE, PRICE_TREND_COPY, priceDateLabel, renderedAmount, type PriceLocale } from "../pricing/product-page-price.ts";
+import { allowedPriceTexts, AR_PRICE_COPY, PRICE_BLOCK_ATTRIBUTE, PRICE_BLOCK_ON_REQUEST, PRICE_CELL_ATTRIBUTE, PRICE_CHANGE_COPY, PRICE_CHANGE_WORDS, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, PRICE_ORIGIN_ATTRIBUTE, PRICE_ORIGIN_COPY, PRICE_RANK_ATTRIBUTE, PRICE_SPARKLINE_ATTRIBUTE, PRICE_TREND_COPY, priceDateLabel, renderedAmount, type PriceLocale } from "../pricing/product-page-price.ts";
 import { PRICE_RFQ_COPY, RFQ_FACTORY_PARAM } from "../pricing/price-rfq.ts";
 import { isDailyPriceEligible } from "../pricing/daily-price-eligibility.ts";
 import { sparklineSeries, tehranDay, type DailyPoint } from "../pricing/price-history.ts";
@@ -67,6 +67,14 @@ const ARTICLE_PAGE = /^(ar\/)?articles(\.html$|\/)/;
  *    indicator elements are left out of rule 2's "no amount outside a price element" (their numbers are checked
  *    here, or are not prices at all).
  *
+ * W34 (Odoo W9.14, owner 2026-10-21: domestic and imported never compared or mixed):
+ * 10. `published_imported_prices` rows carry exactly PUBLISHED_IMPORTED_PRICE_COLUMNS. A price element with
+ *    `data-aa-price-origin="imported"` is checked against its variant's IMPORTED row (rule 2/3 allow-list), never the
+ *    domestic one; it carries no factory rank and no chart. Every other element is the domestic lowest, as before.
+ *    The imported rows' amounts, factory (origin) and location names count like the domestic ones in rules 2–4; the
+ *    origin labels are price copy (fa never on ar/en, ar never on en). JSON-LD offers and the calculator stay
+ *    domestic (rules 5 and 8 read `published_prices` only), so an imported amount there fails.
+ *
  * The pricing-API field names, source-like keys and factory codes are refused in every public file by the
  * leak scan (lib/static/leak-scan.ts, kind `pricing_field`); JSON-LD types/keys by the publication gate.
  */
@@ -90,6 +98,8 @@ export interface PriceGateInput {
   history: Map<string, DailyPoint[]>;
   /** W20.7: every factory's price per variant, in display order (orderFactoryRows), as price rows. */
   factoryRows: Map<string, PublishedPriceRow[]>;
+  /** W34: the lowest imported price per variant (`published_imported_prices`). */
+  importedRows: PublishedPriceRow[];
   findings: PriceFinding[];
 }
 
@@ -109,6 +119,11 @@ export function priceGateInput(snapshot: unknown): PriceGateInput {
     byFactory.set(row.canonical_variant_id, [...(byFactory.get(row.canonical_variant_id) ?? []), row]);
   }
   const factoryRows = new Map([...byFactory].map(([xid, list]) => [xid, orderFactoryRows(list).map(factoryRowAsPriceRow)]));
+  const importedRows: PublishedPriceRow[] = [];
+  for (const raw of (tables.published_imported_prices ?? []) as Record<string, unknown>[]) {
+    for (const key of Object.keys(raw ?? {})) if (!(PUBLISHED_IMPORTED_PRICE_COLUMNS as readonly string[]).includes(key)) findings.push({ file: "private-snapshot/snapshot.json", kind: "price_field_not_allowed", match: `published_imported_prices.${key}` });
+    importedRows.push(raw as unknown as PublishedPriceRow);
+  }
   const history = new Map<string, DailyPoint[]>();
   for (const raw of (tables.published_price_history ?? []) as Record<string, unknown>[]) {
     for (const key of Object.keys(raw ?? {})) if (!(PUBLISHED_PRICE_HISTORY_COLUMNS as readonly string[]).includes(key)) findings.push({ file: "private-snapshot/snapshot.json", kind: "price_field_not_allowed", match: `published_price_history.${key}` });
@@ -122,7 +137,7 @@ export function priceGateInput(snapshot: unknown): PriceGateInput {
     const code = (k: string) => (typeof v[k] === "string" ? (v[k] as string) : null);
     variants.set(v.xid, { xid: v.xid, size: String(v.commercial_size ?? v.section_size ?? v.sku ?? ""), eligible: isDailyPriceEligible({ familyCode: code("family_code"), groupCode: code("group_code"), formCode: code("form_code") }) });
   }
-  return { rows, variants, history, factoryRows, findings };
+  return { rows, variants, history, factoryRows, importedRows, findings };
 }
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", "#39": "'", "#x27": "'" };
@@ -196,14 +211,14 @@ export function residue(text: string, allowed: readonly string[]): string {
 const PAGE_H1 = /<h1\b[^>]*>([\s\S]*?)<\/h1>/i;
 
 /** Persian copy that only a fa price element shows; never on ar or en. */
-const FA_PRICE_COPY = [PRICE_BLOCK_COPY.unit, PRICE_BLOCK_COPY.vat, PRICE_BLOCK_COPY.askToday, PRICE_BLOCK_COPY.missing, PRICE_COLUMN_COPY.fa.note, `${PRICE_BLOCK_COPY.title} `, PRICE_DISCLAIMER.fa, PRICE_RFQ_COPY.fa, PRICE_TREND_COPY.fa];
+const FA_PRICE_COPY = [PRICE_BLOCK_COPY.unit, PRICE_BLOCK_COPY.vat, PRICE_BLOCK_COPY.askToday, PRICE_BLOCK_COPY.missing, PRICE_COLUMN_COPY.fa.note, `${PRICE_BLOCK_COPY.title} `, PRICE_DISCLAIMER.fa, PRICE_RFQ_COPY.fa, PRICE_TREND_COPY.fa, ...Object.values(PRICE_ORIGIN_COPY.fa)];
 /** W9.6: fa-only price markers — the chart and the factory RFQ prefill; never on ar or en. (▲/▼ is fa + ar, never en.) */
 const FA_ONLY_MARKERS = [PRICE_SPARKLINE_ATTRIBUTE, PRICE_TREND_COPY.fa, `&amp;${RFQ_FACTORY_PARAM}=`, `&${RFQ_FACTORY_PARAM}=`, `?${RFQ_FACTORY_PARAM}=`,
   // W18.2: the gauge, the chart pages and their CTA are fa only.
   PRICE_GAUGE_ATTRIBUTE, PRICE_CHART_ATTRIBUTE, PRICE_LINE_ATTRIBUTE, PRICE_DECISION_COPY.cta, PRICE_DECISION_COPY.title];
 const CHANGE_MARKERS = [PRICE_CHANGE_COPY.up, PRICE_CHANGE_COPY.down, ...Object.values(PRICE_CHANGE_WORDS.ar)];
 /** Arabic copy of the ar price cells; never on en. */
-const AR_COPY = [...Object.values(AR_PRICE_COPY), PRICE_DISCLAIMER.ar, PRICE_RFQ_COPY.ar];
+const AR_COPY = [...Object.values(AR_PRICE_COPY), PRICE_DISCLAIMER.ar, PRICE_RFQ_COPY.ar, ...Object.values(PRICE_ORIGIN_COPY.ar)];
 
 /** Calculator price-map entries (`"CVAR-…":{…tomanPerKg…}`), plain or escaped inside the RSC payload string. */
 const CALCULATOR_ENTRY = /\\?"(CVAR-[A-Za-z0-9-]+)\\?":(\{[^{}]*?tomanPerKg[^{}]*\})/g;
@@ -248,8 +263,10 @@ export function scanCalculatorPrices(path: string, content: string, locale: Pric
 export function scanPrices(files: ReadonlyArray<{ path: string; content: string }>, input: PriceGateInput): PriceFinding[] {
   const findings: PriceFinding[] = [...input.findings];
   const byVariant = new Map(input.rows.map((r) => [r.canonical_variant_id, r]));
-  // W20.7: the factory rows count like the lowest (their amounts, names and times are fa-only too).
-  const every = [...input.rows, ...[...input.factoryRows.values()].flat()];
+  // W34: the lowest imported price per variant, for elements marked data-aa-price-origin="imported" only.
+  const importedByVariant = new Map((input.importedRows ?? []).map((r) => [r.canonical_variant_id, r]));
+  // W20.7: the factory rows count like the lowest (their amounts, names and times are fa-only too). W34: and the imported rows.
+  const every = [...input.rows, ...[...input.factoryRows.values()].flat(), ...(input.importedRows ?? [])];
   const amounts = { fa: [...new Set(every.map((r) => renderedAmount(r, "fa")))], ar: [...new Set(every.map((r) => renderedAmount(r, "ar")))] };
   const names = [...new Set(every.flatMap((r) => [r.factory_name_fa, r.location_fa]))];
   const times = [...new Set(every.flatMap((r) => [r.published_at, new Date(r.published_at).toISOString()]))];
@@ -295,8 +312,19 @@ export function scanPrices(files: ReadonlyArray<{ path: string; content: string 
       }
       if (variant && !variant.eligible) findings.push({ file: path, kind: "price_excluded_variant", match: `${el.attribute}="${el.value}": a per-ton material has a daily price element` });
       // 7. A factory cell (fa /prices): its rank's factory row, never the lowest by default.
-      const rank = new RegExp(`\\s${PRICE_RANK_ATTRIBUTE}="([^"]*)"`).exec(/^<[^>]*>/.exec(el.html)?.[0] ?? "")?.[1];
-      let row = variant ? (byVariant.get(variant.xid) ?? null) : null;
+      const opening = /^<[^>]*>/.exec(el.html)?.[0] ?? "";
+      const rank = new RegExp(`\\s${PRICE_RANK_ATTRIBUTE}="([^"]*)"`).exec(opening)?.[1];
+      // 10. (W34) An imported element: its variant's imported row, never the domestic lowest; no rank, no chart.
+      const origin = new RegExp(`\\s${PRICE_ORIGIN_ATTRIBUTE}="([^"]*)"`).exec(opening)?.[1];
+      if (origin !== undefined && origin !== "imported") {
+        findings.push({ file: path, kind: "price_unknown_variant", match: `${el.attribute}="${el.value}" ${PRICE_ORIGIN_ATTRIBUTE}="${origin}": unknown origin` });
+        continue;
+      }
+      if (origin === "imported" && (rank !== undefined || onRequest || el.html.includes(PRICE_SPARKLINE_ATTRIBUTE))) {
+        findings.push({ file: path, kind: "price_text_not_allowed", match: `${el.attribute}="${el.value}" ${PRICE_ORIGIN_ATTRIBUTE}="imported": a factory rank, an on-request block or a chart` });
+        continue;
+      }
+      let row = variant ? ((origin === "imported" ? importedByVariant : byVariant).get(variant.xid) ?? null) : null;
       if (rank !== undefined) {
         const factoryRow = variant && locale === "fa" && /^\d+$/.test(rank) ? input.factoryRows.get(variant.xid)?.[Number(rank)] : undefined;
         if (!factoryRow) {

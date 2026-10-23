@@ -273,6 +273,8 @@ export function assembleSnapshotTables(odoo: OdooSource, d1: D1Source, deactivat
     published_price_history: history.rows,
     // W20.7: every factory's price (fa price page); empty when Odoo has no factory_prices or any of it is unusable.
     published_factory_prices: pricing.factoryRows,
+    // W34: the lowest imported price per variant (never mixed with published_prices); empty without imported_lowest.
+    published_imported_prices: pricing.importedRows,
     // W11.1: build-only articles, already sorted by (locale, slug).
     published_articles: [...articles],
     // W18.2: build-only market indicators (reference indices), sorted by code / (code, date).

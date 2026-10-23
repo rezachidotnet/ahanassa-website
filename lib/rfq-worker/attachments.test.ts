@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SqliteD1, OPS_MIGRATIONS, PUBLIC_MIGRATIONS } from "../testing/sqlite-d1.ts";
+import { makeBucket, makeDb, type TestDb } from "../testing/rfq-runtime.ts";
 import { handleRfqSubmit } from "./submit.ts";
 import { deliverOne } from "./delivery.ts";
 import { filesCapability, filesPreflight, handleFileUpload, RFQ_KEY_HEADER } from "./attachments.ts";
@@ -18,7 +18,9 @@ import type { RfqWorkerEnv } from "./config.ts";
  * D-RFQ-FILE (docs/RFQ_FILE_UPLOAD.md): declared files on POST /api/rfqs,
  * bytes on PUT /api/rfqs/files/<reference>/<slot>, the private R2 write, and
  * the file list in the Odoo `notes`. Real migrations (node:sqlite), an
- * in-memory R2 double that can be told to fail.
+ * R2 double that can be told to fail. W32: runs on both runtimes
+ * (lib/testing/rfq-runtime.ts) — the Worker doubles, or the domestic intake's
+ * production NodeD1 + FsBucket (RFQ_TEST_RUNTIME=node).
  */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28,44 +30,13 @@ const SNAP = "snap-e55d81c754270c1f";
 const KEY = "0f8fad5b-d9cb-469f-a165-70867728950e";
 const sha256 = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
 
-class MemoryBucket {
-  objects = new Map<string, { bytes: Uint8Array; contentType?: string }>();
-  failPut = false;
-  puts = 0;
-  async put(key: string, value: ReadableStream<Uint8Array>, options?: { httpMetadata?: { contentType?: string } }) {
-    this.puts++;
-    // Pessimistic like workerd in local testing: what was received is kept even when the stream
-    // is aborted or the put fails — so only an explicit delete leaves the bucket clean.
-    const chunks: Uint8Array[] = [];
-    let failure: unknown = null;
-    try {
-      for await (const chunk of value) chunks.push(chunk);
-    } catch (err) {
-      failure = err;
-    }
-    const bytes = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
-    chunks.reduce((at, c) => (bytes.set(c, at), at + c.length), 0);
-    this.objects.set(key, { bytes, contentType: options?.httpMetadata?.contentType });
-    if (failure) throw failure;
-    if (this.failPut) throw new Error("R2 unavailable");
-    return { key, etag: `etag-${bytes.length}`, size: bytes.length };
-  }
-  async get(key: string) {
-    const o = this.objects.get(key);
-    return o ? { body: new Response(o.bytes as BodyInit).body } : null;
-  }
-  async delete(key: string) {
-    this.objects.delete(key);
-  }
-}
-
 function setup(overrides: Partial<RfqWorkerEnv> = {}, limiterOk = true) {
-  const ops = new SqliteD1([OPS_MIGRATIONS]);
-  const pub = new SqliteD1([PUBLIC_MIGRATIONS]);
+  const ops = makeDb("ops");
+  const pub = makeDb("public");
   const now = new Date().toISOString();
   pub.sqlite.prepare(`INSERT INTO publication_state (version, created_at, status, updated_at) VALUES (?, ?, 'active', ?)`).run(SNAP, now, now);
   pub.sqlite.prepare(`INSERT INTO publication_pointer (id, active_version, updated_at) VALUES (1, ?, ?)`).run(SNAP, now);
-  const bucket = new MemoryBucket();
+  const bucket = makeBucket();
   const limiterKeys: string[] = [];
   const env: RfqWorkerEnv = {
     DB_OPS: ops.asD1(),
@@ -153,7 +124,7 @@ function odoo(contract: "v1.1" | "v1.2" = "v1.2") {
   return { bodies, fetchImpl };
 }
 
-async function deliver(env: RfqWorkerEnv, ops: SqliteD1, at = new Date(Date.now() + ATTACHMENT_WAIT_MS + 1000), contract: "v1.1" | "v1.2" = "v1.2") {
+async function deliver(env: RfqWorkerEnv, ops: TestDb, at = new Date(Date.now() + ATTACHMENT_WAIT_MS + 1000), contract: "v1.1" | "v1.2" = "v1.2") {
   const rfqId = ops.q("SELECT id FROM rfqs")[0].id as string;
   const double = odoo(contract);
   const result = await deliverOne(env.DB_OPS, rfqId, { odooBaseUrl: "https://stub.example", token: "bearer", intakeV11: true, fetchImpl: double.fetchImpl, now: () => at });

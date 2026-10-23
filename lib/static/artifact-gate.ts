@@ -18,6 +18,8 @@ import { checkFontLoading } from "./font-loading.ts";
 import { bootstrapModuleIsLowPriority } from "./postprocess.ts";
 import { checkIndexingPolicy, PRODUCTION_ORIGIN } from "./indexing-gate.ts";
 import { GA4_CONNECT_ORIGINS } from "../security/headers.ts";
+import { rfqApiMirrorOrigins } from "../mirror/iran-mirror.ts";
+import { checkSeoHostLock } from "./seo-host-lock.ts";
 
 /**
  * artifact.v1 gate (architecture V1.1 §7.1 step 6, docs/contracts/ARTIFACT_V1.md).
@@ -193,15 +195,18 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
   }
   // W25.3: the site font is preloaded and the metric-matched fallback faces are present (lib/static/font-loading.ts).
   failures.push(...checkFontLoading(htmlFiles.map((e) => e.path), publicEntries.filter((e) => e.path.endsWith(".css")).map((e) => e.path), readPublic));
+  // W30 hard rule: canonical, hreflang, og:url, JSON-LD, sitemap and robots name www.ahanassa.com — the same bytes are
+  // served on the domestic copy (www/new.ahanassa.ir), and no build may move a page's address (lib/static/seo-host-lock.ts).
+  failures.push(...checkSeoHostLock([...publicPaths], readPublic));
   if (publicPaths.has("_headers") && parsed.success) {
     const headers = readPublic("_headers");
     // Indexing (D6): staging never indexable; production exactly lib/seo/indexing-policy.ts.
     failures.push(...checkIndexingPolicy(parsed.data.environment, publicEntries.map((e) => e.path), readPublic));
-    // CSP connect-src: exactly 'self', Turnstile, this target's RFQ API origin (architecture §6.1) and
-    // GA4's collection endpoints (owner decision 2026-10-13, DAR-066).
+    // CSP connect-src: exactly 'self', Turnstile, this target's RFQ API origin (architecture §6.1) + its Iran
+    // mirror (W27, production only) and GA4's collection endpoints (owner decision 2026-10-13, DAR-066).
     const origin = STATIC_TARGETS[parsed.data.environment].rfqApiOrigin;
     const connect = /connect-src ([^;\n]*)/.exec(headers)?.[1]?.trim().split(/\s+/) ?? [];
-    const expected = ["'self'", TURNSTILE_ORIGIN, origin, ...GA4_CONNECT_ORIGINS];
+    const expected = ["'self'", TURNSTILE_ORIGIN, origin, ...rfqApiMirrorOrigins(origin), ...GA4_CONNECT_ORIGINS];
     if (connect.length !== expected.length || expected.some((e) => !connect.includes(e))) failures.push(`_headers: CSP connect-src must be exactly ${expected.join(" ")} (got ${connect.join(" ") || "none"})`);
     // W10.6: immutable caching names each /_next/static/ file; a wildcard would also cache a chunk's 404 for a year.
     failures.push(...checkStaticCacheRules(headers, publicEntries.map((e) => e.path)));
@@ -235,8 +240,8 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
   // 7b. Indicator gate (W18.2): every indicator carries its reference label, source and date, and only its own texts.
   const indicatorInput = indicatorGateInput(snapshotDoc);
   for (const f of scanIndicators(textFiles, indicatorInput)) failures.push(`indicator ${f.kind} in ${f.file}: ${f.match}`);
-  // W20.7: every factory's price counts like the lowest for the article and agent-text rules (amounts, names).
-  const everyPriceRow = [...priceInput.rows, ...[...priceInput.factoryRows.values()].flat()];
+  // W20.7: every factory's price counts like the lowest for the article and agent-text rules (amounts, names). W34: so does the imported lowest.
+  const everyPriceRow = [...priceInput.rows, ...[...priceInput.factoryRows.values()].flat(), ...priceInput.importedRows];
   // 8b. Article pages (W11.1): en no price data, ar no factory/location, no external image, no JSON-LD.
   const articleFindings = scanArticlePages(textFiles, everyPriceRow);
   for (const f of articleFindings) failures.push(`article ${f.kind} in ${f.file}: ${f.match}`);

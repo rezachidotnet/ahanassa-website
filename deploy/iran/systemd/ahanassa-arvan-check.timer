@@ -1,0 +1,10 @@
+[Unit]
+Description=Ahan Asa: ArvanCloud edge range check, weekly
+
+[Timer]
+OnCalendar=Sun 09:00 Asia/Tehran
+Persistent=true
+RandomizedDelaySec=30min
+
+[Install]
+WantedBy=timers.target

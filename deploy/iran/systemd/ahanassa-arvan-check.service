@@ -1,0 +1,20 @@
+# W30 — weekly: does ArvanCloud's published edge list still equal the snapshot ufw was built from? Alert only; it never
+# changes ufw or nginx (a wrong list takes the site down). deploy/iran/FIREWALL.md §3.
+[Unit]
+Description=Ahan Asa: ArvanCloud edge range check (alert only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/ahanassa-activate arvan-check
+Environment=AHANASSA_IRAN_CONFIG=/etc/ahanassa/iran.json
+LoadCredential=bale-token:/etc/ahanassa/credentials/bale-token
+# Exit 1 = changed (alerted), not a unit failure worth restarting.
+SuccessExitStatus=1
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_INET AF_INET6

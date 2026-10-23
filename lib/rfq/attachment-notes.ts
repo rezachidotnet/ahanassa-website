@@ -64,7 +64,10 @@ export function buildV12Attachments(rows: readonly AttachmentNoteRow[]): RfqInta
 /** Channel for a first attempt: v1.2 when at least one file can be sent that way. */
 export const preferredChannel = (rows: readonly AttachmentNoteRow[]): AttachmentChannel => (rows.some(sendable) ? "odoo_v12" : "notes");
 
-export function buildAttachmentNotes(rows: readonly AttachmentNoteRow[], channel: AttachmentChannel = "notes"): string | null {
+/** Where staff open the files on the `notes` channel. W32: the domestic intake names its own admin view instead. */
+export const DEFAULT_FILES_STORAGE_HINT = "private storage; open with the RFQ admin tool, /__admin/attachments";
+
+export function buildAttachmentNotes(rows: readonly AttachmentNoteRow[], channel: AttachmentChannel = "notes", storageHint: string = DEFAULT_FILES_STORAGE_HINT): string | null {
   if (!rows.length) return null;
   const sorted = [...rows].sort((a, b) => a.slot - b.slot);
   const missing = sorted.filter((r) => r.upload_status !== "uploaded");
@@ -76,13 +79,13 @@ export function buildAttachmentNotes(rows: readonly AttachmentNoteRow[], channel
     return [head, ...missing.map((r) => `${r.slot}. ${displayName(r)} — ${formatFileSize(r.byte_size)} — ${reason(r)}`)].join("\n");
   }
   const lines = sorted.map((r) => `${r.slot}. ${displayName(r)} — ${formatFileSize(r.byte_size)} — ${r.upload_status === "uploaded" ? `received — ${r.object_key}` : reason(r)}`);
-  const head = `[website] Files with this request: ${sorted.length - missing.length} received${missing.length ? `, ${missing.length} NOT RECEIVED` : ""} (private storage; open with the RFQ admin tool, /__admin/attachments):`;
+  const head = `[website] Files with this request: ${sorted.length - missing.length} received${missing.length ? `, ${missing.length} NOT RECEIVED` : ""} (${storageHint}):`;
   return [head, ...lines].join("\n");
 }
 
 /** The customer's message, then the file list — what the delivery sends as Odoo `notes`. */
-export function notesWithAttachments(message: string | null, rows: readonly AttachmentNoteRow[], channel: AttachmentChannel = "notes"): string | null {
-  const files = buildAttachmentNotes(rows, channel);
+export function notesWithAttachments(message: string | null, rows: readonly AttachmentNoteRow[], channel: AttachmentChannel = "notes", storageHint?: string): string | null {
+  const files = buildAttachmentNotes(rows, channel, storageHint);
   if (!files) return message;
   return message ? `${message}\n\n${files}` : files;
 }

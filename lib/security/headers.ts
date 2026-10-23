@@ -44,7 +44,9 @@ export function buildCspReportOnly(connectSrc: readonly string[] = [], livechatF
     "object-src 'none'",
     "frame-ancestors 'none'",
     "form-action 'self'",
-    // Cloudflare Turnstile (RFQ form) requires its own script/frame/connect
+    // W35: the domestic intake's captcha (ALTCHA) needs NO origin here — its widget and proof-of-work worker are our
+    // own assets ('self'; worker-src falls back to script-src), its challenge comes from the RFQ API host already in
+    // connect-src. Cloudflare Turnstile (RFQ form) requires its own script/frame/connect
     // origin — the narrowest addition that unblocks it, not a broad
     // relaxation (CLAUDE.md "CSP / Security Headers").
     `script-src 'self' https://challenges.cloudflare.com ${GTM_SCRIPT_ORIGIN}`,

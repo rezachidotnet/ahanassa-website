@@ -1,0 +1,10 @@
+# W30 — start the root activator when the agent hands over an activation (incoming/%i/<seq>.ready).
+[Unit]
+Description=Ahan Asa domestic copy: activation hand-over (%i)
+
+[Path]
+PathExistsGlob=/srv/ahanassa/incoming/%i/*.ready
+Unit=ahanassa-activate@%i.service
+
+[Install]
+WantedBy=paths.target

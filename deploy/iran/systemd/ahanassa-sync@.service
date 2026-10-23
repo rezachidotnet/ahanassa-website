@@ -1,0 +1,42 @@
+# W30 domestic copy — pull the newest SIGNED activation for %i (production|staging) and, when needed, its bundle.
+# Unprivileged: user ahanassa-sync, writes only /srv/ahanassa/incoming/%i. Nothing it fetches is served until the root
+# activator has verified it. deploy/iran/RUNBOOK_P1.md §4.
+[Unit]
+Description=Ahan Asa domestic copy: sync agent (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ahanassa-sync
+Group=ahanassa-sync
+ExecStart=/usr/local/bin/ahanassa-sync %i
+Environment=AHANASSA_IRAN_CONFIG=/etc/ahanassa/iran.json
+# Read-only GitHub token (fine-grained PAT: Actions read, this repo only) + the mirror's read-only keys. A file that is
+# not issued yet is an empty placeholder (RUNBOOK_P1.md §2); the source then fails and the next one is tried.
+LoadCredential=github-token:/etc/ahanassa/credentials/github-token
+LoadCredential=r2-read:/etc/ahanassa/credentials/r2-read
+LoadCredential=arvan-read:/etc/ahanassa/credentials/arvan-read
+UMask=0027
+TimeoutStartSec=30min
+MemoryMax=256M
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ReadWritePaths=/srv/ahanassa/incoming/%i
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native

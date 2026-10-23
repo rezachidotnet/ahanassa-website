@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { basketAddSource, sameOriginReferrerPath, trackEvent } from "@/lib/analytics/events";
 import { localizedPath, type Locale } from "@/config/locales";
-import { EnquiryForm, type CatalogArrival } from "@/components/contact/enquiry-form";
+import { EnquiryForm, type CatalogArrival, type UnreachableContacts } from "@/components/contact/enquiry-form";
 import { findCatalogItemByXid, type PublicRfqCatalogItem } from "@/lib/rfq/catalog-selector";
 import { decodeRfqCatalog } from "@/lib/rfq/catalog-wire";
 import { publicRfqCatalogPath } from "@/lib/contracts/public-paths";
@@ -18,7 +18,9 @@ import {
   type RfqBasketAddOutcome,
   type RfqBasketCustomer,
 } from "@/lib/rfq/rfq-basket";
-import { fetchFilesCapability, filesEndpointFor, type FilesCapability } from "@/lib/rfq/upload-files";
+import { filesEndpointFor, type FilesCapability } from "@/lib/rfq/upload-files";
+import { fetchRfqCapabilities, type CaptchaChoice } from "@/lib/rfq/capabilities-client";
+import { isIranMirrorHost, rfqEndpointForHost } from "@/lib/mirror/iran-mirror";
 
 interface LoadedCatalog {
   items: PublicRfqCatalogItem[];
@@ -78,17 +80,36 @@ const HANDOFF_PARAMS = ["variant", ...Object.values(RFQ_PREFILL_PARAMS)];
  * prerendered HTML never has the field, so the staging and production pages
  * stay byte-identical (r4) while upload is on in one and off in the other.
  * The same answer says whether an attached list is read into rows (W13.3).
+ *
+ * W27 Iran mirror (lib/mirror/iran-mirror.ts): on www.ahanassa.ir / ahanassa.ir the
+ * submit, the files capability, the uploads and the extract call all go to
+ * api.ahanassa.ir instead of api.ahanassa.com — decided here, from
+ * location.hostname, after hydration (the prerendered HTML is the same for
+ * every host). `unreachableContacts`: what the form offers on a mirror host
+ * when the Turnstile script cannot load there (EnquiryForm).
+ *
+ * W32 (W29 P2 §3.4): ONE call, GET <rfqEndpoint>/capabilities, answers files,
+ * extract AND which captcha the API verifies (lib/rfq/capabilities-client.ts).
+ * On www.ahanassa.com Turnstile starts at once, as before (the Worker always
+ * names it). On an Iran host no widget loads until the API has answered:
+ * ALTCHA from the domestic intake (W35; its widget is our own lazily loaded
+ * chunk, its challenge comes from that same API host), Turnstile from the Worker (or an old
+ * Worker without the route) — so the captcha follows wherever Arvan sends the
+ * API host. No answer on an Iran host = Turnstile, i.e. the W27 "could not
+ * load" message with the other channels.
  */
 export function StaticEnquiryForm({
   locale,
   catalogPath,
   catalogSnapshotVersion = null,
+  unreachableContacts,
   turnstileSiteKey,
-  rfqEndpoint,
+  rfqEndpoint: bakedRfqEndpoint,
 }: {
   locale: Locale;
   catalogPath?: string;
   catalogSnapshotVersion?: string | null;
+  unreachableContacts?: UnreachableContacts;
   turnstileSiteKey?: string;
   rfqEndpoint?: string;
 }) {
@@ -99,6 +120,10 @@ export function StaticEnquiryForm({
   const [continueHref, setContinueHref] = useState(() => localizedPath(locale, "/products"));
   const [filesEndpoint, setFilesEndpoint] = useState<string | null>(null);
   const [extractCapability, setExtractCapability] = useState<FilesCapability["extract"] | null>(null);
+  // The baked endpoint until hydration; then the one for this host (W27).
+  const [rfqEndpoint, setRfqEndpoint] = useState(bakedRfqEndpoint);
+  // W32: which captcha the API wants; null = not known yet (the prerendered HTML loads none).
+  const [captcha, setCaptcha] = useState<CaptchaChoice | null>(null);
 
   useEffect(() => {
     setContinueHref(resolveContinueBrowsingHref(locale, document.referrer, window.location.origin));
@@ -118,19 +143,25 @@ export function StaticEnquiryForm({
       .finally(() => {
         if (!cancelled) setCatalogSettled(true);
       });
-    if (rfqEndpoint) {
-      const endpoint = filesEndpointFor(rfqEndpoint);
-      void fetchFilesCapability(endpoint).then((capability) => {
-        if (!cancelled && capability) {
-          setFilesEndpoint(endpoint);
-          setExtractCapability(capability.extract);
+    const hostEndpoint = bakedRfqEndpoint ? rfqEndpointForHost(bakedRfqEndpoint, window.location.hostname) : undefined;
+    setRfqEndpoint(hostEndpoint);
+    const iranHost = isIranMirrorHost(window.location.hostname);
+    // .com: Turnstile right away (the Worker always names it); an Iran host waits for the API's answer.
+    if (!iranHost) setCaptcha({ provider: "turnstile" });
+    if (hostEndpoint) {
+      void fetchRfqCapabilities(hostEndpoint).then((capabilities) => {
+        if (cancelled) return;
+        setCaptcha(capabilities?.captcha ?? { provider: "turnstile" });
+        if (capabilities?.files) {
+          setFilesEndpoint(filesEndpointFor(hostEndpoint));
+          setExtractCapability(capabilities.files.extract);
         }
       });
-    }
+    } else setCaptcha({ provider: "turnstile" });
     return () => {
       cancelled = true;
     };
-  }, [locale, catalogPath, rfqEndpoint]);
+  }, [locale, catalogPath, bakedRfqEndpoint]);
 
   // Applied once by the form, to the rows it holds when the catalog request settles (loaded or failed).
   const catalogArrival = useCallback(
@@ -183,7 +214,9 @@ export function StaticEnquiryForm({
       // Remount once the stored basket is restored so the initial rows/fields pick it up.
       key={ready ? "ready" : "loading"}
       locale={locale}
-      turnstileSiteKey={turnstileSiteKey}
+      turnstileSiteKey={captcha?.provider === "turnstile" ? turnstileSiteKey : undefined}
+      altchaChallengeUrl={captcha?.provider === "altcha" ? captcha.challengeUrl : undefined}
+      captchaPending={captcha === null && Boolean(turnstileSiteKey)}
       initialRows={ready?.rows}
       initialCustomer={ready?.customer}
       persistBasket={Boolean(ready)}
@@ -193,6 +226,7 @@ export function StaticEnquiryForm({
       catalogArrival={ready && catalogSettled ? catalogArrival : null}
       catalogSnapshotVersion={catalogSnapshotVersion ?? catalog?.snapshotVersion ?? null}
       rfqEndpoint={rfqEndpoint}
+      unreachableContacts={unreachableContacts}
       filesEndpoint={filesEndpoint}
       extractCapability={extractCapability}
     />

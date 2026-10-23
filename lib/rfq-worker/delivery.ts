@@ -47,6 +47,18 @@ export interface DeliveryConfig {
   afterPost?: () => void;
   /** Set by the Queue consumer: a `queued` RFQ is claimable before its reconciler grace period ends. */
   fromQueue?: boolean;
+  /**
+   * W32 (domestic intake, lib/rfq-node/forwarder.ts) — all three default to the Worker's behaviour:
+   *  - `idempotencyKeyPrefix`: `rfq-ir-` instead of `rfq-` (lib/odoo/rfq-payload-mapper.ts);
+   *  - `notesOrigin`: a first `notes` line naming the origin (`[website-ir]`), identical on every retry;
+   *  - `attachmentChannel`: the channel of a FIRST attempt (`notes` when the files could not reach the .ir files
+   *    store within files_store_wait_ms — W35: Arvan Object Storage); a channel already kept by an earlier attempt always wins;
+   *  - `filesStorageHint`: where staff open the files on the `notes` channel (the domestic admin view).
+   */
+  idempotencyKeyPrefix?: string;
+  notesOrigin?: string;
+  attachmentChannel?: AttachmentChannel;
+  filesStorageHint?: string;
 }
 
 export type DeliveryResult =
@@ -103,6 +115,19 @@ async function claim(db: D1Database, rfqId: string, now: Date, fromQueue: boolea
   return (result.meta?.changes ?? 0) === 1;
 }
 
+/**
+ * Freezes an RFQ's file list once (first attempt): still-pending files become `failed` / `not_received`. Idempotent.
+ * Exported for the domestic forwarder (lib/rfq-node/forwarder.ts), which freezes the list BEFORE copying the
+ * received files to R2, so no late upload can join a list that is already on its way.
+ */
+export async function freezeAttachments(db: D1Database, rfqId: string, now: Date): Promise<void> {
+  const frozenAt = now.toISOString();
+  await db.batch([
+    db.prepare(`UPDATE rfqs SET attachments_frozen_at = ? WHERE id = ? AND attachments_frozen_at IS NULL`).bind(frozenAt, rfqId),
+    db.prepare(`UPDATE rfq_attachments SET upload_status = 'failed', failure_code = 'not_received', updated_at = ? WHERE rfq_id = ? AND upload_status = 'pending'`).bind(frozenAt, rfqId),
+  ]);
+}
+
 const httpCategory = (status: number | null) => (status === null ? "network_error" : `${Math.floor(status / 100)}xx`);
 
 export async function deliverOne(db: D1Database, rfqId: string, cfg: DeliveryConfig): Promise<DeliveryResult> {
@@ -135,11 +160,7 @@ export async function deliverOne(db: D1Database, rfqId: string, cfg: DeliveryCon
   let attachmentRows: AttachmentNoteRow[] = [];
   let keptChannel: AttachmentChannel | null = null;
   if ((header.attachment_count ?? 0) > 0) {
-    const frozenAt = now.toISOString();
-    await db.batch([
-      db.prepare(`UPDATE rfqs SET attachments_frozen_at = ? WHERE id = ? AND attachments_frozen_at IS NULL`).bind(frozenAt, rfqId),
-      db.prepare(`UPDATE rfq_attachments SET upload_status = 'failed', failure_code = 'not_received', updated_at = ? WHERE rfq_id = ? AND upload_status = 'pending'`).bind(frozenAt, rfqId),
-    ]);
+    await freezeAttachments(db, rfqId, now);
     attachmentRows = (
       await db
         .prepare(`SELECT slot, original_filename, byte_size, upload_status, failure_code, object_key, extension, mime_declared, checksum_sha256 FROM rfq_attachments WHERE rfq_id = ? ORDER BY slot ASC`)
@@ -149,7 +170,7 @@ export async function deliverOne(db: D1Database, rfqId: string, cfg: DeliveryCon
     keptChannel = (await db.prepare(`SELECT attachments_channel FROM rfqs WHERE id = ?`).bind(rfqId).first<{ attachments_channel: AttachmentChannel | null }>())?.attachments_channel ?? null;
   }
   // The channel of an earlier attempt is kept, so a retry re-sends the same payload (same Idempotency-Key).
-  let channel: AttachmentChannel | null = attachmentRows.length ? (keptChannel ?? preferredChannel(attachmentRows)) : null;
+  let channel: AttachmentChannel | null = attachmentRows.length ? (keptChannel ?? cfg.attachmentChannel ?? preferredChannel(attachmentRows)) : null;
 
   const items: RfqSnapshotItem[] = itemRows.map((i) => ({
     lineNumber: i.line_number,
@@ -173,7 +194,9 @@ export async function deliverOne(db: D1Database, rfqId: string, cfg: DeliveryCon
   const unpublishedLines = new Set(itemRows.filter((i) => i.unpublished_at_receipt === 1).map((i) => i.line_number));
 
   const buildPayload = (ch: AttachmentChannel | null) => {
-    const mapping = mapRfqToApiPayload({ locale: header.locale, fullName: header.full_name, companyName: header.company_name, phone: header.phone_e164 ?? header.phone_national, email: header.email_normalized, message: ch ? notesWithAttachments(header.message, attachmentRows, ch) : header.message, items });
+    const body = ch ? notesWithAttachments(header.message, attachmentRows, ch, cfg.filesStorageHint) : header.message;
+    const message = cfg.notesOrigin ? [cfg.notesOrigin, body].filter(Boolean).join("\n") : body;
+    const mapping = mapRfqToApiPayload({ locale: header.locale, fullName: header.full_name, companyName: header.company_name, phone: header.phone_e164 ?? header.phone_national, email: header.email_normalized, message, items });
     if (!mapping.ok) return mapping;
     const payload: Record<string, unknown> = { ...mapping.payload };
     if (unpublishedLines.size) {
@@ -193,7 +216,7 @@ export async function deliverOne(db: D1Database, rfqId: string, cfg: DeliveryCon
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), cfg.timeoutMs ?? DEFAULT_TIMEOUT_MS);
     try {
-      const headers: Record<string, string> = { "Content-Type": "application/json", "Idempotency-Key": buildOutboundRfqIdempotencyKey(rfqId) };
+      const headers: Record<string, string> = { "Content-Type": "application/json", "Idempotency-Key": buildOutboundRfqIdempotencyKey(rfqId, cfg.idempotencyKeyPrefix) };
       if (cfg.token) headers.Authorization = `Bearer ${cfg.token}`;
       const response = await (cfg.fetchImpl ?? fetch)(`${cfg.odooBaseUrl.replace(/\/+$/, "")}/api/v1/rfq`, { method: "POST", headers, body: JSON.stringify(payload), signal: controller.signal });
       return { status: response.status, text: await response.text() };

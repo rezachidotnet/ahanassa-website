@@ -70,9 +70,18 @@ export type RfqMappingResult = { ok: true; payload: RfqApiRequest } | { ok: fals
  * unique, so two different Website RFQs can never accidentally collide.
  * 30 chars total ("rfq-" + 26-char ULID), far under the 128-char limit.
  */
-export function buildOutboundRfqIdempotencyKey(rfqId: string): string {
-  return `rfq-${rfqId}`;
+export function buildOutboundRfqIdempotencyKey(rfqId: string, prefix: string = OUTBOUND_KEY_PREFIX_WORKER): string {
+  if (!/^rfq-(?:[a-z0-9]{1,8}-)?$/.test(prefix)) throw new Error(`invalid outbound idempotency key prefix ${JSON.stringify(prefix)}`);
+  return `${prefix}${rfqId}`;
 }
+
+/**
+ * W32 (W29 P2 §3.3): the RFQ Worker sends `rfq-<ulid>`; the domestic intake on iransrv (lib/rfq-node) sends
+ * `rfq-ir-<ulid>`. The key spaces are disjoint by construction (a Crockford ULID never contains `-`), so an RFQ from
+ * one system can never replay or conflict with one from the other in Odoo, and staff see the domestic origin in the key.
+ */
+export const OUTBOUND_KEY_PREFIX_WORKER = "rfq-";
+export const OUTBOUND_KEY_PREFIX_IR = "rfq-ir-";
 
 // ---------------------------------------------------------------------------
 // UoM inference (Stage: "UOM Contract")
