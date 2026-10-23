@@ -15,10 +15,16 @@ import localFont from "next/font/local";
  * component `font-weight` values (400/500/600/700/800 already used
  * throughout the design system, styles/tokens.css) resolve to real
  * variable-font instances rather than a synthesized bold.
+ *
+ * W25.3 (owner decision D-W253-FONT, 2026-10-21): still preloaded (FONT_STRATEGY §8.2), and `fallback` names
+ * the metric-matched local fallback families (lib/fonts/estedad-fallback.ts, styles/estedad-fallback.css) ahead
+ * of the generic `sans-serif` Estedad always fell back to. Kept literal: vinext reads these options statically;
+ * a test keeps the list equal to ESTEDAD_FALLBACK_STACK.
  */
 export const estedad = localFont({
   src: "./assets/Estedad-Variable.woff2",
   weight: "100 900",
   display: "swap",
+  fallback: ["Estedad Fallback Tahoma", "Estedad Fallback Apple", "Estedad Fallback Android", "sans-serif"],
   variable: "--font-ahan-asa",
 });

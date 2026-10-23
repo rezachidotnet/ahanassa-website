@@ -1634,6 +1634,33 @@ follow-up). Production upload is still off until the owner switches it on.
 - **After the rebase onto #48 (owner, 2026-10-13):** the JSON-LD reads `lib/content/company.ts`. The `LocalBusiness` gets `openingHoursSpecification`. The `Organization` gets `parentOrganization` with فضاسازه نقش جهان, `https://fazasazeh.ir` and `foundingDate` 1997; the www host 301s to the apex, so the apex is used. The publication gate allows `OpeningHoursSpecification` and `openingHoursSpecification`/`dayOfWeek`/`opens`/`closes`/`foundingDate`. `company.ts` office addresses now use Latin digits, by owner decision. Kuwait in `areaServed`: not needed.
 - **Drift noted, not edited:** the frozen header specs (`docs/navigation/AHANASSA_HEADER_FINAL_FROZEN_V2.*.md`) still show `☎ 03135134`. The rendered number now follows `CONTACT_PHONE_DISPLAY`.
 
+### DAR-067 — W25.3 font loading: the "no preload" decision was measured slower; fallback faces added, preload kept (2026-10-21)
+
+**Severity:** LOW. **Status:** RESOLVED 2026-10-21 by owner decision D-W253-FONT as amended (`PROJECT_OVERRIDES.md` §17).
+
+**History, same day:**
+1. **Option A.** The owner decided to drop the font preload required by `01-sources/FONT_STRATEGY.md` §8.1 step 2 / §8.2, so that `/contact` would become usable sooner on slow networks.
+2. **Measured slower.** PR #87 implemented that and measured it on cold 3G, interleaved, median of 9:
+   - the form became usable about 0.5 s **later** (14.85 → 15.36 s);
+   - the product list and Turnstile were about 0.7 s later.
+
+   Without the preload, Chrome requests the font right after the stylesheet at its highest priority, so it still shares the link with the chunks. Starting it after the `load` event was not faster either. The font is not what limits the form.
+3. **Owner amendment.** The owner amended the decision to **keep the preload and add measured fallback faces**. No conflict with `01-sources/` remains: §8.2 is kept, and §9.2 allows measured metric overrides.
+
+**What was added:**
+- `styles/estedad-fallback.css` has three local fallback families: Tahoma/Arial, Geeza Pro/Helvetica and Noto Naskh Arabic UI/Roboto.
+- Each family has an Arabic-script face and a Latin face, in regular and bold.
+- Each face's `size-adjust` is measured from the site's own fa/ar/en text in Chrome.
+- Ascent, descent and line-gap overrides come from Estedad's OS/2 metrics.
+- `unicode-range` is exactly Estedad's coverage, so the look after the swap is unchanged.
+- Tool: `scripts/fonts/estedad-fallback-metrics.ts`. Evidence: `lib/fonts/estedad-fallback-metrics.json` (font SHA-256, ranges, sample, ratios).
+- Gate: `lib/static/font-loading.ts` requires exactly one font preload per page (the page's own Estedad WOFF2), the fallback families in the font stack, and every complete fallback face.
+- Tests: `lib/static/font-loading-w253.test.ts`.
+
+Measurements: `~/claude-reports/ahanassa/W25_3_REPORT.md` and the PR #87 description.
+
+**Citation correction.** The W25.2 report cited FONT_STRATEGY §6.5 for the preload rule. The preload rule is §8.2; §6.5 governs subsetting.
+
 ---
 
 **End of `DOCUMENT_AUDIT_REPORT.md`**

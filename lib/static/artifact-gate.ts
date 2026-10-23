@@ -14,6 +14,7 @@ import { checkAgentTexts, checkMarkdownMirrors } from "./markdown-mirror.ts";
 import { scanArticlePages, type ArticleFinding } from "./article-gate.ts";
 import { STATIC_TARGETS, TURNSTILE_ORIGIN } from "./targets.ts";
 import { checkStaticCacheRules } from "./static-rules.ts";
+import { checkFontLoading } from "./font-loading.ts";
 import { bootstrapModuleIsLowPriority } from "./postprocess.ts";
 import { checkIndexingPolicy, PRODUCTION_ORIGIN } from "./indexing-gate.ts";
 import { GA4_CONNECT_ORIGINS } from "../security/headers.ts";
@@ -192,6 +193,8 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
       if (src.startsWith(`${PRODUCTION_ORIGIN}/`) && !publicPaths.has(decodeURI(src.slice(PRODUCTION_ORIGIN.length + 1)))) failures.push(`${e.path}: share image not in the artifact: ${src}`);
     }
   }
+  // W25.3: the site font is preloaded and the metric-matched fallback faces are present (lib/static/font-loading.ts).
+  failures.push(...checkFontLoading(htmlFiles.map((e) => e.path), publicEntries.filter((e) => e.path.endsWith(".css")).map((e) => e.path), readPublic));
   // W30 hard rule: canonical, hreflang, og:url, JSON-LD, sitemap and robots name www.ahanassa.com — the same bytes are
   // served on the domestic copy (www/new.ahanassa.ir), and no build may move a page's address (lib/static/seo-host-lock.ts).
   failures.push(...checkSeoHostLock([...publicPaths], readPublic));
