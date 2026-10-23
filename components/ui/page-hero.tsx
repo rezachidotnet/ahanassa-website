@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Image from "@/components/ui/image";
 import Link from "@/components/ui/link";
 import { ChevronRight } from "lucide-react";
@@ -27,7 +28,8 @@ export function PageHero({
 }: {
   locale: Locale;
   eyebrow: string;
-  title: string;
+  /** W31: a node too — the price pages pass components/prices/stale-price.tsx StalePriceText. */
+  title: ReactNode;
   body?: string;
   image?: string;
   imageAlt?: string;

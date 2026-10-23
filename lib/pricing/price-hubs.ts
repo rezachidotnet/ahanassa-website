@@ -1,6 +1,7 @@
 import { PRICE_PAGE_ROUTE, type PriceTableRow } from "./price-page.ts";
 import type { PriceLocale } from "./price-locale.ts";
 import { arPriceDescription, datedHeading, datedTitleBodies, faPriceDescription, fitTitle, type PriceDay } from "./price-titles.ts";
+import { staleHeading } from "./price-staleness.ts";
 import { compareCommercialSize } from "../catalog/specification-presenter.ts";
 
 /**
@@ -165,6 +166,11 @@ export function hubTitle(locale: PriceLocale, family: PriceHubCategoryCode, day:
 /** W16.8: a hub's H1: «قیمت امروز میلگرد — ۲۸ مهر ۱۴۰۵» / «قیمت میلگرد — به‌روزرسانی ۲۶ مهر ۱۴۰۵». */
 export function hubHeading(locale: PriceLocale, family: PriceHubCategoryCode, day: PriceDay): string {
   return datedHeading(locale, PRICE_LEAD[locale], PRICE_HUB_FAMILY_COPY[family][locale].h1Subject, day);
+}
+
+/** W31: a hub H1 while the price data is stale: «آخرین قیمت ثبت‌شده میلگرد — …» / «آخر سعر مسجّل لحديد التسليح (الشيش) — …». */
+export function hubStaleHeading(locale: PriceLocale, family: PriceHubCategoryCode, day: PriceDay): string {
+  return staleHeading(locale, PRICE_HUB_FAMILY_COPY[family][locale].h1Subject, day.date);
 }
 
 /** W16.8: a hub's meta description (≤ 155, no amount): the date and what the page shows. */

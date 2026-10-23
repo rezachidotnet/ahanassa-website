@@ -3,8 +3,9 @@ import { isLocale, localizedPath, type Locale } from "@/config/locales";
 import { buildPageMetadata, buildLanguageAlternatesFromEntries } from "@/lib/metadata/resolve";
 import { publicPageIndexable } from "@/lib/seo/indexing-policy";
 import { presentPriceCell, PRICE_CELL_ATTRIBUTE, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, PRICE_ORIGIN_ATTRIBUTE, PRICE_ORIGIN_COPY, PRICE_RANK_ATTRIBUTE, type PriceLocale } from "@/lib/pricing/product-page-price";
-import { filterOptions, isPricePagePublished, latestPricedAt, PRICE_PAGE_COPY, pricePageDescription, pricePageHeading, pricePageTitle, PRICE_PAGE_LOCALES, PRICE_PAGE_ROUTE, PRICE_ROW_FACTORY_ATTRIBUTE, PRICE_ROW_FAMILY_ATTRIBUTE, type PriceTableRow } from "@/lib/pricing/price-page";
-import { loadPriceDay, loadPriceTableRows } from "@/lib/pricing/price-page-data";
+import { filterOptions, isPricePagePublished, latestPricedAt, PRICE_PAGE_COPY, pricePageDescription, pricePageHeading, pricePageStaleHeading, pricePageTitle, PRICE_PAGE_LOCALES, PRICE_PAGE_ROUTE, PRICE_ROW_FACTORY_ATTRIBUTE, PRICE_ROW_FAMILY_ATTRIBUTE, type PriceTableRow } from "@/lib/pricing/price-page";
+import { loadLatestPriceDay, loadPriceDay, loadPriceTableRows } from "@/lib/pricing/price-page-data";
+import { STALE_PRICE_COPY, STALE_TABLE_TITLE } from "@/lib/pricing/price-staleness";
 import type { PriceDay } from "@/lib/pricing/price-titles";
 import { byTitleDemand, PRICE_HUB_FAMILY_COPY, priceHubPath, publishedHubFamilies } from "@/lib/pricing/price-hubs";
 import { isWeightCalculatorPublished, WEIGHT_CALCULATOR_ROUTE } from "@/lib/weight-calculator/publication";
@@ -16,6 +17,7 @@ import { cardVariants } from "@/components/ui/surface-variants";
 import { PriceCellContent } from "@/components/products/price-cell-content";
 import { PriceUpdatedLine } from "@/components/prices/price-updated-line";
 import { PriceTableFilter } from "@/components/prices/price-table-filter";
+import { StalePriceNotice, StalePriceText } from "@/components/prices/stale-price";
 import { ImportedBadge } from "@/components/prices/imported-badge";
 import { TrackOnView } from "@/components/analytics/track-on-view";
 import { IndicatorStrip } from "@/components/indicators/indicator-strip";
@@ -89,11 +91,14 @@ async function DailyPriceTable({ locale }: { locale: PriceLocale }) {
   const latest = latestPricedAt(rows, locale === "fa")!;
   const options = filterOptions(rows);
   const column = PRICE_COLUMN_COPY[locale];
+  // W31: the snapshot-wide newest price day — the stale-price notice and column heading turn on in the browser.
+  const latestDay = await loadLatestPriceDay();
   return (
     // minmax(0,1fr): the table's min-w-max must not widen the grid track (that scrolled the whole page at 390 px).
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
       <TrackOnView event="price_page_view" params={{ price_date: new Date(latest).toISOString().slice(0, 10) }} />
       <PriceUpdatedLine locale={locale} label={t.updated} at={latest} />
+      {latestDay && <StalePriceNotice locale={locale} day={latestDay} href={localizedPath(locale, "/contact")} />}
       <PriceTableFilter tableId={TABLE_ID} options={options} digitsLocale={locale === "fa" ? "fa-IR" : "ar-EG"} copy={{ family: t.family, factory: t.factory, all: t.all, countTemplate: t.count("{n}"), noMatch: t.noMatch }} />
       <div>
         <p className="text-tertiary mb-2 text-xs md:hidden" aria-hidden="true">
@@ -110,7 +115,7 @@ async function DailyPriceTable({ locale }: { locale: PriceLocale }) {
                   {t.product}
                 </th>
                 <th scope="col" className={HEAD}>
-                  {column.header}
+                  {latestDay ? <StalePriceText day={latestDay} fresh={column.header} stale={STALE_PRICE_COPY[locale].column} /> : column.header}
                   <span className="text-tertiary block text-[11px] font-semibold">{column.unit}</span>
                 </th>
                 <th scope="col" className={HEAD}>
@@ -261,14 +266,17 @@ export default async function PricesPage({ params }: PageProps) {
   const locale = pageLocale((await params).locale);
   const t = PRICE_PAGE_COPY[locale];
   const day = dayOf(locale, await loadPriceTableRows(locale));
+  // W31: «آخرین قیمت ثبت‌شده …» in the browser once the newest price is more than 2 working days old.
+  const latestDay = await loadLatestPriceDay();
+  const heading = day ? pricePageHeading(locale, day.day) : t.title;
   return (
     <>
-      <PageHero locale={locale} eyebrow={t.eyebrow} title={day ? pricePageHeading(locale, day.day) : t.title} body={t.body} breadcrumb={[{ path: PRICE_PAGE_ROUTE, label: t.eyebrow }]} />
+      <PageHero locale={locale} eyebrow={t.eyebrow} title={day && latestDay ? <StalePriceText day={latestDay} fresh={heading} stale={pricePageStaleHeading(locale, day.day)} /> : heading} body={t.body} breadcrumb={[{ path: PRICE_PAGE_ROUTE, label: t.eyebrow }]} />
       <MarketIndicators locale={locale} />
       <section aria-labelledby="price-table-title" className="border-border bg-background border-b section-y">
         <div className="container-x">
           <h2 id="price-table-title" className="text-navy mb-6 text-2xl font-extrabold">
-            {t.tableTitle}
+            {latestDay ? <StalePriceText day={latestDay} fresh={t.tableTitle} stale={STALE_TABLE_TITLE[locale]} /> : t.tableTitle}
           </h2>
           <DailyPriceTable locale={locale} />
         </div>

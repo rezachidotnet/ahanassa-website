@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { localizedPath, type Locale } from "@/config/locales";
 import Link from "@/components/ui/link";
 import { cn } from "@/lib/utils";
@@ -27,7 +28,7 @@ export function HubPriceTable({
   rows: readonly PriceTableRow[];
   caption: string;
   showSize: boolean;
-  copy: { product: string; size: string; price: string; unit: string; weight: string };
+  copy: { product: string; size: string; price: ReactNode; unit: string; weight: string };
 }) {
   const showWeight = !showSize && rows.some((r) => r.weight);
   return (

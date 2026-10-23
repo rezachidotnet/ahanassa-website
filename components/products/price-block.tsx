@@ -6,6 +6,8 @@ import { badgeVariants, cardVariants } from "@/components/ui/surface-variants";
 import { priceChangeToneClass } from "@/lib/pricing/price-change-tone";
 import { presentPriceBlock, PRICE_BLOCK_COPY, type PriceBlockData } from "@/lib/pricing/price-block-presentation";
 import { PriceAge } from "./price-age";
+import { StalePriceText } from "@/components/prices/stale-price";
+import { STALE_PRICE_COPY } from "@/lib/pricing/price-staleness";
 
 /**
  * Product-page Price block (owner decision D-W10-4; W10.0 report §5.6) —
@@ -21,19 +23,26 @@ import { PriceAge } from "./price-age";
  * W9.6: `priceCtaLabel` replaces the CTA text when a price is shown («استعلام قیمت نهایی», the RFQ form
  * prefilled by `rfqHref`); `trend` is the optional 30-day chart, drawn under the details.
  *
+ * W31: `latestPriceDay` (the snapshot-wide newest price day) — the title reads «آخرین قیمت ثبت‌شده …» in the browser
+ * once the price data is stale (lib/pricing/price-staleness.ts); the static HTML keeps «قیمت روز …».
+ *
  * W34: `heading` replaces «قیمت روز» in the title — «کمترین قیمت داخلی» / «کمترین قیمت وارداتی» when the page
- * shows both origins' lowest prices, each in its own block (never one block with the lower of the two).
+ * shows both origins' lowest prices, each in its own block (never one block with the lower of the two). Stale, such a
+ * title keeps its origin: «آخرین قیمت ثبت‌شده: کمترین قیمت وارداتی …». `titleId` keeps the two blocks' heading ids apart.
  */
-export function PriceBlock({ locale, price, rfqHref, productName, priceCtaLabel, trend, heading }: { locale: Locale; price: PriceBlockData | null | undefined; rfqHref: string; productName?: string; priceCtaLabel?: string; trend?: ReactNode; heading?: string }) {
+export function PriceBlock({ locale, price, rfqHref, productName, priceCtaLabel, trend, latestPriceDay, heading, titleId = "price-block-title" }: { locale: Locale; price: PriceBlockData | null | undefined; rfqHref: string; productName?: string; priceCtaLabel?: string; trend?: ReactNode; latestPriceDay?: string | null; heading?: string; titleId?: string }) {
   const view = presentPriceBlock(locale, price);
   if (!view) return null;
   const t = PRICE_BLOCK_COPY;
   const title = productName ? `${heading ?? t.title} ${productName}` : (heading ?? t.title);
+  const staleTitle = heading ? `${STALE_PRICE_COPY.fa.lead}: ${title}` : productName ? `${STALE_PRICE_COPY.fa.lead} ${productName}` : STALE_PRICE_COPY.fa.lead;
 
   return (
-    <section aria-label={title} className={cardVariants({ className: "overflow-hidden shadow-[var(--aa-shadow-sm)]" })}>
+    <section aria-labelledby={titleId} className={cardVariants({ className: "overflow-hidden shadow-[var(--aa-shadow-sm)]" })}>
       <div className="border-border bg-cream border-b px-5 py-4">
-        <h2 className="text-navy text-sm font-bold">{title}</h2>
+        <h2 id={titleId} className="text-navy text-sm font-bold">
+          {latestPriceDay && view.kind === "price" ? <StalePriceText day={latestPriceDay} fresh={title} stale={staleTitle} /> : title}
+        </h2>
       </div>
 
       <div className="grid gap-3 p-5">

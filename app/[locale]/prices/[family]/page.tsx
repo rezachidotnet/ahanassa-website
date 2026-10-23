@@ -7,8 +7,8 @@ import { categoryListingPath } from "@/lib/catalog/public-categories";
 import { NOMINAL_WEIGHT_DISCLAIMER } from "@/lib/catalog/specification-presenter";
 import { isPriceLocale, PRICE_COLUMN_COPY, PRICE_DISCLAIMER, type PriceLocale } from "@/lib/pricing/product-page-price";
 import { latestPricedAt, PRICE_PAGE_COPY, PRICE_PAGE_LOCALES, PRICE_PAGE_ROUTE } from "@/lib/pricing/price-page";
-import { listPublishedHubFamilies, loadPriceDay, loadPriceTableRows } from "@/lib/pricing/price-page-data";
-import { groupByMill, groupBySize, hubDescription, hubHeading, hubTitle, PRICE_HUB_FAMILY_COPY, PRICE_HUB_PAGE_COPY, priceHubPath, priceHubSegment, type PriceHubCategoryCode } from "@/lib/pricing/price-hubs";
+import { listPublishedHubFamilies, loadLatestPriceDay, loadPriceDay, loadPriceTableRows } from "@/lib/pricing/price-page-data";
+import { groupByMill, groupBySize, hubDescription, hubHeading, hubStaleHeading, hubTitle, PRICE_HUB_FAMILY_COPY, PRICE_HUB_PAGE_COPY, priceHubPath, priceHubSegment, type PriceHubCategoryCode } from "@/lib/pricing/price-hubs";
 import { isWeightCalculatorPublished, WEIGHT_CALCULATOR_ROUTE } from "@/lib/weight-calculator/publication";
 import { PageHero } from "@/components/ui/page-hero";
 import { ButtonLink } from "@/components/ui/button";
@@ -16,6 +16,8 @@ import Link from "@/components/ui/link";
 import { cardVariants } from "@/components/ui/surface-variants";
 import { HubPriceTable } from "@/components/prices/hub-price-table";
 import { PriceUpdatedLine } from "@/components/prices/price-updated-line";
+import { StalePriceNotice, StalePriceText } from "@/components/prices/stale-price";
+import { STALE_PRICE_COPY } from "@/lib/pricing/price-staleness";
 
 interface PageProps {
   params: Promise<{ locale: string; family: string }>;
@@ -79,7 +81,10 @@ async function HubContent({ locale, family }: { locale: PriceLocale; family: Pri
   const t = PRICE_HUB_PAGE_COPY[locale];
   const page = PRICE_PAGE_COPY[locale];
   const column = PRICE_COLUMN_COPY[locale];
-  const tableCopy = { product: t.product, size: t.size, price: column.header, unit: column.unit, weight: t.weight };
+  // W31: the snapshot-wide newest price day — the stale-price notice and column headings turn on in the browser.
+  const latestDay = await loadLatestPriceDay();
+  const price = latestDay ? <StalePriceText day={latestDay} fresh={column.header} stale={STALE_PRICE_COPY[locale].column} /> : column.header;
+  const tableCopy = { product: t.product, size: t.size, price, unit: column.unit, weight: t.weight };
   const products = [...new Map(rows.map((r) => [r.productPagePath, r.productName])).entries()];
   const mills = locale === "fa" ? groupByMill(rows) : [];
   return (
@@ -87,6 +92,7 @@ async function HubContent({ locale, family }: { locale: PriceLocale; family: Pri
       <section className="border-border bg-background border-b section-y">
         <div className="container-x grid grid-cols-[minmax(0,1fr)] gap-6">
           <PriceUpdatedLine locale={locale} label={page.updated} at={latest} />
+          {latestDay && <StalePriceNotice locale={locale} day={latestDay} href={localizedPath(locale, "/contact")} />}
           <p className="text-muted-foreground max-w-3xl leading-relaxed">{t.intro(name)}</p>
 
           <h2 id="by-size" className="text-navy mt-4 text-2xl font-extrabold">
@@ -193,12 +199,14 @@ export default async function PriceHubPage({ params }: PageProps) {
   const copy = PRICE_HUB_FAMILY_COPY[family][locale];
   const day = loadPriceDay(locale, latestPricedAt(await familyRows(locale, family))!);
   const t = PRICE_HUB_PAGE_COPY[locale];
+  const latestDay = await loadLatestPriceDay();
+  const heading = hubHeading(locale, family, day);
   return (
     <>
       <PageHero
         locale={locale}
         eyebrow={t.eyebrow}
-        title={hubHeading(locale, family, day)}
+        title={latestDay ? <StalePriceText day={latestDay} fresh={heading} stale={hubStaleHeading(locale, family, day)} /> : heading}
         breadcrumb={[
           { path: PRICE_PAGE_ROUTE, label: PRICE_PAGE_COPY[locale].eyebrow },
           { path: priceHubPath(family), label: copy.name },

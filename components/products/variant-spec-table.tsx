@@ -1,4 +1,6 @@
 import Link from "@/components/ui/link";
+import { StalePriceText } from "@/components/prices/stale-price";
+import { STALE_PRICE_COPY } from "@/lib/pricing/price-staleness";
 import { localizedPath, type Locale } from "@/config/locales";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
@@ -91,7 +93,8 @@ export function variantRowAnchorId(sku: string): string {
  * column shows only when some variant has a price of that origin; with an imported column, the domestic one is
  * titled «کمترین قیمت داخلی» / «أدنى سعر محلي» (without one it keeps «قیمت روز», as before W34).
  */
-export function VariantSpecTable({ locale, variants: unsorted, prices, importedPrices }: { locale: Locale; variants: ProductVariant[]; prices?: ReadonlyMap<string, PriceBlockData> | null; importedPrices?: ReadonlyMap<string, PriceBlockData> | null }) {
+/** `latestPriceDay` (W31): the snapshot-wide newest price day — the price column heading reads «آخرین قیمت ثبت‌شده» / «آخر سعر مسجّل» in the browser once it is stale. */
+export function VariantSpecTable({ locale, variants: unsorted, prices, importedPrices, latestPriceDay }: { locale: Locale; variants: ProductVariant[]; prices?: ReadonlyMap<string, PriceBlockData> | null; importedPrices?: ReadonlyMap<string, PriceBlockData> | null; latestPriceDay?: string | null }) {
   if (unsorted.length === 0) return null;
   // Natural size order (IPE 80 before IPE 600) — the presenter owns it, W10.0 P0-1.
   const variants = sortVariantsBySize(unsorted);
@@ -157,7 +160,8 @@ export function VariantSpecTable({ locale, variants: unsorted, prices, importedP
               </th>
               {priceColumns.map((c) => (
                 <th key={c.origin} scope="col" className={HEAD}>
-                  {c.header}
+                  {/* W31 stale heading; W34: an origin column keeps its origin («آخرین قیمت ثبت‌شده: کمترین قیمت وارداتی»). */}
+                  {priceCopy && latestPriceDay && isPriceLocale(locale) ? <StalePriceText day={latestPriceDay} fresh={c.header} stale={c.header === priceCopy.header ? STALE_PRICE_COPY[locale].column : `${STALE_PRICE_COPY[locale].column}: ${c.header}`} /> : c.header}
                   <span className="text-tertiary block text-[11px] font-semibold">{priceCopy?.unit}</span>
                 </th>
               ))}
