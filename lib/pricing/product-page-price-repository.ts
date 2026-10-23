@@ -18,10 +18,13 @@ import type { DailyPoint } from "./price-history.ts";
  */
 type PriceRowWithCodes = PublishedPriceRow & { family_code: string | null; group_code: string | null; form_code: string | null };
 
-async function eligiblePriceRows(): Promise<PublishedPriceRow[]> {
+/** W34: `published_prices` is the lowest DOMESTIC price; `published_imported_prices` the lowest imported one (same columns). */
+type PriceTable = "published_prices" | "published_imported_prices";
+
+async function eligiblePriceRows(table: PriceTable = "published_prices"): Promise<PublishedPriceRow[]> {
   const { results } = await getPublicDb()
     .prepare(
-      `SELECT p.*, v.family_code, v.group_code, v.form_code FROM published_prices p
+      `SELECT p.*, v.family_code, v.group_code, v.form_code FROM ${table} p
        JOIN product_variants v ON v.xid = p.canonical_variant_id
        GROUP BY p.canonical_variant_id ORDER BY p.canonical_variant_id`,
     )
@@ -38,6 +41,22 @@ export async function listProductPagePrices(variantXids: readonly string[]): Pro
   const wanted = new Set(variantXids);
   for (const row of await eligiblePriceRows()) if (wanted.has(row.canonical_variant_id)) prices.set(row.canonical_variant_id, priceBlockDataFromRow(row));
   return prices;
+}
+
+/**
+ * W34 — the lowest IMPORTED price of each of `variantXids` that has one (never mixed with the domestic map of
+ * `listProductPagePrices`). `null` outside the static build.
+ */
+export async function listProductPageImportedPrices(variantXids: readonly string[]): Promise<Map<string, PriceBlockData> | null> {
+  if (!isStaticExportBuild()) return null;
+  const wanted = new Set(variantXids);
+  return new Map((await eligiblePriceRows("published_imported_prices")).filter((r) => wanted.has(r.canonical_variant_id)).map((r) => [r.canonical_variant_id, priceBlockDataFromRow(r)]));
+}
+
+/** W34 — the price page: every eligible lowest imported price, keyed by xid. `null` outside the static build. */
+export async function listAllImportedPrices(): Promise<Map<string, PriceBlockData> | null> {
+  if (!isStaticExportBuild()) return null;
+  return new Map((await eligiblePriceRows("published_imported_prices")).map((row) => [row.canonical_variant_id, priceBlockDataFromRow(row)]));
 }
 
 /** W20.7 — the JSON-LD offers: the lowest published price (IRR/kg) of each of `variantXids` that has one, in that order. `[]` outside the static build. */

@@ -116,7 +116,8 @@ test("page wiring: fa-only price block + column inside an always-suspending asyn
   assert.match(table, /const priceCopy = isPriceLocale\(locale\) \? PRICE_COLUMN_COPY\[locale\] : null;/);
   assert.match(table, /const showPrices = priceCopy !== null && Boolean\(prices\) && variants\.some\(\(v\) => prices!\.has\(v\.xid\)\);/);
   const head = table.slice(table.indexOf("<thead>"), table.indexOf("</thead>"));
-  assert.ok(head.indexOf("{t.size}") < head.indexOf("priceCopy?.header") && head.indexOf("priceCopy?.header") < head.indexOf("dimensionColumns.map"), "price header right after the size header");
+  // W34: the price columns (domestic, then imported) come from priceColumns, still right after the size header.
+  assert.ok(head.indexOf("{t.size}") < head.indexOf("priceColumns.map") && head.indexOf("priceColumns.map") < head.indexOf("dimensionColumns.map"), "price header right after the size header");
   const body = table.slice(table.indexOf("<tbody>"), table.indexOf("</tbody>"));
   assert.ok(body.indexOf("</th>") < body.indexOf("<PriceCell") && body.indexOf("<PriceCell") < body.indexOf("dimensionColumns.map"), "price cell right after the size cell");
   const repo = code("lib/pricing/product-page-price-repository.ts");

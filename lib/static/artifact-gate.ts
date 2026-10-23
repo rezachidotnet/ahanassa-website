@@ -232,8 +232,8 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
   // 7b. Indicator gate (W18.2): every indicator carries its reference label, source and date, and only its own texts.
   const indicatorInput = indicatorGateInput(snapshotDoc);
   for (const f of scanIndicators(textFiles, indicatorInput)) failures.push(`indicator ${f.kind} in ${f.file}: ${f.match}`);
-  // W20.7: every factory's price counts like the lowest for the article and agent-text rules (amounts, names).
-  const everyPriceRow = [...priceInput.rows, ...[...priceInput.factoryRows.values()].flat()];
+  // W20.7: every factory's price counts like the lowest for the article and agent-text rules (amounts, names). W34: so does the imported lowest.
+  const everyPriceRow = [...priceInput.rows, ...[...priceInput.factoryRows.values()].flat(), ...priceInput.importedRows];
   // 8b. Article pages (W11.1): en no price data, ar no factory/location, no external image, no JSON-LD.
   const articleFindings = scanArticlePages(textFiles, everyPriceRow);
   for (const f of articleFindings) failures.push(`article ${f.kind} in ${f.file}: ${f.match}`);

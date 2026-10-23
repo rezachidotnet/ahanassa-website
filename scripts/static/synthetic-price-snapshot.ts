@@ -5,7 +5,8 @@
  *
  *   node scripts/static/synthetic-price-snapshot.ts --out <snapshot.json>
  *        [--base fixtures/snapshot/staging-2026-10-01.snapshot.json]
- *        [--pricing fixtures/pricing/synthetic-pricing-current.json]   (the SYNTHETIC fixture)
+ *        [--pricing fixtures/pricing/synthetic-pricing-current.json]   (the SYNTHETIC fixture; W34: …-current-imported.json
+ *                                                                       is the Odoo W9.14 shape, with imported prices)
  *        [--pricing-body <file> --fetched-at <ISO>]                    (a saved real API body, local evidence only)
  *        [--drop-unknown-variants]                                     (local evidence only: skip rows the base snapshot lacks)
  *        [--history fixtures/pricing/synthetic-pricing-history.json]   (W9.6, the SYNTHETIC 30-day history; default)
@@ -44,7 +45,7 @@ if (opt("pricing-body")) {
   if (fixture.synthetic !== true) throw new Error("the --pricing fixture must be marked synthetic: true");
   body = fixture.response;
   fetchedAt = fixture.fetched_at;
-  label = "SYNTHETIC test prices (fixtures/pricing/synthetic-pricing-current.json)";
+  label = `SYNTHETIC test prices (${opt("pricing") ?? "fixtures/pricing/synthetic-pricing-current.json"})`;
 }
 
 // Catalog identity as the pricing check needs it: canonical id, template id, sku of every active variant.
@@ -81,7 +82,7 @@ if (opt("indicators")) {
   for (const w of checked.warnings) console.error(`[synthetic-price-snapshot] ${w}`);
   indicators = checked;
 }
-const snapshot = buildSnapshot({ ...base.tables, published_prices: withPreviousDay(result.rows, history.previousDay), published_price_history: history.rows, published_factory_prices: result.factoryRows, published_indicators: indicators.rows, published_indicator_points: indicators.points }, { kind: base.source.kind, description: `${base.source.description} + ${label}`, fetched_at: base.source.fetched_at }, base.created_at);
+const snapshot = buildSnapshot({ ...base.tables, published_prices: withPreviousDay(result.rows, history.previousDay), published_price_history: history.rows, published_factory_prices: result.factoryRows, published_imported_prices: result.importedRows, published_indicators: indicators.rows, published_indicator_points: indicators.points }, { kind: base.source.kind, description: `${base.source.description} + ${label}`, fetched_at: base.source.fetched_at }, base.created_at);
 fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true });
 fs.writeFileSync(path.resolve(out), JSON.stringify(snapshot, null, 1) + "\n");
-console.log(JSON.stringify({ snapshot_version: snapshot.snapshot_version, published_prices: result.rows.length, factory_prices: result.factoryRows.length, on_request: result.counts.prices_on_request, history: history.summary, indicators: indicators.summary }));
+console.log(JSON.stringify({ snapshot_version: snapshot.snapshot_version, published_prices: result.rows.length, factory_prices: result.factoryRows.length, imported_prices: result.importedRows.length, on_request: result.counts.prices_on_request, history: history.summary, indicators: indicators.summary }));

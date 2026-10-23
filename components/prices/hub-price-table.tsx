@@ -1,9 +1,10 @@
 import { localizedPath, type Locale } from "@/config/locales";
 import Link from "@/components/ui/link";
 import { cn } from "@/lib/utils";
-import { presentPriceCell, PRICE_CELL_ATTRIBUTE } from "@/lib/pricing/product-page-price";
+import { isPriceLocale, presentPriceCell, PRICE_CELL_ATTRIBUTE, PRICE_ORIGIN_ATTRIBUTE, PRICE_ORIGIN_COPY } from "@/lib/pricing/product-page-price";
 import type { PriceTableRow } from "@/lib/pricing/price-page";
 import { PriceCellContent } from "@/components/products/price-cell-content";
+import { ImportedBadge } from "@/components/prices/imported-badge";
 
 const HEAD = "border-border text-muted-foreground border-b bg-surface px-4 py-3 text-start text-xs font-bold whitespace-nowrap";
 const CELL = "border-b border-[var(--aa-color-neutral-100)] px-4 py-3 align-top group-last:border-b-0";
@@ -12,7 +13,8 @@ const CELL = "border-b border-[var(--aa-color-neutral-100)] px-4 py-3 align-top 
  * One table of a family price hub (W16.3, app/[locale]/prices/[family]/page.tsx): the rows of one size
  * (columns product · price · weight) or of one fa mill (product · size · price). Same cell, markup and
  * scroll region as the `/prices` table, so the price gate checks every cell the same way; the product link
- * is the clean page URL (no `?variant=`, which robots.txt keeps out of the crawl).
+ * is the clean page URL (no `?variant=`, which robots.txt keeps out of the crawl). W34: an imported row (the lowest
+ * imported price) is labelled and its cell carries `data-aa-price-origin="imported"`; it is never compared.
  */
 export function HubPriceTable({
   locale,
@@ -57,14 +59,19 @@ export function HubPriceTable({
           {rows.map((row) => {
             const view = presentPriceCell(locale, row.price, row.xid);
             return (
-              <tr key={row.xid} className="group">
+              <tr key={`${row.xid}:${row.origin}`} className="group">
                 <th scope="row" className={cn(CELL, "bg-background group-hover:bg-surface min-w-32 text-start font-bold")}>
                   <Link href={localizedPath(locale, row.productPagePath)} className="text-navy hover:text-copper underline-offset-4 hover:underline">
                     {row.productName}
                   </Link>
+                  {row.origin === "imported" && isPriceLocale(locale) && (
+                    <span className="block">
+                      <ImportedBadge label={PRICE_ORIGIN_COPY[locale].imported} />
+                    </span>
+                  )}
                 </th>
                 {view && (
-                  <td {...{ [PRICE_CELL_ATTRIBUTE]: row.xid }} className={cn(CELL, "group-hover:bg-surface whitespace-nowrap")}>
+                  <td {...{ [PRICE_CELL_ATTRIBUTE]: row.xid, ...(row.origin === "imported" ? { [PRICE_ORIGIN_ATTRIBUTE]: row.origin } : {}) }} className={cn(CELL, "group-hover:bg-surface whitespace-nowrap")}>
                     <PriceCellContent view={view} />
                   </td>
                 )}
