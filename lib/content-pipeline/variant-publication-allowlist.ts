@@ -165,6 +165,13 @@ const W913_SKUS = [
   "AA-CL-GI-S0P35X1250",
 ] as const;
 
+/**
+ * TODO(W43 → after Odoo W42 is deployed): the wave-1 alloy and tool steel SKUs (W39 D-ALLOY-1/-2/-3: group
+ * ALLOY_TOOL_BARS, grades 1.1191, 1.7225, 1.6582, 1.7131, 1.2312, 1.2344, 1.2080, 1.2510). Not listed yet: Odoo
+ * serves none of them and no W42 report with the final SKU list exists (2026-10-24), and an entry must name a real
+ * SKU (the W39 pattern `AA-AT-RB-1P7131-D50` is a proposal). Until then the guides at /alloy-steel/* take requests
+ * as custom RFQ rows (lib/alloy/rfq.ts). Steps: docs/catalog/W43_ALLOY_WAVE1_TODO.md.
+ */
 export const PUBLIC_ON_FIRST_PUBLISH: readonly AllowlistedVariant[] = [
   ...W912_SKUS.map((sku) => ({ sku, decision: W912 })),
   ...W913_SKUS.map((sku) => ({ sku, decision: W913 })),

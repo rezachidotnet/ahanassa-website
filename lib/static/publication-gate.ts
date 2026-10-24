@@ -42,7 +42,9 @@ export const JSONLD_ALLOWED_TYPES: ReadonlySet<string> = new Set(["Organization"
   // on fa/ar product pages and only with the variant's lowest published price.
   "Offer", "UnitPriceSpecification", "QuantitativeValue",
   // W18.2: a Dataset per fa chart page (our own daily prices) and per en/ar market indicator — never a value or a price.
-  "Dataset", "PropertyValue"]);
+  "Dataset", "PropertyValue",
+  // W43: an Article per alloy/tool steel grade guide (lib/seo/schema.ts articleSchema) — no image, rating or price.
+  "Article"]);
 export const JSONLD_ALLOWED_KEYS: ReadonlySet<string> = new Set([
   "@context", "@graph", "@id", "@type",
   "name", "alternateName", "url", "logo", "description", "publisher",
@@ -64,6 +66,8 @@ export const JSONLD_ALLOWED_KEYS: ReadonlySet<string> = new Set([
   "offers", "price", "priceCurrency", "priceSpecification", "referenceQuantity", "unitCode", "value", "valueAddedTaxIncluded",
   // W18.2: Dataset (lib/seo/schema.ts datasetSchema).
   "creator", "isAccessibleForFree", "temporalCoverage", "dateModified", "variableMeasured", "unitText", "creditText", "isBasedOn",
+  // W43: Article (lib/seo/schema.ts articleSchema).
+  "headline", "mainEntityOfPage", "inLanguage", "datePublished", "author",
 ]);
 
 const LEGACY_XID = /ahanassa_marketplace\.[a-z0-9_]+/g;

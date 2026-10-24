@@ -16,6 +16,11 @@ import { WEIGHT_CALCULATOR_LOCALES, WEIGHT_CALCULATOR_ROUTE } from "@/lib/weight
 import { PageHero } from "@/components/ui/page-hero";
 import { cardVariants } from "@/components/ui/surface-variants";
 import { WeightCalculator } from "@/components/tools/weight-calculator";
+import { AlloyWeightCalculator } from "@/components/tools/alloy-weight-calculator";
+import Link from "@/components/ui/link";
+import { ALLOY_CALCULATOR_ANCHOR } from "@/lib/alloy/grades";
+import { ALLOY_CALCULATOR_COPY } from "@/lib/alloy/calculator-copy";
+import { ALLOY_STEEL_ROUTE, ALLOY_UI } from "@/lib/content/alloy-steel";
 
 interface PageProps {
   params: Promise<{ locale: string }>;
@@ -102,6 +107,16 @@ export default async function WeightCalculatorPage({ params }: PageProps) {
         </div>
       </section>
 
+      {/* W43 (D-ALLOY-6): alloy and tool steel at the grade's own density; the guides link here with ?grade=<slug>. */}
+      <section id={ALLOY_CALCULATOR_ANCHOR} className="border-border bg-background scroll-mt-24 border-b pb-12 lg:pb-16">
+        <div className="container-x grid gap-4">
+          <AlloyWeightCalculator locale={locale} />
+          <Link href={localizedPath(locale, ALLOY_STEEL_ROUTE)} className="text-navy hover:text-copper inline-flex min-h-11 items-center text-sm font-semibold underline underline-offset-4">
+            {ALLOY_UI[locale].hubLink}
+          </Link>
+        </div>
+      </section>
+
       <section aria-labelledby="calculation-basis" className="border-border bg-surface border-b py-12 lg:py-16">
         <div className="container-x">
           <div className={cardVariants({ variant: "panel", className: "max-w-3xl" })}>
@@ -113,6 +128,7 @@ export default async function WeightCalculatorPage({ params }: PageProps) {
               {BASIS_LINES.map((line) => (
                 <li key={line}>{t.basis[line]}</li>
               ))}
+              <li>{ALLOY_CALCULATOR_COPY[locale].basis}</li>
               <li>{t.basisRounding}</li>
               <li>{NOMINAL_WEIGHT_DISCLAIMER[locale]}</li>
             </ul>

@@ -3,6 +3,7 @@ import { PRICE_NAV_LABEL, PRICE_PAGE_ROUTE } from "../pricing/price-page.ts";
 import { ARTICLES_ROUTE } from "../articles/routes.ts";
 import { DOWNLOADS_ROUTE } from "../downloads/paths.ts";
 import { DOWNLOADS_COPY } from "../downloads/copy.ts";
+import { ALLOY_STEEL_ROUTE } from "../alloy/grades.ts";
 
 /** W17.2 (owner instruction 2026-10-14): «مرکز دانلود» / "Download Center" / «مركز التنزيل», after Articles, in all three locales. */
 const DOWNLOADS_NAV_LABEL = { fa: DOWNLOADS_COPY.fa.nav, en: DOWNLOADS_COPY.en.nav, ar: DOWNLOADS_COPY.ar.nav };
@@ -80,6 +81,17 @@ export const navLinks: Record<Locale, NavLink[]> = {
 export function visibleNavLinks(locale: Locale, hasArticles: boolean): NavLink[] {
   return navLinks[locale].filter((l) => l.path !== ARTICLES_ROUTE || hasArticles);
 }
+
+/**
+ * W43 (owner, 2026-10-24, W39 D-ALLOY-7): the alloy and tool steel guides hub, linked from the Products dropdown
+ * and drawer (under the Odoo categories, next to «مشاهده همه محصولات»), the footer's products list and the
+ * products index, in all three locales. A guide page, not a catalog category: the Products menu's category list
+ * still comes only from the Public Product Projection (§58.2) and its cap is unchanged.
+ */
+export const ALLOY_STEEL_NAV_LINK: { path: string; label: Record<Locale, string> } = {
+  path: ALLOY_STEEL_ROUTE,
+  label: { fa: "فولاد آلیاژی و ابزار", en: "Alloy & tool steel", ar: "الفولاذ السبائكي وفولاذ العدد" },
+};
 
 /**
  * "مشاهده همه…" — the dropdown's own low-weight footer link (§52.11), not

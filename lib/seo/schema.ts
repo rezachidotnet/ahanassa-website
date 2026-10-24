@@ -248,6 +248,27 @@ export function productOffersSchema(input: { url: string; offers: ReadonlyArray<
   };
 }
 
+/**
+ * W43 — an `Article` for an editorial guide page Ahan Asa wrote (the alloy/tool steel grade guides): the visible
+ * H1 as `headline`, the meta description, the page URL, its language and its content date; Ahan Asa (the
+ * Organization node) as author and publisher. No image, rating, offer or price.
+ */
+export function articleSchema(input: { url: string; headline: string; description: string; inLanguage: string; datePublished: string; dateModified: string }) {
+  return {
+    "@type": "Article",
+    "@id": `${input.url}#article`,
+    headline: input.headline,
+    description: input.description,
+    url: input.url,
+    mainEntityOfPage: input.url,
+    inLanguage: input.inLanguage,
+    datePublished: input.datePublished,
+    dateModified: input.dateModified,
+    author: { "@id": organizationId() },
+    publisher: { "@id": organizationId() },
+  };
+}
+
 /** Wraps one or more schema nodes in a top-level @graph with shared @context. */
 export function jsonLdGraph(nodes: object[]) {
   return {

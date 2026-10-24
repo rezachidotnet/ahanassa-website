@@ -5,7 +5,7 @@ import Link from "@/components/ui/link";
 import { usePublicPathname } from "@/components/layout/use-public-pathname";
 import { ChevronDown, Phone, X } from "lucide-react";
 import { locales, localeConfig, localizedPath, type Locale } from "@/config/locales";
-import type { NavLink } from "@/lib/content/nav";
+import { ALLOY_STEEL_NAV_LINK, type NavLink } from "@/lib/content/nav";
 import type { HeaderProductFamilyShortcut } from "@/lib/catalog/editorial-repository";
 import { categoryListingPath } from "@/lib/catalog/public-categories";
 import type { PublicProcessingGroup } from "@/lib/processing/public-repository";
@@ -237,6 +237,14 @@ export function MobileNavDrawer({
                               )}
                             </li>
                           ))}
+                          {/* W43: the alloy/tool steel guides hub (lib/content/nav.ts ALLOY_STEEL_NAV_LINK), Products only. */}
+                          {key === "products" && (
+                            <li>
+                              <Link href={localizedPath(locale, ALLOY_STEEL_NAV_LINK.path)} className="text-navy block py-2 text-sm font-semibold">
+                                {ALLOY_STEEL_NAV_LINK.label[locale]}
+                              </Link>
+                            </li>
+                          )}
                           <li>
                             <Link href={href} className="text-copper block py-2 text-sm font-semibold">
                               {key === "products" ? viewAllProductsLabel : viewAllServicesLabel}

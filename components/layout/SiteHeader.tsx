@@ -7,7 +7,7 @@ import { Menu, Phone } from "lucide-react";
 import { localizedPath, type Locale } from "@/config/locales";
 import { categoryListingPath } from "@/lib/catalog/public-categories";
 import { siteConfig } from "@/lib/metadata/site";
-import { visibleNavLinks, primaryCta, headerPhoneLabel, dropdownViewAllLabel, dropdownDisclosureAccessibleName } from "@/lib/content/nav";
+import { visibleNavLinks, primaryCta, headerPhoneLabel, dropdownViewAllLabel, dropdownDisclosureAccessibleName, ALLOY_STEEL_NAV_LINK } from "@/lib/content/nav";
 import { CONTACT_PHONE_DISPLAY, CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 import { HeaderNavDisclosure, type NavDisclosureItem } from "@/components/layout/header-nav-disclosure";
 import { HeaderLanguageSelector } from "@/components/layout/header-language-selector";
@@ -199,6 +199,7 @@ export function SiteHeader({
                     isActiveSection={isActiveSection}
                     items={items}
                     viewAllLabel={viewAllLabel}
+                    extraLink={link.path === "/products" ? { href: localizedPath(locale, ALLOY_STEEL_NAV_LINK.path), label: ALLOY_STEEL_NAV_LINK.label[locale] } : undefined}
                   />
                 );
               }

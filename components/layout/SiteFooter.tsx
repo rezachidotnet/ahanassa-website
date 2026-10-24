@@ -5,7 +5,7 @@ import { isMarketIndicatorsLocale, MARKET_INDICATORS_COPY, MARKET_INDICATORS_ROU
 import { cn } from "@/lib/utils";
 import { localizedPath, type Locale } from "@/config/locales";
 import { siteConfig } from "@/lib/metadata/site";
-import { visibleNavLinks, headerPhoneLabel } from "@/lib/content/nav";
+import { visibleNavLinks, headerPhoneLabel, ALLOY_STEEL_NAV_LINK } from "@/lib/content/nav";
 import { CONTACT_PHONE_DISPLAY, CONTACT_PHONE_E164 } from "@/lib/content/contact-channels";
 import { ABOUT_GROUP_ANCHOR, GROUP_CARD_COPY, GROUP_COMPANIES, GROUP_FOOTER_COPY, OFFICES, PARENT_ORGANIZATION } from "@/lib/content/company";
 import { fullCatalogPath } from "@/lib/downloads/paths";
@@ -128,6 +128,12 @@ export function SiteFooter({ locale, hasArticles = false, hasIndicators = false 
               {/* W17.2: the catalog PDF of this page's locale (fa→fa, en→en, ar→ar), built from the catalog snapshot. */}
               <Link href={fullCatalogPath(locale)} hrefLang={locale} type="application/pdf" className={FOOTER_LINK}>
                 {t.cataloguePdf}
+              </Link>
+            </li>
+            {/* W43 (D-ALLOY-7): the alloy and tool steel guides, in all three locales. */}
+            <li>
+              <Link href={localizedPath(locale, ALLOY_STEEL_NAV_LINK.path)} className={FOOTER_LINK}>
+                {ALLOY_STEEL_NAV_LINK.label[locale]}
               </Link>
             </li>
             {/* W18.2 (owner 2026-10-16): en/ar only, when the build publishes the market-indicators page; never in the main nav. */}

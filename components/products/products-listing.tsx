@@ -10,6 +10,7 @@ import { CtaBand } from "@/components/ui/cta-band";
 import Link from "@/components/ui/link";
 import { localizedPath } from "@/config/locales";
 import { RAW_MATERIALS_ROUTE } from "@/lib/content/raw-materials";
+import { ALLOY_STEEL_NAV_LINK } from "@/lib/content/nav";
 import { EXPORT_ROUTE, isExportPublished } from "@/lib/content/export";
 
 /** W16.3 (D-SEO): the products index links the RFQ-only raw materials and, on en/ar, the export page. */
@@ -87,6 +88,11 @@ export async function ProductsListing({
           <li>
             <Link href={localizedPath(locale, RAW_MATERIALS_ROUTE)} className="text-navy hover:text-copper underline underline-offset-4">
               {moreLinks[locale].raw}
+            </Link>
+          </li>
+          <li>
+            <Link href={localizedPath(locale, ALLOY_STEEL_NAV_LINK.path)} className="text-navy hover:text-copper underline underline-offset-4">
+              {ALLOY_STEEL_NAV_LINK.label[locale]}
             </Link>
           </li>
           {isExportPublished(locale) && (

@@ -51,6 +51,7 @@ export function HeaderNavDisclosure({
   isActiveSection,
   items,
   viewAllLabel,
+  extraLink,
   className,
 }: {
   href: string;
@@ -61,6 +62,8 @@ export function HeaderNavDisclosure({
   isActiveSection: boolean;
   items: NavDisclosureItem[];
   viewAllLabel: string;
+  /** W43: one more low-weight link above «مشاهده همه…» (the Products panel's alloy/tool steel guides hub). */
+  extraLink?: { href: string; label: string };
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -195,6 +198,13 @@ export function HeaderNavDisclosure({
             ),
           )}
         </ul>
+        {extraLink && (
+          <div className="border-border border-t px-4 py-2.5">
+            <Link href={extraLink.href} className="text-navy hover:bg-surface focus-visible:bg-surface block text-sm font-semibold transition-colors">
+              {extraLink.label}
+            </Link>
+          </div>
+        )}
         <div className="border-border border-t px-4 py-2.5">
           {/* See SiteHeader.tsx's own comment on this same hover-contrast
               fix — the lighter hover:text-copper-400 tint fails 4.5:1
