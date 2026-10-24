@@ -14,6 +14,8 @@ import { listPublishedHubFamilies, loadPriceTableRows } from "@/lib/pricing/pric
 import { priceHubPath } from "@/lib/pricing/price-hubs";
 import { RAW_MATERIAL_LOCALES, RAW_MATERIAL_SLUGS, RAW_MATERIALS_ROUTE, rawMaterialPath } from "@/lib/content/raw-materials";
 import { EXPORT_LOCALES, EXPORT_ROUTE } from "@/lib/content/export";
+import { ALLOY_STEEL_LOCALES, ALLOY_STEEL_ROUTE, alloyGradePath } from "@/lib/content/alloy-steel";
+import { ALLOY_GRADE_SLUGS } from "@/lib/alloy/grades";
 import { listAllPublishedPrices } from "@/lib/pricing/product-page-price-repository";
 import { isPriceLocale, type PriceLocale } from "@/lib/pricing/price-locale";
 import { listPriceChartProducts, loadPriceChart } from "@/lib/pricing/price-chart-data";
@@ -112,6 +114,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const [path, present] of hubLocales) if (present.includes(locale)) entries.push({ ...fixedLocaleEntry(locale, path, present), lastModified: hubModified(locale, path) });
     if (RAW_MATERIAL_LOCALES.includes(locale)) for (const path of [RAW_MATERIALS_ROUTE, ...RAW_MATERIAL_SLUGS.map(rawMaterialPath)]) entries.push(fixedLocaleEntry(locale, path, RAW_MATERIAL_LOCALES));
     if (EXPORT_LOCALES.includes(locale)) entries.push(fixedLocaleEntry(locale, EXPORT_ROUTE, EXPORT_LOCALES));
+    // W43: the alloy/tool steel hub and its grade guides (fa/en/ar).
+    if (ALLOY_STEEL_LOCALES.includes(locale)) for (const path of [ALLOY_STEEL_ROUTE, ...ALLOY_GRADE_SLUGS.map(alloyGradePath)]) entries.push(fixedLocaleEntry(locale, path, ALLOY_STEEL_LOCALES));
     if (locale === "fa") for (const c of charts) entries.push({ ...fixedLocaleEntry("fa", priceChartPath(c.slug), ["fa"]), lastModified: (await loadPriceChart(c.slug))?.row.price.pricedAt ?? pricedModified("fa") });
     if (indicators.length && (MARKET_INDICATORS_LOCALES as readonly string[]).includes(locale)) entries.push({ ...fixedLocaleEntry(locale, MARKET_INDICATORS_ROUTE, MARKET_INDICATORS_LOCALES), lastModified: latestIndicator });
   }

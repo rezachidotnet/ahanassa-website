@@ -8,7 +8,8 @@
  *
  *   node scripts/static/overflow-check.ts [publicAssetsDir] [--pages /a,/b] [--widths 360,390] [--base-url https://host]
  *
- * Default pages: home, /contact, /prices, /market-indicators, /downloads, a
+ * Default pages: home, /contact, /prices, /market-indicators, /downloads, /alloy-steel, /alloy-steel/ck45,
+ * /tools/weight-calculator (W43), a
  * product page, a price-chart page and the first published article (when the
  * artifact has them), in fa, en and ar where the page exists. Chrome: $CHROME_PATH, else the macOS app path, else `google-chrome`.
  */
@@ -45,7 +46,8 @@ function defaultPages(): string[] {
   const pages: string[] = [];
   for (const prefix of ["", "/en", "/ar"]) {
     const exists = (p: string) => (baseUrlOption !== undefined && p !== "/market-indicators") || fs.existsSync(path.join(root, `${(prefix + p).slice(1) || "index"}.html`));
-    for (const p of ["", "/contact", "/prices", "/market-indicators", "/downloads"]) if (exists(p)) pages.push(prefix + p || "/");
+    // W43: the alloy hub, the guide with the widest weight table (CK45: plate, 3 columns) and the calculator's alloy section.
+    for (const p of ["", "/contact", "/prices", "/market-indicators", "/downloads", "/alloy-steel", "/alloy-steel/ck45", "/tools/weight-calculator"]) if (exists(p)) pages.push(prefix + p || "/");
     if (baseUrlOption) continue;
     for (const dir of ["products", "prices/chart", "articles"]) {
       const page = firstPage(`${prefix.slice(1) ? prefix.slice(1) + "/" : ""}${dir}`);

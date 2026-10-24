@@ -1,5 +1,7 @@
 import { companyPhoneDisplay, GROUP_COMPANIES, OFFICES, PARENT_ORGANIZATION, WORKING_HOURS_TEXT } from "../content/company.ts";
 import { RAW_MATERIAL_SLUGS, RAW_MATERIALS, rawMaterialPath } from "../content/raw-materials.ts";
+import { ALLOY_GRADE_COPY, alloyGradePath } from "../content/alloy-steel.ts";
+import { ALLOY_GRADE_SLUGS } from "../alloy/grades.ts";
 import { COMPANY_PUBLIC_EMAILS } from "../content/contact-channels.ts";
 import { MARKDOWN_ORIGIN, MARKET_INDICATOR_MARKDOWN, markdownFileFor } from "./markdown-mirror.ts";
 
@@ -80,6 +82,11 @@ export function buildLlmsTxt(pages: readonly LlmsPage[]): string {
       link("/en/raw-materials", "Steel raw materials"),
       ...RAW_MATERIAL_SLUGS.map((slug) => link(`/en${rawMaterialPath(slug)}`, RAW_MATERIALS[slug].en.name)),
     ]),
+    // W43: the alloy/tool steel grade guides (specs and weight tables; quote on request).
+    ...section("Alloy and tool steel (quote on request only)", [
+      link("/en/alloy-steel", "Alloy and tool steel grades"),
+      ...ALLOY_GRADE_SLUGS.map((slug) => link(`/en${alloyGradePath(slug)}`, ALLOY_GRADE_COPY[slug].en.h1)),
+    ], "Equivalents, composition, delivery state, size ranges and a weight table at each grade's density. Persian pages use the same paths without `/en`; Arabic pages use `/ar`."),
     ...section("Export", [link("/en/export", "Steel export from Iran (English)"), link("/ar/export", "Export (Arabic)")]),
     ...section("How to request a quote", [
       link("/en/contact", "Request form (English)"),

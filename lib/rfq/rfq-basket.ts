@@ -1,6 +1,6 @@
 import { localizedPath, locales, type Locale } from "../../config/locales.ts";
 import { RFQ_UOM_CODES, DEFAULT_RFQ_UOM, type RfqUomCode } from "./uom.ts";
-import { createCatalogRowFromSelection, createEmptyCatalogRow, isRfqRowEmpty, MAX_ITEMS, nextRfqRowId, type RfqRow, type RfqRowFields } from "./item-row-validation.ts";
+import { createCatalogRowFromSelection, createEmptyCatalogRow, createEmptyCustomRow, isRfqRowEmpty, MAX_ITEMS, nextRfqRowId, type RfqRow, type RfqRowFields } from "./item-row-validation.ts";
 import type { RfqRowPrefill } from "./rfq-prefill.ts";
 import type { PublicRfqCatalogItem } from "./catalog-selector.ts";
 
@@ -206,6 +206,30 @@ export function addCatalogItemToRows(
   const filled = rows.filter((r) => !isRfqRowEmpty(r.fields));
   if (filled.length >= MAX_ITEMS) return { rows, rowId: null, outcome: "full" };
   const row = createCatalogRowFromSelection(selection, prefill);
+  return { rows: [...filled, row], rowId: row.id, outcome: "added" };
+}
+
+/**
+ * W43 — adds a pre-filled CUSTOM row (lib/alloy/rfq.ts: an alloy/tool steel grade that is not in the catalog yet),
+ * with the same rules as addCatalogItemToRows: a custom row with the same product title already there → no new
+ * row, only its EMPTY size/quantity are filled; otherwise appended after the untouched empty rows are dropped;
+ * nothing at MAX_ITEMS filled rows.
+ */
+export function addCustomItemToRows(
+  rows: RfqRow[],
+  item: { productTitle: string; sizeSpec: string; quantityValue?: string; unit?: RfqUomCode },
+): { rows: RfqRow[]; rowId: string | null; outcome: RfqBasketAddOutcome } {
+  const existing = rows.find((r) => r.fields.mode === "custom" && r.fields.productTitle.trim() === item.productTitle);
+  if (existing && existing.fields.mode === "custom") {
+    const f = existing.fields;
+    const fillQuantity = !f.quantityValue.trim() && item.quantityValue !== undefined && item.unit !== undefined;
+    const fields = { ...f, sizeSpec: f.sizeSpec.trim() ? f.sizeSpec : item.sizeSpec, quantityValue: fillQuantity ? item.quantityValue! : f.quantityValue, unit: fillQuantity ? item.unit! : f.unit };
+    return { rows: rows.map((r) => (r.id === existing.id ? { ...r, fields } : r)), rowId: existing.id, outcome: "existing" };
+  }
+  const filled = rows.filter((r) => !isRfqRowEmpty(r.fields));
+  if (filled.length >= MAX_ITEMS) return { rows, rowId: null, outcome: "full" };
+  const empty = createEmptyCustomRow();
+  const row: RfqRow = { ...empty, fields: { ...empty.fields, mode: "custom", productTitle: item.productTitle, sizeSpec: item.sizeSpec, quantityValue: item.quantityValue ?? "", unit: item.unit ?? empty.fields.unit } };
   return { rows: [...filled, row], rowId: row.id, outcome: "added" };
 }
 

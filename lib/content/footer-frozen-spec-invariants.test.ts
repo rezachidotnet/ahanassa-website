@@ -56,13 +56,15 @@ test("SiteFooter no longer imports the Persian-only sample catalog categories", 
   );
 });
 
-test("Products nav group: the unfiltered /products listing, the catalog PDF of the page's locale (W17.2), then en/ar market indicators (W18.2)", () => {
+test("Products nav group: the unfiltered /products listing, the catalog PDF of the page's locale (W17.2), the alloy/tool steel hub (W43), then en/ar market indicators (W18.2)", () => {
   const productsNavMatch = FOOTER_SOURCE.match(/<nav[^>]*aria-label=\{t\.productsNav\}[\s\S]*?<\/nav>/);
   assert.ok(productsNavMatch, "expected a Products <nav> block");
   const block = productsNavMatch[0];
   const linkCount = (block.match(/<Link\b/g) ?? []).length;
-  // W18.2 (owner 2026-10-16): a third link, en/ar only and only when the build publishes the market-indicators page.
-  assert.equal(linkCount, 3, "expected exactly three <Link>s in the Products nav group: /products, the catalog PDF and the en/ar market indicators");
+  // W18.2 (owner 2026-10-16): a link, en/ar only and only when the build publishes the market-indicators page.
+  // W43 (owner 2026-10-24, W39 D-ALLOY-7): the alloy/tool steel guides hub, every locale, after the PDF.
+  assert.equal(linkCount, 4, "expected exactly four <Link>s in the Products nav group: /products, the catalog PDF, the alloy hub and the en/ar market indicators");
+  assert.ok(block.indexOf("fullCatalogPath") < block.indexOf("ALLOY_STEEL_NAV_LINK.path") && block.indexOf("ALLOY_STEEL_NAV_LINK.path") < block.indexOf("MARKET_INDICATORS_ROUTE"), "the alloy hub link sits between the PDF and the indicators link");
   assert.match(block, /hasIndicators && isMarketIndicatorsLocale\(locale\)[\s\S]*MARKET_INDICATORS_ROUTE/, "the indicators link is conditional (en/ar, published)");
   assert.ok(block.indexOf("fullCatalogPath") < block.indexOf("MARKET_INDICATORS_ROUTE"), "the indicators link comes after the PDF");
   assert.match(block, /localizedPath\(locale,\s*"\/products"\)/, "the first link must resolve to the real, unfiltered /products route");
@@ -102,7 +104,8 @@ test("The phone anchor is LTR/bidi-isolated for FA/AR (FOOTER_SPEC.md §9.5)", (
 
 test("Phone action reuses the existing headerPhoneLabel dictionary, not a duplicated one", () => {
   // W11.1: the footer lists `visibleNavLinks` (the header list, «مقالات» only where the build has articles).
-  assert.match(FOOTER_SOURCE, /import\s*\{\s*visibleNavLinks,\s*headerPhoneLabel\s*\}\s*from\s*"@\/lib\/content\/nav"/);
+  // W43: the same import also brings ALLOY_STEEL_NAV_LINK (the Products list's alloy hub link).
+  assert.match(FOOTER_SOURCE, /import\s*\{\s*visibleNavLinks,\s*headerPhoneLabel,\s*ALLOY_STEEL_NAV_LINK\s*\}\s*from\s*"@\/lib\/content\/nav"/);
   assert.match(FOOTER_SOURCE, /aria-label=\{headerPhoneLabel\[locale\]\.srLabel\}/);
 });
 

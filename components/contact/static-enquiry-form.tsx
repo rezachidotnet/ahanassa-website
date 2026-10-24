@@ -11,6 +11,7 @@ import { parseRfqRowPrefill, RFQ_PREFILL_PARAMS } from "@/lib/rfq/rfq-prefill";
 import { isRfqRowEmpty, type RfqRow } from "@/lib/rfq/item-row-validation";
 import {
   addCatalogItemToRows,
+  addCustomItemToRows,
   readRfqBasket,
   resolveContinueBrowsingHref,
   resolveRowsAgainstCatalog,
@@ -21,6 +22,7 @@ import {
 import { filesEndpointFor, type FilesCapability } from "@/lib/rfq/upload-files";
 import { fetchRfqCapabilities, type CaptchaChoice } from "@/lib/rfq/capabilities-client";
 import { isIranMirrorHost, rfqEndpointForHost } from "@/lib/mirror/iran-mirror";
+import { ALLOY_RFQ_PARAMS, parseAlloyRfqPrefill } from "@/lib/alloy/rfq";
 
 interface LoadedCatalog {
   items: PublicRfqCatalogItem[];
@@ -32,8 +34,8 @@ interface RestoredBasket {
   customer: RfqBasketCustomer | undefined;
 }
 
-/** The hand-off parameters a «استعلام قیمت» / calculator link carries (lib/pricing/price-rfq.ts, lib/rfq/rfq-prefill.ts). */
-const HANDOFF_PARAMS = ["variant", ...Object.values(RFQ_PREFILL_PARAMS)];
+/** The hand-off parameters a «استعلام قیمت» / calculator link carries (lib/pricing/price-rfq.ts, lib/rfq/rfq-prefill.ts; W43 lib/alloy/rfq.ts). */
+const HANDOFF_PARAMS = ["variant", ...Object.values(RFQ_PREFILL_PARAMS), ...Object.values(ALLOY_RFQ_PARAMS)];
 
 /**
  * The /contact form on a static page (architecture V1.1 §4.2). The page HTML
@@ -195,7 +197,17 @@ export function StaticEnquiryForm({
         // A first item on an empty form needs no message; joining a list, a duplicate or a full list does.
         notice = result.outcome === "added" && !hadItems ? null : result.outcome;
       }
-      if (variantXid) {
+      // W43: an alloy/tool steel guide's «استعلام قیمت» (?alloy=<slug>): a custom row naming the grade — those grades
+      // are not in the catalog yet. Ignored when a catalog variant came with the link.
+      const alloy = variantXid ? null : parseAlloyRfqPrefill(query, locale);
+      if (alloy) {
+        const hadItems = rows.some((r) => !isRfqRowEmpty(r.fields));
+        const result = addCustomItemToRows(rows, alloy);
+        rows = result.rows;
+        focusRowId = result.rowId;
+        notice = result.outcome === "added" && !hadItems ? null : result.outcome;
+      }
+      if (variantXid || alloy) {
         for (const name of HANDOFF_PARAMS) query.delete(name);
         const search = query.toString();
         try {
