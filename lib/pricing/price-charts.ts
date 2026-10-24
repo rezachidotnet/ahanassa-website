@@ -13,7 +13,7 @@ import { STALE_PRICE_COPY } from "./price-staleness.ts";
  * (`/prices/chart/<product slug>`). Pure: copy, which products get a chart page, and every string a gauge or a chart
  * may show (the publication gate's allow-list, lib/static/price-gate.ts rule 9).
  *
- * The data is Ahan Asa's OWN published daily prices (snapshot `published_price_history`, 90 days) — the lowest
+ * The data is Ahan Assa's OWN published daily prices (snapshot `published_price_history`, 90 days) — the lowest
  * price of the product's reference size, the same one the product page's price block shows. fa only: ar shows a
  * price + date only, en no price at all.
  */

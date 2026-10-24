@@ -68,7 +68,7 @@ test("every Industries record carries the full provenance information §27/§28.
   }
 });
 
-test("no Industries asset claims to be evidence of real Ahan Asa work (§8, MEDIA_GUIDELINES §4.4/§29)", () => {
+test("no Industries asset claims to be evidence of real Ahan Assa work (§8, MEDIA_GUIDELINES §4.4/§29)", () => {
   for (const record of INDUSTRIES_RECORDS) {
     assert.notEqual(record.truthClass, "verified-evidence", `${record.id}: these are sector illustrations, never operational proof`);
     assert.equal(record.purpose, "context", `${record.id}: purpose must not be "evidence"`);

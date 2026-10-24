@@ -71,7 +71,7 @@ test("expo video: H.264 MP4 ≤ 8 MB, faststart, click-to-play with controls, pr
   assert.match(component, /aspect-\[9\/16\]/);
 });
 
-test("expo JSON-LD: a past offline Event with the real dates and venue, Ahan Asa as attendee", () => {
+test("expo JSON-LD: a past offline Event with the real dates and venue, Ahan Assa as attendee", () => {
   const node = eventSchema({ id: "https://x/about#expo-1405", name: EXPO_1405.name.en, description: ABOUT_EVENTS_COPY.en.description, startDate: EXPO_1405.startDate, endDate: EXPO_1405.endDate, venue: EXPO_1405.venue.en, locality: "Isfahan", image: "https://x/p.webp" });
   assert.equal(node["@type"], "Event");
   assert.equal(node.startDate, "2026-09-29");

@@ -3,7 +3,7 @@ import { z } from "zod";
 /**
  * snapshot.v1 extension — W18.2 market indicators (Odoo W18.1 `GET /api/v1/catalog/indicators`, contract
  * ahanassa-odoo addons/ahanassa_market_indicators/docs/PUBLIC_INDICATORS_API_V1.md). REFERENCE indices only —
- * never an Ahan Asa selling price; every surface that shows one says so, with its source and date.
+ * never an Ahan Assa selling price; every surface that shows one says so, with its source and date.
  *
  * Only the indicators the website knows are kept (INDICATOR_CODES; lib/content-pipeline/indicators.ts is the
  * allow-list). IME series are never stored, whatever Odoo's switch says (owner, W18.2: IME is off), and neither is

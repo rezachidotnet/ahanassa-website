@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 /**
- * W10.4 (owner, 2026-10-11): the header's Ahan Asa mark and «آهن آسا» name
+ * W10.4 (owner, 2026-10-11): the header's Ahan Assa mark and «آهن آسا» name
  * clearly larger, inside the unchanged white bar (72px mobile, 80px desktop,
  * 68px compact). The mark is the inline BrandMark SVG — the same polygons as
  * the favicon — and the 1024–1279 tier, where the full fa/ar nav leaves no

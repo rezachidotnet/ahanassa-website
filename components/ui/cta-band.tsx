@@ -23,7 +23,7 @@ const defaults: Record<Locale, { eyebrow: string; title: string; body: string; p
   en: {
     eyebrow: "Next step",
     title: "Have an invoice or purchase list ready?",
-    body: "Send it to Ahan Asa so we can review your requirement and confirm the right sourcing path.",
+    body: "Send it to Ahan Assa so we can review your requirement and confirm the right sourcing path.",
     primary: "Send invoice or purchase list",
     secondary: "Request a procurement consultation",
   },

@@ -11,7 +11,7 @@ import { PriceGauge } from "./price-gauge";
 
 /**
  * W18.2 — the fa product page's decision block, under the price block: the price-position gauge (today vs the last
- * 30/90 days of Ahan Asa's own published prices), a mini 90-day trend (when the history reaches past 30 days; the
+ * 30/90 days of Ahan Assa's own published prices), a mini 90-day trend (when the history reaches past 30 days; the
  * price block above already draws 30), ONE drivers line of the market indicators, and «قیمت قطعی برای حجم شما» →
  * the RFQ form prefilled (variant + factory). A link to the product's full chart page when it has one.
  *

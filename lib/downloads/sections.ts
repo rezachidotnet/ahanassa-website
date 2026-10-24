@@ -181,7 +181,7 @@ export function planSectionDrawing(input: SectionInput): SectionPlan | null {
   }
   const size = (input.commercialSize ?? slug.slice(spec.prefix.length + 1)).replace(/×/g, "x").replace(/[^\x20-\x7E]/g, "").trim();
   const title = size.toUpperCase().startsWith(spec.label) ? size : `${spec.label} ${size}`;
-  g.titleBlock([title, ...(input.standard ? [`Standard: ${input.standard.replace(/[^\x20-\x7E]/g, "")}`] : []), "Dimensions in mm. Nominal dimensions from the Ahan Asa catalog.", "www.ahanassa.com"]);
+  g.titleBlock([title, ...(input.standard ? [`Standard: ${input.standard.replace(/[^\x20-\x7E]/g, "")}`] : []), "Dimensions in mm. Nominal dimensions from the Ahan Assa catalog.", "www.ahanassa.com"]);
   return { status: "drawn", drawing: { slug, title, layers: g.layers, extents: g.extents(), areaMm2: round(areaMm2) } };
 }
 

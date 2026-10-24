@@ -61,7 +61,7 @@ import { homepageCopy } from "./homepage.ts";
  * gradient placeholder were all rejected then and remain rejected now.
  *
  * The three assets are generic SECTOR illustrations. They are not, and must
- * never be described as, evidence of a real Ahan Asa project, facility,
+ * never be described as, evidence of a real Ahan Assa project, facility,
  * customer or capability — Industries V1.0 §8, §10 and MEDIA_GUIDELINES.md
  * §4.4/§29. Each registry record carries that as an explicit flag.
  *
@@ -130,7 +130,7 @@ export interface ResolvedIndustrySectorImage {
  *
  * None is a Hero image, a product packshot, a collage, an icon illustration, or
  * carries a visible customer logo, and none may be captioned or described as a
- * real Ahan Asa project (§8, MEDIA_GUIDELINES.md §4.4 and §29).
+ * real Ahan Assa project (§8, MEDIA_GUIDELINES.md §4.4 and §29).
  *
  * BEFORE CHANGING A PATH HERE: add the new asset to the provenance registry
  * first. An asset with no provenance record is `restricted` by §5 default and

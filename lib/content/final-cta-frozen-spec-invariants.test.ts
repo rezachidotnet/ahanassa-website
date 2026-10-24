@@ -6,6 +6,7 @@ import path from "node:path";
 import { homepageCopy } from "./homepage.ts";
 import { CONTACT_PHONE_E164 } from "./contact-channels.ts";
 import { localizedPath } from "../../config/locales.ts";
+import { withCurrentLatinBrand } from "../metadata/site.ts";
 
 /**
  * docs/final-cta/AHANASSA_FINAL_CTA_COMPONENT_FREEZE_V1.0.md regression
@@ -43,7 +44,8 @@ function readCode(relativePath: string): string {
 const SPEC_PATH = "docs/final-cta/AHANASSA_FINAL_CTA_COMPONENT_FREEZE_V1.0.md";
 const COMPONENT_PATH = "components/home/final-cta.tsx";
 
-const SPEC = readSource(SPEC_PATH);
+// W44: the frozen copy read with the current Latin brand «Ahan Assa» (PROJECT_OVERRIDES.md §18); the freeze file keeps «Ahan Asa».
+const SPEC = withCurrentLatinBrand(readSource(SPEC_PATH));
 const COMPONENT_SOURCE = readSource(COMPONENT_PATH);
 const COMPONENT = readCode(COMPONENT_PATH);
 /** The rendered JSX only — everything after the single `return (`. */

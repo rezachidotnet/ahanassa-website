@@ -6,7 +6,7 @@ import { type RfqUomCode } from "./uom.ts";
  * business rule is expressed; every other module (validation, service,
  * row UI) imports from here rather than re-encoding the mapping.
  *
- * Source: Odoo Ahan Asa Marketplace production `19.0.27.0.0`, with
+ * Source: Odoo Ahan Assa Marketplace production `19.0.27.0.0`, with
  * `LAUNCH UOM HARDENING LIVE`, `DYNAMIC PRICING UNIT BASIS LIVE`, and
  * `SETTLEMENT DUAL-SIDED BILLING LIVE` all confirmed `PASS`. Odoo's public
  * RFQ API no longer accepts `coil`/`bundle`/`piece` as normal Website

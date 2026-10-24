@@ -1,5 +1,5 @@
 [Unit]
-Description=Ahan Asa: ArvanCloud edge range check, weekly
+Description=Ahan Assa: ArvanCloud edge range check, weekly
 
 [Timer]
 OnCalendar=Sun 09:00 Asia/Tehran

@@ -301,7 +301,7 @@ function canonicalAndLang(html: string): string {
 
 /**
  * W18.2: the en market-indicators page's mirror. It names the USD/IRR Exchange Center rate and shows reference index
- * values — never an Ahan Asa price (the price gate's rule 4 still checks its HTML for every price amount, copy and
+ * values — never an Ahan Assa price (the price gate's rule 4 still checks its HTML for every price amount, copy and
  * name) — so the currency-word and snapshot-amount rules below skip it; the factory/location rule still applies.
  */
 export const MARKET_INDICATOR_MARKDOWN: readonly string[] = ["en/market-indicators.md"];

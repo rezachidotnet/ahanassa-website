@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { locales, defaultLocale, localeConfig, localizedPath, type Locale } from "../../config/locales.ts";
-import { siteConfig } from "./site.ts";
+import { siteConfig, titleBrand } from "./site.ts";
 import { BRAND_MARK_LOGO_PATH } from "../media/image-sources.ts";
 
 /**
@@ -115,7 +115,7 @@ export function buildPageMetadata(input: PageMetadataInput): Metadata {
       title: input.title,
       description: input.description,
       url: canonical,
-      siteName: siteConfig.name,
+      siteName: titleBrand(input.locale),
       locale: localeConfig[input.locale].languageTag,
       ...(input.article ? { type: "article" as const, publishedTime: input.article.publishedTime, modifiedTime: input.article.modifiedTime } : { type: "website" as const }),
       images: [image],

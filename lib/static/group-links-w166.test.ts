@@ -39,7 +39,7 @@ test("footer: one group line — the group name links to fazasazeh.ir, «شرک�
   assert.equal(footer.match(/target=/g)?.length, 1, "one new-tab link: the group company list");
   assert.equal(`${GROUP_FOOTER_COPY.fa.before}${PARENT_ORGANIZATION.name.fa}${GROUP_FOOTER_COPY.fa.after}`, "آهن آسا، عضو گروه فضاسازه نقش جهان");
   assert.equal(GROUP_FOOTER_COPY.fa.companies, "شرکت‌های گروه");
-  assert.equal(`${GROUP_FOOTER_COPY.en.before}${PARENT_ORGANIZATION.name.en}${GROUP_FOOTER_COPY.en.after}`, "Ahan Asa, a member of the Fazasazeh Naghsh-e Jahan group");
+  assert.equal(`${GROUP_FOOTER_COPY.en.before}${PARENT_ORGANIZATION.name.en}${GROUP_FOOTER_COPY.en.after}`, "Ahan Assa, a member of the Fazasazeh Naghsh-e Jahan group");
   assert.deepEqual(languageFindings("ar", [...Object.values(GROUP_FOOTER_COPY.ar), PARENT_ORGANIZATION.name.ar]), []);
   assert.deepEqual(languageFindings("en", [...Object.values(GROUP_FOOTER_COPY.en), PARENT_ORGANIZATION.name.en]), []);
 });

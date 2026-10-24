@@ -2,7 +2,7 @@
 # oldest first, one in flight, no maximum age; files to the Arvan .ir files bucket (W35; IPv4, domestic) first, the
 # notes list after files_store_wait_ms. A separate process, so a stuck Odoo call never slows intake. RUNBOOK_P2.md §3.
 [Unit]
-Description=Ahan Asa domestic RFQ forwarder (%i)
+Description=Ahan Assa domestic RFQ forwarder (%i)
 After=network-online.target ahanassa-rfq@%i.service
 Wants=network-online.target
 

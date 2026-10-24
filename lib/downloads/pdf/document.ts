@@ -87,7 +87,7 @@ export class BrandDocument {
     }
     doc.setTitle(meta.title, { showInWindowTitleBar: true });
     doc.setSubject(meta.subject);
-    doc.setAuthor("Ahan Asa (ahanassa.com)");
+    doc.setAuthor("Ahan Assa (ahanassa.com)");
     doc.setCreator("ahanassa.com download center");
     doc.setProducer("ahanassa.com");
     doc.setLanguage(meta.locale === "fa" ? "fa-IR" : meta.locale);

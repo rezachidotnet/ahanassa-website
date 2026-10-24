@@ -1,6 +1,6 @@
 # W32 — every 5 minutes (deploy/iran/RUNBOOK_P2.md).
 [Unit]
-Description=Ahan Asa domestic RFQ: health timer (%i)
+Description=Ahan Assa domestic RFQ: health timer (%i)
 
 [Timer]
 OnBootSec=2min

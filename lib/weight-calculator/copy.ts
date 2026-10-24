@@ -129,7 +129,7 @@ const fa: WeightCalculatorCopy = {
 
 const en: WeightCalculatorCopy = {
   metaTitle: "Steel Weight Calculator (kg) — Rebar, IPE, Plate",
-  metaDescription: "Nominal weight of rebar, IPE beams, channels, angles, hollow sections, pipe and plate — per metre, per piece and per order, in kg, from the Ahan Asa catalog and standard tables.",
+  metaDescription: "Nominal weight of rebar, IPE beams, channels, angles, hollow sections, pipe and plate — per metre, per piece and per order, in kg, from the Ahan Assa catalog and standard tables.",
   eyebrow: "Weight calculator",
   title: "Steel weight calculator",
   body: "Choose the section and size, then enter pieces, kilograms or tonnes to see the nominal weight per metre, per piece and for the whole order.",
@@ -177,7 +177,7 @@ const en: WeightCalculatorCopy = {
   priceUnit: "Toman",
   priceDisclaimer: "An approximate estimate from the nominal weight and the dated price, not a quotation; ask for today's price.",
   basisTitle: "How it is calculated",
-  basisCatalog: "“Catalog value”: wherever the Ahan Asa catalog has the nominal weight of the exact item, that figure is used.",
+  basisCatalog: "“Catalog value”: wherever the Ahan Assa catalog has the nominal weight of the exact item, that figure is used.",
   basis: {
     rebar: "Rebar: weight per metre = d² ÷ 162 (d = diameter in mm) — ISO 6935-2 / INSO 3132.",
     plate: "Plate and sheet: weight = thickness (mm) × width (m) × length (m) × 7.85 kg/dm³ — EN 10029 / EN 10051.",

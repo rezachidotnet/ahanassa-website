@@ -2,7 +2,7 @@
 # Unprivileged: user ahanassa-sync, writes only /srv/ahanassa/incoming/%i. Nothing it fetches is served until the root
 # activator has verified it. deploy/iran/RUNBOOK_P1.md §4.
 [Unit]
-Description=Ahan Asa domestic copy: sync agent (%i)
+Description=Ahan Assa domestic copy: sync agent (%i)
 After=network-online.target
 Wants=network-online.target
 

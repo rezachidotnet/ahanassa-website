@@ -1,6 +1,6 @@
 # W32 — hourly (deploy/iran/RUNBOOK_P2.md).
 [Unit]
-Description=Ahan Asa domestic RFQ: backup timer (%i)
+Description=Ahan Assa domestic RFQ: backup timer (%i)
 
 [Timer]
 OnCalendar=hourly

@@ -81,7 +81,7 @@ export interface HomepageCopy {
    * docs/homepage/AHANASSA_HOMEPAGE_COMPOSITION_AND_CUSTOMER_JOURNEY_FREEZE_V1.0.md §4.
    *
    * Answers exactly one buyer question (§1): "Why should I place my steel
-   * request with Ahan Asa?" — supplier selection. It owns human
+   * request with Ahan Assa?" — supplier selection. It owns human
    * accountability, coordinated handling of diverse requested items, equal
    * seriousness for small and bulk requests, and follow-up through agreed
    * delivery obligations (§2).
@@ -187,7 +187,7 @@ export interface HomepageCopy {
    * Industries / Use Cases — the frozen V1.0 component
    * (docs/industries/AHANASSA_INDUSTRIES_USE_CASES_COMPONENT_FREEZE_V1.0.md).
    *
-   * Answers exactly one buyer question (§1, Composition §6.6): "Does Ahan Asa
+   * Answers exactly one buyer question (§1, Composition §6.6): "Does Ahan Assa
    * understand purchases or projects like mine?" — recognition of the buyer's
    * own field of purchasing. Buyer Value above keeps service promises and
    * Product Showcase keeps product discovery; §1 requires those boundaries.
@@ -450,7 +450,7 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
       eyebrow: "Project steel procurement management",
       title: "Steel procurement for projects",
       process: ["Submit request list", "Technical review", "Commercial review", "Sourcing"],
-      body: "Ahan Asa makes your steel purchasing process easier, clearer, and more controllable.",
+      body: "Ahan Assa makes your steel purchasing process easier, clearer, and more controllable.",
       reassurance: "Sending your purchase list creates no commitment.",
       brandLine: "We protect your capital.",
       secondaryCta: "Request a phone quote",
@@ -458,7 +458,7 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
     productShowcase: {
       eyebrow: "Products",
       title: "Steel and alloy product categories.",
-      body: "Every category is part of Ahan Asa's purchasing-management service — review, sourcing comparison, and coordination through to delivery.",
+      body: "Every category is part of Ahan Assa's purchasing-management service — review, sourcing comparison, and coordination through to delivery.",
       cta: "All products",
     },
     evaluationAssurance: {
@@ -485,7 +485,7 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
     },
     buyerValue: {
       eyebrow: "Support throughout your purchase",
-      title: "How does Ahan Asa make buying steel easier for you?",
+      title: "How does Ahan Assa make buying steel easier for you?",
       body: "From submitting your request through completion of the agreed commitments, your purchase follows a clear path of review, coordination, and follow-up.",
       promises: [
         {
@@ -560,7 +560,7 @@ export const homepageCopy: Record<Locale, HomepageCopy> = {
     },
     finalCta: {
       title: "Start your project's steel purchase",
-      body: "Send the items you need so an Ahan Asa specialist calls you right away.",
+      body: "Send the items you need so an Ahan Assa specialist calls you right away.",
       primaryCta: "Send your purchase list",
       secondaryCta: "Request pricing by phone",
       reassurance: "Submitting a request does not commit you to a purchase.",

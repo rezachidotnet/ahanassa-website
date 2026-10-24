@@ -2,7 +2,7 @@ import type { Locale } from "../../config/locales.ts";
 
 /**
  * W16.3 (D-SEO; owner D-COMPANY-INFO 2026-10-13: export to Iraq and other countries is approved) — the export
- * page, en and ar only. What Ahan Asa exports (the catalog families and the four raw materials), how to
+ * page, en and ar only. What Ahan Assa exports (the catalog families and the four raw materials), how to
  * request, and the RFQ link. No price on either locale (en never has one; the ar page links to `/ar/prices`
  * but shows none), no logistics, payment, partner or delivery-time claim: terms are agreed per order.
  *
@@ -41,9 +41,9 @@ export const EXPORT_COPY: Record<ExportLocale, ExportCopy> = {
     eyebrow: "Export",
     title: "Iranian Steel Export — Rebar, Beams, Billet, DRI",
     h1: "Steel export from Iran",
-    description: "Ahan Asa sources Iranian rebar, IPE beams, sheet and plate, hollow sections, billet, DRI, iron ore and HBI for buyers in Iraq and other countries. Send your list to request a quote.",
+    description: "Ahan Assa sources Iranian rebar, IPE beams, sheet and plate, hollow sections, billet, DRI, iron ore and HBI for buyers in Iraq and other countries. Send your list to request a quote.",
     intro: [
-      "Ahan Asa manages steel purchasing in Iran for buyers outside the country, including Iraq. We start from your specification: you send the list, we review it against the standard products of Iranian mills, compare the sourcing options and come back with a proposal.",
+      "Ahan Assa manages steel purchasing in Iran for buyers outside the country, including Iraq. We start from your specification: you send the list, we review it against the standard products of Iranian mills, compare the sourcing options and come back with a proposal.",
       "Every export enquiry is reviewed and quoted individually; sending a list creates no obligation.",
     ],
     productsTitle: "What we export",

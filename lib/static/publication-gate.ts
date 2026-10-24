@@ -55,7 +55,7 @@ export const JSONLD_ALLOWED_KEYS: ReadonlySet<string> = new Set([
   "department", "postalCode",
   // Owner, 2026-10-13 (lib/content/company.ts): working hours and the parent group's founding year.
   "openingHoursSpecification", "dayOfWeek", "opens", "closes", "foundingDate",
-  // W20.2 (owner, 2026-10-16): the past Event on /about (Isfahan Buildexpo 1405) — dates, venue, Ahan Asa as attendee. No offers/organizer.
+  // W20.2 (owner, 2026-10-16): the past Event on /about (Isfahan Buildexpo 1405) — dates, venue, Ahan Assa as attendee. No offers/organizer.
   "startDate", "endDate", "eventStatus", "eventAttendanceMode", "location", "attendee",
   // D-W207-EMAIL (owner, 2026-10-16): the /contact Organization contactPoint's e-mail (the leak scan allows the address on /contact only).
   "email",

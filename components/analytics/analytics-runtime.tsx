@@ -20,7 +20,7 @@ const ARTICLE_SCOPE = '[data-analytics-scope="article"]';
  *   4. reports expert_call_click / expert_whatsapp_click / expert_rfq_click / expert_chat_click for the homepage
  *      expert section's actions (`data-expert-action`, W20.3), on top of the events above,
  *   5. reports chart_share for a chart page's share link (`data-chart-share`, W18.3) INSTEAD of whatsapp_click —
- *      sharing a page is not a contact with Ahan Asa,
+ *      sharing a page is not a contact with Ahan Assa,
  *   6. starts GTM after the window `load` event (lib/analytics/gtm.ts: production hostname or
  *      `?gtm_debug=` only), so Google's script never competes with the page's own LCP resources.
  */

@@ -1,5 +1,6 @@
 import { getPublicDb } from "../db/public.ts";
 import { ulid } from "../rfq/ulid.ts";
+import { withCurrentLatinBrand } from "../metadata/site.ts";
 import type { Locale } from "../../config/locales.ts";
 import { canPublish, canSubmitForReview, isValidContentStatusTransition } from "./editorial.ts";
 import { categorySetClause, type CatalogFilterInput } from "./catalog-filters.ts";
@@ -78,6 +79,9 @@ interface SeoContentRow {
   updated_at: string;
 }
 
+/** W44: Odoo's catalog SEO texts may still carry the legacy Latin spelling; the site shows «Ahan Assa» (PROJECT_OVERRIDES.md §18). */
+const brand = (text: string | null): string | null => (text === null ? null : withCurrentLatinBrand(text));
+
 function mapSeoContent(row: SeoContentRow): ProductSeoContent {
   return {
     id: row.id,
@@ -85,12 +89,12 @@ function mapSeoContent(row: SeoContentRow): ProductSeoContent {
     entityId: row.entity_id,
     locale: row.locale,
     slug: row.slug,
-    h1: row.h1,
-    intro: row.intro,
-    bodyJson: row.body_json,
-    seoTitle: row.seo_title,
-    seoDescription: row.seo_description,
-    faqJson: row.faq_json,
+    h1: brand(row.h1),
+    intro: brand(row.intro),
+    bodyJson: brand(row.body_json),
+    seoTitle: brand(row.seo_title),
+    seoDescription: brand(row.seo_description),
+    faqJson: brand(row.faq_json),
     indexStatus: row.index_status,
     contentQualityStatus: row.content_quality_status,
     publishedAt: row.published_at,

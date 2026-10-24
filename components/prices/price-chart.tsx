@@ -11,7 +11,7 @@ const HEAD = "border-border text-muted-foreground border-b bg-surface px-4 py-3 
 const CELL = "border-b border-[var(--aa-color-neutral-100)] px-4 py-2.5";
 
 /**
- * W18.2 — a fa chart page's chart and data table: Ahan Asa's published daily price of the product's reference size,
+ * W18.2 — a fa chart page's chart and data table: Ahan Assa's published daily price of the product's reference size,
  * 30 or 90 days (both server-rendered; the radio switch picks one with CSS, so the chart works without JavaScript and
  * never shifts), the lowest/highest of the shown window, and every day's price in a table (newest first).
  *

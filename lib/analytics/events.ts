@@ -58,7 +58,7 @@ export const ANALYTICS_EVENTS = {
   chart_to_rfq: ["cta_location", "product_slug", "product_family"],
   /**
    * W18.3: a fa chart page's «اشتراک در واتساپ» / «اشتراک در تلگرام» link or «کپی لینک برای بله» (copy-link) button was
-   * clicked; `share_method`: whatsapp | telegram | bale. Sent instead of whatsapp_click: sharing is not a contact with Ahan Asa.
+   * clicked; `share_method`: whatsapp | telegram | bale. Sent instead of whatsapp_click: sharing is not a contact with Ahan Assa.
    */
   chart_share: ["share_method", "product_slug"],
   /** W18.2: the en/ar "Steel market indicators" page was viewed; `page_lang` en | ar, `indicator_count` = indicators shown. */

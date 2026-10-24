@@ -2,7 +2,7 @@ import type { Locale } from "../../config/locales.ts";
 
 /**
  * W16.3 (D-SEO, docs/seo/keyword-map.md §5.6, §6 P2-1; owner D-COMPANY-INFO 2026-10-13: the raw materials
- * Ahan Asa sources are billet, DRI, iron ore and briquette, RFQ-only, per ton, never priced; export to Iraq
+ * Ahan Assa sources are billet, DRI, iron ore and briquette, RFQ-only, per ton, never priced; export to Iraq
  * and other countries is approved).
  *
  * `/raw-materials` and one page per material, in fa, en and ar. Hard rules, checked by
@@ -72,9 +72,9 @@ export const RAW_MATERIALS_UI: Record<Locale, RawMaterialsUiCopy> = {
     eyebrow: "Steel raw materials",
     hubTitle: "Iranian Steel Raw Materials — Billet, DRI, Iron Ore, HBI",
     hubH1: "Steel raw materials",
-    hubDescription: "Ahan Asa sources steel billet, direct reduced iron (DRI), iron ore and hot briquetted iron (HBI) in Iran for melt shops, rolling mills and export buyers. On request only.",
+    hubDescription: "Ahan Assa sources steel billet, direct reduced iron (DRI), iron ore and hot briquetted iron (HBI) in Iran for melt shops, rolling mills and export buyers. On request only.",
     hubIntro:
-      "Besides finished long and flat products, Ahan Asa sources the raw materials of the steel chain for melt shops, rolling mills and export buyers: steel billet, direct reduced iron, iron ore and hot briquetted iron. These materials are traded by the tonne and are offered on request only: send the specification, quantity and delivery terms, and we review your request and reply with a sourcing proposal.",
+      "Besides finished long and flat products, Ahan Assa sources the raw materials of the steel chain for melt shops, rolling mills and export buyers: steel billet, direct reduced iron, iron ore and hot briquetted iron. These materials are traded by the tonne and are offered on request only: send the specification, quantity and delivery terms, and we review your request and reply with a sourcing proposal.",
     bannerTitle: "On request only",
     bannerBody: "Raw materials are offered on request only. The offer follows our review of your request: specification, tonnage, timing and delivery terms.",
     whatTitle: "What it is",

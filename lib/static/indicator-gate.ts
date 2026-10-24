@@ -9,7 +9,7 @@ import { elementsWithAttribute, residue, visibleText } from "./price-gate.ts";
  *
  * 1. Private snapshot: `published_indicators` / `published_indicator_points` rows carry exactly their columns.
  * 2. Every element that shows ONE indicator (`data-aa-indicator="<code>"`, any locale) names an indicator of the
- *    snapshot and carries the locale's «reference index — not an Ahan Asa selling price» label, its source (the
+ *    snapshot and carries the locale's «reference index — not an Ahan Assa selling price» label, its source (the
  *    attribution) and its date — and nothing else than that indicator's own texts and values (lib/indicators/
  *    presentation.ts allowedIndicatorTexts).
  * 3. The fa drivers line (`data-aa-indicator-line="<code> …"`): fa pages only; every code is in the snapshot; it

@@ -71,13 +71,13 @@ test("fa chart image gate: another amount or day, a factory name or advice text 
   assert.match(checkShareImage(faImage(), "fa", { ...faCheck, price: { ...faCheck.price, xid: "CVAR-999999" } }).join(), /no snapshot price row/);
 });
 
-test("en/ar indicators images: reference label, every row's value, date and source; no Ahan Asa price, script rules hold", () => {
+test("en/ar indicators images: reference label, every row's value, date and source; no Ahan Assa price, script rules hold", () => {
   for (const locale of ["en", "ar"] as const) {
     const image = indicatorsShareImage(locale, ALL, LOGO);
     assert.deepEqual(checkShareImage(image, locale, { indicators: ALL, sourceNames: null }), [], locale);
     const texts = image.texts.map((t) => t.text).join(" ");
-    assert.ok(texts.includes(INDICATOR_COPY[locale].reference), "the «reference index — not an Ahan Asa selling price» label");
-    assert.ok(!/تومان|Toman|toman/.test(texts), "no Ahan Asa price unit");
+    assert.ok(texts.includes(INDICATOR_COPY[locale].reference), "the «reference index — not an Ahan Assa selling price» label");
+    assert.ok(!/تومان|Toman|toman/.test(texts), "no Ahan Assa price unit");
     assert.ok(!/[▲▼]/.test(texts), "no ▲/▼ (Estedad has no glyph; en never shows one)");
     assert.equal(new Set(image.texts.flatMap((t) => (t.indicator ? [t.indicator] : []))).size, ALL.length, "one row per indicator");
   }
@@ -91,7 +91,7 @@ test("en/ar indicators image gate: no label, a foreign row text, an unknown indi
   const noLabel: ShareImage = { ...en, texts: en.texts.filter((t) => t.text !== INDICATOR_COPY.en.reference) };
   assert.match(checkShareImage(noLabel, "en", check).join(), /no «reference index/);
   assert.match(checkShareImage(withText(en, "Good time to buy", ALL[0].code), "en", check).join(), /text not allowed/);
-  assert.match(checkShareImage(withText(en, "Ahan Asa price 48,947"), "en", check).join(), /text not allowed/);
+  assert.match(checkShareImage(withText(en, "Ahan Assa price 48,947"), "en", check).join(), /text not allowed/);
   assert.match(checkShareImage(withText(en, "x", "ime_billet"), "en", check).join(), /ime_billet is not in the snapshot/);
   const ar = indicatorsShareImage("ar", ALL, LOGO);
   const noSource: ShareImage = { ...ar, texts: ar.texts.filter((t) => !(t.indicator === ALL[1].code && t.text.startsWith(INDICATOR_COPY.ar.source))) };
@@ -246,7 +246,7 @@ test("en/ar indicator strip: home (under the hero), /export, /ar/prices; every c
   assert.match(card, /className="hover:text-navy relative z-10 underline/, "the source link stays clickable above the stretched link");
   assert.doesNotMatch(card, /success|danger|text-green|text-red/);
   // en: never a glyph, the change reads +/−; the reference label is the owner's text.
-  assert.equal(INDICATOR_COPY.en.reference, "Reference index — not an Ahan Asa selling price");
+  assert.equal(INDICATOR_COPY.en.reference, "Reference index — not an Ahan Assa selling price");
   assert.equal(INDICATOR_COPY.ar.reference, "مؤشر مرجعي — ليس سعر بيع لدى آهن آسا");
 });
 

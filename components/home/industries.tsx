@@ -13,7 +13,7 @@ const HEADING_ID = "home-industries-heading";
  * and styled per
  * docs/homepage/AHANASSA_HOMEPAGE_VISUAL_SYSTEM_AND_MOTION_FREEZE_V1.0.md.
  *
- * Answers exactly one buyer question (§1): "Does Ahan Asa understand purchases
+ * Answers exactly one buyer question (§1): "Does Ahan Assa understand purchases
  * or projects like mine?" It is NOT a customer portfolio, case-study block,
  * certification display, service-promise section, product catalog, purchase
  * process, or operational Evidence — §1 assigns each of those elsewhere, which

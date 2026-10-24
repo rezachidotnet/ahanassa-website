@@ -42,14 +42,14 @@ export function buildLlmsTxt(pages: readonly LlmsPage[]): string {
   const hours = WORKING_HOURS_TEXT.en;
 
   return [
-    "# Ahan Asa (آهن آسا)",
+    "# Ahan Assa (آهن آسا)",
     "",
-    `> Ahan Asa is a B2B steel procurement partner in Iran: ${ahanassa ? ahanassa.field.en.toLowerCase() : "steel supply"}. Buyers send a list of the steel they need; Ahan Asa reviews it, compares sourcing options from Iranian mills and replies with a quote. Ahan Asa is a member of the ${PARENT_ORGANIZATION.name.en} group (${PARENT_ORGANIZATION.url}), active in steel structures since ${PARENT_ORGANIZATION.foundingDate}.`,
+    `> Ahan Assa is a B2B steel procurement partner in Iran: ${ahanassa ? ahanassa.field.en.toLowerCase() : "steel supply"}. Buyers send a list of the steel they need; Ahan Assa reviews it, compares sourcing options from Iranian mills and replies with a quote. Ahan Assa is a member of the ${PARENT_ORGANIZATION.name.en} group (${PARENT_ORGANIZATION.url}), active in steel structures since ${PARENT_ORGANIZATION.foundingDate}.`,
     "",
     "The site is in three languages: Persian (default, no prefix), English (/en) and Arabic (/ar). Daily prices are published on the Persian and Arabic pages only; English pages carry no prices. Raw materials are quoted on request only. Every page also has a Markdown version: add `.md` to the URL (the home page is `/index.md`) or send `Accept: text/markdown`.",
     "",
     ...section("Company", [
-      link("/en/about", "About Ahan Asa", "history, what we supply, the group companies, management"),
+      link("/en/about", "About Ahan Assa", "history, what we supply, the group companies, management"),
       link("/about", "درباره آهن آسا (Persian)"),
       link("/ar/about", "من نحن (Arabic)"),
     ]),
@@ -66,11 +66,11 @@ export function buildLlmsTxt(pages: readonly LlmsPage[]): string {
       ...under("/ar/prices/").map((r) => link(r, `${familyName(r)} prices (Arabic)`)),
     ], "Prices are indicative and dated; the final price of an order comes with the quote."),
     // W18.2: the fa chart pages (named by product slug: their H1 is Persian) and the en/ar indicators page.
-    ...section("Price charts (Persian only)", under("/prices/chart/").map((r) => link(r, `Price chart and 90-day trend: ${r.split("/").pop()} (Persian)`)), "Ahan Asa's own published daily price of one reference size per product, with a daily data table. A record of past prices, not a forecast."),
+    ...section("Price charts (Persian only)", under("/prices/chart/").map((r) => link(r, `Price chart and 90-day trend: ${r.split("/").pop()} (Persian)`)), "Ahan Assa's own published daily price of one reference size per product, with a daily data table. A record of past prices, not a forecast."),
     ...section("Steel market indicators (English and Arabic)", [
       link("/en/market-indicators", "Steel market indicators (English)", "iron ore, the US hot-rolled steel producer price index and the US dollar Exchange Center rate in Iran, with sources and dates"),
       link("/ar/market-indicators", "Steel market indicators (Arabic)"),
-    ], "Reference indices from public sources, each with its source and date. They are not Ahan Asa selling prices."),
+    ], "Reference indices from public sources, each with its source and date. They are not Ahan Assa selling prices."),
     ...section("Tools", [
       link("/en/tools/weight-calculator", "Steel weight calculator (English)"),
       link("/tools/weight-calculator", "Steel weight calculator (Persian)"),

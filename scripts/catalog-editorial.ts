@@ -641,7 +641,7 @@ function mustReadEnv(flags: ReturnType<typeof parseArgs>["flags"]): CliEnv {
 
 function printUsage(): void {
   console.log(`
-Ahan Asa Catalog editorial operator CLI (docs/CATALOG_EDITORIAL_OPERATIONS.md)
+Ahan Assa Catalog editorial operator CLI (docs/CATALOG_EDITORIAL_OPERATIONS.md)
 
   list [--locale fa|en|ar] [--env local|staging|production]
   show <template-xid> [--env <env>]

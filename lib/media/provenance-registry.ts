@@ -86,7 +86,7 @@ export interface MediaProvenanceRecord {
    * EXPLICIT, MACHINE-CHECKABLE FLAG, not prose in a note.
    *
    * `true` means: this asset must never be captioned, described, labelled or
-   * presented as evidence of a real Ahan Asa project, facility, customer,
+   * presented as evidence of a real Ahan Assa project, facility, customer,
    * delivery or capability (Industries V1.0 §8; MEDIA_GUIDELINES.md §4.4, §29).
    * It is a required field so that every future entry has to answer it.
    */
@@ -132,7 +132,7 @@ export interface MediaProvenanceRecord {
  * §29's public-disclosure trigger is assessed and NOT met: disclosure is
  * required "when a reasonable visitor could interpret it as documentary". These
  * render with empty alt, no caption, no number, no logo and no metric, under
- * headings that name a PURCHASING SECTOR rather than any Ahan Asa work, and
+ * headings that name a PURCHASING SECTOR rather than any Ahan Assa work, and
  * Industries V1.0 §10 states the sectors are "not proof of historical
  * projects". Nothing presents them as documentary. If a future placement ever
  * captions one, that assessment must be redone.
@@ -153,7 +153,7 @@ const INDUSTRIES_APPROVED_AT = "2026-09-12";
 
 const INDUSTRIES_NOTE =
   "Owner-provided, owner-approved generic sector illustration for the Homepage Industries / Use Cases section. " +
-  "Depicts the purchasing sector only. Not a photograph of any Ahan Asa project, facility, customer, delivery or capability, " +
+  "Depicts the purchasing sector only. Not a photograph of any Ahan Assa project, facility, customer, delivery or capability, " +
   "and must never be captioned or described as one. Origin (photographic vs. generated) is not established by any supplied " +
   "record, so the conservative `conceptual` truth class applies — see the truth-class note in this module. " +
   "No third-party licence document was supplied; the rights basis is the owner's own supply and approval.";

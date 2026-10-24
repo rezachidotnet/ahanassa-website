@@ -91,7 +91,7 @@ test("no e-mail anywhere else: no other app/ or components/ file uses the consta
 
 test("llms-full.txt drops the e-mail from its copy of en/contact, keeps the phone; the leak scan passes it", () => {
   const contactMd = `# Contact\n\nآهن آسا Hezar Jarib Street, No. 6 Phone: [031-35134](tel:+983135134) Email: [${CONTACT_SALES_EMAIL}](mailto:${CONTACT_SALES_EMAIL})\n\nNext steps`;
-  const full = buildLlmsFullTxt("# Ahan Asa", [{ file: "en/contact.html", h1: "Contact" }, { file: "contact.html", h1: "تماس" }], (md) => (md === "en/contact.md" ? contactMd : "x"));
+  const full = buildLlmsFullTxt("# Ahan Assa", [{ file: "en/contact.html", h1: "Contact" }, { file: "contact.html", h1: "تماس" }], (md) => (md === "en/contact.md" ? contactMd : "x"));
   assert.ok(!full.includes("@"), full);
   assert.match(full, /Phone: \[031-35134\]\(tel:\+983135134\)\n\nNext steps/);
   assert.deepEqual(contacts("llms-full.txt", full), []);

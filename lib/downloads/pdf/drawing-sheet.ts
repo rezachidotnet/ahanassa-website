@@ -62,7 +62,7 @@ export async function renderDrawingSheet(input: DrawingSheetInput): Promise<Rend
   const doc = await PDFDocument.create({ updateMetadata: false });
   doc.setTitle(`${drawing.title} - section drawing`);
   doc.setSubject("Section drawing, dimensions in mm");
-  doc.setAuthor("Ahan Asa");
+  doc.setAuthor("Ahan Assa");
   doc.setCreator("ahanassa.com download center");
   doc.setProducer("ahanassa.com");
   doc.setCreationDate(input.date);
@@ -78,7 +78,7 @@ export async function renderDrawingSheet(input: DrawingSheetInput): Promise<Rend
 
   // Header band.
   page.drawRectangle({ x: 0, y: H - 6, width: W, height: 6, color: COLORS.navy });
-  text("AHAN ASA  |  SECTION DRAWING", M, H - M + 4, 9, bold, COLORS.copper);
+  text("AHAN ASSA  |  SECTION DRAWING", M, H - M + 4, 9, bold, COLORS.copper);
   text(drawing.title, M, H - M - 24, 22, bold, COLORS.navy);
 
   // Drawing box: everything the DXF has, fitted and centred.
@@ -125,7 +125,7 @@ export async function renderDrawingSheet(input: DrawingSheetInput): Promise<Rend
 
   // Footer.
   page.drawLine({ start: { x: M, y: M + 14 }, end: { x: W - M, y: M + 14 }, thickness: 0.5, color: COLORS.border });
-  text("Nominal dimensions from the Ahan Asa catalog. Dimensions in mm.", M, M, 8, regular, COLORS.muted);
+  text("Nominal dimensions from the Ahan Assa catalog. Dimensions in mm.", M, M, 8, regular, COLORS.muted);
   text("www.ahanassa.com", W - M - bold.widthOfTextAtSize("www.ahanassa.com", 8), M, 8, bold, COLORS.navy);
 
   const bytes = await doc.save({ useObjectStreams: true });

@@ -104,7 +104,7 @@ const copy: Record<Locale, RowCopy> = {
     quantityInvalid: "Enter a quantity",
     lengthLabel: "Requested length",
     lengthPlaceholder: "e.g. 6000 (optional, mm)",
-    lengthHelp: "This is your request only — final size and length are reviewed by Ahan Asa's team.",
+    lengthHelp: "This is your request only — final size and length are reviewed by Ahan Assa's team.",
     lengthInvalid: "Enter a positive whole number",
     catalogLoading: "Loading the product list… Meanwhile you can choose “Other / custom item”.",
     catalogFailed: "The product list could not be loaded — describe the item with “Other / custom item”.",

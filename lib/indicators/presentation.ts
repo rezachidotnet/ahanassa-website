@@ -13,7 +13,7 @@ import { formatPersianDate } from "../pricing/price-block-presentation.ts";
  *   value shows its DATA MONTH, so the publication lag is not read as stale data). The gate checks it
  *   (lib/static/indicator-gate.ts).
  * - Signals only: the last value and its change against the previous one. Never a forecast, never "buy now".
- * - en: no Ahan Asa price anywhere, and no ▲/▼ (the price gate keeps both off en): the change reads "+0.4%".
+ * - en: no Ahan Assa price anywhere, and no ▲/▼ (the price gate keeps both off en): the change reads "+0.4%".
  * - ar: Arabic letters only (ي ك), Arabic-Indic digits, like the ar price cells.
  * - Indicators are neutral in colour (no green/red): a market move is not a recommendation.
  */
@@ -86,7 +86,7 @@ export const INDICATOR_COPY: Record<Locale, IndicatorCopy> = {
     chartLabel: (name) => `نمودار ${name} در ۱۲ ماه اخیر`,
   },
   en: {
-    reference: "Reference index — not an Ahan Asa selling price",
+    reference: "Reference index — not an Ahan Assa selling price",
     source: "Source",
     dataMonth: "Data month",
     date: "Date",
@@ -95,7 +95,7 @@ export const INDICATOR_COPY: Record<Locale, IndicatorCopy> = {
     unchanged: "unchanged",
     monthlyNote: "Monthly; each month is published about 4–6 weeks later.",
     dailyNote: "Daily, on working days.",
-    note: "These figures are reference indices of the global market and the exchange rate, not Ahan Asa selling prices. They show market direction only and are not a forecast or buying advice.",
+    note: "These figures are reference indices of the global market and the exchange rate, not Ahan Assa selling prices. They show market direction only and are not a forecast or buying advice.",
     fallback: "fallback series (the primary series has no newer data)",
     tableDate: "Date",
     tableValue: "Value",

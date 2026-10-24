@@ -51,7 +51,7 @@ const copy: Record<Locale, Omit<LivechatCopy, "label" | "whatsapp" | "newTab">> 
   },
   en: {
     title: "Chat with a sales expert",
-    frameTitle: "Live chat with an Ahan Asa sales expert",
+    frameTitle: "Live chat with an Ahan Assa sales expert",
     loading: "Connecting you to a sales expert…",
     unavailable: "Live chat is not available right now. You can reach us here instead:",
     rfq: "Send your purchase list",

@@ -5,11 +5,11 @@
  * be sourced from the synchronized D1 layer (never invented, never a live
  * Odoo call), which does not exist yet. This dataset exists only to
  * demonstrate the catalog page's layout/filtering pattern and must never be
- * presented as Ahan Asa's actual current offering — every catalog route
+ * presented as Ahan Assa's actual current offering — every catalog route
  * built on this data is non-indexable and carries a visible "sample data"
  * notice (see app/[locale]/products/*). Grades/standards listed are real
  * published international designations (ASTM/EN/DIN/JIS/GOST etc.) used
- * only as illustrative category examples, not as a claim that Ahan Asa
+ * only as illustrative category examples, not as a claim that Ahan Assa
  * currently stocks or supplies them.
  *
  * Content is Persian-only; see the catalog pages' locale notice for why.

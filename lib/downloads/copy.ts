@@ -155,9 +155,9 @@ export const DOWNLOADS_COPY: Record<Locale, DownloadsCopy> = {
   en: {
     nav: "Download Center",
     title: "Download Center: section DXF drawings, spec sheets and steel catalogs",
-    description: "Download Ahan Asa's steel section drawings as DXF (opens in AutoCAD), a spec sheet for each product family, the steel products and raw materials catalogs, and the item-list template.",
+    description: "Download Ahan Assa's steel section drawings as DXF (opens in AutoCAD), a spec sheet for each product family, the steel products and raw materials catalogs, and the item-list template.",
     h1: "Download Center",
-    intro: "Ahan Asa's technical files are built from the same catalog data as this site and regenerated with every catalog update. None of them carries a price; for prices and a supply proposal, send your purchase list.",
+    intro: "Ahan Assa's technical files are built from the same catalog data as this site and regenerated with every catalog update. None of them carries a price; for prices and a supply proposal, send your purchase list.",
     drawings: {
       title: "Section drawings (DXF)",
       body: "DXF files (open in AutoCAD and other CAD programs), in millimetres, with OUTLINE, DIM and TEXT layers. A size's drawing is published only when its full cross-section, radii included, is in the catalog.",
@@ -170,7 +170,7 @@ export const DOWNLOADS_COPY: Record<Locale, DownloadsCopy> = {
     specSheets: { title: "Spec sheets (PDF)", body: "One per product family: dimensions, nominal weights, standard, grade and market names.", pdf: "PDF" },
     catalogs: {
       title: "Catalogs (PDF)",
-      body: "Ahan Asa catalogs in Persian, English and Arabic, without prices.",
+      body: "Ahan Assa catalogs in Persian, English and Arabic, without prices.",
       sections: "Sections & steel products catalog",
       sectionsBody: "Every product family of the site's catalog, with dimension and nominal weight tables.",
       raw: "Raw materials catalog",
@@ -225,7 +225,7 @@ export const DOWNLOADS_COPY: Record<Locale, DownloadsCopy> = {
       noPrices: "This document contains no prices. For prices and a supply proposal, send your purchase list at www.ahanassa.com/en/contact.",
       specOnRequest: "Specifications: on request",
       rawIntro: "Raw materials are supplied on request for quotation only; no daily price is published. State the specification, quantity, delivery point and preferred origin in your request.",
-      contactTitle: "Contact Ahan Asa",
+      contactTitle: "Contact Ahan Assa",
       phone: "Phone",
       website: "Website",
       request: "Send a purchase list",

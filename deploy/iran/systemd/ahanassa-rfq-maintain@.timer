@@ -1,6 +1,6 @@
 # W32 — daily at 00:30 UTC (04:00 Tehran) (deploy/iran/RUNBOOK_P2.md).
 [Unit]
-Description=Ahan Asa domestic RFQ: maintain timer (%i)
+Description=Ahan Assa domestic RFQ: maintain timer (%i)
 
 [Timer]
 OnCalendar=*-*-* 00:30:00 UTC

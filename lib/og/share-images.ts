@@ -20,11 +20,11 @@ import { SHARE_IMAGE_SIZE } from "./share-image-paths.ts";
  *
  * What an image may show follows the page it belongs to:
  * - fa chart page: the product, its reference size, the price the page shows (the lowest of that size, Toman/kg,
- *   VAT included) with its Tehran day, and the 90-day line of Ahan Asa's own published prices. No factory, no
+ *   VAT included) with its Tehran day, and the 90-day line of Ahan Assa's own published prices. No factory, no
  *   delivery place.
- * - en/ar market indicators: the indicators only — no Ahan Asa price on either (en never shows one; the ar page
+ * - en/ar market indicators: the indicators only — no Ahan Assa price on either (en never shows one; the ar page
  *   carries no inline price, owner 2026-10-16). Each indicator row shows its value, change, date (data month for a
- *   monthly series) and source, under the locale's «reference index — not an Ahan Asa selling price» banner; the
+ *   monthly series) and source, under the locale's «reference index — not an Ahan Assa selling price» banner; the
  *   line is the last 90 days (daily) or 12 months (monthly).
  *
  * A raster cannot be scanned by the artifact gate, so every drawn text is returned with the SVG and checked by
@@ -48,7 +48,7 @@ export interface ShareImage {
 
 /** Copy that exists only on the share images. */
 export const SHARE_IMAGE_COPY = {
-  brand: { fa: "آهن آسا", en: "Ahan Asa", ar: "آهن آسا" },
+  brand: { fa: "آهن آسا", en: "Ahan Assa", ar: "آهن آسا" },
   domain: "www.ahanassa.com",
   window: {
     en: { daily: "Last 90 days", monthly: "Last 12 months" },
@@ -130,7 +130,7 @@ function sparkline(points: readonly LinePoint[], from: string, to: string, box: 
   return `<g transform="translate(${box.x} ${box.y})"><rect width="${box.w}" height="${box.h}" rx="10" fill="${LINE_BG}"/><line x1="0" x2="${box.w}" y1="${g.max}" y2="${g.max}" stroke="#d0d5dd" stroke-width="1"/><line x1="0" x2="${box.w}" y1="${g.min}" y2="${g.min}" stroke="#d0d5dd" stroke-width="1"/><path d="${area}" fill="${stroke}" fill-opacity="0.08"/><path d="${g.path}" fill="none" stroke="${stroke}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${end.x}" cy="${end.y}" r="8" fill="${COPPER}" stroke="#ffffff" stroke-width="3"/></g>`;
 }
 
-/** The navy footer band: the Ahan Asa mark and name at the start edge, the domain at the end edge. */
+/** The navy footer band: the Ahan Assa mark and name at the start edge, the domain at the end edge. */
 function footer(locale: "fa" | "en" | "ar", logoDataUri: string): string {
   const rtl = locale !== "en";
   const y0 = H - FOOTER_H;
@@ -205,7 +205,7 @@ export function indicatorSharePoints(indicator: Indicator): { points: LinePoint[
   return { points, from: points[0].date, to: last };
 }
 
-/** The en/ar market indicators page's share image (indicators only, never an Ahan Asa price). */
+/** The en/ar market indicators page's share image (indicators only, never an Ahan Assa price). */
 export function indicatorsShareImage(locale: MarketIndicatorsLocale, indicators: readonly Indicator[], logoDataUri: string): ShareImage {
   const rtl = locale === "ar";
   const texts: ShareImageText[] = [];
@@ -288,7 +288,7 @@ export function checkShareImage(image: ShareImage, label: string, check: ShareIm
   const locale = image.locale as MarketIndicatorsLocale;
   const byCode = new Map((check.indicators ?? []).map((i) => [i.code as string, i]));
   const own = [MARKET_INDICATORS_COPY[locale].eyebrow, MARKET_INDICATORS_COPY[locale].title, INDICATOR_COPY[locale].reference, ...Object.values(SHARE_IMAGE_COPY.window[locale]), SHARE_IMAGE_COPY.brand[locale], SHARE_IMAGE_COPY.domain];
-  if (!all.includes(INDICATOR_COPY[locale].reference)) failures.push(`${label}: no «reference index — not an Ahan Asa selling price» label`);
+  if (!all.includes(INDICATOR_COPY[locale].reference)) failures.push(`${label}: no «reference index — not an Ahan Assa selling price» label`);
   for (const t of image.texts.filter((x) => x.indicator === null)) if (!own.includes(t.text)) failures.push(`${label}: text not allowed: ${t.text.slice(0, 80)}`);
   const codes = new Set(image.texts.flatMap((t) => (t.indicator ? [t.indicator] : [])));
   for (const code of codes) {

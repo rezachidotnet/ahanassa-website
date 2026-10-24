@@ -1,7 +1,7 @@
 /**
  * W23 — the bulletin card: a vertical 1080×1350 image (4:5, full width in both apps on a phone) drawn as SVG and
  * rasterized with the site's own share-image pipeline (lib/articles/cover-raster.ts: resvg + the committed Estedad
- * fonts). The Ahan Asa mark and the short site URL are inside the image. Pure apart from `renderCard`.
+ * fonts). The Ahan Assa mark and the short site URL are inside the image. Pure apart from `renderCard`.
  *
  * Estedad has no ▲/▼ glyph, so the arrows are drawn as paths; the colour repeats the arrow and the % (W20.1 tones:
  * up green, down red), never alone. Every drawn text is returned for the pre-publish checks (a raster cannot be

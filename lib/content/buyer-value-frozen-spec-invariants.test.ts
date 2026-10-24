@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { homepageCopy } from "./homepage.ts";
 import { buyerValuePromiseIndex, BUYER_VALUE_PROMISE_COUNT } from "./buyer-value.ts";
+import { withCurrentLatinBrand } from "../metadata/site.ts";
 
 /**
  * docs/buyer-value/AHANASSA_BUYER_VALUE_SERVICE_PROMISE_COMPONENT_FREEZE_V1.0.md
@@ -51,7 +52,8 @@ const COMPONENT_SOURCE = readSource(COMPONENT);
 const COMPONENT_CODE = readCode(COMPONENT);
 const PAGE_CODE = readCode("app/[locale]/page.tsx");
 const SPEC_PATH = "docs/buyer-value/AHANASSA_BUYER_VALUE_SERVICE_PROMISE_COMPONENT_FREEZE_V1.0.md";
-const SPEC = readSource(SPEC_PATH);
+// W44: the frozen copy read with the current Latin brand «Ahan Assa» (PROJECT_OVERRIDES.md §18); the freeze file keeps «Ahan Asa».
+const SPEC = withCurrentLatinBrand(readSource(SPEC_PATH));
 
 // The canonical copy, duplicated character-for-character from the freeze
 // rather than imported from the module under test. That duplication IS the
@@ -76,7 +78,7 @@ const FA = {
 
 const EN = {
   eyebrow: "Support throughout your purchase",
-  title: "How does Ahan Asa make buying steel easier for you?",
+  title: "How does Ahan Assa make buying steel easier for you?",
   body: "From submitting your request through completion of the agreed commitments, your purchase follows a clear path of review, coordination, and follow-up.",
   titles: [
     "A real specialist stays with your request",

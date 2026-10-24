@@ -91,7 +91,7 @@ function cover(d: BrandDocument, title: string, subtitle: string, locale: Locale
   page.drawRectangle({ x: 0, y: 0, width: W, height: 10, color: COLORS.copper });
   const markW = 150;
   d.mark(page, (W - markW) / 2, H - 170, markW, { body: COLORS.white, diamond: COLORS.copper });
-  const brand = locale === "en" ? "Ahan Asa" : "آهن آسا";
+  const brand = locale === "en" ? "Ahan Assa" : "آهن آسا";
   d.line(brand, { page, size: 26, weight: "extraBold", color: COLORS.white, x: W / 2, y: H - 330, align: "center" });
   if (locale === "fa") d.line(siteConfig.tagline, { page, size: 13, color: COLORS.accentOnNavy, x: W / 2, y: H - 360, align: "center" });
   page.drawRectangle({ x: W / 2 - 30, y: H - 395, width: 60, height: 2.5, color: COLORS.copper });

@@ -1,6 +1,6 @@
 # W32 (W29 P2) — daily: that copy + the files of UNDELIVERED RFQs → Arvan Object Storage (D-IR-9). deploy/iran/RUNBOOK_P2.md.
 [Unit]
-Description=Ahan Asa domestic RFQ: backup-offsite (%i)
+Description=Ahan Assa domestic RFQ: backup-offsite (%i)
 
 [Service]
 Type=oneshot
