@@ -138,7 +138,7 @@ export function statusNotice(date: string, platform: Platform): CaptionModel {
 
 const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 /** Bale always parses Markdown: drop the markup characters from plain text (never present in our copy anyway). */
-const escMd = (s: string) => s.replace(/[*_`[\]]/g, "");
+export const escMd = (s: string) => s.replace(/[*_`[\]]/g, "");
 
 /** The caption as each platform reads it. `includeRequest` = false for the status notice. */
 export function renderCaption(m: CaptionModel, platform: Platform, includeRequest = true): string {
