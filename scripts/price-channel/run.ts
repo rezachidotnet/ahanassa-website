@@ -12,7 +12,9 @@
  *     One scheduled run (the workflow on main). Env: PRICE_CHANNEL_MODE (off|test|public; anything else = off),
  *     PRICE_CHANNEL_TASK (auto|bulletin|exception), the bot secrets by name (TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID,
  *     TELEGRAM_TEST_CHANNEL_ID, BALE_BOT_TOKEN, BALE_CHANNEL_ID, optional BALE_TEST_CHANNEL_ID and
- *     TELEGRAM_OWNER_CHAT_ID), AHANASSA_PRICE_SOURCE_NAMES_FILE. The state file is rewritten after every step.
+ *     TELEGRAM_OWNER_CHAT_ID), AHANASSA_PRICE_SOURCE_NAMES_FILE. Owner alerts go to the Telegram owner chat (else the
+ *     Telegram TEST channel) and, when BALE_OWNER_CHAT_ID is set (W41), also to that Bale chat; either may be absent.
+ *     The state file is rewritten after every step.
  *     Exit 1 when a delivery failed/is uncertain or the source failed at the deadline.
  */
 import fs from "node:fs";
@@ -25,6 +27,7 @@ import { tehranDate, weekday } from "../../lib/price-channel/calendar.ts";
 import { renderCard } from "../../lib/price-channel/card.ts";
 import { captionWords } from "../../lib/price-channel/compose.ts";
 import { fetchPricePage, parsePricePage, type FetchedPage } from "../../lib/price-channel/source.ts";
+import { ownerAlerter } from "../../lib/price-channel/owner.ts";
 import { buildBulletinPost, buildStatusPost, checkTexts, parseMode, runChannel, type Secrets } from "../../lib/price-channel/run.ts";
 import { emptyState, parseState, type ChannelState } from "../../lib/price-channel/state.ts";
 import { loadSourceNames } from "../../lib/static/source-name-scan.ts";
@@ -118,10 +121,7 @@ if (command === "dry-run") {
     fetchPage: () => fetchPricePage(CHANNEL_CONFIG.origin, CHANNEL_CONFIG.pricesPath),
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
     apis: { telegram, bale },
-    owner: telegram && ownerChat ? async (text) => {
-      const r = await telegram.sendMessage(ownerChat, text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
-      if (r.kind !== "sent") throw new Error(r.error);
-    } : null,
+    owner: ownerAlerter({ telegram, telegramChat: ownerChat, bale, baleChat: env.BALE_OWNER_CHAT_ID }),
     state,
     save: (s) => writeState(stateFile, s),
     logoDataUri,
