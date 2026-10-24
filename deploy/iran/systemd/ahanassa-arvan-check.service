@@ -1,7 +1,7 @@
 # W30 — weekly: does ArvanCloud's published edge list still equal the snapshot ufw was built from? Alert only; it never
 # changes ufw or nginx (a wrong list takes the site down). deploy/iran/FIREWALL.md §3.
 [Unit]
-Description=Ahan Asa: ArvanCloud edge range check (alert only)
+Description=Ahan Assa: ArvanCloud edge range check (alert only)
 After=network-online.target
 Wants=network-online.target
 

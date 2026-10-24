@@ -83,7 +83,7 @@ const FAMILY_DEFAULT_IMAGES: Record<string, string> = {};
 
 /**
  * A deliberately generic, non-product-specific illustration — not a photo of
- * any real Ahan Asa product, so it can never misrepresent one product as
+ * any real Ahan Assa product, so it can never misrepresent one product as
  * another. New asset, additive only; does not touch any of the 13 protected
  * photos.
  */

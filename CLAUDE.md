@@ -1,19 +1,19 @@
-# CLAUDE.md — Ahan Asa Repository Operating Contract
+# CLAUDE.md — Ahan Assa Repository Operating Contract
 
-> This is the repository-wide operating contract for Claude Code and other coding agents working on the Ahan Asa website. Read it completely before changing the repository.
+> This is the repository-wide operating contract for Claude Code and other coding agents working on the Ahan Assa website. Read it completely before changing the repository.
 
 ---
 
 ## 1. Document Control
 
-- **Project:** Ahan Asa | آهن آسا
+- **Project:** Ahan Assa | آهن آسا (Latin brand «Ahan Assa» since 2026-10-24 — `PROJECT_OVERRIDES.md` §18; was «Ahan Asa»)
 - **Canonical production origin:** `https://www.ahanassa.com`
 - **ERP origin:** `https://odoo.ahanassa.com`
 - **Owner:** Cyan Sanat Iranian Co. LTD
 - **Document role:** Root-level implementation entry point
 - **Status:** Active — canonical control layer, project pre-implementation; homepage visual reference registered; customer account/portal future-phase architecture registered; release governance active (§5b), DAR-059/060/061 resolved 2026-09-23
-- **Version:** 1.4.1
-- **Last updated:** 2026-09-23
+- **Version:** 1.4.2
+- **Last updated:** 2026-10-24
 
 ---
 

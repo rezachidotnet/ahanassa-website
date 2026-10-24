@@ -225,7 +225,7 @@ export async function runChannel(deps: RunDeps): Promise<RunOutcome> {
     deps.save(state);
     log(`owner alert: ${text}`);
     try {
-      await deps.owner?.(`[Ahan Asa price channel · ${mode} · ${date}] ${text}`);
+      await deps.owner?.(`[Ahan Assa price channel · ${mode} · ${date}] ${text}`);
     } catch (e) {
       log(`owner alert could not be sent: ${(e as Error).message}`);
     }

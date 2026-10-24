@@ -1,6 +1,6 @@
 # W32 (W29 P2) — every 5 min: status.json + state-change Bale alerts (no personal data). deploy/iran/RUNBOOK_P2.md.
 [Unit]
-Description=Ahan Asa domestic RFQ: health (%i)
+Description=Ahan Assa domestic RFQ: health (%i)
 
 [Service]
 Type=oneshot

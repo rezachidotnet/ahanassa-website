@@ -1,14 +1,14 @@
 # PROJECT_OVERRIDES.md
 
-## Ahan Asa Website — Current Binding Cross-Project Overrides
+## Ahan Assa Website — Current Binding Cross-Project Overrides
 
-**Project:** Ahan Asa | آهن آسا
+**Project:** Ahan Assa | آهن آسا
 **Domain:** `https://www.ahanassa.com`
 **ERP:** `https://odoo.ahanassa.com`
 **Document role:** Highest-authority record of confirmed decisions that supersede conflicting statements anywhere in the active `01-sources/` corpus or older historical source-layer references
-**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered; customer account/portal future-phase architecture registered 2026-08-28; Odoo RFQ-path version/mapping verified against the live environment 2026-08-28; production D1 jurisdiction (EU) confirmed and production D1 provisioned 2026-08-29; §7.2 phone status corrected 2026-09-13 to reflect the already-live 2026-09-02 owner confirmation (FOOTER-P1); §10's own stale phone-unconfirmed bullet reconciled 2026-09-13 (CI-CD-P1 governance pass); §7.1/§7.2 updated 2026-09-14 with new owner-confirmed phone (`03135134`, superseding the 2026-09-02 mobile number) and address plaque number (HP-CONTENT-P1, staging-only content patch); §8b note 2026-10-08: inner pages move to the rounded look (D-W10-1); §15 2026-10-14: a deployment waiting for the owner's approval is auto-approved after 6 h (W17.3); §7.2a 2026-10-16: company e-mail `sales@ahanassa.com`, /contact only (D-W207-EMAIL); §17 2026-10-21: metric-matched local fallback faces added to the site font (preload kept) (D-W253-FONT)
-**Version:** 2.9.0
-**Last updated:** 2026-10-21
+**Status:** Active — owner sign-off received on the findings this file previously flagged as unconfirmed; homepage visual reference registered; customer account/portal future-phase architecture registered 2026-08-28; Odoo RFQ-path version/mapping verified against the live environment 2026-08-28; production D1 jurisdiction (EU) confirmed and production D1 provisioned 2026-08-29; §7.2 phone status corrected 2026-09-13 to reflect the already-live 2026-09-02 owner confirmation (FOOTER-P1); §10's own stale phone-unconfirmed bullet reconciled 2026-09-13 (CI-CD-P1 governance pass); §7.1/§7.2 updated 2026-09-14 with new owner-confirmed phone (`03135134`, superseding the 2026-09-02 mobile number) and address plaque number (HP-CONTENT-P1, staging-only content patch); §8b note 2026-10-08: inner pages move to the rounded look (D-W10-1); §15 2026-10-14: a deployment waiting for the owner's approval is auto-approved after 6 h (W17.3); §7.2a 2026-10-16: company e-mail `sales@ahanassa.com`, /contact only (D-W207-EMAIL); §17 2026-10-21: metric-matched local fallback faces added to the site font (preload kept) (D-W253-FONT); §18 2026-10-24: the Latin brand name is «Ahan Assa» (D-W44-BRAND)
+**Version:** 2.10.0
+**Last updated:** 2026-10-24
 
 ---
 
@@ -509,6 +509,29 @@ Enforcement:
   - every complete fallback face.
 
 Detail: `DOCUMENT_AUDIT_REPORT.md` DAR-067.
+
+---
+
+## 18. Latin brand name «Ahan Assa» — OWNER-CONFIRMED
+
+```text
+BRAND_LATIN                       = Ahan Assa          (was «Ahan Asa» until 2026-10-24)
+BRAND_PERSIAN                     = آهن آسا            (unchanged)
+DOMAIN / URLS / HANDLES           = ahanassa           (unchanged: www.ahanassa.com, e-mail, slugs, file names, code identifiers, secrets, workflow names)
+LEGACY_LATIN_SPELLING             = «Ahan Asa» — only as a JSON-LD alternateName, never in visible copy
+```
+
+**Status:** OWNER-CONFIRMED 2026-10-24 (W44, decision D-W44-BRAND).
+
+Scope: every user-visible Latin brand string on the site — en/ar page copy, `<title>` suffix, meta descriptions, `og:site_name` (en), the web app manifest, the generated PDFs (catalogs, spec sheets, section drawings) and DXF title blocks, share images, `llms.txt`/Markdown mirrors, WhatsApp/live-chat copy, the price-channel owner messages and the Iran mirror's placeholder page. Variants («AhanAsa», «Ahan-Asa») follow the same rule.
+
+JSON-LD: the `Organization`, `LocalBusiness` and `WebSite` nodes carry `name` «Ahan Assa» and `alternateName` [«آهن آسا», «Ahan Asa»] (`lib/metadata/site.ts#BRAND_SCHEMA_NAMES`), so search engines link the old spelling and the Persian name to the same entity.
+
+Text the website does not own is shown with the current name while its source catches up (`lib/metadata/site.ts#withCurrentLatinBrand`): the content repo's articles and covers (applied when an article row is built; the legacy en author «Ahan Asa Editorial Team» is accepted on input) and Odoo's catalog SEO texts (applied when a product SEO row is read). The Odoo modules and the content repo's own schema/prompts need their own changes in those repositories.
+
+Enforcement: the artifact gate (`lib/static/brand-name-gate.ts`) fails a build whose public text output contains the legacy spelling anywhere except a JSON-LD `alternateName`.
+
+`01-sources/` still says «Ahan Asa» throughout (immutable corpus); this section supersedes it for the Latin name. Detail: `DOCUMENT_AUDIT_REPORT.md` DAR-068.
 
 ---
 

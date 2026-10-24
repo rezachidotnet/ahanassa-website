@@ -1,6 +1,6 @@
 # W32 (W29 P2) — daily buffer hygiene (D-IR-1): PII clear 30 days after Odoo confirmed, local file retention, purge. deploy/iran/RUNBOOK_P2.md.
 [Unit]
-Description=Ahan Asa domestic RFQ: maintain (%i)
+Description=Ahan Assa domestic RFQ: maintain (%i)
 
 [Service]
 Type=oneshot

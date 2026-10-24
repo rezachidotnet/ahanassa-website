@@ -2,7 +2,7 @@
 # nginx -t), switch `current` atomically, reload nginx, smoke-test; on any failure keep / restore the previous release
 # and alert. Root, fixed code from /usr/local/lib/ahanassa (installed from the repository, never from a bundle).
 [Unit]
-Description=Ahan Asa domestic copy: activator (%i)
+Description=Ahan Assa domestic copy: activator (%i)
 # The path unit may fire again right after a run; never hit the start limit.
 StartLimitIntervalSec=0
 

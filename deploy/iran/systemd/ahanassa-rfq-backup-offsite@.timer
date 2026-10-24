@@ -1,6 +1,6 @@
 # W32 — daily at 01:15 UTC (deploy/iran/RUNBOOK_P2.md).
 [Unit]
-Description=Ahan Asa domestic RFQ: backup-offsite timer (%i)
+Description=Ahan Assa domestic RFQ: backup-offsite timer (%i)
 
 [Timer]
 OnCalendar=*-*-* 01:15:00 UTC

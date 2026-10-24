@@ -85,7 +85,7 @@ export const marketsCopy: Record<Locale, MarketsCopy> = {
     },
     scopeTitle: "Scope of activity",
     scopeBody:
-      "Ahan Asa reviews purchase requests for projects and purchasing teams across a range of industries. Full details on covered regions and destinations will be published once the formal documentation is complete.",
+      "Ahan Assa reviews purchase requests for projects and purchasing teams across a range of industries. Full details on covered regions and destinations will be published once the formal documentation is complete.",
     industriesTitle: "Industries whose requests are reviewed",
     industries: ["Construction & infrastructure", "Re-rolling mills", "Foundries & melt shops", "Steel & metal fabrication", "Automotive & machinery"],
   },
@@ -137,7 +137,7 @@ export const industriesCopy: Record<Locale, IndustriesCopy> = {
     hero: {
       eyebrow: "Industries",
       title: "Which industries and projects are we suited for?",
-      body: "Ahan Asa reviews purchase requests from technical and purchasing teams across a range of industries; a fuller list of use cases will be published soon.",
+      body: "Ahan Assa reviews purchase requests from technical and purchasing teams across a range of industries; a fuller list of use cases will be published soon.",
     },
     listTitle: "Industries whose requests are reviewed",
     industries: ["Construction & infrastructure", "Re-rolling mills", "Foundries & melt shops", "Steel & metal fabrication", "Automotive & machinery"],
@@ -185,9 +185,9 @@ export const contactFaq: Record<Locale, FaqCopy> = {
     items: [
       { q: "What information do you need for an initial review?", a: "An existing invoice or purchase list, or a written description of the project requirement — product type, specification, quantity, and desired timing — is enough." },
       { q: "Can I send an invoice from another supplier?", a: "Yes. Sending an existing invoice or purchase list is an accepted way to start a review." },
-      { q: "Does Ahan Asa sell steel directly, or manage the purchase?", a: "Ahan Asa acts as a purchasing manager: reviewing your requirement, comparing sourcing options, and coordinating the purchasing path." },
+      { q: "Does Ahan Assa sell steel directly, or manage the purchase?", a: "Ahan Assa acts as a purchasing manager: reviewing your requirement, comparing sourcing options, and coordinating the purchasing path." },
       { q: "How are sourcing options and proposals evaluated?", a: "Based on specification, documentation, timing, logistics, and commercial terms relevant to the project requirement — not unit price alone." },
-      { q: "Does Ahan Asa also coordinate documentation and delivery?", a: "Yes, within the agreed scope of each request, documentation and delivery milestones are tracked." },
+      { q: "Does Ahan Assa also coordinate documentation and delivery?", a: "Yes, within the agreed scope of each request, documentation and delivery milestones are tracked." },
       { q: "What kind of projects is this suited for?", a: "Purchasing teams, contractors, and projects that need a more thorough review than a simple price quote." },
       { q: "What happens after I submit a request?", a: "Your request is reviewed by the review team, and the six-stage process above begins." },
     ],

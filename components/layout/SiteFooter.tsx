@@ -51,7 +51,7 @@ const copy: Record<
     rights: "کلیه حقوق این وب‌سایت متعلق به",
   },
   en: {
-    footerTitle: "Ahan Asa website footer",
+    footerTitle: "Ahan Assa website footer",
     role: "Steel supply for your project.",
     productsNav: "Products",
     catalogueCta: "Full catalog",

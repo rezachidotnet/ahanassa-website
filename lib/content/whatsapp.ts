@@ -32,7 +32,7 @@ const copy: Record<Locale, { label: string; hint: string; general: string; withR
   en: {
     label: "Send drawings via WhatsApp",
     hint: "Send drawings, material lists or files on WhatsApp; the website does not take uploads.",
-    general: "Hello. I would like to send drawings or a material list to Ahan Asa.",
+    general: "Hello. I would like to send drawings or a material list to Ahan Assa.",
     withReference: (reference) => `Hello. I am sending the drawings and files for request ${reference}.`,
   },
   ar: {
@@ -50,7 +50,7 @@ const copy: Record<Locale, { label: string; hint: string; general: string; withR
 export const STICKY_WHATSAPP_LOCALES = ["en", "ar"] as const satisfies readonly Locale[];
 
 const stickyCopy: Record<(typeof STICKY_WHATSAPP_LOCALES)[number], { label: string; greeting: string }> = {
-  en: { label: "Chat with Ahan Asa on WhatsApp", greeting: "Hello Ahan Asa, I have a question about steel supply." },
+  en: { label: "Chat with Ahan Assa on WhatsApp", greeting: "Hello Ahan Assa, I have a question about steel supply." },
   ar: { label: "تواصل مع آهن آسا عبر واتساب", greeting: "مرحبًا آهن آسا، لديّ استفسار عن توريد الحديد." },
 };
 

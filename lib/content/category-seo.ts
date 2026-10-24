@@ -57,7 +57,7 @@ export const CATEGORY_SEO: Record<string, Record<Locale, CategoryEntry>> = {
       h1: "Rebar",
       description: "Plain A1 (S240) and ribbed A2, A3 and A4 rebar to INSO 3132, with sizes and nominal weight per metre and per bar. Send your purchase list to request a quote.",
       intro:
-        "Rebar is the most used steel section in reinforced-concrete structures. This category covers plain rebar A1 (S240) and ribbed rebar A2 (Aj340), A3 (Aj400) and A4 (Aj500) to the Iranian national standard INSO 3132. Each product page lists the available sizes with the nominal weight per metre and per bar. Send your purchase list and Ahan Asa reviews the specification, the sourcing options and the delivery timing.",
+        "Rebar is the most used steel section in reinforced-concrete structures. This category covers plain rebar A1 (S240) and ribbed rebar A2 (Aj340), A3 (Aj400) and A4 (Aj500) to the Iranian national standard INSO 3132. Each product page lists the available sizes with the nominal weight per metre and per bar. Send your purchase list and Ahan Assa reviews the specification, the sourcing options and the delivery timing.",
     },
   },
   BEAM: {
@@ -85,7 +85,7 @@ export const CATEGORY_SEO: Record<string, Record<Locale, CategoryEntry>> = {
       h1: "Steel beams",
       description: "IPE (parallel flange) and IPN (tapered flange) steel beams to EN 10365, with section height and nominal weight per metre and per bar. Request a quote.",
       intro:
-        "Steel I-beams carry columns and girders in steel frames. This category covers IPE beams with parallel flanges and IPN (INP) beams with tapered flanges; the dimensions and masses of both follow EN 10365. Each product page lists the available sizes with the section height and the nominal weight per metre and per bar. Send your size list and quantities and Ahan Asa reviews the sourcing and delivery options.",
+        "Steel I-beams carry columns and girders in steel frames. This category covers IPE beams with parallel flanges and IPN (INP) beams with tapered flanges; the dimensions and masses of both follow EN 10365. Each product page lists the available sizes with the section height and the nominal weight per metre and per bar. Send your size list and quantities and Ahan Assa reviews the sourcing and delivery options.",
     },
   },
   ANGLE: {
@@ -113,7 +113,7 @@ export const CATEGORY_SEO: Record<string, Record<Locale, CategoryEntry>> = {
       h1: "Angles",
       description: "Equal-leg steel angles to EN 10056-1, with leg length, thickness and nominal weight per metre. Send your purchase list to request a quote.",
       intro:
-        "Steel angles are L-shaped sections used for connections, bracing, trusses and light structures. The angles in this category are equal-leg; a size is given as leg × leg × thickness (for example 50×50×5) to EN 10056-1. The nominal weight per metre is on the product page. Send the size, length and quantity you need with your purchase list and Ahan Asa reviews the sourcing options.",
+        "Steel angles are L-shaped sections used for connections, bracing, trusses and light structures. The angles in this category are equal-leg; a size is given as leg × leg × thickness (for example 50×50×5) to EN 10056-1. The nominal weight per metre is on the product page. Send the size, length and quantity you need with your purchase list and Ahan Assa reviews the sourcing options.",
     },
   },
   CHANNEL: {
@@ -141,7 +141,7 @@ export const CATEGORY_SEO: Record<string, Record<Locale, CategoryEntry>> = {
       h1: "Channels",
       description: "UPN (tapered flange) and UPE (parallel flange) steel channels to EN 10365, with section height and nominal weight per metre. Request a quote.",
       intro:
-        "Channels are U-shaped sections used in frames, secondary beams, lintels and industrial structures. This category covers UPN channels with tapered flanges and UPE channels with parallel flanges; the dimensions and masses of both follow EN 10365. The available sizes are on each product page, and the weight per metre on each standard (UPN and UPE) product page; the domestic channel is non-standard, has no standard weight and is sold by actual weight. Send your size list and quantities and Ahan Asa reviews the sourcing options.",
+        "Channels are U-shaped sections used in frames, secondary beams, lintels and industrial structures. This category covers UPN channels with tapered flanges and UPE channels with parallel flanges; the dimensions and masses of both follow EN 10365. The available sizes are on each product page, and the weight per metre on each standard (UPN and UPE) product page; the domestic channel is non-standard, has no standard weight and is sold by actual weight. Send your size list and quantities and Ahan Assa reviews the sourcing options.",
     },
   },
   BOX_SECTION: {
@@ -169,7 +169,7 @@ export const CATEGORY_SEO: Record<string, Record<Locale, CategoryEntry>> = {
       h1: "Hollow sections",
       description: "Cold-formed welded square (SHS) and rectangular (RHS) hollow sections to EN 10219-2, with dimensions, wall thickness and nominal weight per bar. Request a quote.",
       intro:
-        "Hollow sections are cold-formed welded tubes used in light columns, trusses, sheds, railings and steel structures. This category covers square (SHS) and rectangular (RHS) sections to EN 10219-2; each size is given by its outside dimensions and wall thickness. The nominal weights per metre and per bar are on each product page. Send sizes, thicknesses and quantities and Ahan Asa reviews the sourcing options.",
+        "Hollow sections are cold-formed welded tubes used in light columns, trusses, sheds, railings and steel structures. This category covers square (SHS) and rectangular (RHS) sections to EN 10219-2; each size is given by its outside dimensions and wall thickness. The nominal weights per metre and per bar are on each product page. Send sizes, thicknesses and quantities and Ahan Assa reviews the sourcing options.",
     },
   },
   SHEET_PLATE: {
@@ -225,7 +225,7 @@ export const CATEGORY_SEO: Record<string, Record<Locale, CategoryEntry>> = {
       h1: "Steel pipe",
       description: "Seamless steel pipe, ASTM A106 Grade B, dimensions to ASME B36.10M (SCH 40), with outside diameter, wall thickness and nominal weight per metre. Request a quote.",
       intro:
-        "Seamless pipe is used in fluid lines, industrial plants and structures. The pipe in this category is ASTM A106 Grade B, with outside diameter and wall thickness to ASME B36.10M, schedule 40. The nominal weights per metre and per length are on the product page. Send the diameter, schedule, length and quantity you need and Ahan Asa reviews the sourcing options.",
+        "Seamless pipe is used in fluid lines, industrial plants and structures. The pipe in this category is ASTM A106 Grade B, with outside diameter and wall thickness to ASME B36.10M, schedule 40. The nominal weights per metre and per length are on the product page. Send the diameter, schedule, length and quantity you need and Ahan Assa reviews the sourcing options.",
     },
   },
   // W17.4 — the W9.8 flat categories (Odoo ahanassa_catalog_flat_raw). Facts are the catalog's own: grade,
@@ -257,7 +257,7 @@ export const CATEGORY_SEO: Record<string, Record<Locale, CategoryEntry>> = {
       h1: "Galvanized steel",
       description: "Hot-dip galvanized steel coil and cut sheet, grade DX51D+Z to EN 10346, 0.4 to 3 mm thick, 1000 or 1250 mm wide. Send your list to request a quote.",
       intro:
-        "Galvanized steel is zinc-coated by hot dipping and is used for air ducts, shed roofing and cladding, household appliances and fabricated parts. This category covers galvanized coil and cut-to-length sheet in grade DX51D+Z to EN 10346, 0.4 to 3 mm thick; coils are 1000 or 1250 mm wide and sheets 1000×2000 or 1250×2500 mm. Coils are sold by actual weighbridge weight. Send thickness, width or sheet size, coating mass and quantity and Ahan Asa reviews the sourcing options.",
+        "Galvanized steel is zinc-coated by hot dipping and is used for air ducts, shed roofing and cladding, household appliances and fabricated parts. This category covers galvanized coil and cut-to-length sheet in grade DX51D+Z to EN 10346, 0.4 to 3 mm thick; coils are 1000 or 1250 mm wide and sheets 1000×2000 or 1250×2500 mm. Coils are sold by actual weighbridge weight. Send thickness, width or sheet size, coating mass and quantity and Ahan Assa reviews the sourcing options.",
     },
   },
   PREPAINTED_SHEET: {
@@ -285,7 +285,7 @@ export const CATEGORY_SEO: Record<string, Record<Locale, CategoryEntry>> = {
       h1: "Pre-painted steel (PPGI)",
       description: "Pre-painted galvanized steel coil (PPGI), DX51D+Z base to EN 10346, paint system to EN 10169, 0.4 to 0.7 mm thick, 1250 mm wide. Request a quote.",
       intro:
-        "Pre-painted galvanized steel (PPGI) is galvanized coil painted at the mill, used for shed roofing and cladding, sandwich panels, portable cabins and household appliances. This category covers PPGI coil on a DX51D+Z galvanized base to EN 10346 with a paint system to EN 10169, 0.4 to 0.7 mm thick and 1250 mm wide, in six colours: blue, white, appliance white, red, orange and brown. It is sold by actual weight. Name any other colour, width or paint system in your request and Ahan Asa reviews the sourcing options.",
+        "Pre-painted galvanized steel (PPGI) is galvanized coil painted at the mill, used for shed roofing and cladding, sandwich panels, portable cabins and household appliances. This category covers PPGI coil on a DX51D+Z galvanized base to EN 10346 with a paint system to EN 10169, 0.4 to 0.7 mm thick and 1250 mm wide, in six colours: blue, white, appliance white, red, orange and brown. It is sold by actual weight. Name any other colour, width or paint system in your request and Ahan Assa reviews the sourcing options.",
     },
   },
   HOT_ROLLED_COIL: {
@@ -313,7 +313,7 @@ export const CATEGORY_SEO: Record<string, Record<Locale, CategoryEntry>> = {
       h1: "Hot-rolled coil (HRC)",
       description: "Hot-rolled steel coil (HRC) in grade S235JR (ST37), tolerances to EN 10051, 2 to 15 mm thick and 1000, 1250 or 1500 mm wide. Send your list to request a quote.",
       intro:
-        "Hot-rolled coil is black steel strip supplied in coils, used for pipe and section making, cutting to sheet and fabricated parts. This category covers coil in grade S235JR (equivalent to ST37) with dimensional tolerances to EN 10051, 2 to 15 mm thick and 1000, 1250 or 1500 mm wide. Coils are sold by actual weighbridge weight; a coil usually weighs 3 to 25 tonnes. Send thickness, width, quantity and the preferred mill and Ahan Asa reviews the sourcing options.",
+        "Hot-rolled coil is black steel strip supplied in coils, used for pipe and section making, cutting to sheet and fabricated parts. This category covers coil in grade S235JR (equivalent to ST37) with dimensional tolerances to EN 10051, 2 to 15 mm thick and 1000, 1250 or 1500 mm wide. Coils are sold by actual weighbridge weight; a coil usually weighs 3 to 25 tonnes. Send thickness, width, quantity and the preferred mill and Ahan Assa reviews the sourcing options.",
     },
   },
   COLD_ROLLED: {
@@ -341,7 +341,7 @@ export const CATEGORY_SEO: Record<string, Record<Locale, CategoryEntry>> = {
       h1: "Cold-rolled steel (CRC)",
       description: "Cold-rolled, oiled steel coil and cut sheet in grade DC01 (ST12) to EN 10130, 0.4 to 2 mm thick, 1000 or 1250 mm wide. Send your list to request a quote.",
       intro:
-        "Cold-rolled steel is thin, smooth-surfaced sheet that is oiled after cold rolling, used for household appliances, electrical cabinets, automotive parts and metal furniture. This category covers coil 0.4 to 2 mm thick and 1000 or 1250 mm wide, and cut-to-length sheet 0.5 to 2 mm thick in 1000×2000 or 1250×2500 mm, in grade DC01 (equivalent to ST12) to EN 10130. It is sold by actual weight. Send thickness, width or sheet size and quantity and Ahan Asa reviews the sourcing options.",
+        "Cold-rolled steel is thin, smooth-surfaced sheet that is oiled after cold rolling, used for household appliances, electrical cabinets, automotive parts and metal furniture. This category covers coil 0.4 to 2 mm thick and 1000 or 1250 mm wide, and cut-to-length sheet 0.5 to 2 mm thick in 1000×2000 or 1250×2500 mm, in grade DC01 (equivalent to ST12) to EN 10130. It is sold by actual weight. Send thickness, width or sheet size and quantity and Ahan Assa reviews the sourcing options.",
     },
   },
 };

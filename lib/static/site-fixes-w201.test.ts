@@ -107,13 +107,13 @@ test("sticky WhatsApp: en and ar only, wa.me with the business number and a gree
   assert.equal(stickyWhatsApp("en", "0912"), null, "invalid number, no button");
   const en = stickyWhatsApp("en")!;
   const ar = stickyWhatsApp("ar")!;
-  for (const [link, greeting] of [[en, "Hello Ahan Asa, I have a question about steel supply."], [ar, "مرحبًا آهن آسا، لديّ استفسار عن توريد الحديد."]] as const) {
+  for (const [link, greeting] of [[en, "Hello Ahan Assa, I have a question about steel supply."], [ar, "مرحبًا آهن آسا، لديّ استفسار عن توريد الحديد."]] as const) {
     const url = new URL(link.href);
     assert.equal(url.origin + url.pathname, `https://wa.me/${WHATSAPP_BUSINESS_NUMBER}`);
     assert.equal(url.searchParams.get("text"), greeting);
     assert.equal(clickEventFor(link.href), "whatsapp_click", "the existing delegated listener reports it");
   }
-  assert.equal(en.label, "Chat with Ahan Asa on WhatsApp");
+  assert.equal(en.label, "Chat with Ahan Assa on WhatsApp");
   assert.equal(ar.label, "تواصل مع آهن آسا عبر واتساب");
 });
 

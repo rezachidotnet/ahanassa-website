@@ -95,7 +95,7 @@ const file = path.join(reportDir, `AHANASSA_WEBSITE_SOAK_RESULT_${utc}.md`);
 const us = (v: unknown) => (typeof v === "number" ? `${(v / 1000).toFixed(2)} ms` : "n/a");
 fs.writeFileSync(
   file,
-  `# Ahan Asa website — W3.1 soak result (r3 §8.1)
+  `# Ahan Assa website — W3.1 soak result (r3 §8.1)
 
 **Verdict: ${pass ? "PASS" : "FAIL"}**
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ARTICLE_CATEGORIES, ARTICLE_LOCALES, ARTICLE_SLUG, RESERVED_ARTICLE_SLUGS, publishedArticleRow, type ArticleLocale, type PublishedArticleRow } from "../contracts/snapshot-articles.ts";
+import { withCurrentLatinBrand } from "../metadata/site.ts";
 import { scanPublicFile } from "../static/leak-scan.ts";
 import { scanSourceNames } from "../static/source-name-scan.ts";
 import { parseFrontmatter } from "./frontmatter.ts";
@@ -61,7 +62,12 @@ export interface ArticleCheckResult {
   notes: string[];
 }
 
-export const ARTICLE_AUTHOR: Record<ArticleLocale, string> = { fa: "تحریریهٔ آهن آسا", ar: "فريق تحرير آهن آسا", en: "Ahan Asa Editorial Team" };
+export const ARTICLE_AUTHOR: Record<ArticleLocale, string> = { fa: "تحریریهٔ آهن آسا", ar: "فريق تحرير آهن آسا", en: "Ahan Assa Editorial Team" };
+/**
+ * W44: the en author the content repo wrote before the Latin brand became «Ahan Assa» (2026-10-24). Accepted on
+ * input so those articles still publish; every row renders ARTICLE_AUTHOR and the current brand (withCurrentLatinBrand).
+ */
+export const LEGACY_ARTICLE_AUTHOR: Partial<Record<ArticleLocale, string>> = { en: "Ahan Asa Editorial Team" };
 export const COVER_MAX_BYTES = 150 * 1024;
 
 const ARTICLE_PATH = /^articles\/(fa|ar|en)\/(\d{4})\/(\d{2})\/([^/]+)\.md$/;
@@ -256,7 +262,7 @@ export function checkArticleFiles(files: readonly ArticleSourceFile[], ctx: Arti
     if (data.date.slice(0, 7) !== `${yyyy}-${mm}`) reasons.push(`date ${data.date} does not match the folder ${yyyy}/${mm}`);
     if (data.updated < data.date) reasons.push("updated is earlier than date");
     if (RESERVED_ARTICLE_SLUGS.has(data.slug)) reasons.push(`slug "${data.slug}" is reserved by the /articles routes`);
-    if (data.author !== ARTICLE_AUTHOR[locale]) reasons.push(`author must be "${ARTICLE_AUTHOR[locale]}"`);
+    if (data.author !== ARTICLE_AUTHOR[locale] && data.author !== LEGACY_ARTICLE_AUTHOR[locale]) reasons.push(`author must be "${ARTICLE_AUTHOR[locale]}"`);
     if (data.translations[locale] !== data.slug) reasons.push(`translations.${locale} must be the article's own slug`);
     const category = ARTICLE_CATEGORIES.find((c) => c.source === data.category);
     if (!category) reasons.push(`unknown category "${data.category}"`);
@@ -351,22 +357,24 @@ export function checkArticleFiles(files: readonly ArticleSourceFile[], ctx: Arti
       if (other && other.data.translations[c.locale] === c.data.slug) translations[l] = target;
       else notes.push(`${c.file}: translation ${l}:${target} is not published in this build (no hreflang)`);
     }
+    // W44: the content repo may still spell the Latin brand «Ahan Asa»; the published row carries «Ahan Assa».
+    const b = withCurrentLatinBrand;
     return publishedArticleRow.parse({
       locale: c.locale,
       slug: c.data.slug,
-      title: c.data.title,
-      description: c.data.description,
+      title: b(c.data.title),
+      description: b(c.data.description),
       date: c.data.date,
       updated: c.data.updated,
       category: c.categoryCode,
-      tags_json: JSON.stringify(c.data.tags),
+      tags_json: JSON.stringify(c.data.tags.map(b)),
       related_products_json: JSON.stringify(c.data.related_products),
-      faq_json: JSON.stringify(c.data.faq),
-      sources_json: JSON.stringify(c.data.sources.map((s) => ({ title: s.title, url: s.url, publisher: s.publisher ?? null, accessed: s.accessed }))),
-      author: c.data.author,
+      faq_json: JSON.stringify(c.data.faq.map((f) => ({ ...f, q: b(f.q), a: b(f.a) }))),
+      sources_json: JSON.stringify(c.data.sources.map((s) => ({ title: b(s.title), url: s.url, publisher: s.publisher === undefined ? null : b(s.publisher), accessed: s.accessed }))),
+      author: ARTICLE_AUTHOR[c.locale],
       translations_json: JSON.stringify(translations),
-      body_md: c.body,
-      cover_svg: c.cover,
+      body_md: b(c.body),
+      cover_svg: b(c.cover),
     });
   });
   rows.sort((a, b) => `${a.locale}|${a.slug}`.localeCompare(`${b.locale}|${b.slug}`));

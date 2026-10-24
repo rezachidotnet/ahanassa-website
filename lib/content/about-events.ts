@@ -3,7 +3,7 @@ import type { Locale } from "../../config/locales.ts";
 /**
  * W20.2 (owner, 2026-10-16) — /about «رویدادها», the group statement and the newest «مسیر ما» milestone.
  * Only the facts the owner gave: the 29th Isfahan Building Industry Exhibition (Isfahan Buildexpo 1405),
- * 7–10 Mehr 1405 = 29 Sep–2 Oct 2026, Isfahan International Exhibition Center, with Ahan Asa's stand there
+ * 7–10 Mehr 1405 = 29 Sep–2 Oct 2026, Isfahan International Exhibition Center, with Ahan Assa's stand there
  * (the owner's closing-ceremony photo and farewell video). No award, visitor or deal figure is stated — none was given.
  */
 
@@ -80,17 +80,17 @@ export const ABOUT_EVENTS_COPY: Record<Locale, AboutEventsCopy> = {
   },
   en: {
     title: "Events",
-    lead: "Ahan Asa took part with its own stand in the 29th Isfahan Building Industry Exhibition.",
+    lead: "Ahan Assa took part with its own stand in the 29th Isfahan Building Industry Exhibition.",
     datesLabel: "Dates",
     venueLabel: "Venue",
     posterAlt: "Poster of the 29th Isfahan Building Industry Exhibition, 29 September to 2 October 2026, Isfahan International Exhibition Center",
     posterCaption: "Exhibition poster",
-    closingAlt: "Group photo at the Ahan Asa stand at the closing ceremony of Isfahan Buildexpo 1405",
-    closingCaption: "Closing ceremony, Ahan Asa stand",
+    closingAlt: "Group photo at the Ahan Assa stand at the closing ceremony of Isfahan Buildexpo 1405",
+    closingCaption: "Closing ceremony, Ahan Assa stand",
     videoTitle: "Farewell video from the exhibition",
     videoCaption: "Farewell video from the exhibition (about 30 seconds, Persian)",
     videoFallback: "Your browser cannot play this video.",
-    description: "Ahan Asa took part with its own stand in the 29th Isfahan Building Industry Exhibition.",
+    description: "Ahan Assa took part with its own stand in the 29th Isfahan Building Industry Exhibition.",
   },
   ar: {
     title: "الفعاليات",
@@ -114,7 +114,7 @@ export const ABOUT_EVENTS_ANCHOR = "events";
 /** «مسیر ما»: the exhibition as the latest milestone, after the seven owner-approved ones of lib/content/about.ts. */
 export const EXPO_MILESTONE: Record<Locale, { year: string; event: string }> = {
   fa: { year: "مهر ۱۴۰۵", event: "حضور در بیست‌ونهمین نمایشگاه تخصصی صنعت ساختمان اصفهان" },
-  en: { year: "Mehr 1405 SH (Sep–Oct 2026)", event: "Ahan Asa takes part in the 29th Isfahan Building Industry Exhibition" },
+  en: { year: "Mehr 1405 SH (Sep–Oct 2026)", event: "Ahan Assa takes part in the 29th Isfahan Building Industry Exhibition" },
   ar: { year: "مهر 1405 هـ.ش (سبتمبر–أكتوبر 2026)", event: "مشاركة آهن آسا في المعرض التخصصي التاسع والعشرين لصناعة البناء في أصفهان" },
 };
 

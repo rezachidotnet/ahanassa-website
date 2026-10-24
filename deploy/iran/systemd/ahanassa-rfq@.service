@@ -3,7 +3,7 @@
 # The activator restarts it when rfq-ir.mjs changes and sends SIGHUP (re-read the variant index) otherwise.
 # deploy/iran/RUNBOOK_P2.md §3.
 [Unit]
-Description=Ahan Asa domestic RFQ intake (%i)
+Description=Ahan Assa domestic RFQ intake (%i)
 After=network-online.target
 Wants=network-online.target
 

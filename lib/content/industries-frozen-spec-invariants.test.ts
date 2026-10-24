@@ -423,7 +423,7 @@ test("no published Industries asset may be published without a provenance record
     assert.ok(record, `${image.sector}: ${image.src} has no provenance record — it is \`restricted\` by default and must not be published`);
     assert.ok(isPublishable(record!), `${image.sector}: its provenance record does not permit publication`);
     assert.equal(record!.industrySector, image.sector, `${image.sector}: the registry must bind this asset to the same sector as the manifest`);
-    assert.equal(record!.notAhanAsaProjectEvidence, true, `${image.sector}: must be flagged as NOT Ahan Asa project evidence (§8, MEDIA_GUIDELINES §4.4/§29)`);
+    assert.equal(record!.notAhanAsaProjectEvidence, true, `${image.sector}: must be flagged as NOT Ahan Assa project evidence (§8, MEDIA_GUIDELINES §4.4/§29)`);
     assert.equal(record!.decorative, true, `${image.sector}: §8 renders these with empty alt, so the record must say they are decorative`);
     assert.equal(record!.aspectRatio, "4:3", `${image.sector}: §8 requires a common 4:3 ratio`);
   }

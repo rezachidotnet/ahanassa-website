@@ -42,14 +42,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 const H2 = "text-navy text-2xl font-extrabold";
 const LINK = "text-navy hover:text-copper underline underline-offset-4";
 
-/** Logo: grey until the card is hovered or focused (no transition under reduced motion); Ahan Asa's own card stays in colour. */
+/** Logo: grey until the card is hovered or focused (no transition under reduced motion); Ahan Assa's own card stays in colour. */
 // mix-blend-multiply drops the logos' own off-white backgrounds onto the white card; max-w keeps wide wordmarks in scale.
 const LOGO = "h-auto max-h-14 w-auto max-w-44 object-contain mix-blend-multiply";
 const LOGO_MUTED = "grayscale opacity-80 transition-[filter,opacity] duration-200 group-hover:grayscale-0 group-hover:opacity-100 group-focus-visible:grayscale-0 group-focus-visible:opacity-100 motion-reduce:transition-none";
 
 /**
  * W17.1 — one group company: logo (lib/content/company.ts, WebP with a PNG fallback, explicit width/height), name,
- * field and founding year. A sister company is one whole-card link (new tab, rel="noopener"); Ahan Asa is not a link.
+ * field and founding year. A sister company is one whole-card link (new tab, rel="noopener"); Ahan Assa is not a link.
  */
 function GroupCompanyCard({ locale, company }: { locale: Locale; company: (typeof GROUP_COMPANIES)[number] }) {
   const name = company.name[locale];

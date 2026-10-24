@@ -96,7 +96,7 @@ test("group logos: all five supplied (W17.5: AiSanat = the «فناساخت» ma
   }
 });
 
-test("group cards: equal height, explicit size, alt per locale, outbound links rel=noopener in a new tab; Ahan Asa not linked", () => {
+test("group cards: equal height, explicit size, alt per locale, outbound links rel=noopener in a new tab; Ahan Assa not linked", () => {
   const page = code("app/[locale]/about/page.tsx");
   assert.match(page, /<ul className="mt-8 grid auto-rows-fr gap-4/);
   assert.match(page, /<img src=\{company\.logo\.png\} alt=\{copy\.logoAlt\(name\)\} width=\{company\.logo\.width\} height=\{company\.logo\.height\} loading="lazy"/);

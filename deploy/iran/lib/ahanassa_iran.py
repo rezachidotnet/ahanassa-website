@@ -859,7 +859,7 @@ def bootstrap(cfg: dict, env: str) -> None:
     for n in NGINX_FILES:
         with open(os.path.join(rel, "nginx", n), "w", encoding="utf-8") as f:
             f.write("# bootstrap: no release activated yet\n")
-    page = '<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>Ahan Asa</title></head><body><p>در حال آماده‌سازی</p></body></html>\n'
+    page = '<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>Ahan Assa</title></head><body><p>در حال آماده‌سازی</p></body></html>\n'
     for n in ("index.html", "404.html"):
         with open(os.path.join(rel, "public", n), "w", encoding="utf-8") as f:
             f.write(page)

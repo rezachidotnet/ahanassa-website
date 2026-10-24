@@ -21,7 +21,7 @@ const moreLinks: Record<Locale, { raw: string; export: string }> = {
 
 export const productsHeroCopy: Record<Locale, { eyebrow: string; title: string; body: string }> = {
   fa: { eyebrow: "محصولات", title: "گروه‌های کالایی فولاد و آلیاژ.", body: "هر گروه کالایی زیر بخشی از خدمت مدیریت خرید آهن آساست، نه یک فروشگاه آنلاین." },
-  en: { eyebrow: "Products", title: "Steel and alloy product categories.", body: "Each category below is part of Ahan Asa's purchasing-management service, not an online store." },
+  en: { eyebrow: "Products", title: "Steel and alloy product categories.", body: "Each category below is part of Ahan Assa's purchasing-management service, not an online store." },
   ar: { eyebrow: "المنتجات", title: "فئات منتجات الصلب والسبائك.", body: "كل فئة أدناه جزء من خدمة إدارة الشراء لدى آهن آسا، وليست متجرًا إلكترونيًا." },
 };
 

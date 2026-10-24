@@ -167,7 +167,7 @@ test("expert photo: null by default, so no avatar in either layout; shown only w
   assert.equal(SALES_EXPERT, null, "default build: no expert configured");
   for (const locale of LOCALES) assert.equal(homeExpertProfile(locale), null);
   assert.deepEqual(homeExpertProfile("fa", profile), { src: "/images/team/sara.webp", width: 240, height: 240, name: "سارا", role: "کارشناس فروش آهن آسا" });
-  assert.equal(homeExpertProfile("en", profile)?.role, "Ahan Asa sales expert");
+  assert.equal(homeExpertProfile("en", profile)?.role, "Ahan Assa sales expert");
   assert.equal(homeExpertProfile("fa", { ...profile, photo: { ...profile.photo, src: " " } }), null, "no photo file");
   assert.equal(homeExpertProfile("en", { ...profile, firstName: { ...profile.firstName, en: "" } }), null, "no name in this locale");
   assert.equal(homeExpertProfile("fa", { ...profile, photo: { ...profile.photo, width: 0 } }), null, "no size = no reserved box");

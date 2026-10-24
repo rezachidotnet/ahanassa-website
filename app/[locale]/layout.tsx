@@ -21,7 +21,7 @@ export function generateStaticParams() {
 
 export const dynamicParams = false;
 
-/** W16.3 (D-SEO): the title suffix is the locale's brand (lib/metadata/site.ts#titleBrand) — "Ahan Asa" on en. */
+/** W16.3 (D-SEO): the title suffix is the locale's brand (lib/metadata/site.ts#titleBrand) — "Ahan Assa" on en. */
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale: rawLocale } = await params;
   const brand = titleBrand(isLocale(rawLocale) ? rawLocale : "fa");

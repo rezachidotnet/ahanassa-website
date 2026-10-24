@@ -20,6 +20,7 @@ import { checkIndexingPolicy, PRODUCTION_ORIGIN } from "./indexing-gate.ts";
 import { GA4_CONNECT_ORIGINS } from "../security/headers.ts";
 import { rfqApiMirrorOrigins } from "../mirror/iran-mirror.ts";
 import { checkSeoHostLock } from "./seo-host-lock.ts";
+import { BRAND_SCANNED_FILE, checkBrandName } from "./brand-name-gate.ts";
 
 /**
  * artifact.v1 gate (architecture V1.1 §7.1 step 6, docs/contracts/ARTIFACT_V1.md).
@@ -251,6 +252,8 @@ export function runArtifactGate(artifactDir: string, options: { companyPhones?: 
   failures.push(...checkMarkdownMirrors(textFiles, visibleText));
   // W18.3: the en indicator strip's own currency texts («IRR per USD») are not a price mention.
   failures.push(...checkAgentTexts(textFiles, everyPriceRow, [...indicatorInput.indicators.values()].flatMap((i) => allowedIndicatorTexts("en", i))));
+  // 8d. W44 (PROJECT_OVERRIDES.md §18): the Latin brand is «Ahan Assa»; the legacy spelling only as a JSON-LD alternateName.
+  failures.push(...checkBrandName(publicEntries.filter((e) => BRAND_SCANNED_FILE.test(e.path)).map((e) => ({ path: e.path, content: readPublic(e.path) }))));
   // 8. Price-source names (W9.6): never in any public file. The names never live in this public repository.
   const sourceNames = options.sourceNames === undefined ? loadSourceNames() : options.sourceNames;
   // Never a name in the output: a finding is the file (redacted when its path holds a name) + the list index.

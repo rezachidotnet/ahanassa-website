@@ -39,7 +39,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     description: t.metaDescription,
     indexable: publicPageIndexable(),
     languageAlternates: buildLanguageAlternatesFromEntries(MARKET_INDICATORS_LOCALES.map((l) => ({ locale: l, path: MARKET_INDICATORS_ROUTE }))),
-    // W18.3: the build-time share image of this locale (indicators only, never an Ahan Asa price).
+    // W18.3: the build-time share image of this locale (indicators only, never an Ahan Assa price).
     image: { url: `${siteConfig.baseUrl}${indicatorsShareImagePath(locale, "png")}`, ...SHARE_IMAGE_SIZE, alt: t.title },
   });
 }
@@ -109,7 +109,7 @@ async function IndicatorsContent({ locale }: { locale: MarketIndicatorsLocale })
 
 /**
  * W18.2 — "Steel market indicators" (en) / «مؤشرات سوق الصلب» (ar): the global reference indices and the USD/IRR
- * Exchange Center rate, each labelled as a reference index (not an Ahan Asa selling price) with its source and date.
+ * Exchange Center rate, each labelled as a reference index (not an Ahan Assa selling price) with its source and date.
  */
 export default async function MarketIndicatorsPage({ params }: PageProps) {
   const locale = pageLocale((await params).locale);

@@ -77,7 +77,7 @@ export const homeExpertCopy: Record<Locale, HomeExpertCopy> = {
     chat: "چت با کارشناس",
   },
   en: {
-    role: "Ahan Asa sales expert",
+    role: "Ahan Assa sales expert",
     title: "Talk to a sales expert",
     body: "Before you buy, go over specifications, quantities and delivery with a sales expert — through whichever channel suits you.",
     phone: { title: "Call us", hint: "Speak with a sales expert during business hours." },
@@ -85,7 +85,7 @@ export const homeExpertCopy: Record<Locale, HomeExpertCopy> = {
       title: "Message on WhatsApp",
       hint: "Send your question or material list on WhatsApp.",
       action: "Chat on WhatsApp",
-      greeting: "Hello, I would like to talk to an Ahan Asa sales expert.",
+      greeting: "Hello, I would like to talk to an Ahan Assa sales expert.",
     },
     rfq: { title: "Send your invoice or purchase list", hint: "Enter your invoice or material list in the request form." },
     hoursTitle: "Business hours",

@@ -1,4 +1,4 @@
-import { siteConfig } from "../metadata/site.ts";
+import { BRAND_SCHEMA_NAMES, siteConfig } from "../metadata/site.ts";
 import { CONTACT_PHONE_E164, CONTACT_SALES_EMAIL } from "../content/contact-channels.ts";
 import { PARENT_ORGANIZATION, WORKING_HOURS } from "../content/company.ts";
 import type { Locale } from "../../config/locales.ts";
@@ -24,7 +24,7 @@ export const ORGANIZATION_ADDRESS: Record<Locale, { streetAddress: string; addre
  */
 export const TEHRAN_OFFICE: Record<Locale, { name: string; streetAddress: string; addressLocality: string; postalCode: string }> = {
   fa: { name: "آهن آسا — دفتر هماهنگی تهران", streetAddress: "خیابان ستارخان، پلاک 660", addressLocality: "تهران", postalCode: "1454954166" },
-  en: { name: "Ahan Asa — Tehran coordination office", streetAddress: "Sattarkhan Street, No. 660", addressLocality: "Tehran", postalCode: "1454954166" },
+  en: { name: "Ahan Assa — Tehran coordination office", streetAddress: "Sattarkhan Street, No. 660", addressLocality: "Tehran", postalCode: "1454954166" },
   ar: { name: "آهن آسا — مكتب التنسيق في طهران", streetAddress: "شارع ستارخان، رقم 660", addressLocality: "طهران", postalCode: "1454954166" },
 };
 
@@ -85,8 +85,7 @@ export function organizationSchema(locale: Locale = "fa", options: { withSalesEm
   return {
     "@type": "Organization",
     "@id": organizationId(),
-    name: siteConfig.name,
-    alternateName: siteConfig.alternateName,
+    ...BRAND_SCHEMA_NAMES,
     url: siteConfig.baseUrl,
     parentOrganization: parentOrganizationSchema(locale),
     // The full brand mark (the former app/icon.jpg, which W10.2 replaced with sized favicons), as the
@@ -119,7 +118,7 @@ export function localBusinessId(): string {
  * Isfahan, no postal code confirmed for it) and the one verified phone, exactly as the footer and /contact
  * render them, and the confirmed working hours. D-COMPANY-INFO: `withTehranOffice` adds the Tehran
  * coordination office as a `department` (its own address and postal code, no separate phone) — only on
- * /contact, the page that renders it. Its `parentOrganization` is Ahan Asa's Organization node, whose own
+ * /contact, the page that renders it. Its `parentOrganization` is Ahan Assa's Organization node, whose own
  * parent is the group (parentOrganizationSchema). Never ratings, price range or geo coordinates (not
  * confirmed, PROJECT_OVERRIDES.md §10).
  */
@@ -128,8 +127,7 @@ export function localBusinessSchema(locale: Locale = "fa", options: { withTehran
   return {
     "@type": "LocalBusiness",
     "@id": localBusinessId(),
-    name: siteConfig.name,
-    alternateName: siteConfig.alternateName,
+    ...BRAND_SCHEMA_NAMES,
     url: siteConfig.baseUrl,
     image: `${siteConfig.baseUrl}/brand/ahan-asa-mark.jpg`,
     telephone: CONTACT_PHONE_E164,
@@ -181,7 +179,7 @@ export function websiteSchema() {
   return {
     "@type": "WebSite",
     "@id": websiteId(),
-    name: siteConfig.name,
+    ...BRAND_SCHEMA_NAMES,
     url: siteConfig.baseUrl,
     publisher: { "@id": organizationId() },
   };
@@ -208,7 +206,7 @@ export function breadcrumbListSchema(items: BreadcrumbItem[]) {
  * `Product` WITHOUT price/offer (architecture V1.1 §12; 01-sources/STRUCTURED_DATA.md §7.3, §12.2,
  * §12.4) for a published product (template) detail page only — never on category pages. Only fields
  * the page visibly renders: the heading (`name`), the intro (`description`) and the page URL. No `sku`
- * (the page lists many variants), no `brand`/`manufacturer` (Ahan Asa procures, it does not make), no
+ * (the page lists many variants), no `brand`/`manufacturer` (Ahan Assa procures, it does not make), no
  * internal id as `@id`. Its daily prices are a separate block (productOffersSchema, W20.7).
  */
 export function productSchema(input: { url: string; name: string; description: string | null }) {
@@ -257,8 +255,8 @@ export function jsonLdGraph(nodes: object[]) {
 }
 
 /**
- * W20.2 — a past `Event` Ahan Asa took part in (/about «رویدادها»). Only the facts the page shows: name, the
- * dates (all-day, as the poster gives them), the venue and its city, the poster image, and Ahan Asa as an
+ * W20.2 — a past `Event` Ahan Assa took part in (/about «رویدادها»). Only the facts the page shows: name, the
+ * dates (all-day, as the poster gives them), the venue and its city, the poster image, and Ahan Assa as an
  * attendee. It took place as scheduled, so `eventStatus` stays EventScheduled (schema.org has no "past" status).
  * No organizer, offers or performer — none was supplied.
  */
@@ -279,10 +277,10 @@ export function eventSchema(input: { id: string; name: string; description: stri
 }
 
 /**
- * W18.2 — a `Dataset` for a chart page (fa: Ahan Asa's own published daily prices of one product) or for the en/ar
+ * W18.2 — a `Dataset` for a chart page (fa: Ahan Assa's own published daily prices of one product) or for the en/ar
  * market-indicators page (one per indicator, with the source's credit and page). Describes the data the page shows
  * in its table; it never carries a value or a price (a Dataset is not an offer; the price gate's rule 8 keeps prices
- * out of every non-product JSON-LD). Ahan Asa is the creator of its own price data only: an indicator's creator is
+ * out of every non-product JSON-LD). Ahan Assa is the creator of its own price data only: an indicator's creator is
  * left out and its source named in `creditText` / `isBasedOn`.
  */
 export function datasetSchema(input: { url: string; id?: string; name: string; description: string; temporalCoverage: string; dateModified: string; variable: string; unitText: string; ownData: boolean; creditText?: string; isBasedOn?: string }) {

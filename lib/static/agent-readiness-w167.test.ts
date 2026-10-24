@@ -39,7 +39,7 @@ test("_headers: Content-Signal and Vary: Accept on every path; the .md mirrors a
 
 // --- 3. Markdown mirrors ----------------------------------------------------------------------------------
 
-const PAGE = `<!DOCTYPE html><html lang="en" dir="ltr"><head><title>Steel beams | Ahan Asa</title><link rel="canonical" href="https://www.ahanassa.com/en/products/category/beam"/></head><body>
+const PAGE = `<!DOCTYPE html><html lang="en" dir="ltr"><head><title>Steel beams | Ahan Assa</title><link rel="canonical" href="https://www.ahanassa.com/en/products/category/beam"/></head><body>
 <header><nav>Header menu</nav></header>
 <main id="main-content"><nav aria-label="Breadcrumb"><ol><li><a href="/en">Home</a></li><li>Beams</li></ol></nav>
 <h1>Steel beams</h1><p>IPE &amp; IPN beams to <strong>EN 10365</strong>.<!-- --> See <a href="/en/tools/weight-calculator">the calculator</a>.</p>
@@ -52,7 +52,7 @@ const PAGE = `<!DOCTYPE html><html lang="en" dir="ltr"><head><title>Steel beams 
 
 test("htmlToMarkdown: <main> only, headings/lists/tables/links, hidden and interactive parts dropped, front matter", () => {
   const md = htmlToMarkdown(PAGE);
-  assert.ok(md.startsWith('---\ntitle: "Steel beams | Ahan Asa"\nurl: https://www.ahanassa.com/en/products/category/beam\nlang: en\n---\n\n'));
+  assert.ok(md.startsWith('---\ntitle: "Steel beams | Ahan Assa"\nurl: https://www.ahanassa.com/en/products/category/beam\nlang: en\n---\n\n'));
   assert.match(md, /^# Steel beams$/m);
   assert.match(md, /IPE & IPN beams to \*\*EN 10365\*\*\. See \[the calculator\]\(https:\/\/www\.ahanassa\.com\/en\/tools\/weight-calculator\)\./);
   assert.match(md, /^1\. \[Home\]\(https:\/\/www\.ahanassa\.com\/en\)\n2\. Beams$/m);
@@ -137,7 +137,7 @@ test("gate: a Markdown mirror may only say what its HTML page shows; an orphan .
 
 test("gate: llms*.txt and en Markdown carry no snapshot price amount or factory/place; ar Markdown no factory/place", () => {
   const rows = [{ price_irr_per_kg: 489470, factory_name_fa: "کارخانه آزمایشی الف", location_fa: "درب کارخانه" }];
-  assert.deepEqual(checkAgentTexts([{ path: "llms.txt", content: "# Ahan Asa\nPhone: 031-35134\n" }], rows), []);
+  assert.deepEqual(checkAgentTexts([{ path: "llms.txt", content: "# Ahan Assa\nPhone: 031-35134\n" }], rows), []);
   assert.match(checkAgentTexts([{ path: "llms.txt", content: "Rebar 48,947 today" }], rows)[0], /price amount/);
   assert.match(checkAgentTexts([{ path: "en/prices.md", content: "rebar ۴۸۹٬۴۷۰" }], rows)[0], /price amount/, "IRR in Persian digits");
   assert.match(checkAgentTexts([{ path: "llms.txt", content: "Prices in Toman" }], rows)[0], /currency/);
@@ -176,7 +176,7 @@ const PAGES: LlmsPage[] = [
 
 test("llms.txt: company, products, fa/ar prices, calculator, raw materials, export, how to request, contact — links only to built pages", () => {
   const llms = buildLlmsTxt(PAGES);
-  assert.ok(llms.startsWith("# Ahan Asa (آهن آسا)\n\n> Ahan Asa is a B2B steel procurement partner in Iran"));
+  assert.ok(llms.startsWith("# Ahan Assa (آهن آسا)\n\n> Ahan Assa is a B2B steel procurement partner in Iran"));
   for (const heading of ["Company", "Products (specifications)", "Daily prices (Persian and Arabic only)", "Tools", "Steel raw materials (quote on request only)", "Export", "How to request a quote", "Contact"]) assert.match(llms, new RegExp(`^## ${heading.replace(/[()]/g, "\\$&")}$`, "m"));
   for (const link of ["/en/about", "/en/products/category/rebar", "/en/products/rebar-aj400", "/prices", "/ar/prices", "/prices/rebar", "/ar/prices/rebar", "/en/tools/weight-calculator", "/en/raw-materials/billet", "/en/export", "/en/contact", "/contact", "/ar/contact"]) assert.ok(llms.includes(`(https://www.ahanassa.com${link})`), link);
   assert.ok(!llms.includes("/en/raw-materials/dri"), "no link to a page the artifact does not have");

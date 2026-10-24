@@ -1,5 +1,5 @@
 /**
- * The Ahan Asa logo mark as inline SVG — the same two polygons and colours
+ * The Ahan Assa logo mark as inline SVG — the same two polygons and colours
  * W10.2 traced from logo/AhanAsa logo-13.jpg for the favicon (pixel IoU
  * navy 0.994, copper 0.996), with the viewBox cropped to the mark itself
  * (90 × 70). The square JPEG (original: public/_originals/brand/ahan-asa-mark.jpg) carries the

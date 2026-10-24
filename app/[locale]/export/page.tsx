@@ -42,7 +42,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 /**
- * W16.3 (D-SEO; owner D-COMPANY-INFO: export to Iraq and other countries approved) — what Ahan Asa exports,
+ * W16.3 (D-SEO; owner D-COMPANY-INFO: export to Iraq and other countries approved) — what Ahan Assa exports,
  * how to request, the RFQ link. en and ar; no price on either (lib/content/export.ts).
  */
 export default async function ExportPage({ params }: PageProps) {

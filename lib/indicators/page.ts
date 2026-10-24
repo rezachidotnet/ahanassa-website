@@ -2,7 +2,7 @@ import type { Locale } from "../../config/locales.ts";
 
 /**
  * W18.2 — the en/ar "Steel market indicators" page (`/en/market-indicators`, `/ar/market-indicators`): the global
- * reference indices and the USD/IRR Exchange Center rate, each with its source and date. No Ahan Asa price on en
+ * reference indices and the USD/IRR Exchange Center rate, each with its source and date. No Ahan Assa price on en
  * (en never shows one); ar links to the ar daily price page (price + date). fa has no such page: the fa indicators
  * sit in the price strip, the decision block and the chart pages, and `/market-indicators` sends fa to `/prices`
  * (lib/static/static-rules.ts). Published only when the snapshot has at least one indicator. Linked (owner,
@@ -37,12 +37,12 @@ export const MARKET_INDICATORS_COPY: Record<MarketIndicatorsLocale, MarketIndica
     eyebrow: "Market indicators",
     title: "Steel market indicators",
     metaTitle: "Steel market indicators: iron ore, US steel price index, USD/IRR",
-    metaDescription: "Reference indices for the steel market — iron ore, the US hot-rolled steel producer price index and the US dollar Exchange Center rate in Iran — with their sources and dates. Not Ahan Asa selling prices.",
-    body: "Global reference indices for steel and its raw materials, and the US dollar Exchange Center rate in Iran, with their sources and dates. They are reference indices, not Ahan Asa selling prices.",
+    metaDescription: "Reference indices for the steel market — iron ore, the US hot-rolled steel producer price index and the US dollar Exchange Center rate in Iran — with their sources and dates. Not Ahan Assa selling prices.",
+    body: "Global reference indices for steel and its raw materials, and the US dollar Exchange Center rate in Iran, with their sources and dates. They are reference indices, not Ahan Assa selling prices.",
     howToRead: {
       title: "How to read these figures",
       items: [
-        "Each figure is a public reference index or rate, shown with its source and the date it refers to. None of them is an Ahan Asa selling price.",
+        "Each figure is a public reference index or rate, shown with its source and the date it refers to. None of them is an Ahan Assa selling price.",
         "Monthly series show their data month: they are published about four to six weeks after the month ends, and the latest US values are preliminary for four months.",
         "They show where the market has been, not where it will go. They are not a forecast or buying advice.",
         "For a price for your quantity, delivery point and timing, send your list and we reply with a quote.",

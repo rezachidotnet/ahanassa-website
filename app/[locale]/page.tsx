@@ -134,7 +134,7 @@ interface PageProps {
  */
 const metaCopy: Record<Locale, { title: string; description: string }> = {
   fa: { title: "آهن آسا | خرید آهن‌آلات و قیمت روز آهن برای پروژه", description: "قیمت روز میلگرد، تیرآهن، ورق و قوطی با نام کارخانه و تاریخ. فاکتور یا لیست خریدتان را بفرستید؛ آهن آسا مشخصات، گزینه‌های تأمین و تحویل را بررسی می‌کند." },
-  en: { title: "Ahan Asa | Iranian Steel Sourcing for Projects", description: "Rebar, IPE beams, plates and hollow sections from Iranian mills — specs, sizes and weight tables. Send your purchase list and Ahan Asa reviews sourcing and delivery." },
+  en: { title: "Ahan Assa | Iranian Steel Sourcing for Projects", description: "Rebar, IPE beams, plates and hollow sections from Iranian mills — specs, sizes and weight tables. Send your purchase list and Ahan Assa reviews sourcing and delivery." },
   ar: { title: "آهن آسا | توريد الحديد الإيراني للمشاريع", description: "حديد التسليح والشيلمان والصاج والحديد المربع الإيراني مع جداول الأوزان والمواصفات وأسعار اليوم. أرسل قائمة الشراء ليراجع آهن آسا الاحتياج وخيارات التوريد." },
 };
 

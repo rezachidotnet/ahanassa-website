@@ -227,7 +227,7 @@ test("calculator en/ar: published titles per keyword map §7.5; en/ar copy langu
 });
 
 test("titles: en suffix is the Latin brand; the home titles are absolute (no repeated brand)", () => {
-  assert.equal(titleBrand("en"), "Ahan Asa");
+  assert.equal(titleBrand("en"), "Ahan Assa");
   assert.equal(titleBrand("fa"), "آهن آسا");
   assert.equal(titleBrand("ar"), "آهن آسا");
   const layout = read("app/[locale]/layout.tsx");
@@ -236,7 +236,7 @@ test("titles: en suffix is the Latin brand; the home titles are absolute (no rep
   const home = read("app/[locale]/page.tsx");
   assert.match(home, /titleAbsolute: true/);
   assert.match(home, /fa: \{ title: "آهن آسا \| خرید آهن‌آلات و قیمت روز آهن برای پروژه"/);
-  assert.match(home, /en: \{ title: "Ahan Asa \| Iranian Steel Sourcing for Projects"/);
+  assert.match(home, /en: \{ title: "Ahan Assa \| Iranian Steel Sourcing for Projects"/);
 });
 
 test("noindex pages: Industries and Markets stay public but noindex on every target and out of the sitemap", () => {
@@ -281,7 +281,7 @@ test("internal links (keyword map §8): product link block, /prices → hubs, ca
   const listing = read("components/products/products-listing.tsx");
   assert.match(listing, /RAW_MATERIALS_ROUTE/);
   assert.match(listing, /isExportPublished\(locale\)/);
-  const brand: Record<Locale, string> = { fa: "آهن آسا", en: "Ahan Asa", ar: "آهن آسا" };
+  const brand: Record<Locale, string> = { fa: "آهن آسا", en: "Ahan Assa", ar: "آهن آسا" };
   for (const l of locales) assert.equal(titleBrand(l), brand[l]);
 });
 

@@ -13,7 +13,7 @@ const HEADING_ID = "home-buyer-value-heading";
  * docs/homepage/AHANASSA_HOMEPAGE_VISUAL_SYSTEM_AND_MOTION_FREEZE_V1.0.md.
  *
  * Answers exactly one buyer question (§1): "Why should I place my steel
- * request with Ahan Asa?" — supplier selection. It owns human accountability,
+ * request with Ahan Assa?" — supplier selection. It owns human accountability,
  * coordinated handling of diverse requested items, equal seriousness for small
  * and bulk requests, and follow-up through agreed delivery obligations (§2).
  *

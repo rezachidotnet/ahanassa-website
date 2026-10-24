@@ -5,7 +5,7 @@ import { IndicatorStrip } from "./indicator-strip";
 
 /**
  * W18.3 — the market reference indicators strip on en/ar pages (home under the hero, /export, /ar/prices): the fa
- * strip's cards (reference indices only, each with the «not an Ahan Asa selling price» label, source and date;
+ * strip's cards (reference indices only, each with the «not an Ahan Assa selling price» label, source and date;
  * en neutral +/− text, no ▲▼), every card linking to /<locale>/market-indicators. Nothing without indicators —
  * the same condition that publishes that page. Its own async boundary (r4), like the fa strip.
  */

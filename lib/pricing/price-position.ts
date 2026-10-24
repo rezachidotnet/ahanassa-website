@@ -3,7 +3,7 @@ import type { DailyPoint } from "./price-history.ts";
 
 /**
  * W18.2 — the price-position gauge of the fa product page's decision block (and of the chart pages): where TODAY's
- * published price sits between the lowest and the highest of Ahan Asa's own published daily prices over the last
+ * published price sits between the lowest and the highest of Ahan Assa's own published daily prices over the last
  * 30 and 90 days. Pure and dependency-free: the build-time pages and the publication gate (lib/static/price-gate.ts
  * rule 9) both call it, so the page can only show what the snapshot gives.
  *

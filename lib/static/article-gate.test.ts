@@ -79,7 +79,7 @@ test("price gate: a fa/ar article's own text may quote a price; the same amount 
  * their "Related articles" card for it. Every content publish (prices too) was refused for two days.
  */
 const INCIDENT_OWN_PAGE = `---
-title: "What Moves Rebar Prices in Iran? A Buyer's Guide to Reading the Market | Ahan Asa"
+title: "What Moves Rebar Prices in Iran? A Buyer's Guide to Reading the Market | Ahan Assa"
 url: https://www.ahanassa.com/en/articles/rebar-price-factors
 lang: en
 ---
@@ -116,7 +116,7 @@ Contents
 Importers and contractors who buy Iranian rebar notice that prices can sit still for days and then change several times in a week. This guide explains the main rebar price factors in plain terms, so you can see what may lie behind a move and compare quotations more accurately. It is not a price forecast; it is a guide to reading the market.
 `;
 const INCIDENT_RELATED_CARDS = `---
-title: "IPE vs IPN Beams: Key Differences and Which One to Choose | Ahan Asa"
+title: "IPE vs IPN Beams: Key Differences and Which One to Choose | Ahan Assa"
 url: https://www.ahanassa.com/en/articles/ipe-vs-ipn-beam
 lang: en
 ---
@@ -133,7 +133,7 @@ test("W11.6 incident 2026-10-19/20: the exact en .md mirrors pass — own URL/sl
   assert.deepEqual(scanArticlePages([{ path: "en/articles/ipe-vs-ipn-beam.md", content: INCIDENT_RELATED_CARDS }], [ROW]), []);
   // Before W11.6 the mirror was one text: these were the joined "sentences" the gate refused.
   const blocks = markdownTextBlocks(INCIDENT_OWN_PAGE);
-  assert.ok(blocks.includes("What Moves Rebar Prices in Iran? A Buyer's Guide to Reading the Market | Ahan Asa"), "the title is text");
+  assert.ok(blocks.includes("What Moves Rebar Prices in Iran? A Buyer's Guide to Reading the Market | Ahan Assa"), "the title is text");
   assert.ok(!blocks.some((b) => b.includes("https://www.ahanassa.com/en/articles/rebar-price-factors")), "the url line is not text");
   assert.ok(blocks.includes("Why the same bar size can be priced differently") && blocks.includes("4 min read"), "one block per list item and paragraph");
   assert.equal(markdownTextBlocks(INCIDENT_RELATED_CARDS).filter((b) => b.endsWith("min read")).length, 3, "one block per card");

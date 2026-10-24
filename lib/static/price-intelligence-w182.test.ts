@@ -213,7 +213,7 @@ test("wiring: the pages and components render the W18.2 surfaces where the owner
   assert.match(src("app/[locale]/export/page.tsx"), /isMarketIndicatorsLocale\(locale\) && \(await listIndicators\(\)\)\.length > 0[\s\S]*MARKET_INDICATORS_ROUTE/);
   assert.doesNotMatch(src("lib/content/nav.ts"), /market-indicators|MARKET_INDICATORS/);
   assert.deepEqual([MARKET_INDICATORS_COPY.en.footerLink, MARKET_INDICATORS_COPY.ar.footerLink], ["Market indicators", "مؤشرات السوق"]);
-  // Owner 2026-10-16: ar keeps the link to /ar/prices; the indicators page never renders an Ahan Asa price.
+  // Owner 2026-10-16: ar keeps the link to /ar/prices; the indicators page never renders an Ahan Assa price.
   const indicatorsPage = src("app/[locale]/market-indicators/page.tsx");
   assert.match(indicatorsPage, /PRICE_PAGE_ROUTE/);
   assert.doesNotMatch(indicatorsPage, /listProductPagePrices|loadPriceTableRows|PriceCellContent|presentPriceCell/);

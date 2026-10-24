@@ -10,7 +10,7 @@ const preparingCopy: Record<Locale, { title: string; body: string; cta: string }
   },
   en: {
     title: "The online catalog is being prepared.",
-    body: "Real products are already synchronized from Ahan Asa's product system and are under editorial review; each product group appears here as soon as it is approved. Send your invoice or purchase list now and we will review it directly.",
+    body: "Real products are already synchronized from Ahan Assa's product system and are under editorial review; each product group appears here as soon as it is approved. Send your invoice or purchase list now and we will review it directly.",
     cta: "Send invoice or purchase list",
   },
   ar: {

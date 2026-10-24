@@ -391,7 +391,7 @@ function runOutsideLease(_env: CliEnv, _type: CatalogSyncType, fn: () => void): 
 
 function printUsage(): void {
   console.log(`
-Ahan Asa Catalog synchronization operator CLI (docs/CATALOG_SYNC_OPERATIONS.md)
+Ahan Assa Catalog synchronization operator CLI (docs/CATALOG_SYNC_OPERATIONS.md)
 
   status [--env local|staging|production]
   incremental --env <env> [--dry-run]

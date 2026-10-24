@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { FrontmatterError, parseFrontmatter, parseYaml } from "./frontmatter.ts";
 import { MarkdownError, parseMarkdown, parseInline, readingMinutes } from "./markdown.ts";
-import { ARTICLE_AUTHOR, articleTextFindings, checkArticleFiles, coverFindings, enPriceFindings, type ArticleCheckContext, type ArticleSourceFile } from "./validate.ts";
+import { ARTICLE_AUTHOR, LEGACY_ARTICLE_AUTHOR, articleTextFindings, checkArticleFiles, coverFindings, enPriceFindings, type ArticleCheckContext, type ArticleSourceFile } from "./validate.ts";
 import { articleListingPath, pageCount, ARTICLES_PER_PAGE } from "./routes.ts";
 import { normalizeRtlCover, rasterizeCover } from "./cover-raster.ts";
 import { fetchArticlesSource, readContentTree } from "../content-pipeline/articles-source.ts";
@@ -18,7 +18,7 @@ import type { ArticleLocale } from "../contracts/snapshot-articles.ts";
  * the content-repository fetch. All fixtures are SYNTHETIC (this repository is public): no article, cover
  * or name from the private content repository.
  */
-const COVER = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630"><rect width="1200" height="630" fill="#0B2545"/><text x="80" y="300" font-family="Estedad" font-size="54" fill="#FBF5EB">Ahan Asa</text></svg>`;
+const COVER = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630"><rect width="1200" height="630" fill="#0B2545"/><text x="80" y="300" font-family="Estedad" font-size="54" fill="#FBF5EB">Ahan Assa</text></svg>`;
 const CATEGORY = "استاندارد و مشخصات";
 const BODY: Record<ArticleLocale, string> = {
   fa: "مقدمهٔ مقاله دربارهٔ وزن میلگرد.\n\n## بخش اول\n\nمتن با [محصول](/products/rebar-a) و [تماس](/contact) و [همه محصولات](/products).\n\n| قطر | وزن |\n|---|---|\n| ۸ | ۰٫۳۹۵ |\n\n## بخش دوم\n\n- یک\n- دو\n",
@@ -199,7 +199,7 @@ test("checks: a private price-source name anywhere (text or cover) is refused, a
   const r = checkArticleFiles([article("fa", { body: `${BODY.fa}\nاز سایت examplemarket.test\n` }), cover()], ctx({ sourceNames: ["example-market.test"] }));
   assert.match(reasons(r, "articles/fa/2026/10/rebar-weight.md"), /price source \(name #1/);
   assert.ok(!reasons(r, "articles/fa/2026/10/rebar-weight.md").includes("example"));
-  const r2 = checkArticleFiles([article("fa"), cover("rebar-weight", "fa", COVER.replace("Ahan Asa", "Example Market"))], ctx({ sourceNames: ["example-market.test"] }));
+  const r2 = checkArticleFiles([article("fa"), cover("rebar-weight", "fa", COVER.replace("Ahan Assa", "Example Market"))], ctx({ sourceNames: ["example-market.test"] }));
   assert.equal(r2.rows.length, 0);
 });
 
@@ -255,6 +255,23 @@ test("checks: ar/en use their own cover, else the fa cover (noted)", () => {
   const r = checkArticleFiles([article("en", { slug: "en-only", translations: { fa: "rebar-weight" } }), cover()], ctx());
   assert.equal(r.rows.length, 1);
   assert.ok(r.notes.some((n) => n.includes("using the fa cover")));
+});
+
+test("W44: a content-repo article still spelling «Ahan Asa» (author, title, body, source, cover) publishes as «Ahan Assa»", () => {
+  const en = article("en", { slug: "en-legacy", translations: { fa: "rebar-weight" }, title: "Rebar weights from the Ahan Asa catalog", body: `Ahan Asa published its weight table.\n\n${BODY.en}` });
+  const legacy = { ...en, content: en.content.replace(ARTICLE_AUTHOR.en, LEGACY_ARTICLE_AUTHOR.en!).replace('title: "Synthetic source"', 'title: "Ahan Asa public catalog"\n    publisher: "Ahan Asa"') };
+  assert.ok(legacy.content.includes("author: Ahan Asa Editorial Team") && legacy.content.includes('publisher: "Ahan Asa"'));
+  const r = checkArticleFiles([legacy, cover("rebar-weight", "en", COVER.replace("Ahan Assa", "Ahan Asa"))], ctx());
+  assert.deepEqual(r.excluded, []);
+  const [row] = r.rows;
+  assert.equal(row.author, "Ahan Assa Editorial Team");
+  assert.equal(row.title, "Rebar weights from the Ahan Assa catalog");
+  assert.ok(row.body_md.includes("Ahan Assa published its weight table.") && row.cover_svg.includes(">Ahan Assa<"));
+  assert.deepEqual(JSON.parse(row.sources_json)[0], { title: "Ahan Assa public catalog", url: "https://example.org/source", publisher: "Ahan Assa", accessed: "2026-10-09" });
+  assert.ok(!/Ahan Asa(?!s)/.test(JSON.stringify(row)));
+  // Any other author is still refused.
+  const other = { ...en, content: en.content.replace(ARTICLE_AUTHOR.en, "Ahan Assa Team") };
+  assert.match(reasons(checkArticleFiles([other, cover()], ctx()), other.path), /author must be "Ahan Assa Editorial Team"/);
 });
 
 test("snapshot.v1: published_articles must be unique per (locale, slug) with reciprocal translations", () => {

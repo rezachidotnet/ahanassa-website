@@ -13,7 +13,7 @@ import { RFQ_UOM_CODES, type RfqUomCode } from "./uom.ts";
 
 /**
  * The authoritative Phase L test matrix — docs/RFQ_LAUNCH_UOM_ALIGNMENT.md.
- * Source: Odoo Ahan Asa Marketplace production 19.0.27.0.0, confirmed
+ * Source: Odoo Ahan Assa Marketplace production 19.0.27.0.0, confirmed
  * LAUNCH UOM HARDENING LIVE / DYNAMIC PRICING UNIT BASIS LIVE / SETTLEMENT
  * DUAL-SIDED BILLING LIVE all PASS. Every combination in the task's own
  * required matrix is exercised explicitly, one test per (group, unit) pair,

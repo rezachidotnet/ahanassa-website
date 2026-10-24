@@ -91,8 +91,8 @@ export const ARTICLE_COPY: Record<
   en: {
     nav: "Articles",
     title: "Articles",
-    body: "Buying guides, standards, installation and market analysis for steel buyers, from the Ahan Asa editorial team.",
-    metaDescription: "Ahan Asa articles: steel buying guides, weight tables and standards, installation methods and Iran steel market analysis for importers and engineers.",
+    body: "Buying guides, standards, installation and market analysis for steel buyers, from the Ahan Assa editorial team.",
+    metaDescription: "Ahan Assa articles: steel buying guides, weight tables and standards, installation methods and Iran steel market analysis for importers and engineers.",
     all: "All",
     filterLabel: "Article categories",
     published: "Published",
@@ -105,14 +105,14 @@ export const ARTICLE_COPY: Record<
     relatedProducts: "Related products",
     relatedArticles: "Related articles",
     rfq: "Request a quote",
-    rfqBody: "Send your purchase list or the specifications you need; the Ahan Asa team replies with an offer and delivery terms.",
+    rfqBody: "Send your purchase list or the specifications you need; the Ahan Assa team replies with an offer and delivery terms.",
     author: "By",
     pagination: "Article pages",
     previous: "Previous page",
     next: "Next page",
     pageOf: (p, n) => `Page ${p} of ${n}`,
     categoryTitle: (label) => `${label} articles`,
-    categoryMeta: (label) => `${label} articles from Ahan Asa: guides and analysis by the editorial team for steel importers and engineers.`,
+    categoryMeta: (label) => `${label} articles from Ahan Assa: guides and analysis by the editorial team for steel importers and engineers.`,
   },
 };
 
